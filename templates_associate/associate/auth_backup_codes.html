@@ -1,0 +1,39 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Backup Codes{% endblock %}
+{% block hero_title %}2FA Setup Complete!{% endblock %}
+{% block hero_subtitle %}Your account is now protected with two-factor authentication{% endblock %}
+
+{% block auth_content %}
+<div class="os-form-card" style="max-width:540px;margin:0 auto;">
+
+    <div style="background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;padding:1rem;margin-bottom:1.5rem;text-align:center;">
+        <i class="fas fa-shield-alt" style="color:#22c55e;font-size:1.5rem;"></i>
+        <p style="margin:0.5rem 0 0;color:#166534;font-weight:600;">Two-Factor Authentication Enabled</p>
+    </div>
+
+    <h2 class="os-form-heading"><i class="fas fa-key" style="margin-right:8px;color:#00d4ff;"></i> Backup Codes</h2>
+    <p style="font-size:14px;color:#64748b;margin:0 0 1rem;">Save these codes somewhere safe. Each code can only be used once if you lose access to your authenticator app.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1.5rem;">
+        {% for code in backup_codes %}
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:0.5rem;font-family:monospace;text-align:center;font-size:0.9rem;">{{ code }}</div>
+        {% endfor %}
+    </div>
+
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
+        <p style="margin:0;color:#92400e;font-size:14px;">
+            <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+            <strong>Important:</strong> You won't be able to see these codes again. Store them securely.
+        </p>
+    </div>
+
+    <button onclick="window.print()" class="os-btn-primary" style="background:#e5e7eb;color:#0a1628;margin-bottom:0.75rem;">
+        <i class="fas fa-print" style="margin-right:6px;"></i> Print Codes
+    </button>
+
+    <a href="{{ next_url if next_url else url_for('associate.dashboard') }}" class="os-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:0.75rem;">
+        <i class="fas fa-arrow-right" style="margin-right:6px;"></i> {{ 'Continue to Application' if next_url else 'Continue to Dashboard' }}
+    </a>
+</div>
+{% endblock %}

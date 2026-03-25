@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="fas fa-users-cog me-2"></i>User Management</h1>
+            <p class="subtitle mb-0">Manage system users and access permissions</p>
+        </div>
+        <a href="{{ url_for('admin_create_user') }}" class="btn btn-light">
+            <i class="fas fa-user-plus me-1"></i> Create User
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>2FA</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-circle me-2" style="width: 36px; height: 36px; background: linear-gradient(135deg, #3b82f6, #1e40af); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                    {{ user.name[0]|upper }}
+                                </div>
+                                <div>
+                                    <strong>{{ user.name }}</strong>
+                                    <div class="small text-muted">ID: {{ user.id }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if user.role == 'super_admin' %}
+                                <span class="badge bg-danger"><i class="fas fa-crown me-1"></i>Super Admin</span>
+                            {% elif user.role == 'admin' %}
+                                <span class="badge bg-primary"><i class="fas fa-user-shield me-1"></i>Admin</span>
+                            {% else %}
+                                <span class="badge bg-secondary"><i class="fas fa-user me-1"></i>{{ user.role|replace('_', ' ')|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.totp_enabled %}
+                                <span class="badge bg-success"><i class="fas fa-shield-alt me-1"></i>Enabled</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Not Set</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                {% if user.is_locked and user.is_locked() %}
+                                    <span class="badge bg-danger"><i class="fas fa-lock me-1"></i>Locked</span>
+                                {% else %}
+                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Active</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i>Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.last_login %}
+                                <span class="text-muted small">{{ user.last_login.strftime('%d %b %Y, %H:%M') }}</span>
+                            {% else %}
+                                <span class="text-muted small">Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if user.is_locked and user.is_locked() %}
+                                    <form method="POST" action="{{ url_for('admin_unlock_user', user_id=user.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-warning" 
+                                                onclick="return confirm('Unlock {{ user.email }}?')"
+                                                title="Unlock User">
+                                            <i class="fas fa-unlock"></i>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                                
+                                <!-- Edit User -->
+                                <button type="button" class="btn btn-outline-primary" 
+                                        onclick="editUser({{ user.id }}, '{{ user.name }}', '{{ user.email }}', '{{ user.role }}')"
+                                        title="Edit User">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                
+                                <!-- Send Magic Link (for password reset) -->
+                                <form method="POST" action="{{ url_for('admin_send_magic_link', user_id=user.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-secondary" 
+                                            onclick="return confirm('Send a magic link to {{ user.email }} to reset their password?')"
+                                            title="Send Magic Link">
+                                        <i class="fas fa-magic"></i>
+                                    </button>
+                                </form>
+                                
+                                <!-- Disable 2FA (if enabled) -->
+                                {% if user.totp_enabled %}
+                                <form method="POST" action="{{ url_for('admin_disable_user_2fa', user_id=user.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-warning" 
+                                            onclick="return confirm('Disable 2FA for {{ user.email }}? They will need to set it up again.')"
+                                            title="Disable 2FA">
+                                        <i class="fas fa-shield-alt"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                
+                                <!-- Deactivate/Activate User -->
+                                {% if user.id != current_user.id %}
+                                    {% if user.is_active %}
+                                    <form method="POST" action="{{ url_for('admin_deactivate_user', user_id=user.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger" 
+                                                onclick="return confirm('Deactivate {{ user.email }}? They will no longer be able to log in.')"
+                                                title="Deactivate User">
+                                            <i class="fas fa-user-slash"></i>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_activate_user', user_id=user.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-success" 
+                                                onclick="return confirm('Activate {{ user.email }}?')"
+                                                title="Activate User">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    <!-- Delete User (permanent) -->
+                                    <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger" 
+                                                onclick="return confirm('PERMANENTLY DELETE {{ user.email }}? This cannot be undone!')"
+                                                title="Delete User Permanently">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users text-muted" style="font-size: 3rem;"></i>
+            <h5 class="mt-3 text-muted">No Users Found</h5>
+            <p class="text-muted">Get started by creating the first user.</p>
+            <a href="{{ url_for('admin_create_user') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus me-1"></i> Create User
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4 border-0 bg-light">
+    <div class="card-body">
+        <h6 class="text-muted mb-3"><i class="fas fa-info-circle me-2"></i>User Role Permissions</h6>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="d-flex align-items-start">
+                    <span class="badge bg-danger me-2 mt-1"><i class="fas fa-crown"></i></span>
+                    <div>
+                        <strong>Super Admin</strong>
+                        <p class="small text-muted mb-0">Full system access, user management, all settings</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-start">
+                    <span class="badge bg-primary me-2 mt-1"><i class="fas fa-user-shield"></i></span>
+                    <div>
+                        <strong>Admin</strong>
+                        <p class="small text-muted mb-0">Manage associates, engagements, and reports</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-start">
+                    <span class="badge bg-secondary me-2 mt-1"><i class="fas fa-user"></i></span>
+                    <div>
+                        <strong>Employee</strong>
+                        <p class="small text-muted mb-0">View dashboard and assigned tasks only</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_update_user') }}" id="editUserForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="user_id" id="edit_user_id">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-user-edit me-2"></i>Edit User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" name="name" id="edit_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" id="edit_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" name="role" id="edit_role">
+                            <option value="employee">Employee</option>
+                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editUser(userId, name, email, role) {
+    document.getElementById('edit_user_id').value = userId;
+    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_email').value = email;
+    document.getElementById('edit_role').value = role;
+    
+    var modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    modal.show();
+}
+</script>
+</div>
+{% endblock %}

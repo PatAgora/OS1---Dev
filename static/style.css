@@ -1,0 +1,9 @@
+
+body { background: #f6f7fb; }
+.card { border-radius: 1rem; }
+.navbar { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.card.kpi { border:0; box-shadow: 0 4px 16px rgba(0,0,0,.06); padding:1rem 1.25rem; border-radius: 1rem; }
+.card.kpi .k { color:#6c757d; font-size:.9rem; }
+.card.kpi .v { font-weight: 800; font-size: 2rem; }
+.kanban .kb-col { width: 320px; }
+.kb-list .kb-item { border:0; border-bottom:1px solid #eee; }

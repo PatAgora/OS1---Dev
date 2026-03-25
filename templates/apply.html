@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply for {{ job.title }} - Optimus</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --optimus-primary: #030a1d;
+            --optimus-secondary: #1e3a8a;
+            --optimus-accent: #3b82f6;
+            --optimus-light: #f8fafc;
+            --optimus-gradient: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+        }
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        body {
+            background: var(--optimus-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .public-header {
+            background: var(--optimus-gradient);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+        
+        .brand-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.02em;
+        }
+        
+        .header-tagline {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+        
+        /* Hero Section */
+        .apply-hero {
+            background: var(--optimus-gradient);
+            padding: 2.5rem 0 3.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .apply-hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: linear-gradient(to top right, var(--optimus-light) 50%, transparent 50%);
+        }
+        
+        .hero-container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        
+        .hero-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .hero-icon i {
+            font-size: 1.5rem;
+            color: white;
+        }
+        
+        .hero-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+        
+        .hero-subtitle {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 1.1rem;
+        }
+        
+        .job-link {
+            color: white;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        
+        .job-link:hover {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem 0 4rem;
+        }
+        
+        .content-container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+        
+        /* Form Card */
+        .form-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+        }
+        
+        .form-section {
+            margin-bottom: 2rem;
+        }
+        
+        .form-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .section-header {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--optimus-primary);
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--optimus-light);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section-header i {
+            color: var(--optimus-secondary);
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .form-label .required {
+            color: #ef4444;
+        }
+        
+        .form-control {
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .form-control:focus {
+            border-color: var(--optimus-secondary);
+            box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+        }
+        
+        .form-control::placeholder {
+            color: #9ca3af;
+        }
+        
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        /* File Upload */
+        .file-upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            background: #fafbfc;
+        }
+        
+        .file-upload-area:hover {
+            border-color: var(--optimus-secondary);
+            background: #f0f4fa;
+        }
+        
+        .file-upload-area.dragover {
+            border-color: var(--optimus-secondary);
+            background: #f0f4fa;
+        }
+        
+        .file-upload-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--optimus-light);
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .file-upload-icon i {
+            font-size: 1.25rem;
+            color: var(--optimus-secondary);
+        }
+        
+        .file-upload-text {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+        
+        .file-upload-hint {
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+        
+        .file-upload-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-selected {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: #f0fdf4;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        .file-selected i {
+            color: #22c55e;
+        }
+        
+        .file-selected-name {
+            flex: 1;
+            font-size: 0.9rem;
+            color: #166534;
+            font-weight: 500;
+        }
+        
+        .file-selected-remove {
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+        
+        .file-selected-remove:hover {
+            color: #ef4444;
+        }
+        
+        /* Submit Button */
+        .submit-btn {
+            display: block;
+            width: 100%;
+            background: var(--optimus-gradient);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            margin-top: 1.5rem;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(30, 58, 138, 0.35);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .submit-btn i {
+            margin-left: 0.5rem;
+        }
+        
+        /* Back Link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--optimus-secondary);
+        }
+        
+        /* Privacy Notice */
+        .privacy-notice {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-top: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        
+        .privacy-notice i {
+            color: var(--optimus-secondary);
+            margin-top: 0.125rem;
+        }
+        
+        .privacy-notice p {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        /* Footer */
+        .public-footer {
+            background: var(--optimus-primary);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 2rem 0;
+            text-align: center;
+        }
+        
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+        
+        .footer-brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+        
+        .footer-text {
+            font-size: 0.875rem;
+            margin: 0;
+        }
+        
+        /* Flash Messages */
+        .alert {
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            border: none;
+        }
+        
+        .alert-success {
+            background: #f0fdf4;
+            color: #166534;
+        }
+        
+        .alert-danger {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 1.5rem;
+            }
+            
+            .form-card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="public-header">
+        <div class="header-container">
+            <a href="#" class="brand">
+                <span class="brand-text">OPTIMUS</span>
+            </a>
+            <span class="header-tagline">Career Opportunities</span>
+        </div>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="apply-hero">
+        <div class="hero-container">
+            <div class="hero-icon">
+                <i class="fas fa-paper-plane"></i>
+            </div>
+            <h1 class="hero-title">Apply for {{ job.title }}</h1>
+            <p class="hero-subtitle">
+                <a href="{{ url_for('public_job', token=job.public_token) }}" class="job-link">
+                    <i class="fas fa-arrow-left me-1"></i> View job details
+                </a>
+            </p>
+        </div>
+    </section>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
+                            <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-2"></i>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="form-card">
+                <form method="post" enctype="multipart/form-data" id="applyForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <!-- Personal Details -->
+                    <div class="form-section">
+                        <div class="section-header">
+                            <i class="fas fa-user"></i>
+                            Personal Details
+                        </div>
+                        
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Full Name <span class="required">*</span></label>
+                                {{ form.name(class="form-control", placeholder="Enter your full name") }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email Address <span class="required">*</span></label>
+                                {{ form.email(class="form-control", placeholder="your.email@example.com") }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number</label>
+                                {{ form.phone(class="form-control", placeholder="+44 7700 000000") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Application Details -->
+                    <div class="form-section">
+                        <div class="section-header">
+                            <i class="fas fa-file-alt"></i>
+                            Application Details
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Cover Note</label>
+                            {{ form.cover_note(class="form-control", placeholder="Tell us why you're interested in this role and what makes you a great fit...", rows="4") }}
+                        </div>
+                        
+                        <div>
+                            <label class="form-label">CV / Resume</label>
+                            <div class="file-upload-area" id="fileUploadArea">
+                                <div class="file-upload-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <div class="file-upload-text">
+                                    Click to upload or drag and drop
+                                </div>
+                                <div class="file-upload-hint">
+                                    PDF, DOC, or DOCX (Max 10MB)
+                                </div>
+                                <div style="position: relative;">
+                                    {{ form.cv(class="file-upload-input", id="cvInput") }}
+                                </div>
+                            </div>
+                            <div class="file-selected" id="fileSelected" style="display: none;">
+                                <i class="fas fa-file-pdf"></i>
+                                <span class="file-selected-name" id="fileName"></span>
+                                <span class="file-selected-remove" onclick="clearFile()">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <button type="submit" class="submit-btn">
+                        Submit Application <i class="fas fa-arrow-right"></i>
+                    </button>
+                    
+                    <div class="privacy-notice">
+                        <i class="fas fa-shield-alt"></i>
+                        <p>
+                            By submitting this application, you agree that your personal data will be processed 
+                            in accordance with our privacy policy. We'll only use your information to process 
+                            your application and communicate with you about relevant opportunities.
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="public-footer">
+        <div class="footer-container">
+            <div class="footer-brand">OPTIMUS</div>
+            <p class="footer-text">&copy; {{ now.year if now else '2026' }} Optimus. All rights reserved.</p>
+        </div>
+    </footer>
+    
+    <script>
+        // File upload handling
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const cvInput = document.getElementById('cvInput');
+        const fileSelected = document.getElementById('fileSelected');
+        const fileName = document.getElementById('fileName');
+        
+        cvInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                fileName.textContent = this.files[0].name;
+                fileSelected.style.display = 'flex';
+                fileUploadArea.style.display = 'none';
+            }
+        });
+        
+        function clearFile() {
+            cvInput.value = '';
+            fileSelected.style.display = 'none';
+            fileUploadArea.style.display = 'block';
+        }
+        
+        // Drag and drop
+        fileUploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        fileUploadArea.addEventListener('dragleave', function() {
+            this.classList.remove('dragover');
+        });
+        
+        fileUploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                cvInput.files = e.dataTransfer.files;
+                fileName.textContent = e.dataTransfer.files[0].name;
+                fileSelected.style.display = 'flex';
+                fileUploadArea.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

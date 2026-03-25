@@ -1,0 +1,399 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'timesheets' %}
+
+{% block page_title %}Timesheets{% endblock %}
+{% block header_title %}Timesheets{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Timesheets</li>
+{% endblock %}
+
+{% block content %}
+<!-- New Timesheet -->
+{% if not current_ts %}
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-plus-circle me-2"></i>New Timesheet</h2>
+    </div>
+    <div class="portal-card-body">
+        {% if assignments %}
+        <form method="POST" action="/portal/timesheets/new">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">Assignment</label>
+                    <select name="assignment_id" class="form-select" required>
+                        <option value="">Select assignment...</option>
+                        {% for a in assignments %}
+                        <option value="{{ a.id }}">{{ a.job_title }}{% if a.client %} — {{ a.client }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Week Starting (Monday)</label>
+                    <input type="date" name="week_start" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus me-1"></i> Create Timesheet
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-muted text-center py-3">No active assignments. You need an assignment before creating a timesheet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Current Timesheet: Weekly Grid -->
+{% if current_ts %}
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-calendar-week me-2"></i>Current Timesheet</h2>
+        <span class="badge badge-in-progress">{{ current_ts.status or 'Draft' }}</span>
+    </div>
+    <div class="portal-card-body" style="padding: 0;">
+        <form method="POST" action="/portal/timesheets/save" id="timesheetForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="timesheet_id" value="{{ current_ts.id }}">
+
+            <!-- Summary bar -->
+            <div style="padding: 16px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px;">
+                <div><strong>Timesheet ID:</strong> {{ "%04d"|format(current_ts.id) }}</div>
+                <div><strong>Period:</strong> {{ current_ts.period_start.strftime('%d/%m/%Y') if current_ts.period_start else '' }} – {{ current_ts.period_end.strftime('%d/%m/%Y') if current_ts.period_end else '' }}</div>
+                <div><strong>Status:</strong> {{ current_ts.status or 'Draft' }}</div>
+                <div><strong>Day Rate:</strong> &pound;{{ "%.2f"|format(current_ts.day_rate or 0) }}/d</div>
+                {% if current_ts.overtime_rate %}
+                <div><strong>OT Rate:</strong> &pound;{{ "%.2f"|format(current_ts.overtime_rate) }}/h</div>
+                {% endif %}
+            </div>
+
+            <!-- Weekly Grid -->
+            {% if week_days %}
+            <div style="overflow-x: auto;">
+                <table class="portal-table" style="margin: 0; font-size: 13px;">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 140px;">Time Type</th>
+                            {% for day in week_days %}
+                            <th style="text-align: center; min-width: 80px;">{{ day.short }}<br><small>{{ day.date[8:] }}</small></th>
+                            {% endfor %}
+                            <th style="text-align: center; min-width: 60px;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tt in time_types %}
+                        <tr>
+                            <td style="font-weight: 600; white-space: nowrap;">{{ tt }}</td>
+                            {% for day in week_days %}
+                            {% set entry_key = (day.date, tt) %}
+                            {% set entry_val = entries.get(entry_key, {}).get('value', '') %}
+                            <td style="text-align: center; padding: 4px;">
+                                {% if 'overtime' in tt.lower() %}
+                                <input type="text" name="entry_{{ day.date }}_{{ tt.replace(' ', '__') }}"
+                                       value="{{ entry_val if entry_val else '' }}"
+                                       placeholder="0:00" class="form-control form-control-sm text-center ts-input ts-hours"
+                                       style="width: 70px; margin: 0 auto;" data-type="hours">
+                                {% else %}
+                                <select name="entry_{{ day.date }}_{{ tt.replace(' ', '__') }}"
+                                        class="form-select form-select-sm text-center ts-input ts-days"
+                                        style="width: 70px; margin: 0 auto;" data-type="days">
+                                    <option value="0" {% if not entry_val or entry_val == 0 %}selected{% endif %}>-</option>
+                                    <option value="0.5" {% if entry_val == 0.5 %}selected{% endif %}>&#189;</option>
+                                    <option value="1" {% if entry_val == 1 or entry_val == 1.0 %}selected{% endif %}>1</option>
+                                </select>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td style="text-align: center; font-weight: 600;" class="row-total" id="total_{{ loop.index0 }}">0</td>
+                        </tr>
+                        {% endfor %}
+                        <!-- Billable row -->
+                        <tr style="background: var(--color-gray-50); font-weight: 700;">
+                            <td>Billable Days</td>
+                            {% for day in week_days %}
+                            <td style="text-align: center;" class="day-billable" id="billable_{{ loop.index0 }}">-</td>
+                            {% endfor %}
+                            <td style="text-align: center;" id="totalBillableDays">0</td>
+                        </tr>
+                        <tr style="background: var(--color-gray-50); font-weight: 700;">
+                            <td>Amount</td>
+                            {% for day in week_days %}
+                            <td style="text-align: center;" class="day-amount" id="amount_{{ loop.index0 }}">-</td>
+                            {% endfor %}
+                            <td style="text-align: center; color: var(--color-success);" id="totalAmount">&pound;0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <p>No week data available. This timesheet may need to be recreated.</p>
+            </div>
+            {% endif %}
+
+            <!-- Summary Panel -->
+            <div style="padding: 20px; border-top: 2px solid var(--color-gray-200); display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px;">
+                <div>
+                    <div class="text-muted text-xs">Billable Days</div>
+                    <div class="font-semibold" id="summaryDays">{{ "%.1f"|format(current_ts.billable_days or 0) }}</div>
+                </div>
+                <div>
+                    <div class="text-muted text-xs">Billable Hours (OT)</div>
+                    <div class="font-semibold" id="summaryHours">{{ "%.1f"|format(current_ts.billable_hours or 0) }}</div>
+                </div>
+                <div>
+                    <div class="text-muted text-xs">Day Rate Amount</div>
+                    <div class="font-semibold" id="summaryDayAmount">&pound;{{ "%.2f"|format((current_ts.billable_days or 0) * (current_ts.day_rate or 0)) }}</div>
+                </div>
+                <div>
+                    <div class="text-muted text-xs">OT Amount</div>
+                    <div class="font-semibold" id="summaryOTAmount">&pound;{{ "%.2f"|format((current_ts.billable_hours or 0) * (current_ts.overtime_rate or 0)) }}</div>
+                </div>
+                <div>
+                    <div class="text-muted text-xs text-success font-weight-bold">Total Amount</div>
+                    <div class="font-semibold" style="color: var(--color-success); font-size: 18px;" id="summaryTotal">&pound;{{ "%.2f"|format(current_ts.grand_total or current_ts.total_amount or 0) }}</div>
+                </div>
+            </div>
+
+            <!-- Buttons: REQ-091 hidden after approval/submission -->
+            {% if current_timesheet and current_timesheet.status in ('Draft', 'Unsubmitted', None, '') %}
+            <div style="padding: 16px 20px; border-top: 1px solid var(--color-gray-200); display: flex; gap: 12px; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-save me-1"></i> Save Draft
+                </button>
+                <button type="submit" formaction="/portal/timesheets/submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-1"></i> Submit Timesheet
+                </button>
+                <button type="submit" formaction="/portal/timesheets/cancel" class="btn btn-outline-danger ms-auto" onclick="return confirm('Cancel this timesheet?');">
+                    <i class="fas fa-times me-1"></i> Cancel Timesheet
+                </button>
+            </div>
+            {% else %}
+            <div style="padding: 16px 20px; border-top: 1px solid var(--color-gray-200);">
+                <span class="badge" style="background:#d1fae5;color:#059669;padding:8px 16px;font-size:13px;">
+                    <i class="fas fa-lock me-1"></i> Timesheet {{ current_timesheet.status if current_timesheet else '' }} — editing locked
+                </span>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Expenses -->
+{% if expense_enabled %}
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-receipt me-2"></i>Expenses</h2>
+    </div>
+    <div class="portal-card-body">
+        {% if expenses %}
+        <table class="portal-table mb-3">
+            <thead>
+                <tr><th>Type</th><th>Description</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+                {% for exp in expenses %}
+                <tr>
+                    <td>{{ exp.expense_type }}</td>
+                    <td>{{ exp.description or '' }}</td>
+                    <td>&pound;{{ "%.2f"|format(exp.amount or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <!-- P6: Expense input form -->
+        {% if current_timesheet and current_timesheet.status in ('Draft', 'Unsubmitted', None, '') %}
+        <div class="mt-3 p-3" style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
+            <h4 style="font-size:14px;margin:0 0 12px;"><i class="fas fa-plus-circle me-1"></i> Add Expense</h4>
+            <form method="POST" action="{{ url_for('associate.timesheets_add_expense') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="timesheet_id" value="{{ current_timesheet.id }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:12px;">Type</label>
+                        <select name="expense_type" class="form-select form-select-sm">
+                            {% for et in expense_types %}
+                            <option value="{{ et }}">{{ et }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:12px;">Description</label>
+                        <input type="text" name="expense_description" class="form-control form-control-sm" placeholder="Brief description">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-size:12px;">Amount (&pound;)</label>
+                        <input type="number" name="expense_amount" class="form-control form-control-sm" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-size:12px;">Receipt</label>
+                        <input type="file" name="expense_receipt" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-plus me-1"></i>Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-muted text-sm mt-2">Expenses can be added when a draft timesheet is active.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Previous Timesheets (Monthly Bundles) -->
+<div class="portal-card">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-history me-2"></i>Previous Timesheets</h2>
+    </div>
+    {% if monthly_bundles %}
+    <div class="portal-card-body" style="padding: 0;">
+        {% for month_key, bundle in monthly_bundles %}
+        <div class="ts-month-bundle">
+            <div style="padding: 16px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                <div>
+                    <strong>{{ bundle.label }}</strong>
+                    <span class="text-muted text-sm ms-2">{{ bundle.sheets|length }} timesheet{{ 's' if bundle.sheets|length != 1 }}</span>
+                </div>
+                <div style="display: flex; gap: 24px; font-size: 13px;">
+                    <span><strong>Days:</strong> {{ "%.1f"|format(bundle.total_days) }}</span>
+                    {% if bundle.total_hours > 0 %}
+                    <span><strong>OT:</strong> {{ "%.1f"|format(bundle.total_hours) }}h</span>
+                    {% endif %}
+                    <span style="color: var(--color-success);"><strong>Total: &pound;{{ "%.2f"|format(bundle.total_amount) }}</strong></span>
+                    <i class="fas fa-chevron-down text-muted"></i>
+                </div>
+            </div>
+            <div class="hidden">
+                <table class="portal-table" style="margin: 0; font-size: 13px;">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>Days</th>
+                            <th>OT Hours</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ts in bundle.sheets %}
+                        <tr>
+                            <td>{{ ts.period_start.strftime('%d/%m') if ts.period_start else '' }} – {{ ts.period_end.strftime('%d/%m/%Y') if ts.period_end else '' }}</td>
+                            <td>{{ "%.1f"|format(ts.billable_days or 0) }}</td>
+                            <td>{{ "%.1f"|format(ts.billable_hours or 0) }}</td>
+                            <td>&pound;{{ "%.2f"|format(ts.grand_total or ts.total_amount or 0) }}</td>
+                            <td>
+                                {% if ts.status == 'Approved' %}
+                                <span class="badge badge-complete">Approved</span>
+                                {% elif ts.status == 'Submitted' %}
+                                <span class="badge badge-in-progress">Submitted</span>
+                                {% elif ts.status == 'Rejected' %}
+                                <span class="badge badge-failed">Rejected</span>
+                                {% else %}
+                                <span class="badge badge-not-started">{{ ts.status or 'Draft' }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="portal-card-body text-center" style="padding: 40px 24px;">
+        <i class="fas fa-clock" style="font-size: 36px; color: var(--color-gray-300); margin-bottom: 12px;"></i>
+        <p class="text-muted text-sm">No previous timesheets.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var dayRate = {{ (current_ts.day_rate or 0) if current_ts else 0 }};
+    var otRate = {{ (current_ts.overtime_rate or 0) if current_ts else 0 }};
+    var inputs = document.querySelectorAll('.ts-input');
+
+    function recalc() {
+        var timeTypes = {{ time_types|tojson if time_types else '[]' }};
+        var numDays = {{ week_days|length if week_days else 0 }};
+        var totalDays = 0;
+        var totalHours = 0;
+
+        // Calculate row totals
+        timeTypes.forEach(function(tt, rowIdx) {
+            var rowTotal = 0;
+            for (var d = 0; d < numDays; d++) {
+                var name = 'entry_' + document.querySelectorAll('.ts-input')[rowIdx * numDays + d]?.name?.split('_').slice(1, 2)[0];
+                // Get all inputs in this row
+                var rowInputs = document.querySelectorAll('[name^="entry_"][name$="' + tt.replace(/ /g, '__') + '"]');
+                if (rowInputs[d]) {
+                    var val = rowInputs[d].value;
+                    if (val && val !== '-' && val !== '0') {
+                        if (val.indexOf(':') > -1) {
+                            var parts = val.split(':');
+                            rowTotal += parseFloat(parts[0]) + parseFloat(parts[1] || 0) / 60;
+                        } else {
+                            rowTotal += parseFloat(val) || 0;
+                        }
+                    }
+                }
+            }
+            var el = document.getElementById('total_' + rowIdx);
+            if (el) el.textContent = rowTotal > 0 ? rowTotal.toFixed(1) : '0';
+
+            if (tt.toLowerCase() === 'standard time') totalDays += rowTotal;
+            if (tt.toLowerCase().indexOf('overtime') > -1) totalHours += rowTotal;
+        });
+
+        // Update billable per day
+        for (var d = 0; d < numDays; d++) {
+            var dayTotal = 0;
+            var stdInputs = document.querySelectorAll('[name$="Standard__Time"]');
+            if (stdInputs[d]) dayTotal = parseFloat(stdInputs[d].value) || 0;
+            var bEl = document.getElementById('billable_' + d);
+            if (bEl) bEl.textContent = dayTotal > 0 ? dayTotal.toFixed(1) : '-';
+            var aEl = document.getElementById('amount_' + d);
+            if (aEl) aEl.textContent = dayTotal > 0 ? '\u00a3' + (dayTotal * dayRate).toFixed(2) : '-';
+        }
+
+        // Summary
+        var dayAmount = totalDays * dayRate;
+        var otAmount = totalHours * otRate;
+        var total = dayAmount + otAmount;
+
+        var elDays = document.getElementById('totalBillableDays');
+        if (elDays) elDays.textContent = totalDays.toFixed(1);
+        var el = document.getElementById('summaryDays');
+        if (el) el.textContent = totalDays.toFixed(1);
+        el = document.getElementById('summaryHours');
+        if (el) el.textContent = totalHours.toFixed(1);
+        el = document.getElementById('summaryDayAmount');
+        if (el) el.textContent = '\u00a3' + dayAmount.toFixed(2);
+        el = document.getElementById('summaryOTAmount');
+        if (el) el.textContent = '\u00a3' + otAmount.toFixed(2);
+        el = document.getElementById('summaryTotal');
+        if (el) el.textContent = '\u00a3' + total.toFixed(2);
+        el = document.getElementById('totalAmount');
+        if (el) el.innerHTML = '&pound;' + total.toFixed(2);
+    }
+
+    inputs.forEach(function(inp) {
+        inp.addEventListener('change', recalc);
+        inp.addEventListener('input', recalc);
+    });
+
+    recalc();
+});
+</script>
+{% endblock %}

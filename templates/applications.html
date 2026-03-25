@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+{% block title %}Applications{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  /* Header Badge */
+  .header-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  /* Section Title */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+  }
+  
+  .btn-modern-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-sm {
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Modern Table */
+  .modern-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .modern-table thead th {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    padding: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+    text-align: center;
+    white-space: nowrap;
+  }
+  
+  .modern-table thead th:first-child {
+    border-top-left-radius: 12px;
+    text-align: center;
+  }
+  
+  .modern-table thead th:nth-child(2) {
+    text-align: left;
+  }
+  
+  .modern-table thead th:last-child {
+    border-top-right-radius: 12px;
+  }
+  
+  .modern-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1f2937;
+    font-weight: 500;
+    vertical-align: middle;
+    text-align: center;
+  }
+  
+  .modern-table tbody td:first-child {
+    text-align: center;
+  }
+  
+  .modern-table tbody td:nth-child(2) {
+    text-align: left;
+  }
+  
+  .modern-table tbody tr {
+    transition: all 0.2s ease;
+  }
+  
+  .modern-table tbody tr:hover {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  }
+  
+  .modern-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  .modern-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 12px;
+  }
+  
+  .modern-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 12px;
+  }
+  
+  /* Row Number Badge */
+  .row-number {
+    background: linear-gradient(135deg, #e8eef8 0%, #d0ddf0 100%);
+    color: #0369a1;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    min-width: 32px;
+    display: inline-block;
+  }
+  
+  /* Status Badges */
+  .badge-modern {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .badge-success {
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    color: #166534;
+  }
+  
+  .badge-secondary {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    color: #475569;
+  }
+  
+  /* Associate Info */
+  .associate-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+  }
+  
+  .associate-email {
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+  
+  /* Job Info */
+  .job-title {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+  }
+  
+  .engagement-name {
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+  
+  /* Skills Text */
+  .skills-text {
+    color: #6b7280;
+    font-size: 0.9rem;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #9ca3af;
+  }
+  
+  .empty-state i {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+  }
+  
+  .empty-state .title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+  }
+  
+  .empty-state .subtitle {
+    font-size: 0.95rem;
+    color: #9ca3af;
+  }
+  
+  /* Pagination */
+  .modern-pagination {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+  
+  .modern-pagination .page-btn {
+    min-width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    background: white;
+    color: #374151;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+  
+  .modern-pagination .page-btn:hover:not(.disabled):not(.active) {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .modern-pagination .page-btn.active {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+    border-color: transparent;
+  }
+  
+  .modern-pagination .page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  /* Animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .fade-in-up:nth-child(1) { animation-delay: 0.1s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(2) { animation-delay: 0.2s; animation-fill-mode: both; }
+</style>
+
+<div class="container-xxl py-4">
+  <!-- Page Header -->
+  <div class="page-header-section">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-file-alt"></i>
+          Applications
+        </h1>
+        <p class="subtitle">Review and manage associate applications</p>
+      </div>
+      {% if job_sel %}
+        <div class="header-badge">
+          <i class="fas fa-briefcase"></i>
+          <div>
+            <div style="font-size: 0.75rem; opacity: 0.8;">Filtering by</div>
+            <div>{{ job_sel.title }}{% if job_sel.engagement %} — {{ job_sel.engagement.name }}{% endif %}</div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Filters Card -->
+  <div class="modern-card p-4 mb-4 fade-in-up">
+    <h2 class="section-title">
+      <i class="fas fa-filter"></i>
+      Filter Applications
+    </h2>
+    
+    <form method="GET" action="{{ url_for('applications') }}">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="field-label">Search</label>
+          <input type="text" 
+                 name="q" 
+                 value="{{ q }}" 
+                 class="form-control field-input" 
+                 placeholder="Name, skills, job…">
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="field-label">Job</label>
+          <select name="job_id" class="form-select field-input">
+            <option value="">All jobs</option>
+            {% for j in jobs %}
+              <option value="{{ j.id }}" {{ 'selected' if job_sel and j.id==job_sel.id else '' }}>
+                {{ j.title }}{% if j.engagement %} — {{ j.engagement.name }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="field-label">Per Page</label>
+          <select name="per_page" class="form-select field-input">
+            {% for n in [10,25,50,100] %}
+              <option value="{{ n }}" {{ 'selected' if (pagination and pagination.per_page==n) else '' }}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-2 d-flex align-items-end gap-2">
+          <button type="submit" class="btn btn-modern btn-modern-primary flex-grow-1">
+            <i class="fas fa-search me-2"></i>Apply
+          </button>
+          <a href="{{ url_for('applications') }}" class="btn btn-modern btn-modern-outline">
+            <i class="fas fa-times"></i>
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Applications Table -->
+  <div class="modern-card p-4 fade-in-up">
+    <h2 class="section-title">
+      <i class="fas fa-list"></i>
+      Applications List
+      {% if items and items|length %}
+        <span class="badge-modern badge-secondary">{{ pagination.total if pagination else items|length }} total</span>
+      {% endif %}
+    </h2>
+
+    {% if items and items|length %}
+      <div class="table-responsive" style="border-radius: 12px; overflow: hidden;">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th style="width: 60px;">#</th>
+              <th>Associate</th>
+              <th>Skills</th>
+              <th>Job</th>
+              <th>Status</th>
+              <th style="width: 200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in items %}
+            <tr>
+              <td>
+                <span class="row-number">
+                  {{ loop.index + ((pagination.page - 1) * pagination.per_page if pagination else 0) }}
+                </span>
+              </td>
+
+              <td>
+                <div class="associate-name">{{ r.cand.name }}</div>
+                {% if r.cand.email %}
+                  <div class="associate-email">
+                    <i class="fas fa-envelope me-1"></i>{{ r.cand.email }}
+                  </div>
+                {% endif %}
+              </td>
+
+              <td>
+                <div class="skills-text">{{ r.cand.skills or '—' }}</div>
+              </td>
+
+              <td>
+                <div class="job-title">{{ r.job.title }}</div>
+                {% if r.job.engagement %}
+                  <div class="engagement-name">
+                    <i class="fas fa-building me-1"></i>{{ r.job.engagement.name }}
+                  </div>
+                {% endif %}
+              </td>
+
+              <td>
+                {% if r.shortlisted %}
+                  <span class="badge-modern badge-success">
+                    <i class="fas fa-check-circle"></i>Shortlisted
+                  </span>
+                {% else %}
+                  <span class="badge-modern badge-secondary">
+                    <i class="fas fa-circle"></i>New
+                  </span>
+                {% endif %}
+              </td>
+
+              <td>
+                <div class="d-flex gap-2 justify-content-center">
+                  <!-- Open Application -->
+                  <a class="btn btn-modern btn-modern-primary btn-modern-sm"
+                     href="{{ url_for('application_detail', app_id=r.app.id) }}"
+                     title="View application">
+                    <i class="fas fa-eye"></i>
+                  </a>
+
+                  <!-- Shortlist Button -->
+                  <form class="d-inline m-0" method="POST" action="{{ url_for('candidate_shortlist_action') }}">
+                    <input type="hidden" name="candidate_id" value="{{ r.cand.id }}">
+                    <input type="hidden" name="job_id" value="{{ r.job.id }}">
+                    {% if not r.shortlisted %}
+                      <button type="submit" 
+                              class="btn btn-modern btn-modern-success btn-modern-sm"
+                              title="Shortlist associate">
+                        <i class="fas fa-star"></i>
+                      </button>
+                    {% else %}
+                      <button type="button" 
+                              class="btn btn-modern btn-modern-outline btn-modern-sm" 
+                              disabled
+                              title="Already shortlisted">
+                        <i class="fas fa-check"></i>
+                      </button>
+                    {% endif %}
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if pagination and pagination.pages > 1 %}
+        <div class="modern-pagination">
+          <!-- Previous Button -->
+          <a class="page-btn {{ 'disabled' if pagination.page <= 1 else '' }}"
+             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=(pagination.page - 1), per_page=pagination.per_page) }}">
+            <i class="fas fa-chevron-left"></i>
+          </a>
+
+          <!-- Page Numbers -->
+          {% for p in range(1, pagination.pages + 1) %}
+            {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+              <a class="page-btn {{ 'active' if p == pagination.page else '' }}"
+                 href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=p, per_page=pagination.per_page) }}">
+                {{ p }}
+              </a>
+            {% elif p == pagination.page - 3 or p == pagination.page + 3 %}
+              <span class="page-btn disabled">...</span>
+            {% endif %}
+          {% endfor %}
+
+          <!-- Next Button -->
+          <a class="page-btn {{ 'disabled' if pagination.page >= pagination.pages else '' }}"
+             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=(pagination.page + 1), per_page=pagination.per_page) }}">
+            <i class="fas fa-chevron-right"></i>
+          </a>
+        </div>
+      {% endif %}
+    {% else %}
+      <!-- Empty State -->
+      <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <div class="title">No Applications Found</div>
+        <div class="subtitle">
+          {% if q or job_sel %}
+            Try adjusting your filters or search terms
+          {% else %}
+            Applications will appear here once associates apply to jobs
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Applications — {{ engagement.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  .page-header-section .client-info {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+  }
+  
+  /* Stage Banner */
+  .stage-banner {
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: fadeInUp 0.6s ease;
+  }
+  
+  .stage-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+  }
+  
+  .stage-title i {
+    color: #1e3a8a;
+  }
+  
+  .stage-count {
+    background: linear-gradient(135deg, #f0f4fa 0%, #e8eef8 100%);
+    color: #1e3a8a;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  
+  /* Section Title */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+  }
+  
+  .btn-modern-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-sm {
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Modern Table */
+  .modern-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .modern-table thead th {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    padding: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+    text-align: center;
+    white-space: nowrap;
+  }
+  
+  .modern-table thead th:first-child {
+    border-top-left-radius: 12px;
+    text-align: center;
+  }
+  
+  .modern-table thead th:nth-child(2) {
+    text-align: left;
+  }
+  
+  .modern-table thead th:last-child {
+    border-top-right-radius: 12px;
+  }
+  
+  .modern-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1f2937;
+    font-weight: 500;
+    vertical-align: middle;
+    text-align: center;
+  }
+  
+  .modern-table tbody td:first-child {
+    text-align: center;
+  }
+  
+  .modern-table tbody td:nth-child(2) {
+    text-align: left;
+  }
+  
+  .modern-table tbody tr {
+    transition: all 0.2s ease;
+  }
+  
+  .modern-table tbody tr:hover {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  }
+  
+  .modern-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  .modern-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 12px;
+  }
+  
+  .modern-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 12px;
+  }
+  
+  /* Row Number */
+  .row-number {
+    background: linear-gradient(135deg, #e8eef8 0%, #d0ddf0 100%);
+    color: #0369a1;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    min-width: 32px;
+    display: inline-block;
+  }
+  
+  /* Candidate Info */
+  .associate-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+  }
+  
+  .associate-email {
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+  
+  /* Skills Pills */
+  .skills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  
+  .skill-pill {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    color: #374151;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  /* AI Score Display */
+  .ai-score {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Stage Badges */
+  .badge-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  /* Different stage colors */
+  .badge-declared {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    color: #475569;
+  }
+  
+  .badge-shortlist {
+    background: linear-gradient(135deg, #e8eef8 0%, #d0ddf0 100%);
+    color: #1e3a8a;
+  }
+  
+  .badge-interview {
+    background: linear-gradient(135deg, #e8eef8 0%, #d0ddf0 100%);
+    color: #0369a1;
+  }
+  
+  .badge-vetting {
+    background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+    color: #6b21a8;
+  }
+  
+  .badge-contract {
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    color: #166534;
+  }
+  
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #9ca3af;
+  }
+  
+  .empty-state i {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+  }
+  
+  .empty-state .title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+  }
+  
+  .empty-state .subtitle {
+    font-size: 0.95rem;
+    color: #9ca3af;
+  }
+  
+  /* Animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .fade-in-up:nth-child(1) { animation-delay: 0.1s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(2) { animation-delay: 0.2s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(3) { animation-delay: 0.3s; animation-fill-mode: both; }
+</style>
+
+<div class="container-xxl px-4 pt-3 pb-4">
+  <!-- Page Header -->
+  <div class="page-header-section">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-handshake"></i>
+          {{ engagement.name }}
+        </h1>
+        <div class="client-info">
+          <i class="fas fa-building me-2"></i>
+          <strong>Client:</strong> {{ engagement.client or "—" }}
+        </div>
+      </div>
+      <div>
+        <a class="btn btn-modern btn-modern-outline" href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">
+          <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage Banner -->
+  {% set stage_label = {
+    "declared":"Applications Received",
+    "shortlist":"Shortlist",
+    "interview_scheduled":"Interview Scheduled",
+    "interview_completed":"Interview Completed",
+    "vetting":"Vetting In-Flight",
+    "contract_issued":"Contract Issued — Awaiting Signature",
+    "contract_signed":"Contract Signed"
+  }[stage] %}
+  
+  {% set stage_icon = {
+    "declared":"fa-file-alt",
+    "shortlist":"fa-star",
+    "interview_scheduled":"fa-calendar-check",
+    "interview_completed":"fa-check-circle",
+    "vetting":"fa-shield-alt",
+    "contract_issued":"fa-file-contract",
+    "contract_signed":"fa-check-double"
+  }.get(stage, "fa-circle") %}
+  
+  <div class="stage-banner">
+    <h5 class="stage-title">
+      <i class="fas {{ stage_icon }}"></i>
+      {{ stage_label }}
+      {% if role_filter %}
+        <span class="badge bg-info ms-2" style="font-size: 0.75rem;">
+          <i class="fas fa-user-tie me-1"></i>Role: {{ role_filter }}
+        </span>
+      {% endif %}
+    </h5>
+    <div class="stage-count">
+      <i class="fas fa-users me-2"></i>{{ rows|length }} associate{{ 's' if rows|length != 1 else '' }}
+    </div>
+  </div>
+
+  <!-- Search Card -->
+  <div class="modern-card p-4 mb-4 fade-in-up">
+    <h2 class="section-title">
+      <i class="fas fa-search"></i>
+      Search Associates
+    </h2>
+    
+    <form method="GET">
+      <input type="hidden" name="filter" value="{{ stage }}">
+      {% if role_filter %}
+        <input type="hidden" name="role" value="{{ role_filter }}">
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-12 col-md-8">
+          <label class="field-label">Search Query</label>
+          <input type="text" 
+                 name="q" 
+                 class="form-control field-input" 
+                 value="{{ q or '' }}" 
+                 placeholder="Search name, skills or job title">
+        </div>
+        <div class="col-12 col-md-4 d-flex align-items-end gap-2">
+          <button type="submit" class="btn btn-modern btn-modern-primary flex-grow-1">
+            <i class="fas fa-search me-2"></i>Search
+          </button>
+          <a href="{{ url_for('applications_for_engagement', eng_id=engagement.id, filter=stage, role=role_filter if role_filter else None) }}" 
+             class="btn btn-modern btn-modern-outline">
+            <i class="fas fa-times"></i>
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Applications Table -->
+  <div class="modern-card p-4 fade-in-up">
+    <h2 class="section-title">
+      <i class="fas fa-list"></i>
+      Candidates
+    </h2>
+
+    {% if rows %}
+      <div class="table-responsive" style="border-radius: 12px; overflow: hidden;">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th style="width: 60px;">#</th>
+              <th>Associate</th>
+              <th>Skills</th>
+              <th>Job</th>
+              <th>AI Score</th>
+              <th>Stage</th>
+              <th style="width: 200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td>
+                <span class="row-number">{{ loop.index }}</span>
+              </td>
+
+              <td>
+                <div class="associate-name">{{ r.cand.name }}</div>
+                <div class="associate-email">
+                  <i class="fas fa-envelope me-1"></i>{{ r.cand.email }}
+                </div>
+              </td>
+
+              <td>
+                {% if r.cand.skills %}
+                  <div class="skills-container">
+                    {% for skill in r.cand.skills.split(',')[:5] %}
+                      <span class="skill-pill">{{ skill.strip() }}</span>
+                    {% endfor %}
+                    {% if r.cand.skills.split(',')|length > 5 %}
+                      <span class="skill-pill">+{{ r.cand.skills.split(',')|length - 5 }}</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span style="color: #9ca3af;">—</span>
+                {% endif %}
+              </td>
+
+              <td>
+                <div style="font-weight: 600; color: #1f2937;">{{ r.job.title }}</div>
+              </td>
+
+              <td>
+                {% if r.app.ai_score %}
+                  <span class="ai-score">{{ r.app.ai_score }}</span>
+                {% else %}
+                  <span style="color: #9ca3af;">—</span>
+                {% endif %}
+              </td>
+
+              <td>
+                {% set badge_class = {
+                  "declared":"badge-declared",
+                  "shortlist":"badge-shortlist",
+                  "interview_scheduled":"badge-interview",
+                  "interview_completed":"badge-interview",
+                  "vetting":"badge-vetting",
+                  "contract_issued":"badge-contract",
+                  "contract_signed":"badge-contract"
+                }.get(stage, "badge-declared") %}
+                
+                <span class="badge-stage {{ badge_class }}">
+                  <i class="fas {{ stage_icon }}"></i>
+                  {{ stage_label }}
+                </span>
+              </td>
+
+              <td>
+                <div class="d-flex gap-2 justify-content-center">
+                  <!-- Open Profile -->
+                  <a class="btn btn-modern btn-modern-primary btn-modern-sm"
+                     href="{{ url_for('candidate_profile', cand_id=r.cand.id) }}"
+                     title="View associate profile">
+                    <i class="fas fa-user"></i>
+                  </a>
+
+                  <!-- Shortlist Button (only for declared stage) -->
+                  {% if stage == 'declared' and not r.is_shortlisted %}
+                    <form class="d-inline m-0" method="POST" action="{{ url_for('candidate_shortlist_action') }}">
+                      <input type="hidden" name="app_id" value="{{ r.app.id }}">
+                      <input type="hidden" name="candidate_id" value="{{ r.cand.id }}">
+                      <button type="submit" 
+                              class="btn btn-modern btn-modern-success btn-modern-sm"
+                              title="Shortlist associate">
+                        <i class="fas fa-star"></i>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <!-- Empty State -->
+      <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <div class="title">No Associates Found</div>
+        <div class="subtitle">
+          {% if q %}
+            No results match your search criteria. Try adjusting your search terms.
+          {% else %}
+            No associates in the <strong>{{ stage_label }}</strong> stage for this engagement yet.
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+</div>
+{% endblock %}

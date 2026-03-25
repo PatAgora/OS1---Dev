@@ -1,0 +1,1727 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Resource Pool{% endblock %}
+
+{% block content %}
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  .page-header-section .header-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .header-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Section Headers */
+  .section-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  .section-subtitle {
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .field-input:disabled {
+    background: #f3f4f6;
+    color: #6b7280;
+    cursor: not-allowed;
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+  }
+  
+  .btn-modern-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-danger {
+    background: white;
+    border: 2px solid #dc2626;
+    color: #dc2626;
+  }
+  
+  .btn-modern-danger:hover {
+    background: #dc2626;
+    color: white;
+  }
+  
+  /* Bulk Actions Bar */
+  .bulk-actions-bar {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+  }
+  
+  .bulk-actions-bar.show {
+    display: flex;
+  }
+  
+  .bulk-select-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .bulk-select-count {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  
+  .bulk-action-btns {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .bulk-action-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .bulk-action-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  .bulk-action-btn.danger {
+    background: rgba(220, 38, 38, 0.8);
+  }
+  
+  .bulk-action-btn.danger:hover {
+    background: rgba(220, 38, 38, 1);
+  }
+  
+  /* Checkbox styling */
+  .select-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #1e3a8a;
+  }
+  
+  .select-all-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #1e3a8a;
+  }
+  
+  /* Quick CV Preview Modal */
+  .cv-preview-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .cv-preview-modal.show {
+    display: flex;
+  }
+  
+  .cv-preview-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 85vh;
+    overflow: hidden;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  }
+  
+  .cv-preview-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .cv-preview-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+  
+  .cv-preview-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: white;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.8;
+  }
+  
+  .cv-preview-close:hover {
+    opacity: 1;
+  }
+  
+  .cv-preview-body {
+    padding: 1.5rem;
+    max-height: calc(85vh - 70px);
+    overflow-y: auto;
+  }
+  
+  .cv-summary-section {
+    margin-bottom: 1.5rem;
+  }
+  
+  .cv-summary-section h4 {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  
+  .cv-summary-section p {
+    color: #374151;
+    line-height: 1.6;
+    font-size: 0.9rem;
+  }
+  
+  .keyword-highlight {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  
+  /* Modern Table */
+  .modern-table {
+    font-size: 0.9rem;
+  }
+  
+  .modern-table thead th {
+    background: #f9fafb;
+    color: #374151;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.75rem;
+    border: none;
+  }
+  
+  .modern-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s ease;
+  }
+  
+  .modern-table tbody tr:hover {
+    background: #f9fafb;
+  }
+  
+  .modern-table tbody td {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border: none;
+  }
+  
+  /* Status Badges */
+  .status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: inline-block;
+  }
+  
+  .status-badge.yes {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge.no {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  /* Row Number Badge */
+  .row-number {
+    background: #e8eef8;
+    color: #1e3a8a;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  
+  /* Pagination */
+  .pagination {
+    margin: 2rem 0 0 0;
+  }
+  
+  .pagination .page-link {
+    border: 2px solid #e5e7eb;
+    color: #374151;
+    border-radius: 8px;
+    margin: 0 0.25rem;
+    padding: 0.5rem 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  
+  .pagination .page-link:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .pagination .page-item.active .page-link {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-color: #1e3a8a;
+    color: white;
+  }
+  
+  .pagination .page-item.disabled .page-link {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+  }
+  
+  /* Modal */
+  .modal-content {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+  
+  .modal-header {
+    border-bottom: 2px solid #f3f4f6;
+    padding: 1.5rem;
+  }
+  
+  .modal-title {
+    font-weight: 700;
+    color: #1f2937;
+  }
+  
+  .modal-body {
+    padding: 1.5rem;
+  }
+  
+  .modal-footer {
+    border-top: 2px solid #f3f4f6;
+    padding: 1.5rem;
+  }
+  
+  /* Animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  
+  .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+  .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+  .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header-section {
+      padding: 1.5rem;
+    }
+    
+    .page-header-section h1 {
+      font-size: 1.5rem;
+    }
+  }
+</style>
+
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+
+<div class="container-fluid px-4 pt-3 pb-4">
+  <!-- Enhanced Header -->
+  <div class="page-header-section fade-in-up stagger-1">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-users"></i>
+          Resource Pool
+        </h1>
+        <p class="subtitle mb-0">Search and manage your associate database</p>
+      </div>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <a href="#" onclick="showAddAssociateModal(); return false;" class="btn-modern btn-modern-success">
+          <i class="fas fa-user-plus me-2"></i>Add Associate
+        </a>
+        <div class="header-badges">
+          {% if job %}
+            <span class="header-badge">
+              <i class="fas fa-briefcase"></i> Filtered: {{ job.title }}
+            </span>
+          {% endif %}
+          {% if rank %}
+            <span class="header-badge">
+              <i class="fas fa-star"></i> Ranked
+            </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters Form -->
+  <div class="modern-card mb-4 fade-in-up stagger-2">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-filter"></i>
+          Filters
+        </div>
+        <div class="section-subtitle">Refine your associate search</div>
+      </div>
+
+      <form method="GET" action="{{ url_for('resource_pool') }}" id="searchForm">
+        <!-- Boolean Search Help Tooltip -->
+        <div class="alert alert-info alert-sm mb-3" style="font-size: 0.85rem; padding: 0.75rem;">
+          <i class="fas fa-lightbulb text-warning me-2"></i>
+          <strong>Boolean Search:</strong> Use <code>AND</code>, <code>OR</code>, <code>NOT</code>, parentheses <code>()</code>, and quotes for exact phrases.
+          <br>
+          <span class="text-muted">Examples: <code>java AND aws</code> | <code>"project manager" AND agile</code> | <code>python AND (aws OR azure) AND NOT junior</code> | <code>SC cleared AND financial services</code></span>
+        </div>
+        
+        <div class="row g-3">
+          <!-- Search (Full Width) -->
+          <div class="col-12">
+            <label class="field-label">
+              <i class="fas fa-search me-1"></i> Search
+              {% if active_filter_count and active_filter_count > 0 %}
+                <span class="badge bg-primary ms-2">{{ active_filter_count }} filters active</span>
+              {% endif %}
+            </label>
+            <input type="text" name="q" value="{{ q }}" class="field-input form-control form-control-lg" 
+                   placeholder="Search by name, skills, location... Use AND/OR/NOT for boolean search">
+          </div>
+          
+          <!-- Job Filter -->
+          <div class="col-12 col-md-6">
+            <label class="field-label">Target Job</label>
+            <select name="job_id" class="field-input form-select">
+              <option value="">All jobs (no targeting)</option>
+              {% for j in jobs %}
+                <option value="{{ j.id }}" {{ 'selected' if job and j.id==job.id else '' }}>
+                  {{ j.title }}{% if j.engagement %} — {{ j.engagement.name }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Basic Filters Row -->
+          <div class="col-6 col-md-2">
+            <label class="field-label">Has CV</label>
+            <select name="has_cv" class="field-input form-select">
+              <option value="0" {{ 'selected' if not has_cv else '' }}>Any</option>
+              <option value="1" {{ 'selected' if has_cv else '' }}>Yes</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-md-2">
+            <label class="field-label">Last Updated</label>
+            <select name="last_updated" class="field-input form-select">
+              <option value=""  {{ 'selected' if not last_updated else '' }}>Any time</option>
+              <option value="7"   {{ 'selected' if last_updated=='7'   else '' }}>7 days</option>
+              <option value="30"  {{ 'selected' if last_updated=='30'  else '' }}>30 days</option>
+              <option value="90"  {{ 'selected' if last_updated=='90'  else '' }}>90 days</option>
+              <option value="365" {{ 'selected' if last_updated=='365' else '' }}>1 year</option>
+            </select>
+          </div>
+          
+          <div class="col-6 col-md-2">
+            <label class="field-label">Exclude Shortlisted</label>
+            <select name="exclude_shortlisted" class="field-input form-select" {{ 'disabled' if not job else '' }}>
+              <option value="0" {{ 'selected' if not exclude_shortlisted else '' }}>No</option>
+              <option value="1" {{ 'selected' if exclude_shortlisted else '' }}>Yes</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Advanced Filters Toggle -->
+        <div class="mt-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+            <i class="fas fa-sliders-h me-1"></i> Advanced Filters
+            {% if active_filter_count and active_filter_count > 0 %}
+              <span class="badge bg-primary">{{ active_filter_count }}</span>
+            {% endif %}
+          </button>
+        </div>
+        
+        <!-- Advanced Filters Panel — collapsed by default on fresh load, only open if filters are actively applied -->
+        <div class="collapse" id="advancedFilters">
+          <div class="card card-body bg-light mt-3">
+            <div class="row g-3">
+              
+              <!-- Associate Status -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3">
+                  <i class="fas fa-user-tag me-1"></i> Associate Status
+                </h6>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="field-label">Status</label>
+                <select name="associate_status" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('associate_status', 'all') == 'all' else '' }}>All Statuses</option>
+                  <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
+                  <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
+                  <option value="On Contract" {{ 'selected' if request.args.get('associate_status') == 'On Contract' else '' }}>On Contract</option>
+                  <option value="On Notice" {{ 'selected' if request.args.get('associate_status') == 'On Notice' else '' }}>On Notice</option>
+                  <option value="Ex-Associate" {{ 'selected' if request.args.get('associate_status') == 'Ex-Associate' else '' }}>Ex-Associate</option>
+                  <option value="Unavailable" {{ 'selected' if request.args.get('associate_status') == 'Unavailable' else '' }}>Unavailable</option>
+                  <option value="DNU" {{ 'selected' if request.args.get('associate_status') == 'DNU' else '' }}>DNU (Do Not Use)</option>
+                  <option value="Do Not Contact" {{ 'selected' if request.args.get('associate_status') == 'Do Not Contact' else '' }}>Do Not Contact</option>
+                </select>
+              </div>
+              
+              <!-- Tags -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-tags me-1"></i> Tags / Skills
+                </h6>
+              </div>
+              
+              <div class="col-12 col-md-6">
+                <label class="field-label">Tags (comma separated)</label>
+                <input type="text" name="tags" value="{{ request.args.get('tags', '') }}" 
+                       class="field-input form-control" placeholder="e.g., AML, KYC, Python, SQL">
+                <small class="text-muted">Search in skills field. Enter multiple tags separated by commas.</small>
+              </div>
+              
+              {% if taxonomy_data and taxonomy_data|length > 0 %}
+              {% for td in taxonomy_data %}
+              <div class="col-12 col-md-3">
+                <label class="field-label">{{ td.category.name }}</label>
+                <select name="taxonomy_tags" class="field-input form-select" multiple size="3">
+                  {% for tag in td.tags %}
+                    <option value="{{ tag.id }}" {{ 'selected' if request.args.get('taxonomy_tags') and (tag.id|string) in request.args.getlist('taxonomy_tags') else '' }}>
+                      {{ tag.tag }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% endfor %}
+              {% endif %}
+              
+              <!-- Location (Radius from Postcode) -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-map-marker-alt me-1"></i> Location (Radius from Postcode)
+                </h6>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="field-label">Postcode</label>
+                <input type="text" name="postcode" value="{{ request.args.get('postcode', '') }}" 
+                       class="field-input form-control" placeholder="e.g., EC1A, SW1A 1AA">
+                <small class="text-muted">Enter UK postcode to search by area</small>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="field-label">Radius (miles)</label>
+                <select name="radius" class="field-input form-select">
+                  <option value="" {{ 'selected' if not request.args.get('radius') else '' }}>Any distance</option>
+                  <option value="5" {{ 'selected' if request.args.get('radius') == '5' else '' }}>5 miles</option>
+                  <option value="10" {{ 'selected' if request.args.get('radius') == '10' else '' }}>10 miles</option>
+                  <option value="25" {{ 'selected' if request.args.get('radius') == '25' else '' }}>25 miles</option>
+                  <option value="50" {{ 'selected' if request.args.get('radius') == '50' else '' }}>50 miles</option>
+                  <option value="100" {{ 'selected' if request.args.get('radius') == '100' else '' }}>100 miles</option>
+                </select>
+              </div>
+              
+              <!-- Previous Optimus Experience -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-history me-1"></i> Previous Optimus Experience
+                </h6>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="field-label">Previous Optimus Assignment</label>
+                <select name="prev_assignment" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('prev_assignment', 'all') == 'all' else '' }}>Any</option>
+                  <option value="yes" {{ 'selected' if request.args.get('prev_assignment') == 'yes' else '' }}>Yes - Has worked with Optimus</option>
+                  <option value="no" {{ 'selected' if request.args.get('prev_assignment') == 'no' else '' }}>No - New to Optimus</option>
+                </select>
+                <small class="text-muted">Filter by previous contract/assignment</small>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="field-label">Previous Optimus Application</label>
+                <select name="prev_application" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('prev_application', 'all') == 'all' else '' }}>Any</option>
+                  <option value="yes" {{ 'selected' if request.args.get('prev_application') == 'yes' else '' }}>Yes - Has applied before</option>
+                  <option value="no" {{ 'selected' if request.args.get('prev_application') == 'no' else '' }}>No - First time applicant</option>
+                </select>
+                <small class="text-muted">Filter by previous job applications</small>
+              </div>
+              
+              <!-- Day Rate Range -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-pound-sign me-1"></i> Day Rate Range
+                </h6>
+              </div>
+              
+              <div class="col-6 col-md-3">
+                <label class="field-label">Min Day Rate (£)</label>
+                <input type="number" name="min_rate" value="{{ request.args.get('min_rate', '') }}" 
+                       class="field-input form-control" placeholder="e.g., 400" min="0" step="50">
+              </div>
+              
+              <div class="col-6 col-md-3">
+                <label class="field-label">Max Day Rate (£)</label>
+                <input type="number" name="max_rate" value="{{ request.args.get('max_rate', '') }}" 
+                       class="field-input form-control" placeholder="e.g., 800" min="0" step="50">
+              </div>
+              
+              <!-- Registration & Activity Dates -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-calendar-alt me-1"></i> Registration & Activity
+                </h6>
+              </div>
+              
+              <div class="col-6 col-md-3">
+                <label class="field-label">Registration From</label>
+                <input type="date" name="registration_from" value="{{ request.args.get('registration_from', '') }}" 
+                       class="field-input form-control">
+              </div>
+              
+              <div class="col-6 col-md-3">
+                <label class="field-label">Registration To</label>
+                <input type="date" name="registration_to" value="{{ request.args.get('registration_to', '') }}" 
+                       class="field-input form-control">
+              </div>
+              
+              <div class="col-12 col-md-3">
+                <label class="field-label">Last Login Within</label>
+                <select name="last_login" class="field-input form-select">
+                  <option value="" {{ 'selected' if not request.args.get('last_login') else '' }}>Any time</option>
+                  <option value="7" {{ 'selected' if request.args.get('last_login') == '7' else '' }}>Last 7 days</option>
+                  <option value="30" {{ 'selected' if request.args.get('last_login') == '30' else '' }}>Last 30 days</option>
+                  <option value="90" {{ 'selected' if request.args.get('last_login') == '90' else '' }}>Last 90 days</option>
+                  <option value="365" {{ 'selected' if request.args.get('last_login') == '365' else '' }}>Last year</option>
+                </select>
+              </div>
+              
+              <div class="col-12 col-md-3">
+                <label class="field-label">Last Activity Within</label>
+                <select name="last_activity" class="field-input form-select">
+                  <option value="" {{ 'selected' if not request.args.get('last_activity') else '' }}>Any time</option>
+                  <option value="7" {{ 'selected' if request.args.get('last_activity') == '7' else '' }}>Last 7 days</option>
+                  <option value="30" {{ 'selected' if request.args.get('last_activity') == '30' else '' }}>Last 30 days</option>
+                  <option value="90" {{ 'selected' if request.args.get('last_activity') == '90' else '' }}>Last 90 days</option>
+                  <option value="365" {{ 'selected' if request.args.get('last_activity') == '365' else '' }}>Last year</option>
+                </select>
+              </div>
+              
+              <!-- Vetting & Assessment -->
+              <div class="col-12">
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                  <i class="fas fa-clipboard-check me-1"></i> Vetting & Assessment Results
+                </h6>
+              </div>
+              
+              <div class="col-12 col-md-3">
+                <label class="field-label">Previously Vetted</label>
+                <select name="vetted" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('vetted', 'all') == 'all' else '' }}>Any</option>
+                  <option value="yes" {{ 'selected' if request.args.get('vetted') == 'yes' else '' }}>Yes - Previously vetted</option>
+                  <option value="no" {{ 'selected' if request.args.get('vetted') == 'no' else '' }}>No - Not yet vetted</option>
+                </select>
+              </div>
+              
+              <div class="col-12 col-md-3">
+                <label class="field-label">Optimus Interview Result</label>
+                <select name="interview_result" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('interview_result', 'all') == 'all' else '' }}>Any</option>
+                  <option value="pass" {{ 'selected' if request.args.get('interview_result') == 'pass' else '' }}>Pass</option>
+                  <option value="fail" {{ 'selected' if request.args.get('interview_result') == 'fail' else '' }}>Fail</option>
+                  <option value="pending" {{ 'selected' if request.args.get('interview_result') == 'pending' else '' }}>Pending</option>
+                  <option value="not_required" {{ 'selected' if request.args.get('interview_result') == 'not_required' else '' }}>Not Required</option>
+                </select>
+              </div>
+              
+              <div class="col-12 col-md-3">
+                <label class="field-label">Optimus Assessment Result</label>
+                <select name="assessment_result" class="field-input form-select">
+                  <option value="all" {{ 'selected' if request.args.get('assessment_result', 'all') == 'all' else '' }}>Any</option>
+                  <option value="pass" {{ 'selected' if request.args.get('assessment_result') == 'pass' else '' }}>Pass</option>
+                  <option value="fail" {{ 'selected' if request.args.get('assessment_result') == 'fail' else '' }}>Fail</option>
+                  <option value="pending" {{ 'selected' if request.args.get('assessment_result') == 'pending' else '' }}>Pending</option>
+                  <option value="not_required" {{ 'selected' if request.args.get('assessment_result') == 'not_required' else '' }}>Not Required</option>
+                </select>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+        
+        <!-- Display & Pagination Options -->
+        <div class="row g-3 mt-2">
+          <div class="col-6 col-md-2">
+            <label class="field-label">Per Page</label>
+            <select name="per_page" class="field-input form-select">
+              {% for n in [10,25,50,100] %}
+                <option value="{{ n }}" {{ 'selected' if (pagination and pagination.per_page==n) else '' }}>{{ n }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-md-2">
+            <label class="field-label">AI Rank</label>
+            <select name="rank" class="field-input form-select">
+              <option value="0" {{ 'selected' if not rank else '' }}>Off</option>
+              <option value="1" {{ 'selected' if rank else '' }}>On (Top 20)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mt-4 d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn-modern btn-modern-primary">
+            <i class="fas fa-search me-1"></i> Search
+          </button>
+          <a class="btn-modern btn-modern-outline" href="{{ url_for('resource_pool') }}">
+            <i class="fas fa-undo me-1"></i> Reset All
+          </a>
+          <a class="btn-modern btn-modern-success"
+             href="{{ url_for('resource_pool_csv',
+                              q=q,
+                              has_cv=('1' if has_cv else '0'),
+                              job_id=(job.id if job else None),
+                              last_updated=last_updated,
+                              exclude_shortlisted=('1' if exclude_shortlisted else '0')) }}">
+            <i class="fas fa-download me-1"></i> Export CSV
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="modern-card fade-in-up stagger-3">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-table"></i>
+          Associates
+        </div>
+        <div class="section-subtitle">
+          {% if rows and rows|length %}
+            Showing {{ rows|length }} associate{{ 's' if rows|length != 1 else '' }}
+            {% if pagination %}
+              (Page {{ pagination.page }} of {{ pagination.pages }})
+            {% endif %}
+          {% else %}
+            No associates found
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Bulk Actions Bar -->
+      <div class="bulk-actions-bar" id="bulkActionsBar">
+        <div class="bulk-select-info">
+          <span class="bulk-select-count"><span id="selectedCount">0</span> selected</span>
+          <button type="button" class="bulk-action-btn" style="background: transparent; padding: 0.25rem;" onclick="selectAllOnPage()">
+            Select All on Page
+          </button>
+          <button type="button" class="bulk-action-btn" style="background: transparent; padding: 0.25rem;" onclick="clearSelection()">
+            Clear Selection
+          </button>
+        </div>
+        <div class="bulk-action-btns">
+          <button type="button" class="bulk-action-btn" onclick="exportSelectedCSV()">
+            <i class="fas fa-file-csv"></i> Export CSV
+          </button>
+          {% if job %}
+          <button type="button" class="bulk-action-btn" onclick="addSelectedToPipeline()">
+            <i class="fas fa-plus-circle"></i> Add to Pipeline
+          </button>
+          {% endif %}
+          <button type="button" class="bulk-action-btn" onclick="sendBulkEmail()">
+            <i class="fas fa-envelope"></i> Bulk Email
+          </button>
+          <!-- REQ-268: Column Configuration Dropdown -->
+          <div style="position: relative; display: inline-block;">
+            <button type="button" class="bulk-action-btn" id="colConfigBtn" onclick="toggleColumnConfig()">
+              <i class="fas fa-columns"></i> Columns
+            </button>
+            <div id="colConfigDropdown" style="display:none; position:absolute; right:0; top:100%; z-index:1050; background:#fff; border:1px solid #dee2e6; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); padding:0.75rem; min-width:200px; margin-top:4px;">
+              <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.5rem; color:#374151;">Toggle Columns</div>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="1" checked> # (Row Number)
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="2" checked> Associate
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="3" checked> Status
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="4" checked> Location
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="5" checked> Rate
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="6" checked> Clearance
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="7" checked> Skills
+              </label>
+              <label style="display:block; padding:4px 0; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="col-toggle" data-col-index="8" checked> Actions
+              </label>
+              <div style="border-top:1px solid #e5e7eb; margin-top:0.5rem; padding-top:0.5rem;">
+                <button type="button" onclick="resetColumnConfig()" style="font-size:0.78rem; color:#6366f1; background:none; border:none; cursor:pointer; padding:0;">Reset to Default</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table modern-table mb-0" id="resourcePoolTable">
+          <thead>
+            <tr>
+              <th class="text-center" style="width: 40px;">
+                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()">
+              </th>
+              <th class="text-center" style="width: 50px;">#</th>
+              <th style="min-width: 180px;">Associate</th>
+              <th style="min-width: 140px;">
+                Status
+                <select id="colFilterStatus" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" onchange="applyColumnFilter()">
+                  <option value="">All</option>
+                  <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
+                  <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
+                  <option value="On Contract" {{ 'selected' if request.args.get('associate_status') == 'On Contract' else '' }}>On Contract</option>
+                  <option value="On Notice" {{ 'selected' if request.args.get('associate_status') == 'On Notice' else '' }}>On Notice</option>
+                  <option value="In Vetting" {{ 'selected' if request.args.get('associate_status') == 'In Vetting' else '' }}>In Vetting</option>
+                  <option value="Interviewing" {{ 'selected' if request.args.get('associate_status') == 'Interviewing' else '' }}>Interviewing</option>
+                  <option value="Ex-Associate" {{ 'selected' if request.args.get('associate_status') == 'Ex-Associate' else '' }}>Ex-Associate</option>
+                  <option value="Unavailable" {{ 'selected' if request.args.get('associate_status') == 'Unavailable' else '' }}>Unavailable</option>
+                  <option value="DNU" {{ 'selected' if request.args.get('associate_status') == 'DNU' else '' }}>DNU</option>
+                </select>
+              </th>
+              <th style="min-width: 140px;">
+                Location
+                <select id="colFilterLocation" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" onchange="applyColumnFilter()">
+                  <option value="all" {{ 'selected' if location_filter == 'all' else '' }}>All</option>
+                  {% for loc in all_locations %}
+                    <option value="{{ loc }}" {{ 'selected' if location_filter == loc else '' }}>{{ loc }}</option>
+                  {% endfor %}
+                </select>
+              </th>
+              <th style="min-width: 100px;">Rate</th>
+              <th style="min-width: 80px;">Clearance</th>
+              <th style="width: 35%;">Skills</th>
+              <th class="text-center" style="min-width: 180px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if rows and rows|length %}
+              {% for r in rows %}
+              <tr data-candidate-id="{{ r.cand.id }}" data-associate-name="{{ r.cand.name }}" data-associate-email="{{ r.cand.email }}" data-candidate-skills="{{ r.cand.skills or '' }}">
+                <td class="text-center">
+                  <input type="checkbox" class="select-checkbox" 
+                         data-id="{{ r.cand.id }}" 
+                         data-name="{{ r.cand.name }}"
+                         data-email="{{ r.cand.email }}"
+                         onclick="updateBulkSelection()">
+                </td>
+                <td class="text-center">
+                  <span class="row-number">
+                    {{ loop.index + ((pagination.page - 1) * pagination.per_page if pagination else 0) }}
+                  </span>
+                  {% if r.score %}
+                    <br>
+                    <span class="badge bg-{{ 'success' if r.score >= 70 else ('warning' if r.score >= 50 else 'secondary') }}" 
+                          title="AI Match Score">
+                      {{ r.score }}%
+                    </span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <div>
+                    <strong>{{ r.cand.name }}</strong>
+                    {% if job %}
+                      {% if r.shortlisted %}
+                        <span class="badge bg-success ms-1" title="Shortlisted for this job"><i class="fas fa-star"></i></span>
+                      {% endif %}
+                    {% elif r.shortlisted_any %}
+                      <span class="badge bg-info ms-1" title="Shortlisted for another job"><i class="fas fa-star"></i></span>
+                    {% endif %}
+                    {% if r.on_engagement %}
+                      <span class="badge bg-primary ms-1" title="Currently on engagement"><i class="fas fa-briefcase"></i></span>
+                    {% endif %}
+                  </div>
+                  <small class="text-muted">{{ r.cand.email }}</small>
+                </td>
+
+                <td>
+                  {# Show pipeline status from most recent application, or candidate status if no applications #}
+                  {% if r.all_applications|length > 0 %}
+                    {% set latest_app = r.all_applications[0] %}
+                    {% set app_status = latest_app.status %}
+                    {% if app_status == 'Declared' %}
+                      <span class="badge bg-info">Declared</span>
+                    {% elif app_status == 'Shortlist' or app_status == 'Shortlisted' %}
+                      <span class="badge bg-primary">Shortlisted</span>
+                    {% elif app_status == 'Interview' or app_status == 'Interview Scheduled' %}
+                      <span class="badge bg-warning text-dark">Interview</span>
+                    {% elif app_status == 'Vetting' %}
+                      <span class="badge bg-purple" style="background-color: #8b5cf6;">Vetting</span>
+                    {% elif app_status == 'Offer' or app_status == 'Offered' %}
+                      <span class="badge bg-orange" style="background-color: #f59e0b;">Offered</span>
+                    {% elif app_status == 'Contract Issued' or app_status == 'Contract Sent' %}
+                      <span class="badge bg-warning text-dark">Contract Issued</span>
+                    {% elif app_status == 'Hired' or app_status == 'Placed' or app_status == 'Contract Signed' %}
+                      <span class="badge bg-success">Placed</span>
+                    {% elif app_status == 'Rejected' %}
+                      <span class="badge bg-danger">Rejected</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ app_status }}</span>
+                    {% endif %}
+                    <br><small class="text-muted">{{ latest_app.job_title }}</small>
+                    {% if r.all_applications|length > 1 %}
+                      <br><small class="text-muted">+{{ r.all_applications|length - 1 }} other role{{ 's' if r.all_applications|length > 2 else '' }}</small>
+                    {% endif %}
+                  {% else %}
+                    {# No applications - show candidate availability status #}
+                    {% set status = r.cand.candidate_status or 'available' %}
+                    {% if status == 'available' %}
+                      <span class="badge bg-success">Available</span>
+                    {% elif status == 'on_assignment' %}
+                      <span class="badge bg-primary">On Assignment</span>
+                    {% elif status == 'on_notice' %}
+                      <span class="badge bg-warning text-dark">On Notice</span>
+                    {% elif status == 'unavailable' %}
+                      <span class="badge bg-secondary">Unavailable</span>
+                    {% elif status == 'do_not_contact' %}
+                      <span class="badge bg-danger">Do Not Contact</span>
+                    {% else %}
+                      <span class="badge bg-light text-dark">{{ status }}</span>
+                    {% endif %}
+                  {% endif %}
+                  
+                  {% if r.cand.available_from %}
+                    <br><small class="text-muted">From: {{ r.cand.available_from.strftime('%d %b %Y') if r.cand.available_from else '' }}</small>
+                  {% endif %}
+                  
+                  {% if r.cand.notice_period_days and r.cand.notice_period_days > 0 %}
+                    <br><small class="text-muted">{{ r.cand.notice_period_days }}d notice</small>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if r.cand.location %}
+                    <i class="fas fa-map-marker-alt text-muted me-1"></i>{{ r.cand.location }}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                  
+                  {% if r.cand.work_preference %}
+                    <br>
+                    <small class="badge bg-light text-dark">
+                      {% if r.cand.work_preference == 'remote' %}
+                        <i class="fas fa-home"></i> Remote
+                      {% elif r.cand.work_preference == 'hybrid' %}
+                        <i class="fas fa-exchange-alt"></i> Hybrid
+                      {% elif r.cand.work_preference == 'onsite' %}
+                        <i class="fas fa-building"></i> On-site
+                      {% else %}
+                        {{ r.cand.work_preference|title }}
+                      {% endif %}
+                    </small>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if r.cand.day_rate_min or r.cand.day_rate_max %}
+                    <span class="text-success">
+                      {% if r.cand.day_rate_min and r.cand.day_rate_max %}
+                        £{{ r.cand.day_rate_min }}-{{ r.cand.day_rate_max }}
+                      {% elif r.cand.day_rate_min %}
+                        £{{ r.cand.day_rate_min }}+
+                      {% elif r.cand.day_rate_max %}
+                        Up to £{{ r.cand.day_rate_max }}
+                      {% endif %}
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                  
+                  {% if r.cand.ir35_preference %}
+                    <br>
+                    <small class="badge {{ 'bg-info' if r.cand.ir35_preference == 'outside' else 'bg-secondary' }}">
+                      IR35: {{ r.cand.ir35_preference|title }}
+                    </small>
+                  {% endif %}
+                  
+                  {% if r.cand.contract_preference %}
+                    <br>
+                    <small class="text-muted">{{ r.cand.contract_preference|replace('_', ' ')|title }}</small>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if r.cand.security_clearance %}
+                    {% set clearance = r.cand.security_clearance.upper() %}
+                    <span class="badge {{ 'bg-danger' if clearance in ['DV', 'EDV'] else ('bg-warning text-dark' if clearance in ['SC', 'ESC'] else 'bg-info') }}">
+                      {{ clearance }}
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+
+                <td style="white-space: normal;">
+                  {% if r.cand.skills %}
+                    <span style="font-size: 0.85rem;">{{ r.cand.skills[:200] }}{{ '...' if r.cand.skills|length > 200 else '' }}</span>
+                  {% else %}
+                    <span class="text-muted">No skills listed</span>
+                  {% endif %}
+                </td>
+
+                <td class="text-center">
+                  <div class="btn-group-vertical btn-group-sm" style="width: 100%;">
+                    <!-- Quick CV View -->
+                    <button type="button" class="btn btn-modern-outline btn-sm" 
+                            onclick="showQuickCV({{ r.cand.id }}, '{{ r.cand.name|e }}', '{{ (r.cand.skills or '')|replace('\n', ' ')|replace("'", "\\'")|truncate(500) }}', {{ r.cv_doc_id or 'null' }}, '{{ (r.cand.ai_summary or '')|replace('\n', ' ')|replace("'", "\\'")|truncate(1000) }}')">
+                      <i class="fas fa-file-alt me-1"></i> Quick View
+                    </button>
+                    
+                    <!-- View -->
+                    <a class="btn btn-modern-primary btn-sm"
+                       href="{{ url_for('candidate_profile', cand_id=r.cand.id) }}"
+                       title="Open associate profile">
+                      <i class="fas fa-eye me-1"></i> View
+                    </a>
+
+                    <!-- Add to Pipeline (replaces old Shortlist button) -->
+                    <div class="dropdown w-100">
+                      <button class="btn btn-modern-success btn-sm w-100 dropdown-toggle" type="button"
+                              data-bs-toggle="dropdown" aria-expanded="false"
+                              title="Add associate to a job pipeline">
+                        <i class="fas fa-plus-circle me-1"></i> Add to Pipeline
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end" style="max-height: 300px; overflow-y: auto; min-width: 280px;">
+                        <li><h6 class="dropdown-header">Select a Job</h6></li>
+                        {% if jobs and jobs|length %}
+                          {% for j in jobs %}
+                            {% if j.status == 'Open' or j.status == 'Active' or not j.status %}
+                            <li>
+                              <form method="POST" action="{{ url_for('add_candidate_to_job_pipeline') }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="candidate_id" value="{{ r.cand.id }}">
+                                <input type="hidden" name="job_id" value="{{ j.id }}">
+                                <button type="submit" class="dropdown-item" title="{{ j.title }}">
+                                  <i class="fas fa-briefcase me-1 text-muted"></i>
+                                  {{ j.title|truncate(40) }}
+                                  {% if j.engagement %}<small class="text-muted"> — {{ j.engagement.client|truncate(20) }}</small>{% endif %}
+                                </button>
+                              </form>
+                            </li>
+                            {% endif %}
+                          {% endfor %}
+                        {% else %}
+                          <li><span class="dropdown-item text-muted">No open jobs available</span></li>
+                        {% endif %}
+                      </ul>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="9" class="text-center py-5">
+                  <div style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem;">
+                    <i class="fas fa-users"></i>
+                  </div>
+                  <h5 class="text-muted mb-2">No Associates Found</h5>
+                  <p class="text-muted">Try adjusting your filters or search criteria.</p>
+                  <p class="text-muted small">
+                    <strong>Search Tips:</strong><br>
+                    • Use <code>AND</code> to require multiple terms: <code>java AND aws</code><br>
+                    • Use <code>OR</code> for alternatives: <code>python OR java</code><br>
+                    • Use <code>NOT</code> to exclude: <code>developer AND NOT junior</code><br>
+                    • Use quotes for exact phrases: <code>"project manager"</code>
+                  </p>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-4">
+          <ul class="pagination justify-content-center mb-0">
+            <li class="page-item {{ 'disabled' if not pagination.page or pagination.page <= 1 }}">
+              <a class="page-link" href="{{ url_for('resource_pool',
+                 q=q, has_cv=('1' if has_cv else '0'), job_id=(job.id if job else None),
+                 last_updated=last_updated, page=(pagination.page - 1),
+                 per_page=pagination.per_page, rank=('1' if rank else '0'),
+                 exclude_shortlisted=request.args.get('exclude_shortlisted','0')) }}">
+                <i class="fas fa-chevron-left"></i> Previous
+              </a>
+            </li>
+            {% for p in range(1, pagination.pages + 1) %}
+              <li class="page-item {{ 'active' if p == pagination.page else '' }}">
+                <a class="page-link" href="{{ url_for('resource_pool',
+                   q=q, has_cv=('1' if has_cv else '0'), job_id=(job.id if job else None),
+                   last_updated=last_updated, page=p, per_page=pagination.per_page,
+                   rank=('1' if rank else '0'),
+                   exclude_shortlisted=request.args.get('exclude_shortlisted','0')) }}">{{ p }}</a>
+              </li>
+            {% endfor %}
+            <li class="page-item {{ 'disabled' if pagination.page >= pagination.pages }}">
+              <a class="page-link" href="{{ url_for('resource_pool',
+                 q=q, has_cv=('1' if has_cv else '0'), job_id=(job.id if job else None),
+                 last_updated=last_updated, page=(pagination.page + 1),
+                 per_page=pagination.per_page, rank=('1' if rank else '0'),
+                 exclude_shortlisted=request.args.get('exclude_shortlisted','0')) }}">
+                Next <i class="fas fa-chevron-right"></i>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Delete modal removed from resource pool — delete is admin-only in the associate profile page -->
+
+<script>
+function showAddAssociateModal() {
+  var modal = new bootstrap.Modal(document.getElementById('addAssociateModal'));
+  modal.show();
+}
+</script>
+
+<!-- Add Associate Modal -->
+<div class="modal fade" id="addAssociateModal" tabindex="-1" aria-labelledby="addAssociateModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="POST" action="{{ url_for('add_candidate_manual') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addAssociateModalLabel">
+          <i class="fas fa-user-plus text-success me-2"></i>
+          Add New Associate
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="add-name" class="form-label">Full Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="add-name" name="name" required placeholder="John Smith">
+        </div>
+        <div class="mb-3">
+          <label for="add-email" class="form-label">Email Address <span class="text-danger">*</span></label>
+          <input type="email" class="form-control" id="add-email" name="email" required placeholder="john@example.com">
+        </div>
+        <div class="mb-3">
+          <label for="add-phone" class="form-label">Phone Number</label>
+          <input type="tel" class="form-control" id="add-phone" name="phone" placeholder="+44 7XXX XXXXXX">
+        </div>
+        <div class="mb-3">
+          <label for="add-location" class="form-label">Location</label>
+          <input type="text" class="form-control" id="add-location" name="location" placeholder="London, UK">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          <i class="fas fa-times me-1"></i> Cancel
+        </button>
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-user-plus me-1"></i> Add Associate
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Quick CV Preview Modal -->
+<div class="cv-preview-modal" id="cvPreviewModal">
+  <div class="cv-preview-content">
+    <div class="cv-preview-header">
+      <h3 id="cvPreviewTitle">Associate Profile Summary</h3>
+      <button class="cv-preview-close" onclick="closeQuickCV()">&times;</button>
+    </div>
+    <div class="cv-preview-body">
+      <div class="cv-summary-section">
+        <h4><i class="fas fa-user me-1"></i> Profile Overview</h4>
+        <p id="cvPreviewSummary">Loading...</p>
+      </div>
+      <div class="cv-summary-section">
+        <h4><i class="fas fa-robot me-1"></i> AI Summary</h4>
+        <p id="cvPreviewAISummary"><span class="text-muted">No AI summary available</span></p>
+      </div>
+      <div class="cv-summary-section">
+        <h4><i class="fas fa-tags me-1"></i> Key Skills</h4>
+        <p id="cvPreviewSkills">Loading...</p>
+      </div>
+      <div class="cv-preview-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a id="cvPreviewLink" href="#" class="btn btn-modern-primary">
+          <i class="fas fa-user me-1"></i> View Full Profile
+        </a>
+        <a id="cvPreviewCVLink" href="#" class="btn btn-modern-outline" style="display: none;" target="_blank">
+          <i class="fas fa-download me-1"></i> Download CV
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Email Modal -->
+<div class="modal fade" id="bulkEmailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-envelope me-2 text-primary"></i>Bulk Email</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Recipients (<span id="bulkEmailRecipientCount">0</span> selected)</label>
+          <div id="bulkEmailRecipients" class="p-2 bg-light rounded" style="max-height: 100px; overflow-y: auto;">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Subject</label>
+          <input type="text" class="form-control" id="bulkEmailSubject" placeholder="Enter email subject">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Message</label>
+          <textarea class="form-control" id="bulkEmailBody" rows="6" placeholder="Enter your message..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="sendBulkEmailSubmit()">
+          <i class="fas fa-paper-plane me-1"></i> Send Email
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Bulk Selection Management
+let selectedCandidates = new Map(); // Map of id -> {name, email}
+
+function updateBulkSelection() {
+  const checkboxes = document.querySelectorAll('.select-checkbox:checked');
+  selectedCandidates.clear();
+  
+  checkboxes.forEach(cb => {
+    selectedCandidates.set(cb.dataset.id, {
+      name: cb.dataset.name,
+      email: cb.dataset.email
+    });
+  });
+  
+  updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+  const bar = document.getElementById('bulkActionsBar');
+  const countEl = document.getElementById('selectedCount');
+  countEl.textContent = selectedCandidates.size;
+  bar.classList.toggle('show', selectedCandidates.size > 0);
+  
+  // Update select all checkbox state
+  const allCheckboxes = document.querySelectorAll('.select-checkbox');
+  const selectAllCb = document.getElementById('selectAllCheckbox');
+  if (allCheckboxes.length > 0 && selectAllCb) {
+    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+    const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+    selectAllCb.checked = allChecked;
+    selectAllCb.indeterminate = someChecked && !allChecked;
+  }
+}
+
+function toggleSelectAll() {
+  const selectAllCb = document.getElementById('selectAllCheckbox');
+  const checkboxes = document.querySelectorAll('.select-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = selectAllCb.checked;
+  });
+  updateBulkSelection();
+}
+
+function selectAllOnPage() {
+  const checkboxes = document.querySelectorAll('.select-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = true;
+  });
+  document.getElementById('selectAllCheckbox').checked = true;
+  updateBulkSelection();
+}
+
+function clearSelection() {
+  const checkboxes = document.querySelectorAll('.select-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = false;
+  });
+  document.getElementById('selectAllCheckbox').checked = false;
+  selectedCandidates.clear();
+  updateBulkActionsBar();
+}
+
+// Export selected to CSV
+function exportSelectedCSV() {
+  if (selectedCandidates.size === 0) {
+    alert('Please select at least one associate.');
+    return;
+  }
+  
+  // Collect data from selected rows
+  const rows = [['ID', 'Name', 'Email', 'Status', 'Location', 'Rate', 'Clearance', 'Skills']];
+  
+  selectedCandidates.forEach((data, id) => {
+    const row = document.querySelector(`tr[data-candidate-id="${id}"]`);
+    if (row) {
+      const cells = row.querySelectorAll('td');
+      const name = data.name || '';
+      const email = data.email || '';
+      const skills = row.dataset.candidateSkills || '';
+      rows.push([id, name, email, '', '', '', '', skills.replace(/"/g, '""')]);
+    }
+  });
+  
+  // Generate CSV
+  const csv = rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `associates_export_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Add selected to pipeline (shortlist)
+function addSelectedToPipeline() {
+  if (selectedCandidates.size === 0) {
+    alert('Please select at least one associate.');
+    return;
+  }
+  
+  const ids = Array.from(selectedCandidates.keys());
+  
+  // Submit as form
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '{{ url_for("bulk_shortlist") if view_exists("bulk_shortlist") else "#" }}';
+  
+  ids.forEach(id => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'candidate_ids[]';
+    input.value = id;
+    form.appendChild(input);
+  });
+  
+  {% if job %}
+  const jobInput = document.createElement('input');
+  jobInput.type = 'hidden';
+  jobInput.name = 'job_id';
+  jobInput.value = '{{ job.id }}';
+  form.appendChild(jobInput);
+  {% endif %}
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// Send bulk email
+function sendBulkEmail() {
+  if (selectedCandidates.size === 0) {
+    alert('Please select at least one associate.');
+    return;
+  }
+  
+  // Populate modal
+  const recipientsDiv = document.getElementById('bulkEmailRecipients');
+  const countEl = document.getElementById('bulkEmailRecipientCount');
+  
+  let html = '';
+  selectedCandidates.forEach((data, id) => {
+    html += `<span class="badge bg-primary me-1 mb-1">${data.name} (${data.email})</span>`;
+  });
+  
+  recipientsDiv.innerHTML = html;
+  countEl.textContent = selectedCandidates.size;
+  
+  // Show modal
+  const modal = new bootstrap.Modal(document.getElementById('bulkEmailModal'));
+  modal.show();
+}
+
+function sendBulkEmailSubmit() {
+  const subject = document.getElementById('bulkEmailSubject').value.trim();
+  const body = document.getElementById('bulkEmailBody').value.trim();
+  
+  if (!subject || !body) {
+    alert('Please enter a subject and message.');
+    return;
+  }
+  
+  // Build mailto link with all recipients
+  const emails = Array.from(selectedCandidates.values()).map(d => d.email).filter(e => e);
+  const mailtoUrl = `mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  
+  window.location.href = mailtoUrl;
+  
+  // Close modal
+  bootstrap.Modal.getInstance(document.getElementById('bulkEmailModal')).hide();
+}
+
+// Quick CV Preview
+function showQuickCV(id, name, skills, cvDocId, aiSummary) {
+  const modal = document.getElementById('cvPreviewModal');
+  const titleEl = document.getElementById('cvPreviewTitle');
+  const summaryEl = document.getElementById('cvPreviewSummary');
+  const aiSummaryEl = document.getElementById('cvPreviewAISummary');
+  const skillsEl = document.getElementById('cvPreviewSkills');
+  const linkEl = document.getElementById('cvPreviewLink');
+  const cvLinkEl = document.getElementById('cvPreviewCVLink');
+  
+  titleEl.textContent = name;
+  linkEl.href = `/candidate/${id}`;
+  
+  // Show/hide CV download link
+  if (cvDocId) {
+    cvLinkEl.href = `/document/${cvDocId}/download`;
+    cvLinkEl.style.display = 'inline-flex';
+  } else {
+    cvLinkEl.style.display = 'none';
+  }
+  
+  // Format skills with highlights for search terms
+  const searchQuery = '{{ q|e }}';
+  let skillsFormatted = skills || 'No skills listed';
+  
+  if (searchQuery && skillsFormatted !== 'No skills listed') {
+    // Parse and highlight search terms
+    const terms = searchQuery.toLowerCase().split(/\s+AND\s+|\s+OR\s+|\s+/i).filter(t => t && t !== 'NOT' && t.length > 2);
+    terms.forEach(term => {
+      const cleanTerm = term.replace(/['"]/g, '');
+      if (cleanTerm.length > 2) {
+        const regex = new RegExp(`(${cleanTerm})`, 'gi');
+        skillsFormatted = skillsFormatted.replace(regex, '<span class="keyword-highlight">$1</span>');
+      }
+    });
+  }
+  
+  // Display AI Summary
+  if (aiSummary && aiSummary.trim()) {
+    aiSummaryEl.innerHTML = aiSummary;
+  } else {
+    aiSummaryEl.innerHTML = '<span class="text-muted">No AI summary available. Upload a CV to generate one.</span>';
+  }
+  
+  summaryEl.innerHTML = `<strong>${name}</strong> - View full profile for complete details including contact information, work history, and documents.`;
+  skillsEl.innerHTML = skillsFormatted;
+  
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeQuickCV() {
+  const modal = document.getElementById('cvPreviewModal');
+  modal.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+// Close modal on backdrop click
+document.getElementById('cvPreviewModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeQuickCV();
+  }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeQuickCV();
+  }
+});
+
+// Column header filtering — updates the page URL with the selected filter values
+function applyColumnFilter() {
+  const url = new URL(window.location.href);
+
+  // Status filter from column header
+  const statusVal = document.getElementById('colFilterStatus').value;
+  if (statusVal) {
+    url.searchParams.set('associate_status', statusVal);
+  } else {
+    url.searchParams.delete('associate_status');
+  }
+
+  // Location filter from column header
+  const locationVal = document.getElementById('colFilterLocation').value;
+  if (locationVal && locationVal !== 'all') {
+    url.searchParams.set('location', locationVal);
+  } else {
+    url.searchParams.delete('location');
+  }
+
+  // Reset to page 1 when filters change
+  url.searchParams.set('page', '1');
+
+  window.location.href = url.toString();
+}
+
+// ===== REQ-268: Column Configuration =====
+function toggleColumnConfig() {
+  var dd = document.getElementById('colConfigDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  var dd = document.getElementById('colConfigDropdown');
+  var btn = document.getElementById('colConfigBtn');
+  if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
+function applyColumnVisibility() {
+  var table = document.getElementById('resourcePoolTable');
+  if (!table) return;
+  var toggles = document.querySelectorAll('.col-toggle');
+  var visible = {};
+  toggles.forEach(function(cb) {
+    var idx = parseInt(cb.getAttribute('data-col-index'));
+    // Column index in table is idx+1 because col 0 is the checkbox column (always visible)
+    var colNum = idx + 1;
+    var show = cb.checked;
+    visible[idx] = show;
+    // Apply to th
+    var ths = table.querySelectorAll('thead th:nth-child(' + colNum + ')');
+    ths.forEach(function(th) { th.style.display = show ? '' : 'none'; });
+    // Apply to td
+    var tds = table.querySelectorAll('tbody td:nth-child(' + colNum + ')');
+    tds.forEach(function(td) { td.style.display = show ? '' : 'none'; });
+  });
+  // Save to localStorage
+  localStorage.setItem('rp_visible_cols', JSON.stringify(visible));
+}
+
+function loadColumnConfig() {
+  var saved = localStorage.getItem('rp_visible_cols');
+  if (saved) {
+    try {
+      var visible = JSON.parse(saved);
+      var toggles = document.querySelectorAll('.col-toggle');
+      toggles.forEach(function(cb) {
+        var idx = parseInt(cb.getAttribute('data-col-index'));
+        if (visible.hasOwnProperty(idx)) {
+          cb.checked = visible[idx];
+        }
+      });
+      applyColumnVisibility();
+    } catch(e) {}
+  }
+}
+
+function resetColumnConfig() {
+  localStorage.removeItem('rp_visible_cols');
+  var toggles = document.querySelectorAll('.col-toggle');
+  toggles.forEach(function(cb) { cb.checked = true; });
+  applyColumnVisibility();
+}
+
+// Attach change listeners to checkboxes
+document.querySelectorAll('.col-toggle').forEach(function(cb) {
+  cb.addEventListener('change', applyColumnVisibility);
+});
+
+// Load saved config on page load
+loadColumnConfig();
+</script>
+</div>
+{% endblock %}

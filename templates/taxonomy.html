@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Taxonomy · ATS{% endblock %}
+
+{% block head %}
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    background: white;
+    border: 1px solid rgba(30, 58, 138, 0.1);
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 8px 24px rgba(30, 58, 138, 0.15);
+  }
+  
+  /* Page Header */
+  .page-header {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(30, 58, 138, 0.15);
+    animation: fadeInDown 0.6s ease-out;
+  }
+  
+  .page-header h1 {
+    color: white;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .page-header h1 i {
+    font-size: 2.5rem;
+    opacity: 0.9;
+  }
+  
+  .page-subtitle {
+    margin: 0.5rem 0 0 0;
+    opacity: 0.95;
+    font-size: 1rem;
+  }
+  
+  /* Section Headers */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .section-title i {
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .section-subtitle {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Tag Chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f0f4fa 0%, #e8eef8 100%);
+    color: #1e3a8a;
+    font-size: 0.813rem;
+    font-weight: 600;
+    margin: 0 0.5rem 0.5rem 0;
+    border: 1px solid rgba(30, 58, 138, 0.1);
+    transition: all 0.2s ease;
+  }
+  
+  .chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.2);
+  }
+  
+  .chip i {
+    font-size: 0.75rem;
+    opacity: 0.7;
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 10px;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    font-size: 0.875rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.2);
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  /* Info Boxes */
+  .info-box {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 12px;
+    padding: 1rem;
+    border: 1px solid rgba(30, 58, 138, 0.1);
+    margin-top: 1rem;
+  }
+  
+  .info-box-title {
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    font-size: 0.938rem;
+  }
+  
+  .info-box ul {
+    margin-bottom: 0;
+    padding-left: 1.25rem;
+  }
+  
+  .info-box li {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .kbd {
+    font-family: 'Courier New', monospace;
+    background: #e8eef8;
+    color: #1e3a8a;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  
+  /* Dropdown Menu */
+  .dropdown-menu {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    padding: 0.5rem;
+  }
+  
+  .dropdown-item {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+  }
+  
+  .dropdown-item:hover {
+    background: #f9fafb;
+    color: #1e3a8a;
+  }
+  
+  .retag-form-container {
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+  }
+  
+  .retag-row .form-control,
+  .retag-row .form-select {
+    height: 36px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Group Header */
+  .group-header {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .group-header:first-child {
+    margin-top: 0;
+  }
+  
+  /* Header Actions */
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  /* Animations */
+  @keyframes fadeInDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+  
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header {
+      padding: 1.5rem;
+    }
+    
+    .page-header h1 {
+      font-size: 1.5rem;
+    }
+    
+    .page-header h1 i {
+      font-size: 1.75rem;
+    }
+    
+    .header-actions {
+      width: 100%;
+      margin-top: 1rem;
+    }
+    
+    .header-actions .btn-modern {
+      flex: 1;
+    }
+  }
+</style>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-tags"></i>
+          Taxonomy
+        </h1>
+        <p class="page-subtitle">Normalised roles & subject matter tags used for search, filtering, and ranking</p>
+      </div>
+      <div class="header-actions">
+        <!-- Re-tag Dropdown -->
+        <div class="btn-group">
+          <button class="btn btn-modern btn-modern-outline dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-sync-alt me-2"></i>Re-tag
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <form method="post" action="{{ url_for('taxonomy_retag_all', batch=500, offset=0, overwrite=0) }}">
+                <button class="dropdown-item" type="submit">
+                  <i class="fas fa-redo me-2"></i>Re-tag first 500
+                </button>
+              </form>
+            </li>
+            <li>
+              <form method="post" action="{{ url_for('taxonomy_retag_all', batch=2000, offset=0, overwrite=0) }}">
+                <button class="dropdown-item" type="submit">
+                  <i class="fas fa-redo me-2"></i>Re-tag first 2,000
+                </button>
+              </form>
+            </li>
+            <li>
+              <form method="post" action="{{ url_for('taxonomy_retag_all', batch=10000, offset=0, overwrite=0) }}">
+                <button class="dropdown-item" type="submit">
+                  <i class="fas fa-redo me-2"></i>Re-tag first 10,000
+                </button>
+              </form>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <div class="retag-form-container">
+                <form method="post" action="{{ url_for('taxonomy_retag_all') }}" class="retag-row">
+                  <div class="row g-2 align-items-center">
+                    <div class="col-4">
+                      <label class="form-label small mb-1">Batch</label>
+                      <input type="number" name="batch" class="form-control" min="1" step="1" value="500"
+                             oninput="this.form.action='{{ url_for('taxonomy_retag_all') }}?batch='+this.value+'&offset='+this.form.offset.value+'&overwrite='+(this.form.overwrite.checked?1:0)">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small mb-1">Offset</label>
+                      <input type="number" name="offset" class="form-control" min="0" step="1" value="0"
+                             oninput="this.form.action='{{ url_for('taxonomy_retag_all') }}?batch='+this.form.batch.value+'&offset='+this.value+'&overwrite='+(this.form.overwrite.checked?1:0)">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small mb-1">Overwrite</label>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="overwrite" id="overwriteBox"
+                               onchange="this.form.action='{{ url_for('taxonomy_retag_all') }}?batch='+this.form.batch.value+'&offset='+this.form.offset.value+'&overwrite='+(this.checked?1:0)">
+                        <label class="form-check-label small" for="overwriteBox">Replace</label>
+                      </div>
+                    </div>
+                    <div class="col-12 mt-2">
+                      <button class="btn btn-modern btn-modern-primary btn-sm w-100" type="submit">
+                        <i class="fas fa-play me-1"></i>Run
+                      </button>
+                    </div>
+                  </div>
+                </form>
+                <div class="small text-secondary mt-2">
+                  Hint: Use <span class="kbd">offset</span> to step through large pools (e.g. 0, 10k, 20k…).
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        
+        <a class="btn btn-modern btn-modern-outline" href="{{ url_for('taxonomy_manage') }}">
+          <i class="fas fa-edit me-2"></i>Manage
+        </a>
+        <a class="btn btn-modern btn-modern-outline" href="{{ url_for('resource_pool') }}">
+          <i class="fas fa-users me-2"></i>Resource Pool
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Role Taxonomy Card -->
+    <div class="col-12 col-lg-6">
+      <div class="modern-card p-4 fade-in-up stagger-1">
+        <h2 class="section-title">
+          <i class="fas fa-diagram-project"></i>
+          Role Taxonomy
+        </h2>
+        <p class="section-subtitle">Canonical role labels that jobs and associates are mapped to</p>
+        
+        <div class="mb-3">
+          {% set roles = ROLE_TYPES if ROLE_TYPES is defined else [
+            "Project Director","Project Manager","Ops Manager","Team Leader","Case Handler","Admin"
+          ] %}
+          {% for r in roles %}
+            <span class="chip">
+              <i class="fas fa-diagram-project"></i>
+              {{ r }}
+            </span>
+          {% endfor %}
+        </div>
+        
+        <div class="info-box">
+          <div class="info-box-title">
+            <i class="fas fa-lightbulb me-1"></i>
+            Normalisation Rules (Examples)
+          </div>
+          <ul>
+            <li><span class="kbd">PD</span>, <span class="kbd">Programme Director</span> → <strong>Project Director</strong></li>
+            <li><span class="kbd">PM</span>, <span class="kbd">Project Lead</span> → <strong>Project Manager</strong></li>
+            <li><span class="kbd">Ops Lead</span>, <span class="kbd">Operations Manager</span> → <strong>Ops Manager</strong></li>
+            <li><span class="kbd">Supervisor</span> → <strong>Team Leader</strong></li>
+            <li><span class="kbd">Investigator</span>, <span class="kbd">Analyst</span> → <strong>Case Handler</strong></li>
+            <li><span class="kbd">Coordinator</span>, <span class="kbd">Assistant</span> → <strong>Admin</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subject Taxonomy Card -->
+    <div class="col-12 col-lg-6">
+      <div class="modern-card p-4 fade-in-up stagger-2">
+        <h2 class="section-title">
+          <i class="fas fa-book"></i>
+          Subject Taxonomy
+        </h2>
+        <p class="section-subtitle">Normalised skills & domains used for fast pre-filtering before AI ranking</p>
+
+        {% set groups = subject_groups if subject_groups is defined else {
+          "Financial Crime / Compliance": [
+            "AML","KYC","CDD","EDD","Sanctions","Screening","TM (Transaction Monitoring)","FRA","SAR/STR","PEP","Adverse Media"
+          ],
+          "Case Handling / QA / Ops": [
+            "Case Handling","Quality Assurance","MI/Reporting","Playbooks","Workflows","SLA Management"
+          ],
+          "Domains": [
+            "Retail Banking","Corporate Banking","FinTech","Payments","Crypto","Wealth/Private Banking"
+          ],
+          "Tools & Platforms": [
+            "Actimize","Pega","Mantas","Nice","Salesforce","Dynamics","Oracle","Workday","Excel","SQL"
+          ]
+        } %}
+
+        {% for group, tags in groups.items() %}
+          <div class="group-header">{{ group }}</div>
+          <div class="mb-3">
+            {% for t in tags %}
+              <span class="chip">
+                <i class="fas fa-hashtag"></i>
+                {{ t }}
+              </span>
+            {% endfor %}
+          </div>
+        {% endfor %}
+
+        <div class="info-box">
+          <div class="info-box-title">
+            <i class="fas fa-info-circle me-1"></i>
+            Tip
+          </div>
+          <p class="small text-secondary mb-0">
+            The Resource Pool "<strong>Rank (top 20)</strong>" uses the job's top terms and these tags to quickly shortlist a few hundred associates before doing heavier CV scoring.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It's Used Card -->
+  <div class="modern-card p-4 mt-4 fade-in-up stagger-3">
+    <h2 class="section-title">
+      <i class="fas fa-question-circle"></i>
+      How the Taxonomy is Used
+    </h2>
+    <ol class="mb-0" style="color: #64748b; font-size: 0.938rem;">
+      <li class="mb-2">
+        <strong style="color: #1e293b;">Normalise</strong> CVs & job descriptions to canonical roles and subject tags.
+      </li>
+      <li class="mb-2">
+        <strong style="color: #1e293b;">Pre-filter</strong> associates by skills/tags (fast, indexed SQL) using job terms.
+      </li>
+      <li>
+        <strong style="color: #1e293b;">Heavy rank</strong> only a small pool with CV extraction + AI score → show Top 20.
+      </li>
+    </ol>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Approved Umbrella Companies - OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="fas fa-umbrella me-2"></i>Approved Umbrella Companies</h1>
+            <p class="subtitle mb-0">Manage approved umbrella companies ({{ total }} total)</p>
+        </div>
+        <div>
+            <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus me-1"></i> Add Company
+            </button>
+        </div>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Search -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="d-flex align-items-center gap-2">
+            <i class="fas fa-search text-muted"></i>
+            <input type="text" name="search" class="form-control form-control-sm border-0" placeholder="Search by company name..." value="{{ search }}">
+            <button class="btn btn-sm btn-outline-primary">Search</button>
+            {% if search %}<a href="{{ url_for('admin_umbrella_companies') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if umbrellas %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Company Name</th>
+                        <th>Signup URL</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th style="width:140px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in umbrellas %}
+                    <tr>
+                        <td><strong>{{ u.name }}</strong></td>
+                        <td>{% if u.signup_url %}<a href="{{ u.signup_url }}" target="_blank" rel="noopener">{{ u.signup_url[:40] }}{% if u.signup_url|length > 40 %}...{% endif %}</a>{% else %}&mdash;{% endif %}</td>
+                        <td>{{ u.phone or '&mdash;'|safe }}</td>
+                        <td>{% if u.email %}<a href="mailto:{{ u.email }}">{{ u.email }}</a>{% else %}&mdash;{% endif %}</td>
+                        <td>
+                            {% if u.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ u.id }}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('admin_umbrella_company_delete', umb_id=u.id) }}" style="display:inline;" onsubmit="return confirm('Delete this umbrella company?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+
+                    <!-- Edit Modal -->
+                    <div class="modal fade" id="editModal{{ u.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form method="POST" action="{{ url_for('admin_umbrella_company_edit', umb_id=u.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <div class="modal-header"><h5 class="modal-title">Edit Umbrella Company</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                    <div class="modal-body">
+                                        <div class="mb-3"><label class="form-label">Company Name *</label><input type="text" name="name" class="form-control" value="{{ u.name }}" required></div>
+                                        <div class="mb-3"><label class="form-label">Signup URL</label><input type="url" name="signup_url" class="form-control" value="{{ u.signup_url or '' }}" placeholder="https://..."></div>
+                                        <div class="mb-3"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="{{ u.phone or '' }}"></div>
+                                        <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="{{ u.email or '' }}"></div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Status</label>
+                                            <select name="is_active" class="form-select">
+                                                <option value="1" {{ 'selected' if u.is_active }}>Active</option>
+                                                <option value="0" {{ 'selected' if not u.is_active }}>Inactive</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer"><button class="btn btn-primary">Save</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% set total_pages = (total / per_page) | round(0, 'ceil') | int %}
+        {% if total_pages > 1 %}
+        <nav class="mt-3">
+            <ul class="pagination pagination-sm justify-content-center">
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {{ 'active' if p == page }}">
+                    <a class="page-link" href="?page={{ p }}&search={{ search }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-umbrella fa-2x mb-2"></i>
+            <p>No umbrella companies found{% if search %} for "{{ search }}"{% endif %}.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_umbrella_company_add') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header"><h5 class="modal-title">Add Umbrella Company</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">Company Name *</label><input type="text" name="name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Signup URL</label><input type="url" name="signup_url" class="form-control" placeholder="https://..."></div>
+                    <div class="mb-3"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="is_active" class="form-select">
+                            <option value="1" selected>Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-primary">Add Company</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

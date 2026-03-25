@@ -1,0 +1,282 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'personal_details' %}
+
+{% block page_title %}Personal Details{% endblock %}
+{% block header_title %}Personal Details{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Personal Details</li>
+{% endblock %}
+
+{% block content %}
+<form method="POST" action="/portal/personal-details" id="personalDetailsForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Profile Picture -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-camera me-2"></i>Profile Picture</h3>
+        </div>
+        <div class="portal-card-body">
+            <div style="display: flex; align-items: center; gap: 24px;">
+                <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--color-gray-100); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid var(--color-gray-200); flex-shrink: 0;">
+                    {% if profile and profile.profile_picture %}
+                    <img src="/portal/profile-pic/{{ profile.profile_picture.split('/')[-1] }}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                    <i class="fas fa-user" style="font-size: 32px; color: var(--color-gray-400);"></i>
+                    {% endif %}
+                </div>
+                <div>
+                    <p class="text-muted text-sm mb-2">Upload a profile photo (JPG, PNG, GIF). Max 5MB.</p>
+                    <form method="POST" action="/portal/profile-picture" enctype="multipart/form-data" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <label class="btn btn-outline-primary btn-sm" style="cursor: pointer;">
+                            <i class="fas fa-upload me-1"></i> Upload Photo
+                            <input type="file" name="profile_picture" accept="image/*" onchange="this.form.submit()" style="display: none;">
+                        </label>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Basic Information -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-user me-2"></i>Basic Information</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label" for="title">Title</label>
+                    <select id="title" name="title" class="form-select">
+                        <option value="">Select...</option>
+                        {% for t in ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Prof'] %}
+                        <option value="{{ t }}" {% if profile and profile.title == t %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="first_name">First Name <span class="text-danger">*</span></label>
+                    <input type="text" id="first_name" name="first_name" class="form-control" value="{{ profile.first_name if profile and profile.first_name else associate.name.split(' ')[0] if associate.name else '' }}" required>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="surname">Surname <span class="text-danger">*</span></label>
+                    <input type="text" id="surname" name="surname" class="form-control" value="{{ profile.surname if profile and profile.surname else (associate.name.split(' ', 1)[1] if associate.name and ' ' in associate.name else '') }}" required>
+                </div>
+                <div class="col-12">
+                    <small class="text-muted"><i class="fas fa-info-circle me-1"></i>Please enter your legal names as they appear on your passport.</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="aliases">Alias / Known As</label>
+                    <input type="text" id="aliases" name="aliases" class="form-control" value="{{ profile.aliases if profile and profile.aliases else '' }}" placeholder="Optional">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="previous_first_names">Previous First Name(s)</label>
+                    <input type="text" id="previous_first_names" name="previous_first_names" class="form-control" value="{{ profile.previous_first_names if profile and profile.previous_first_names else '' }}" placeholder="If applicable">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="previous_surnames">Previous Surname(s)</label>
+                    <input type="text" id="previous_surnames" name="previous_surnames" class="form-control" value="{{ profile.previous_surnames if profile and profile.previous_surnames else '' }}" placeholder="If applicable">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Information -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-address-card me-2"></i>Contact Information</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Email Address <span class="text-danger">*</span></label>
+                    <input type="email" id="email" name="email" class="form-control" value="{{ associate.email }}" readonly>
+                    <small class="text-muted">Contact support to change your email address</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Phone Number <span class="text-danger">*</span></label>
+                    <input type="tel" id="contact_number" name="contact_number" class="form-control" value="{{ profile.contact_number if profile and profile.contact_number else associate.phone if associate.phone else '' }}" required placeholder="+44 7xxx xxx xxx">
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label" for="address_line1">Address Line 1 <span class="text-danger">*</span></label>
+                    <input type="text" id="address_line1" name="address_line1" class="form-control" value="{{ profile.address_line1 if profile and profile.address_line1 else '' }}" required>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label" for="address_line2">Address Line 2</label>
+                    <input type="text" id="address_line2" name="address_line2" class="form-control" value="{{ profile.address_line2 if profile and profile.address_line2 else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="city">City <span class="text-danger">*</span></label>
+                    <input type="text" id="city" name="city" class="form-control" value="{{ profile.city if profile and profile.city else '' }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="postcode">Postcode <span class="text-danger">*</span></label>
+                    <input type="text" id="postcode" name="postcode" class="form-control" value="{{ profile.postcode if profile and profile.postcode else '' }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="country">Country</label>
+                    <input type="text" id="country" name="country" class="form-control" value="{{ profile.country if profile and profile.country else 'United Kingdom' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date of Birth -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-calendar me-2"></i>Date of Birth</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="dob">Date of Birth <span class="text-danger">*</span></label>
+                    <input type="date" id="dob" name="dob" class="form-control" value="{{ profile.dob.strftime('%Y-%m-%d') if profile and profile.dob else '' }}" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emergency Contact -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-phone-volume me-2"></i>Emergency Contact</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="emergency_contact_name">Contact Name</label>
+                    <input type="text" id="emergency_contact_name" name="emergency_contact_name" class="form-control" value="{{ profile.emergency_contact_name if profile and profile.emergency_contact_name else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="emergency_contact_phone">Contact Phone</label>
+                    <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone" class="form-control" value="{{ profile.emergency_contact_phone if profile and profile.emergency_contact_phone else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="emergency_contact_relationship">Relationship</label>
+                    <select id="emergency_contact_relationship" name="emergency_contact_relationship" class="form-select">
+                        <option value="">Select...</option>
+                        {% for r in ['Spouse', 'Partner', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'] %}
+                        <option value="{{ r }}" {% if profile and profile.emergency_contact_relationship == r %}selected{% endif %}>{{ r }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employment & Salary -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-sterling-sign me-2"></i>Employment Details</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="current_salary">Current Salary / Day Rate</label>
+                    <div class="input-group">
+                        <span class="input-group-text">&pound;</span>
+                        <input type="text" id="current_salary" name="current_salary" class="form-control" value="{{ profile.current_salary if profile and profile.current_salary else '' }}" placeholder="e.g. 500/day or 65,000/year">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="expected_salary">Expected Salary / Day Rate</label>
+                    <div class="input-group">
+                        <span class="input-group-text">&pound;</span>
+                        <input type="text" id="expected_salary" name="expected_salary" class="form-control" value="{{ profile.expected_salary if profile and profile.expected_salary else '' }}" placeholder="e.g. 550/day or 70,000/year">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Employment Company</label>
+                    <input type="text" class="form-control" value="{{ employment_company or '' }}" readonly style="background: #f3f4f6; color: #6b7280;">
+                    <small class="text-muted">Auto-populated from <a href="/portal/company-details">Company Details</a></small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="available_from">Available From</label>
+                    <input type="date" id="available_from" name="available_from" class="form-control" value="{{ profile.available_from.strftime('%Y-%m-%d') if profile and profile.available_from else '' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NI Number & Gender -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-id-card me-2"></i>National Insurance & Identity</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="ni_number">NI Number</label>
+                    <input type="text" id="national_insurance_number" name="national_insurance_number" class="form-control" value="{{ profile.national_insurance_number if profile and profile.national_insurance_number else '' }}" placeholder="AB 12 34 56 C" maxlength="13">
+                    <small class="text-muted">Format: AB 12 34 56 C</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="gender">Gender</label>
+                    <select id="gender" name="gender" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="Male" {% if profile and profile.gender == 'Male' %}selected{% endif %}>Male</option>
+                        <option value="Female" {% if profile and profile.gender == 'Female' %}selected{% endif %}>Female</option>
+                        <option value="Non-binary" {% if profile and profile.gender == 'Non-binary' %}selected{% endif %}>Non-binary</option>
+                        <option value="Prefer not to say" {% if profile and profile.gender == 'Prefer not to say' %}selected{% endif %}>Prefer not to say</option>
+                    </select>
+                    <small class="text-muted">Required for DBS and vetting checks</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CV Upload -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-file-alt me-2"></i>CV / Resume</h3>
+        </div>
+        <div class="portal-card-body">
+            {% if cv_document %}
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--color-gray-50); border-radius: 8px; margin-bottom: 12px;">
+                <i class="fas fa-file-pdf" style="font-size: 24px; color: var(--color-blue);"></i>
+                <div style="flex: 1;">
+                    <span class="font-semibold">{{ cv_document.original_name or cv_document.filename }}</span>
+                    <small class="d-block text-muted">Uploaded {{ cv_document.uploaded_at.strftime('%d %b %Y') if cv_document.uploaded_at else '' }}</small>
+                </div>
+            </div>
+            {% endif %}
+            <form method="POST" action="/portal/upload-cv" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <p class="text-muted text-sm mb-2">Upload your CV in PDF, DOC, or DOCX format. Max 10MB.</p>
+                <label class="btn btn-outline-primary btn-sm" style="cursor: pointer;">
+                    <i class="fas fa-upload me-1"></i> {% if cv_document %}Replace CV{% else %}Upload CV{% endif %}
+                    <input type="file" name="cv_file" accept=".pdf,.doc,.docx" onchange="this.form.submit()" style="display: none;">
+                </label>
+            </form>
+        </div>
+    </div>
+
+    <!-- Communication Preferences -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-bell-slash me-2"></i>Communication Preferences</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="form-check">
+                <input type="hidden" name="unsubscribed" value="0">
+                <input type="checkbox" class="form-check-input" id="unsubscribed" name="unsubscribed" value="1" {% if profile and profile.unsubscribed %}checked{% endif %}>
+                <label class="form-check-label" for="unsubscribed">
+                    Unsubscribe from all future communications from Optimus
+                </label>
+                <small class="d-block text-muted mt-1">This will also hide your profile from recruiter searches.</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-save me-2"></i>Save Personal Details
+        </button>
+        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}

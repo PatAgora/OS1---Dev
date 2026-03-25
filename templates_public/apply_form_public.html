@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply · {{ job.title }} - Optimus Solutions</title>
+  
+  <!-- Bootstrap 5.3.2 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome 6.4.0 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Optimus Solutions Brand Colors */
+    :root {
+      --optimus-navy: #0a1628;
+      --optimus-cyan: #00d4ff;
+      --optimus-blue: #0066cc;
+      --optimus-text: #ffffff;
+      --optimus-text-muted: #94a3b8;
+      --optimus-bg-light: #f8fafc;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #334155;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--optimus-bg-light);
+    }
+
+    /* Header */
+    .optimus-header {
+      background: var(--optimus-navy);
+      padding: 1rem 0;
+    }
+
+    .header-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .optimus-logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+
+    .optimus-logo img {
+      height: 32px;
+      width: auto;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .nav-link {
+      color: var(--optimus-text);
+      text-decoration: none;
+      font-size: 0.938rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      color: var(--optimus-cyan);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+      width: 100%;
+    }
+
+    .page-title {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--optimus-navy);
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .page-subtitle {
+      font-size: 1.063rem;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    /* Form */
+    .form-card {
+      background: white;
+      border-radius: 12px;
+      padding: 2.5rem;
+      border: 1px solid #e5e7eb;
+    }
+
+    .form-group {
+      margin-bottom: 1.75rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.938rem;
+      font-weight: 600;
+      color: var(--optimus-navy);
+      margin-bottom: 0.5rem;
+    }
+
+    .form-label .required {
+      color: #ef4444;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      color: #334155;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--optimus-blue);
+      box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    }
+
+    .form-control::placeholder {
+      color: #9ca3af;
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    /* File Upload */
+    .file-upload {
+      position: relative;
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fafafa;
+    }
+
+    .file-upload:hover {
+      border-color: var(--optimus-blue);
+      background: #f0f7ff;
+    }
+
+    .file-upload input[type="file"] {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-upload-icon {
+      font-size: 2rem;
+      color: var(--optimus-blue);
+      margin-bottom: 0.5rem;
+    }
+
+    .file-upload-text {
+      font-weight: 500;
+      color: #475569;
+    }
+
+    .file-upload-hint {
+      font-size: 0.813rem;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+    }
+
+    /* Applicant Info */
+    .applicant-info {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .applicant-info i {
+      color: var(--optimus-blue);
+      font-size: 1.25rem;
+    }
+
+    .applicant-info-text {
+      font-size: 0.938rem;
+      color: var(--optimus-navy);
+    }
+
+    .applicant-info-text strong {
+      font-weight: 600;
+    }
+
+    /* Submit Button */
+    .btn-submit {
+      width: 100%;
+      background: var(--optimus-blue);
+      color: white;
+      border: none;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-submit:hover {
+      background: #0052a3;
+      transform: translateY(-2px);
+    }
+
+    /* Back Link */
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--optimus-blue);
+      text-decoration: none;
+      font-size: 0.938rem;
+      font-weight: 500;
+      margin-bottom: 2rem;
+      transition: color 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: var(--optimus-cyan);
+    }
+
+    /* Footer */
+    .optimus-footer {
+      background: var(--optimus-navy);
+      padding: 4rem 0 2rem;
+      color: white;
+      margin-top: auto;
+    }
+
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1.5fr;
+      gap: 3rem;
+      margin-bottom: 3rem;
+    }
+
+    .footer-brand .footer-logo {
+      margin-bottom: 1rem;
+    }
+
+    .footer-brand .footer-logo img {
+      height: 36px;
+      width: auto;
+    }
+
+    .footer-brand .tagline {
+      color: var(--optimus-text-muted);
+      font-size: 0.938rem;
+    }
+
+    .footer-section h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: white;
+    }
+
+    .footer-links {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .footer-links li {
+      margin-bottom: 0.75rem;
+    }
+
+    .footer-links a {
+      color: var(--optimus-text-muted);
+      text-decoration: none;
+      font-size: 0.938rem;
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--optimus-cyan);
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--optimus-text-muted);
+      font-size: 0.938rem;
+    }
+
+    .contact-item i {
+      color: var(--optimus-cyan);
+      margin-top: 0.25rem;
+    }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 2rem;
+      text-align: center;
+      color: var(--optimus-text-muted);
+      font-size: 0.875rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-container {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .header-nav {
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+
+      .page-title {
+        font-size: 1.75rem;
+      }
+
+      .form-card {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="optimus-header">
+  <div class="header-container">
+    <a href="{{ url_for('public.jobs_index') }}" class="optimus-logo">
+      <img src="{{ url_for('static', filename='images/optimus-logo-secondary.png') }}" alt="Optimus">
+    </a>
+
+    <nav class="header-nav">
+      <a href="https://optimussolutions.co.uk" class="nav-link" target="_blank">Home</a>
+      <a href="https://optimussolutions.co.uk/about" class="nav-link" target="_blank">About Us</a>
+      <a href="https://optimussolutions.co.uk/expertise" class="nav-link" target="_blank">Our Expertise</a>
+      <a href="https://optimussolutions.co.uk/services" class="nav-link" target="_blank">Services</a>
+      <a href="{{ url_for('public.jobs_index') }}" class="nav-link active">Work with Us</a>
+      <a href="https://optimussolutions.co.uk/contact" class="nav-link" target="_blank">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="main-content">
+  <a href="{{ url_for('public.job_public', job_id=job.id) }}" class="back-link">
+    <i class="fas fa-arrow-left"></i>
+    Back to job details
+  </a>
+
+  <h1 class="page-title">Apply for {{ job.title }}</h1>
+  <p class="page-subtitle">Complete the form below to submit your application</p>
+
+  {% if cand %}
+  <div class="applicant-info">
+    <i class="fas fa-user-circle"></i>
+    <div class="applicant-info-text">
+      Applying as <strong>{{ cand.name or 'Associate' }}</strong>
+      {% if cand.email %} · {{ cand.email }}{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="form-card">
+    <form method="post" action="{{ url_for('public.job_apply_post', job_id=job.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <!-- CV Upload -->
+      <div class="form-group">
+        <label class="form-label">
+          Upload Your CV <span class="required">*</span>
+        </label>
+        <div class="file-upload">
+          <input type="file" name="cv_file" accept=".pdf,.doc,.docx" required>
+          <div class="file-upload-icon">
+            <i class="fas fa-cloud-arrow-up"></i>
+          </div>
+          <div class="file-upload-text">Click to upload or drag and drop</div>
+          <div class="file-upload-hint">PDF, DOC, or DOCX (Max 10MB)</div>
+        </div>
+      </div>
+
+      <!-- Cover Note -->
+      <div class="form-group">
+        <label class="form-label">
+          Tell us about yourself
+        </label>
+        <textarea 
+          name="cover_note" 
+          class="form-control" 
+          rows="5" 
+          placeholder="Share your experience, skills, and what kind of roles you're looking for..."
+        ></textarea>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn-submit">
+        <i class="fas fa-paper-plane"></i>
+        Submit Application
+      </button>
+    </form>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="optimus-footer">
+  <div class="footer-container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-logo">
+          <img src="{{ url_for('static', filename='images/optimus-logo-secondary.png') }}" alt="Optimus">
+        </div>
+        <p class="tagline">Your trusted partner in resourcing excellence.</p>
+      </div>
+
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <ul class="footer-links">
+          <li><a href="https://optimussolutions.co.uk/about" target="_blank">About Us</a></li>
+          <li><a href="https://optimussolutions.co.uk/expertise" target="_blank">Our Expertise</a></li>
+          <li><a href="https://optimussolutions.co.uk/services" target="_blank">Our Services</a></li>
+          <li><a href="{{ url_for('public.jobs_index') }}">Work with Us</a></li>
+          <li><a href="https://optimussolutions.co.uk/contact" target="_blank">Contact</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h4>Services</h4>
+        <ul class="footer-links">
+          <li><a href="#">Resource Augmentation</a></li>
+          <li><a href="#">Managed Services</a></li>
+          <li><a href="#">Tech-Enabled Solutions</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h4>Contact Us</h4>
+        <div class="contact-item">
+          <i class="fas fa-envelope"></i>
+          <span>info@optimussolutions.co.uk</span>
+        </div>
+        <div class="contact-item">
+          <i class="fas fa-phone"></i>
+          <span>020 3917 7440</span>
+        </div>
+        <div class="contact-item">
+          <i class="fas fa-location-dot"></i>
+          <span>71-75 Shelton Street, London, WC2H 9JQ</span>
+        </div>
+        <div class="contact-item">
+          <i class="fab fa-linkedin"></i>
+          <a href="https://linkedin.com/company/optimus-solutions" target="_blank" style="color: var(--optimus-text-muted);">Follow us on LinkedIn</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      &copy; 2026 Optimus. All rights reserved.
+    </div>
+  </div>
+</footer>
+
+<script>
+  // File upload enhancement
+  document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.querySelector('input[type="file"]');
+    const fileUpload = document.querySelector('.file-upload');
+    const uploadText = document.querySelector('.file-upload-text');
+    const uploadHint = document.querySelector('.file-upload-hint');
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const fileName = this.files[0].name;
+          const fileSize = (this.files[0].size / 1024 / 1024).toFixed(2);
+          uploadText.innerHTML = '<i class="fas fa-check-circle" style="color: #16a34a; margin-right: 0.5rem;"></i>' + fileName;
+          uploadHint.textContent = fileSize + ' MB';
+          fileUpload.style.borderColor = '#16a34a';
+          fileUpload.style.background = '#f0fdf4';
+        }
+      });
+    }
+  });
+</script>
+
+</body>
+</html>

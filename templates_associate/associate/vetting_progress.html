@@ -1,0 +1,173 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'vetting_progress' %}
+
+{% block page_title %}Vetting Progress{% endblock %}
+{% block header_title %}Vetting Progress{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Vetting Progress</li>
+{% endblock %}
+
+{% block content %}
+<!-- Overview Card -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-shield-alt me-2"></i>Vetting Overview</h3>
+        {% set total_checks = vetting_checks|length if vetting_checks else 0 %}
+        {% set complete_checks = vetting_checks|selectattr('status', 'equalto', 'Complete')|list|length if vetting_checks else 0 %}
+        {% if total_checks > 0 %}
+        <span class="badge bg-{{ 'success' if complete_checks == total_checks else 'warning' }} fs-6">
+            {{ complete_checks }}/{{ total_checks }} Complete
+        </span>
+        {% endif %}
+    </div>
+    <div class="portal-card-body">
+        <p class="text-muted mb-3">
+            Below is the status of all required background checks and vetting procedures.
+            Items marked with <span class="text-danger fw-bold">Action Required</span> need your input before they can proceed.
+        </p>
+        {% if total_checks > 0 %}
+        <div class="progress mb-2" style="height: 10px;">
+            <div class="progress-bar bg-success" style="width: {{ (complete_checks / total_checks * 100)|int }}%"></div>
+        </div>
+        <small class="text-muted">{{ (complete_checks / total_checks * 100)|int }}% of vetting checks complete</small>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Consent & Declaration Status -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="portal-card h-100">
+            <div class="portal-card-body d-flex align-items-center">
+                <div class="vetting-status-icon me-3 {% if consent_signed %}text-success{% else %}text-warning{% endif %}">
+                    <i class="fas fa-file-signature fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="mb-1">Consent Form</h5>
+                    {% if consent_signed %}
+                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Signed</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Action Required</span>
+                    <a href="/portal/consent-form" class="btn btn-sm btn-outline-primary ms-2">Complete Now</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="portal-card h-100">
+            <div class="portal-card-body d-flex align-items-center">
+                <div class="vetting-status-icon me-3 {% if declaration_signed %}text-success{% else %}text-warning{% endif %}">
+                    <i class="fas fa-clipboard-check fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="mb-1">Declaration Form</h5>
+                    {% if declaration_signed %}
+                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Signed</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Action Required</span>
+                    <a href="/portal/declaration" class="btn btn-sm btn-outline-primary ms-2">Complete Now</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vetting Check Cards Grid -->
+<div class="row g-4">
+    {% set check_config = {
+        'right_to_work': {'icon': 'passport', 'title': 'Right to Work', 'description': 'Verification of your legal right to work in the UK via passport, birth certificate, share code or visa.'},
+        'identity_verification': {'icon': 'id-card', 'title': 'Identity Verification', 'description': 'Confirmation of your identity using photographic ID and proof of address documents.'},
+        'address_history': {'icon': 'map-marker-alt', 'title': 'Address History', 'description': 'Verification of your residential address history for the required period.'},
+        'dbs_check': {'icon': 'search', 'title': 'DBS Check', 'description': 'Disclosure and Barring Service check for criminal records, as required by the role.'},
+        'employment_history': {'icon': 'briefcase', 'title': 'Employment History', 'description': 'Verification of your employment history covering the required period with no unexplained gaps.'},
+        'references': {'icon': 'address-book', 'title': 'References', 'description': 'Collection and verification of employment references from previous employers.'},
+        'qualifications': {'icon': 'graduation-cap', 'title': 'Qualifications', 'description': 'Verification of academic and professional qualifications claimed on your CV.'},
+        'professional_registration': {'icon': 'certificate', 'title': 'Professional Registration', 'description': 'Confirmation of any required professional registrations or memberships.'},
+        'credit_check': {'icon': 'credit-card', 'title': 'Credit Check', 'description': 'Financial probity check including credit history review, as required for financial services roles.'},
+        'directorship': {'icon': 'building', 'title': 'Directorship / Disqualification', 'description': 'Search for any directorships held or disqualification orders against you.'},
+        'sanctions_pep': {'icon': 'globe', 'title': 'Sanctions / PEP', 'description': 'Screening against global sanctions lists and Politically Exposed Persons (PEP) databases.'},
+        'social_media': {'icon': 'share-alt', 'title': 'Social Media Review', 'description': 'Review of publicly available social media profiles for any concerns.'}
+    } %}
+
+    {% if vetting_checks and vetting_checks|length > 0 %}
+        {% for check in vetting_checks %}
+        {% set config = check_config.get(check.check_type, {'icon': 'question-circle', 'title': check.check_type|replace('_', ' ')|title, 'description': ''}) %}
+        <div class="col-md-6 col-lg-4">
+            <div class="portal-card vetting-check-card h-100">
+                <div class="portal-card-body">
+                    <div class="vetting-card-header">
+                        <div class="vetting-card-icon">
+                            <i class="fas fa-{{ config.icon }}"></i>
+                        </div>
+                        <div class="vetting-card-title">
+                            <h5>{{ config.title }}</h5>
+                            {% if check.status == 'Complete' %}
+                            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Complete</span>
+                            {% elif check.status == 'In Progress' %}
+                            <span class="badge bg-primary"><i class="fas fa-spinner fa-spin me-1"></i>In Progress</span>
+                            {% elif check.status == 'On Hold' %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-pause-circle me-1"></i>On Hold</span>
+                            {% elif check.status == 'N/A' %}
+                            <span class="badge bg-secondary"><i class="fas fa-minus-circle me-1"></i>N/A</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border"><i class="fas fa-circle me-1"></i>Not Started</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <p class="vetting-card-description text-muted">{{ config.description }}</p>
+                    {% if check.action_required is defined and check.action_required %}
+                    <div class="vetting-action-required mt-2">
+                        <span class="text-danger fw-bold"><i class="fas fa-exclamation-circle me-1"></i>Action Required</span>
+                        {% if check.action_url is defined and check.action_url %}
+                        <a href="{{ check.action_url }}" class="btn btn-sm btn-outline-danger ms-2">Provide Info</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <!-- Default cards when no checks exist yet -->
+        {% for key, config in check_config.items() %}
+        <div class="col-md-6 col-lg-4">
+            <div class="portal-card vetting-check-card h-100">
+                <div class="portal-card-body">
+                    <div class="vetting-card-header">
+                        <div class="vetting-card-icon">
+                            <i class="fas fa-{{ config.icon }}"></i>
+                        </div>
+                        <div class="vetting-card-title">
+                            <h5>{{ config.title }}</h5>
+                            <span class="badge bg-light text-dark border"><i class="fas fa-circle me-1"></i>Not Started</span>
+                        </div>
+                    </div>
+                    <p class="vetting-card-description text-muted">{{ config.description }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<!-- Information Note -->
+<div class="portal-card mt-4">
+    <div class="portal-card-body">
+        <div class="d-flex align-items-start">
+            <i class="fas fa-info-circle text-primary me-3 mt-1 fs-5"></i>
+            <div>
+                <p class="mb-1"><strong>Need help?</strong></p>
+                <p class="text-muted mb-0">
+                    If you have questions about any vetting check or need to provide additional information,
+                    please contact your Optimus Solutions consultant or email
+                    <a href="mailto:compliance@optimussolutions.co.uk">compliance@optimussolutions.co.uk</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  /* Locked Engagement Banner */
+  .locked-banner {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e3a8a 100%);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    color: white;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
+  }
+  
+  .locked-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .locked-banner-icon {
+    font-size: 1.5rem;
+    opacity: 0.9;
+  }
+  
+  .locked-banner-text strong {
+    font-weight: 700;
+  }
+  
+  .locked-banner-code {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Section Headers */
+  .section-header {
+    margin-bottom: 2rem;
+  }
+  
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  .section-subtitle {
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .field-input:disabled {
+    background: #f3f4f6;
+    color: #6b7280;
+    cursor: not-allowed;
+  }
+  
+  .field-input.locked {
+    background: #f3f4f6;
+    pointer-events: none;
+  }
+  
+  .field-help-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-outline-light {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    color: white;
+    backdrop-filter: blur(10px);
+  }
+  
+  .btn-modern-outline-light:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.6);
+    color: white;
+  }
+  
+  /* Modern Table */
+  .modern-table {
+    font-size: 0.9rem;
+  }
+  
+  .modern-table thead th {
+    background: #f9fafb;
+    color: #374151;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.75rem;
+    border: none;
+  }
+  
+  .modern-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s ease;
+  }
+  
+  .modern-table tbody tr:hover {
+    background: #f9fafb;
+  }
+  
+  .modern-table tbody td {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border: none;
+  }
+  
+  /* Status Badges */
+  .status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: inline-block;
+  }
+  
+  .status-badge.open {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge.closed {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  /* Engagement Badge */
+  .engagement-badge {
+    background: #e8eef8;
+    color: #1e3a8a;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    font-family: 'Courier New', monospace;
+  }
+  
+  /* Public Link */
+  .public-link {
+    color: #1e3a8a;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: color 0.2s ease;
+  }
+  
+  .public-link:hover {
+    color: #1e3a8a;
+    text-decoration: underline;
+  }
+  
+  .public-link i {
+    margin-left: 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  
+  .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+  .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+  .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header-section {
+      padding: 1.5rem;
+    }
+    
+    .page-header-section h1 {
+      font-size: 1.5rem;
+    }
+    
+    .locked-banner {
+      padding: 1rem;
+    }
+  }
+</style>
+
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+
+<div class="container-xxl py-4">
+  <!-- Enhanced Header -->
+  <div class="page-header-section fade-in-up stagger-1">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-briefcase"></i>
+          Jobs
+        </h1>
+        <p class="subtitle mb-0">Create and manage job postings for your engagements</p>
+      </div>
+      {% if not locked_engagement %}
+      <a class="btn btn-modern-outline btn-sm" href="{{ url_for('engagements') }}">
+        <i class="fas fa-arrow-left"></i> Back to Engagements
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Locked Engagement Banner -->
+  {% if locked_engagement %}
+  <div class="locked-banner fade-in-up stagger-2">
+    <div class="locked-banner-content">
+      <div class="locked-banner-icon">
+        <i class="fas fa-lock"></i>
+      </div>
+      <div class="locked-banner-text">
+        <strong>Posting to:</strong>
+        <span class="locked-banner-code">{{ locked_engagement.ref or '—' }}</span>
+        — {{ locked_engagement.name }} ({{ locked_engagement.client or '—' }})
+      </div>
+    </div>
+    <a class="btn btn-modern-outline-light btn-sm"
+       href="{{ url_for('engagement_dashboard', eng_id=locked_engagement.id) }}">
+      <i class="fas fa-arrow-left"></i> Back to Engagement
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Create Job Form -->
+  <div class="modern-card mb-4 fade-in-up stagger-2">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-plus-circle"></i>
+          Create New Job
+        </div>
+        <div class="section-subtitle">Fill in the details below to create a new job posting</div>
+      </div>
+
+      <form method="POST" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="row g-3">
+          <!-- Engagement Selection -->
+          <div class="col-md-4">
+            <label class="field-label">{{ form.engagement_id.label.text }}</label>
+            {{ form.engagement_id(class="field-input form-select" + (" locked" if locked_engagement else ""), id="engagement_id") }}
+            {% if locked_engagement %}
+              <div class="field-help-text">
+                <i class="fas fa-lock"></i> This job will be posted under
+                <strong>{{ locked_engagement.ref or '—' }}</strong>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Job Title -->
+          <div class="col-md-4">
+            <label class="field-label">{{ form.title.label.text }}</label>
+            {{ form.title(class="field-input form-control", placeholder="e.g. Senior Project Director") }}
+          </div>
+
+          <!-- Role Type -->
+          <div class="col-md-4">
+            <label class="field-label">{{ form.role_type.label.text }}</label>
+            {{ form.role_type(class="field-input form-select") }}
+          </div>
+
+          <!-- Location -->
+          <div class="col-md-6">
+            <label class="field-label">{{ form.location.label.text }}</label>
+            {{ form.location(class="field-input form-control", placeholder="e.g. London, UK (Hybrid)") }}
+          </div>
+
+          <!-- Salary Range -->
+          <div class="col-md-6">
+            <label class="field-label">{{ form.salary_range.label.text }}</label>
+            {{ form.salary_range(class="field-input form-control", placeholder="e.g. £500-700/day") }}
+          </div>
+
+          <!-- Description -->
+          <div class="col-12">
+            <label class="field-label">{{ form.description.label.text }}</label>
+            {{ form.description(class="field-input form-control", rows="5", placeholder="Enter job description, requirements, and responsibilities...") }}
+          </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="mt-4 d-flex gap-3">
+          <button type="submit" class="btn-modern btn-modern-primary">
+            <i class="fas fa-plus-circle"></i> Create Job
+          </button>
+          {% if locked_engagement %}
+            <a class="btn-modern btn-modern-outline" href="{{ url_for('engagement_dashboard', eng_id=locked_engagement.id) }}">
+              <i class="fas fa-times"></i> Cancel
+            </a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Jobs List -->
+  <div class="modern-card fade-in-up stagger-3">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-list"></i>
+          {% if locked_engagement %}
+            Jobs for {{ locked_engagement.ref or '—' }} — {{ locked_engagement.name }}
+          {% else %}
+            All Jobs
+          {% endif %}
+        </div>
+        <div class="section-subtitle">
+          {% if items|length %}
+            {{ items|length }} job{{ 's' if items|length != 1 else '' }} total
+          {% else %}
+            No jobs created yet
+          {% endif %}
+        </div>
+      </div>
+
+      {% if items %}
+      <div class="table-responsive">
+        <table class="table modern-table mb-0">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Engagement</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Public Link</th>
+              <th class="text-center">Created</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for j in items %}
+            <tr>
+              <td><strong>{{ j.title }}</strong></td>
+              <td>
+                {% if j.engagement %}
+                  <span class="engagement-badge">{{ j.engagement.ref or '—' }}</span>
+                  <span class="ms-2">{{ j.engagement.name }}</span>
+                  <span class="text-muted">({{ j.engagement.client or '—' }})</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <span class="status-badge {{ 'open' if (j.status or '').lower() == 'open' else 'closed' }}">
+                  {{ j.status or '—' }}
+                </span>
+              </td>
+              <td class="text-center">
+                <a href="{{ url_for('public_job', token=j.public_token) }}" 
+                   class="public-link" 
+                   target="_blank"
+                   title="View public job page">
+                  {{ j.public_token }}
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </td>
+              <td class="text-center text-muted">
+                <i class="far fa-calendar me-1"></i>
+                {{ j.created_at.strftime('%Y-%m-%d %H:%M') if j.created_at else '—' }}
+              </td>
+              <td class="text-center">
+                {% if j.engagement_id %}
+                  <a class="btn btn-modern-primary btn-sm"
+                     href="{{ url_for('engagement_job_detail', eng_id=j.engagement_id, job_id=j.id) }}">
+                    <i class="fas fa-arrow-right"></i> Open
+                  </a>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <div style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem;">
+          <i class="fas fa-briefcase"></i>
+        </div>
+        <h5 class="text-muted mb-2">No Jobs Yet</h5>
+        <p class="text-muted">Create your first job posting using the form above.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% if locked_engagement %}
+  <script>
+    // Make engagement select look disabled but still submit its value
+    (function(){
+      const sel = document.getElementById('engagement_id');
+      if (!sel) return;
+      sel.addEventListener('mousedown', e => e.preventDefault());
+      sel.style.pointerEvents = 'none';
+      sel.style.backgroundColor = '#f3f4f6';
+      sel.title = 'Locked to this engagement';
+    })();
+  </script>
+{% endif %}
+
+</div>
+{% endblock %}

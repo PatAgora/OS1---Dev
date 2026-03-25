@@ -1,0 +1,1255 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+
+{% block title %}Dashboard - Optimus OS1{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    /* Modern Dashboard Styles */
+    .page-header {
+        background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 8px 32px rgba(30, 58, 138, 0.15);
+    }
+
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-header h1 i {
+        font-size: 2.5rem;
+        opacity: 0.9;
+    }
+
+    .page-subtitle {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.95;
+        font-size: 1rem;
+    }
+
+    /* Filter Section */
+    .dashboard-filters {
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .filter-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        flex: 1;
+        min-width: 150px;
+        max-width: 200px;
+    }
+
+    .filter-group label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        font-weight: 500;
+        height: 18px;
+    }
+
+    /* Prevent loading cursor on filter elements */
+    .dashboard-filters,
+    .dashboard-filters * {
+        cursor: default;
+    }
+    
+    .dashboard-filters button,
+    .dashboard-filters .dropdown-toggle,
+    .dashboard-filters input[type="checkbox"],
+    .dashboard-filters label {
+        cursor: pointer;
+    }
+
+    /* Multi-select Dropdown */
+    .dropdown-multiselect {
+        position: relative;
+        width: 100%;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        background: white;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        text-align: left;
+        height: 38px;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle:hover {
+        border-color: #9ca3af;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle:focus {
+        outline: none;
+        border-color: #1e3a8a;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .dropdown-multiselect .dropdown-toggle .selected-text {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #374151;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle .selected-text.placeholder {
+        color: #9ca3af;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle i {
+        margin-left: 0.5rem;
+        color: #6b7280;
+        transition: transform 0.2s;
+    }
+    
+    .dropdown-multiselect.open .dropdown-toggle i {
+        transform: rotate(180deg);
+    }
+    
+    .dropdown-multiselect .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        margin-top: 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        display: none;
+    }
+    
+    .dropdown-multiselect.open .dropdown-menu {
+        display: block;
+    }
+    
+    .dropdown-multiselect .dropdown-item {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.15s;
+        font-size: 0.85rem;
+    }
+    
+    .dropdown-multiselect .dropdown-item:hover {
+        background: #f3f4f6;
+    }
+    
+    .dropdown-multiselect .dropdown-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .dropdown-item label {
+        flex: 1;
+        cursor: pointer;
+        margin: 0;
+        font-weight: normal;
+        height: auto;
+    }
+    
+    .dropdown-multiselect .dropdown-search {
+        padding: 0.5rem;
+        border-bottom: 1px solid #e5e7eb;
+        position: sticky;
+        top: 0;
+        background: white;
+    }
+    
+    .dropdown-multiselect .dropdown-search input {
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+    
+    .dropdown-multiselect .dropdown-search input:focus {
+        outline: none;
+        border-color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .select-actions {
+        padding: 0.5rem;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        gap: 0.5rem;
+        position: sticky;
+        bottom: 0;
+        background: white;
+    }
+    
+    .dropdown-multiselect .select-actions button {
+        flex: 1;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.75rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .dropdown-multiselect .select-actions .btn-select-all {
+        background: #f0f4fa;
+        color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .select-actions .btn-clear-all {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .filter-buttons-group {
+        flex: 0 0 auto;
+        min-width: auto;
+        max-width: none;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .filter-buttons .btn {
+        height: 38px;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+
+    /* KPI Row */
+    .kpi-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .kpi-card {
+        flex: 1;
+        min-width: 140px;
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        text-align: center;
+        border-left: 4px solid #030a1d;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+        line-height: 1;
+    }
+
+    /* Chart Section */
+    .chart-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .chart-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .chart-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .chart-title i {
+        color: #1e3a8a;
+    }
+
+    .chart-legend {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.8rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 250px;
+    }
+
+    /* Open Jobs Section */
+    .jobs-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .jobs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .jobs-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .jobs-title i {
+        color: #1e3a8a;
+    }
+
+    .jobs-badge {
+        background: #e8eef8;
+        color: #1e3a8a;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .jobs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .job-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border-left: 3px solid #1e3a8a;
+        transition: background 0.2s;
+    }
+
+    .job-item:hover {
+        background: #f3f4f6;
+    }
+
+    .job-info {
+        flex: 1;
+    }
+
+    .job-title {
+        font-weight: 600;
+        color: #1f2937;
+        font-size: 0.9rem;
+    }
+
+    .job-meta {
+        font-size: 0.75rem;
+        color: #6b7280;
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.25rem;
+    }
+
+    .job-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .job-actions .btn {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.75rem;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+    }
+
+    .empty-state i {
+        font-size: 2.5rem;
+        color: #d1d5db;
+        margin-bottom: 0.75rem;
+    }
+
+    .empty-state h4 {
+        font-size: 1rem;
+        color: #4b5563;
+        margin-bottom: 0.25rem;
+    }
+
+    .empty-state p {
+        font-size: 0.85rem;
+        margin: 0;
+    }
+
+    /* Dashboard Grid Layout */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* KPI Link Icon */
+    .kpi-link-icon {
+        font-size: 0.6rem;
+        color: #9ca3af;
+        margin-left: 0.25rem;
+        transition: color 0.2s;
+    }
+
+    .kpi-card:hover .kpi-link-icon {
+        color: #1e3a8a;
+    }
+
+    /* Revenue Forecast Widget */
+    .revenue-forecast-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .forecast-metric {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #f9fafb;
+    }
+
+    .forecast-metric.forecast {
+        border-left: 4px solid #1e3a8a;
+    }
+
+    .forecast-metric.actual {
+        border-left: 4px solid #16a34a;
+    }
+
+    .forecast-metric.variance {
+        border-left: 4px solid #f97316;
+    }
+
+    .forecast-metric-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .forecast-metric-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1f2937;
+        line-height: 1;
+    }
+
+    .forecast-metric-value.positive {
+        color: #16a34a;
+    }
+
+    .forecast-metric-value.negative {
+        color: #dc2626;
+    }
+
+    /* Leavers Table */
+    .leavers-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    .leavers-table th {
+        text-align: left;
+        font-size: 0.7rem;
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .leavers-table td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid #f3f4f6;
+        color: #374151;
+    }
+
+    .leavers-table tr:hover {
+        background: #f9fafb;
+    }
+
+    .leavers-date-badge {
+        display: inline-block;
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    /* Custom Metrics Grid */
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .metrics-grid .full-width {
+        grid-column: 1 / -1;
+    }
+
+    @media (max-width: 1024px) {
+        .metrics-grid {
+            grid-template-columns: 1fr;
+        }
+        .revenue-forecast-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-row {
+            flex-direction: column;
+        }
+        .kpi-card {
+            min-width: 100%;
+        }
+        .filter-row {
+            flex-direction: column;
+        }
+        .filter-group {
+            max-width: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>
+            <i class="fas fa-chart-line"></i>
+            Dashboard
+        </h1>
+        <p class="page-subtitle">Overview of delivery progress, upcoming intakes, and open positions</p>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="GET" action="{{ url_for('index') }}" class="dashboard-filters">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label>Client</label>
+                <div class="dropdown-multiselect" id="clientDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('clientDropdown')">
+                        <span class="selected-text">
+                            {% if client_filter %}{{ client_filter|length }} selected{% else %}All Clients{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search clients..." onkeyup="filterDropdownItems(this, 'clientDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for client in all_clients %}
+                            <div class="dropdown-item">
+                                <input type="checkbox" id="client_{{ loop.index }}" name="client" value="{{ client }}" {% if client in client_filter %}checked{% endif %} onchange="updateDropdownText('clientDropdown', 'All Clients')">
+                                <label for="client_{{ loop.index }}">{{ client }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('clientDropdown', 'All Clients')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('clientDropdown', 'All Clients')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>Engagement</label>
+                <div class="dropdown-multiselect" id="engagementDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('engagementDropdown')">
+                        <span class="selected-text">
+                            {% if engagement_filter %}{{ engagement_filter|length }} selected{% else %}All Engagements{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search engagements..." onkeyup="filterDropdownItems(this, 'engagementDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for eng in all_engagements_list %}
+                            <div class="dropdown-item">
+                                <input type="checkbox" id="eng_{{ loop.index }}" name="engagement" value="{{ eng.id }}" {% if eng.id|string in engagement_filter %}checked{% endif %} onchange="updateDropdownText('engagementDropdown', 'All Engagements')">
+                                <label for="eng_{{ loop.index }}">{{ eng.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('engagementDropdown', 'All Engagements')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('engagementDropdown', 'All Engagements')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>Role</label>
+                <div class="dropdown-multiselect" id="roleDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('roleDropdown')">
+                        <span class="selected-text">
+                            {% if role_filter %}{{ role_filter|length }} selected{% else %}All Roles{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search roles..." onkeyup="filterDropdownItems(this, 'roleDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for role in all_roles %}
+                            <div class="dropdown-item">
+                                <input type="checkbox" id="role_{{ loop.index }}" name="role" value="{{ role }}" {% if role in role_filter %}checked{% endif %} onchange="updateDropdownText('roleDropdown', 'All Roles')">
+                                <label for="role_{{ loop.index }}">{{ role }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('roleDropdown', 'All Roles')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('roleDropdown', 'All Roles')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>Intake</label>
+                <div class="dropdown-multiselect" id="intakeDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('intakeDropdown')">
+                        <span class="selected-text">
+                            {% if intake_filter %}{{ intake_filter|length }} selected{% else %}All Intakes{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search intakes..." onkeyup="filterDropdownItems(this, 'intakeDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for intake in all_intakes %}
+                            <div class="dropdown-item">
+                                <input type="checkbox" id="intake_{{ loop.index }}" name="intake" value="{{ intake }}" {% if intake in intake_filter %}checked{% endif %} onchange="updateDropdownText('intakeDropdown', 'All Intakes')">
+                                <label for="intake_{{ loop.index }}">{{ intake }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('intakeDropdown', 'All Intakes')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('intakeDropdown', 'All Intakes')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-group filter-buttons-group">
+                <label>&nbsp;</label>
+                <div class="filter-buttons">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()"><i class="fas fa-times me-1"></i> Clear</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- KPI Cards Row -->
+    <div class="kpi-row">
+        <div class="kpi-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('engagements') }}'">
+            <div class="kpi-label">Live Engagements <i class="fas fa-external-link-alt kpi-link-icon"></i></div>
+            <div class="kpi-value">{{ live_engagements }}</div>
+        </div>
+        <div class="kpi-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('workflow') }}'">
+            <div class="kpi-label">Delivery Target <i class="fas fa-external-link-alt kpi-link-icon"></i></div>
+            <div class="kpi-value">{{ delivery_target }}</div>
+        </div>
+        <div class="kpi-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('workflow') }}?stage=offered'">
+            <div class="kpi-label">Associates Offered <i class="fas fa-external-link-alt kpi-link-icon"></i></div>
+            <div class="kpi-value">{{ associates_offered }}</div>
+        </div>
+        <div class="kpi-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('workflow') }}?stage=ready_to_contract'">
+            <div class="kpi-label">Vetting Completed <i class="fas fa-external-link-alt kpi-link-icon"></i></div>
+            <div class="kpi-value">{{ vetting_completed }}</div>
+        </div>
+        <div class="kpi-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('placements') }}'">
+            <div class="kpi-label">Contracted <i class="fas fa-external-link-alt kpi-link-icon"></i></div>
+            <div class="kpi-value">{{ contracted }}</div>
+        </div>
+    </div>
+
+    <!-- Delivery Summary Chart -->
+    <div class="chart-section">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-chart-bar"></i>
+                Delivery Summary
+            </h3>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #f97316;"></span>
+                    <span>Associates Offered</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #1e3a8a;"></span>
+                    <span>Delivery Target</span>
+                </div>
+            </div>
+        </div>
+        {% if delivery_chart_data %}
+        <div class="chart-container">
+            <canvas id="deliveryChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-chart-bar"></i>
+            <h4>No Delivery Data</h4>
+            <p>No engagement data available for the selected filters.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 4-Week Lookahead Chart -->
+    <div class="chart-section">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-calendar-alt" style="color: #f59e0b;"></i>
+                4-Week Lookahead
+            </h3>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #f97316;"></span>
+                    <span>Associates Offered</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #1e3a8a;"></span>
+                    <span>Delivery Target</span>
+                </div>
+            </div>
+        </div>
+        {% if lookahead_data %}
+        <div class="chart-container">
+            <canvas id="lookaheadChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <h4>No Upcoming Intakes</h4>
+            <p>No intake dates scheduled in the next 4 weeks.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Open Jobs List -->
+    <div class="jobs-section">
+        <div class="jobs-header">
+            <h3 class="jobs-title">
+                <i class="fas fa-briefcase"></i>
+                Open Jobs
+            </h3>
+            <span class="jobs-badge">{{ open_jobs|length }} Open</span>
+        </div>
+        {% if open_jobs %}
+        <div class="jobs-list">
+            {% for job in open_jobs[:10] %}
+            <div class="job-item">
+                <div class="job-info">
+                    <div class="job-title">
+                        {% if job.engagement_id %}
+                        <a href="{{ url_for('engagement_job_detail', eng_id=job.engagement_id, job_id=job.id) }}" style="color: inherit; text-decoration: none;">{{ job.title }}</a>
+                        {% else %}
+                        <a href="{{ url_for('job_edit', job_id=job.id) }}" style="color: inherit; text-decoration: none;">{{ job.title }}</a>
+                        {% endif %}
+                    </div>
+                    <div class="job-meta">
+                        {% if job.engagement %}
+                        <span><i class="fas fa-building me-1"></i>{{ job.engagement.name }}</span>
+                        <span><i class="fas fa-users me-1"></i>{{ job.engagement.client or 'No Client' }}</span>
+                        {% endif %}
+                        <span><i class="fas fa-map-marker-alt me-1"></i>{{ job.location or 'Location TBC' }}</span>
+                    </div>
+                </div>
+                <div class="job-actions">
+                    {% if job.public_token %}
+                    <a href="{{ url_for('public_job', token=job.public_token) }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="View Public Listing">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    {% endif %}
+                    {% if job.engagement_id %}
+                    <a href="{{ url_for('engagement_job_detail', eng_id=job.engagement_id, job_id=job.id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-eye me-1"></i> View
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('job_edit', job_id=job.id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-eye me-1"></i> View
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if open_jobs|length > 10 %}
+            <div class="text-center mt-2">
+                <a href="{{ url_for('jobs') }}" class="btn btn-outline-primary btn-sm">
+                    View All {{ open_jobs|length }} Jobs <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-briefcase"></i>
+            <h4>No Open Jobs</h4>
+            <p>No open positions available for the selected filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Custom Metrics Widgets (REQ-266) -->
+<div class="metrics-grid">
+    <!-- Revenue Forecast Summary -->
+    <div class="chart-section">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-pound-sign"></i>
+                Revenue Forecast Summary
+            </h3>
+        </div>
+        <div class="revenue-forecast-grid">
+            <div class="forecast-metric forecast">
+                <div class="forecast-metric-label">Forecast Revenue</div>
+                <div class="forecast-metric-value">&pound;{{ "{:,.0f}".format(dashboard_forecast_revenue|default(0)) }}</div>
+            </div>
+            <div class="forecast-metric actual">
+                <div class="forecast-metric-label">Actual Revenue</div>
+                <div class="forecast-metric-value">&pound;{{ "{:,.0f}".format(dashboard_actual_revenue|default(0)) }}</div>
+            </div>
+            <div class="forecast-metric variance">
+                <div class="forecast-metric-label">Variance</div>
+                {% set variance_pct = ((dashboard_actual_revenue|default(0) / dashboard_forecast_revenue|default(1)) * 100 - 100) if dashboard_forecast_revenue|default(0) > 0 else 0 %}
+                <div class="forecast-metric-value {{ 'positive' if variance_pct >= 0 else 'negative' }}">
+                    {{ "+" if variance_pct >= 0 else "" }}{{ "{:.1f}".format(variance_pct) }}%
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Headcount Trend Chart -->
+    <div class="chart-section">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-users"></i>
+                Headcount Trend (6 Months)
+            </h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="headcountTrendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Upcoming Leavers -->
+    <div class="chart-section full-width">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-user-clock"></i>
+                Upcoming Leavers (Next 30 Days)
+            </h3>
+            <span class="jobs-badge">{{ upcoming_leavers|default([])|length }} associate{{ 's' if upcoming_leavers|default([])|length != 1 else '' }}</span>
+        </div>
+        {% if upcoming_leavers|default([])|length > 0 %}
+        <table class="leavers-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Client</th>
+                    <th>Engagement</th>
+                    <th>End Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leaver in upcoming_leavers %}
+                <tr>
+                    <td><strong>{{ leaver.name }}</strong></td>
+                    <td>{{ leaver.role }}</td>
+                    <td>{{ leaver.client }}</td>
+                    <td>{{ leaver.engagement }}</td>
+                    <td><span class="leavers-date-badge">{{ leaver.end_date }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-check-circle"></i>
+            <h4>No Upcoming Leavers</h4>
+            <p>No associate engagements are ending in the next 30 days.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Dropdown Multi-select Functions
+function toggleDropdown(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const isOpen = dropdown.classList.contains('open');
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-multiselect.open').forEach(d => {
+        if (d.id !== dropdownId) {
+            d.classList.remove('open');
+        }
+    });
+    
+    dropdown.classList.toggle('open');
+}
+
+function updateDropdownText(dropdownId, defaultText) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+    const textSpan = dropdown.querySelector('.selected-text');
+    
+    if (checkboxes.length === 0) {
+        textSpan.textContent = defaultText;
+    } else {
+        textSpan.textContent = checkboxes.length + ' selected';
+    }
+}
+
+function filterDropdownItems(input, dropdownId) {
+    const filter = input.value.toLowerCase();
+    const dropdown = document.getElementById(dropdownId);
+    const items = dropdown.querySelectorAll('.dropdown-item');
+    
+    items.forEach(item => {
+        const label = item.querySelector('label').textContent.toLowerCase();
+        item.style.display = label.includes(filter) ? '' : 'none';
+    });
+}
+
+function selectAll(dropdownId, placeholder) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([style*="display: none"]) input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateDropdownText(dropdownId, placeholder);
+}
+
+function clearAll(dropdownId, placeholder) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateDropdownText(dropdownId, placeholder);
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown-multiselect')) {
+        document.querySelectorAll('.dropdown-multiselect.open').forEach(d => {
+            d.classList.remove('open');
+        });
+    }
+});
+
+// Clear filters
+function clearFilters() {
+    window.location.href = '{{ url_for("index") }}';
+}
+
+// Delivery Summary Chart
+{% if delivery_chart_data %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('deliveryChart').getContext('2d');
+    
+    const chartData = {{ delivery_chart_data|tojson }};
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.map(d => d.name),
+            datasets: [
+                {
+                    label: 'Associates Offered',
+                    data: chartData.map(d => d.offered),
+                    backgroundColor: '#f97316',
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                },
+                {
+                    label: 'Delivery Target',
+                    data: chartData.map(d => d.target),
+                    backgroundColor: '#1e3a8a',
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const data = chartData[context.dataIndex];
+                            return `Client: ${data.client}\nProgress: ${data.pct}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        display: true,
+                        color: '#f3f4f6'
+                    },
+                    ticks: {
+                        stepSize: 5
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const engId = chartData[index].eng_id;
+                    if (engId) {
+                        window.location.href = `/engagement/${engId}/dashboard`;
+                    }
+                }
+            }
+        }
+    });
+});
+{% endif %}
+
+// 4-Week Lookahead Chart - Horizontal bar chart with engagements on Y-axis
+{% if lookahead_data %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('lookaheadChart').getContext('2d');
+    
+    const lookaheadData = {{ lookahead_data|tojson }};
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: lookaheadData.map(d => d.label),
+            datasets: [
+                {
+                    label: 'Associates Offered',
+                    data: lookaheadData.map(d => d.offered),
+                    backgroundColor: '#f97316',
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                },
+                {
+                    label: 'Delivery Target',
+                    data: lookaheadData.map(d => d.target),
+                    backgroundColor: '#1e3a8a',
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const data = lookaheadData[context.dataIndex];
+                            return `Client: ${data.client}\nIntake: ${data.intake_date}\nProgress: ${data.pct}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        display: true,
+                        color: '#f3f4f6'
+                    },
+                    ticks: {
+                        stepSize: 5
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const engId = lookaheadData[index].eng_id;
+                    if (engId) {
+                        window.location.href = `/engagement/${engId}/dashboard`;
+                    }
+                }
+            }
+        }
+    });
+});
+{% endif %}
+
+// Headcount Trend Chart (REQ-266)
+document.addEventListener('DOMContentLoaded', function() {
+    const hcCanvas = document.getElementById('headcountTrendChart');
+    if (hcCanvas) {
+        const hcLabels = {{ headcount_trend_labels|default([])|tojson }};
+        const hcData = {{ headcount_trend_data|default([])|tojson }};
+        new Chart(hcCanvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: hcLabels,
+                datasets: [{
+                    label: 'On-Contract Headcount',
+                    data: hcData,
+                    borderColor: '#1e3a8a',
+                    backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#1e3a8a',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                        grid: { color: '#f3f4f6' }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

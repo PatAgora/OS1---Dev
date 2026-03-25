@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Flagged Reference Houses - OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="fas fa-exclamation-triangle me-2" style="color:#f59e0b;"></i>Flagged Reference Houses</h1>
+            <p class="subtitle mb-0">Known fraudulent or suspect reference providers — {{ houses|length }} flagged</p>
+        </div>
+        <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#addHouseModal">
+            <i class="fas fa-plus me-1"></i> Add House
+        </button>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Houses List -->
+{% if houses %}
+<div class="row">
+    {% for h in houses %}
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card shadow-sm h-100" style="border-left:4px solid #f59e0b;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0" style="color:#dc2626;">{{ h.name }}</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editHouse{{ h.id }}"><i class="fas fa-edit"></i></button>
+                        <form method="POST" action="{{ url_for('admin_reference_house_delete', house_id=h.id) }}" style="display:inline;" onsubmit="return confirm('Delete this flagged house?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </div>
+                </div>
+
+                {% if h.candidate_count %}
+                <p class="small mb-1"><i class="fas fa-users me-1 text-muted"></i> <strong>Citing Associates:</strong> {{ h.candidate_count }}</p>
+                {% endif %}
+                {% if h.end_clients %}
+                <p class="small mb-1"><i class="fas fa-building me-1 text-muted"></i> <strong>Claimed Clients:</strong> {{ h.end_clients }}</p>
+                {% endif %}
+                {% if h.website %}
+                <p class="small mb-1"><i class="fas fa-globe me-1 text-muted"></i> <a href="{{ h.website }}" target="_blank" rel="noopener">{{ h.website }}</a></p>
+                {% endif %}
+                {% if h.companies_house_url %}
+                <p class="small mb-1"><i class="fas fa-landmark me-1 text-muted"></i> <a href="{{ h.companies_house_url }}" target="_blank" rel="noopener">Companies House</a></p>
+                {% endif %}
+                {% if h.notes %}
+                <div class="mt-2 p-2 rounded" style="background:#fef3c7;font-size:12px;">
+                    <i class="fas fa-sticky-note me-1"></i> {{ h.notes }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editHouse{{ h.id }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('admin_reference_house_edit', house_id=h.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="modal-header"><h5 class="modal-title">Edit: {{ h.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3"><label class="form-label">Name</label><input type="text" name="name" class="form-control" value="{{ h.name }}" required></div>
+                            <div class="col-md-6 mb-3"><label class="form-label">Citing Associates</label><input type="text" name="candidate_count" class="form-control" value="{{ h.candidate_count or '' }}"></div>
+                        </div>
+                        <div class="mb-3"><label class="form-label">Claimed End Clients</label><input type="text" name="end_clients" class="form-control" value="{{ h.end_clients or '' }}"></div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3"><label class="form-label">Website</label><input type="url" name="website" class="form-control" value="{{ h.website or '' }}"></div>
+                            <div class="col-md-6 mb-3"><label class="form-label">Companies House URL</label><input type="url" name="companies_house_url" class="form-control" value="{{ h.companies_house_url or '' }}"></div>
+                        </div>
+                        <div class="mb-3"><label class="form-label">Investigation Notes</label><textarea name="notes" class="form-control" rows="3">{{ h.notes or '' }}</textarea></div>
+                    </div>
+                    <div class="modal-footer"><button class="btn btn-primary">Save Changes</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center text-muted py-4">
+        <i class="fas fa-shield-alt fa-2x mb-2"></i>
+        <p>No flagged reference houses recorded.</p>
+    </div>
+</div>
+{% endif %}
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addHouseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_reference_house_add') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header"><h5 class="modal-title">Add Flagged Reference House</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Name *</label><input type="text" name="name" class="form-control" required></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Citing Associates</label><input type="text" name="candidate_count" class="form-control"></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label">Claimed End Clients</label><input type="text" name="end_clients" class="form-control" placeholder="e.g. Barclays, HSBC, Lloyds"></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Website</label><input type="url" name="website" class="form-control"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Companies House URL</label><input type="url" name="companies_house_url" class="form-control"></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label">Investigation Notes</label><textarea name="notes" class="form-control" rows="3"></textarea></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-primary">Add House</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

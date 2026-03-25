@@ -1,0 +1,247 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'company_details' %}
+
+{% block page_title %}Company Details{% endblock %}
+{% block header_title %}Company Details{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Company Details</li>
+{% endblock %}
+
+{% block content %}
+<div class="portal-card">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-building me-2"></i> Contracting Entity Details</h2>
+    </div>
+    <div class="portal-card-body">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>IR35 &amp; Contracting Arrangements</strong>
+                <p class="mb-0 mt-1" style="font-size: 13px;">
+                    To work on an Optimus assignment, you will need to provide us with the details of your contracting entity
+                    at least 1 week prior to your assignment start date. You can either contract through an approved umbrella
+                    company or your own limited company. If you are unsure which option is right for you, please contact your
+                    Optimus consultant for guidance on IR35 and the different contracting arrangements available.
+                </p>
+            </div>
+        </div>
+
+        <form method="POST" action="/portal/company-details" id="companyForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Entity Type Selection -->
+            <div class="form-section">
+                <h3>Select your contracting entity type</h3>
+                <p>Choose how you will contract with Optimus Solutions</p>
+                <hr>
+
+                <div class="form-group">
+                    <div class="form-check">
+                        <input type="radio" id="entity_umbrella" name="entity_type" value="umbrella"
+                               {% if company and company.contracting_type == 'umbrella' %}checked{% endif %}>
+                        <label for="entity_umbrella">
+                            <strong>Umbrella Company</strong>
+                            <span class="text-muted text-sm d-block">Contract through one of our approved umbrella company partners</span>
+                        </label>
+                    </div>
+                    {% if allow_limited %}
+                    <div class="form-check mt-2">
+                        <input type="radio" id="entity_limited" name="entity_type" value="limited"
+                               {% if company and company.contracting_type == 'limited' %}checked{% endif %}>
+                        <label for="entity_limited">
+                            <strong>Limited Company</strong>
+                            <span class="text-muted text-sm d-block">Contract through your own limited company (PSC)</span>
+                        </label>
+                    </div>
+                    {% endif %}
+                    {% if not allow_limited %}
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Limited Company contracting is only available for roles determined to be outside IR35. Please contact your consultant for more information.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Umbrella Company Section -->
+            <div id="umbrellaSection" class="form-section hidden">
+                <h3>Umbrella Company</h3>
+                <p>Select from our panel of approved umbrella companies</p>
+                <hr>
+
+                <div class="form-group">
+                    <label class="form-label" for="umbrella_company">
+                        Approved Umbrella Company <span class="required">*</span>
+                    </label>
+                    <select id="umbrella_company" name="umbrella_company" class="form-select">
+                        <option value="">-- Select an umbrella company --</option>
+                        {% for umb in umbrella_options %}
+                        <option value="{{ umb }}" {% if company and company.umbrella_company_name == umb %}selected{% endif %}>{{ umb }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="form-help">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Only umbrella companies on the Optimus approved panel are listed. If you wish to use a
+                        different umbrella company, please contact your consultant for approval.
+                    </span>
+                </div>
+            </div>
+
+            <!-- Limited Company Section -->
+            <div id="limitedSection" class="form-section hidden">
+                <h3>Limited Company Details</h3>
+                <p>Provide details of your personal service company (PSC)</p>
+                <hr>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="company_name">
+                            Company Name <span class="required">*</span>
+                        </label>
+                        <input type="text" id="company_name" name="company_name" class="form-input"
+                               placeholder="e.g. Smith Consulting Ltd"
+                               value="{{ company.company_name if company else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="company_reg_number">
+                            Company Registration Number <span class="required">*</span>
+                        </label>
+                        <input type="text" id="company_reg_number" name="company_reg_number" class="form-input"
+                               placeholder="e.g. 12345678"
+                               value="{{ company.registration_number if company else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">VAT Registered?</label>
+                    <div class="form-check">
+                        <input type="radio" id="vat_yes" name="vat_registered" value="yes"
+                               {% if company and company.vat_registered %}checked{% endif %}>
+                        <label for="vat_yes">Yes</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="radio" id="vat_no" name="vat_registered" value="no"
+                               {% if not company or not company.vat_registered %}checked{% endif %}>
+                        <label for="vat_no">No</label>
+                    </div>
+                </div>
+
+                <div id="vatNumberField" class="form-group hidden">
+                    <label class="form-label" for="vat_number">
+                        VAT Registration Number <span class="required">*</span>
+                    </label>
+                    <input type="text" id="vat_number" name="vat_number" class="form-input"
+                           placeholder="e.g. GB123456789"
+                           value="{{ company.vat_number if company else '' }}">
+                </div>
+
+                <hr>
+
+                <h3 class="mb-2">Bank Details</h3>
+                <p class="text-muted text-sm mb-3">Business bank account details for payment processing</p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="bank_account_number">
+                            Business Bank Account Number <span class="required">*</span>
+                        </label>
+                        <input type="text" id="bank_account_number" name="bank_account_number" class="form-input"
+                               placeholder="e.g. 12345678" maxlength="8"
+                               value="{{ company.bank_account_number if company else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="bank_sort_code">
+                            Business Bank Sort Code <span class="required">*</span>
+                        </label>
+                        <input type="text" id="bank_sort_code" name="bank_sort_code" class="form-input"
+                               placeholder="e.g. 12-34-56" maxlength="8"
+                               value="{{ company.bank_sort_code if company else '' }}">
+                    </div>
+                </div>
+
+                <!-- Required Documents (Ltd Co) -->
+                <div class="row g-3 mt-3">
+                    <div class="col-12">
+                        <h5><i class="fas fa-file-upload me-2"></i>Required Documents</h5>
+                        <p class="text-muted text-sm">Please upload the following documents for your limited company.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Certificate of Incorporation</label>
+                        {% if company_docs.get('cert_incorporation') %}
+                        <div class="text-success text-sm mb-1"><i class="fas fa-check-circle me-1"></i>Uploaded</div>
+                        {% endif %}
+                        <input type="file" name="cert_incorporation" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">PIPL Insurance Certificate</label>
+                        {% if company_docs.get('pipl_insurance') %}
+                        <div class="text-success text-sm mb-1"><i class="fas fa-check-circle me-1"></i>Uploaded</div>
+                        {% endif %}
+                        <input type="file" name="pipl_insurance" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">VAT Registration Certificate</label>
+                        {% if company_docs.get('vat_certificate') %}
+                        <div class="text-success text-sm mb-1"><i class="fas fa-check-circle me-1"></i>Uploaded</div>
+                        {% endif %}
+                        <input type="file" name="vat_certificate" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="btn-group mt-3">
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-save"></i> Save Company Details
+                </button>
+                <a href="/portal/dashboard" class="btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var umbrellaRadio = document.getElementById('entity_umbrella');
+    var limitedRadio = document.getElementById('entity_limited');
+    var umbrellaSection = document.getElementById('umbrellaSection');
+    var limitedSection = document.getElementById('limitedSection');
+    var vatYes = document.getElementById('vat_yes');
+    var vatNo = document.getElementById('vat_no');
+    var vatNumberField = document.getElementById('vatNumberField');
+
+    function toggleEntitySections() {
+        if (umbrellaRadio && umbrellaRadio.checked) {
+            umbrellaSection.classList.remove('hidden');
+            if (limitedSection) limitedSection.classList.add('hidden');
+        } else if (limitedRadio && limitedRadio.checked) {
+            if (umbrellaSection) umbrellaSection.classList.add('hidden');
+            limitedSection.classList.remove('hidden');
+        } else {
+            if (umbrellaSection) umbrellaSection.classList.add('hidden');
+            if (limitedSection) limitedSection.classList.add('hidden');
+        }
+    }
+
+    function toggleVatField() {
+        if (vatYes && vatYes.checked) {
+            if (vatNumberField) vatNumberField.classList.remove('hidden');
+        } else {
+            if (vatNumberField) vatNumberField.classList.add('hidden');
+        }
+    }
+
+    if (umbrellaRadio) umbrellaRadio.addEventListener('change', toggleEntitySections);
+    if (limitedRadio) limitedRadio.addEventListener('change', toggleEntitySections);
+    if (vatYes) vatYes.addEventListener('change', toggleVatField);
+    if (vatNo) vatNo.addEventListener('change', toggleVatField);
+
+    // Initialize on page load
+    toggleEntitySections();
+    toggleVatField();
+});
+</script>
+{% endblock %}

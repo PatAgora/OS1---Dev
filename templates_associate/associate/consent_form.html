@@ -1,0 +1,287 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'consent_form' %}
+
+{% block page_title %}Consent Form{% endblock %}
+{% block header_title %}Declaration of Consent{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Consent Form</li>
+{% endblock %}
+
+{% block content %}
+{% if already_signed and consent %}
+<!-- Already Signed View -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-file-signature me-2"></i>Declaration of Consent</h3>
+        <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>Signed</span>
+    </div>
+    <div class="portal-card-body">
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i>
+            This consent form was signed on <strong>{{ consent.signed_date.strftime('%d %B %Y at %H:%M') if consent.signed_date else 'N/A' }}</strong>
+            by <strong>{{ consent.legal_name }}</strong>.
+        </div>
+
+        <div class="consent-text-readonly">
+            <h5>Declaration of Consent</h5>
+            <p>I hereby provide all required permissions for Optimus Solutions to undertake all such searches that are deemed to be necessary, the output from which may be used in order to verify information that I have provided.</p>
+
+            <h6 class="mt-3">This consent covers:</h6>
+            <ul>
+                <li>Identity verification and right to work checks</li>
+                <li>Employment history and reference verification</li>
+                <li>Criminal records disclosure (DBS) checks</li>
+                <li>Credit history and financial probity checks</li>
+                <li>Directorship and disqualification searches</li>
+                <li>Sanctions, PEP and adverse media screening</li>
+                <li>Professional registration and qualification verification</li>
+                <li>Social media and online presence review</li>
+                <li>Address history verification</li>
+            </ul>
+
+            <h6 class="mt-3">Data Processing</h6>
+            <p>I understand that my personal data will be processed in accordance with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018. My data will be stored securely and used solely for the purposes of vetting, compliance, and engagement management.</p>
+
+            <h6 class="mt-3">Secondary Employment</h6>
+            {% if consent.secondary_employment %}
+            <p><strong>Yes</strong> - {{ consent.secondary_employment_details }}</p>
+            {% else %}
+            <p><strong>No</strong> - No secondary employment declared.</p>
+            {% endif %}
+        </div>
+
+        <div class="signature-display mt-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Signed by:</strong> {{ consent.legal_name }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Date:</strong> {{ consent.signed_date.strftime('%d %B %Y') if consent.signed_date else 'N/A' }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- Consent Form to Sign -->
+<form method="POST" action="/portal/consent-form" id="consentForm" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Section 1: Declaration of Consent -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-scroll me-2"></i>Declaration of Consent</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="consent-text">
+                <p>I hereby provide all required permissions for Optimus Solutions to undertake all such searches that are deemed to be necessary, the output from which may be used in order to verify information that I have provided. These permissions extend also to Optimus Solutions' appointed agents who may be used from time to time.</p>
+                <p>I acknowledge that providing inaccurate information or the result of the required reference checks may result in:</p>
+                <ul>
+                    <li>My offer of engagement being withdrawn;</li>
+                    <li>A delay in being able to start in the role;</li>
+                    <li>My contract being terminated.</li>
+                </ul>
+                <p>I agree that any data collected (or generated) as part of this process can be passed by Optimus Solutions to other Optimus Solutions group companies, clients and appointed agents, who may be based outside the EEA, to facilitate:</p>
+                <ul>
+                    <li>Processing of data;</li>
+                    <li>Undertaking the searches, which may include but are not limited to:
+                        <ul>
+                            <li>the Higher Education Degree Datacheck (HEDD) education verification service;</li>
+                            <li>criminal and financial probity checks;</li>
+                            <li>social media checks.</li>
+                        </ul>
+                    </li>
+                    <li>Verifying the information supplied.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Acknowledgments -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-list-check me-2"></i>Acknowledgments</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="consent-text">
+                <p>By signing this consent form, I acknowledge and agree to the following checks being conducted:</p>
+                <ul class="consent-checklist">
+                    <li><i class="fas fa-check text-success me-2"></i>Identity verification and right to work checks</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Employment history and reference verification (minimum 3-6 years)</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Criminal records disclosure (DBS) checks</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Credit history and financial probity checks</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Directorship and disqualification searches</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Sanctions, PEP (Politically Exposed Persons) and adverse media screening</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Professional registration and qualification verification</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Social media and online presence review</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Address history verification</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Data Processing -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-database me-2"></i>Data Processing Information</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="consent-text">
+                <p>By providing Optimus Solutions with your personal details, you agree to accept and be bound by the terms of our statement of fair processing. When you supply any personal data we have legal obligations towards you in the way we deal with your data:</p>
+                <ul>
+                    <li>We hold your personal information on our systems for as long as needed to meet the service required and remove it in the event that the purpose has been met.</li>
+                    <li>We will ensure that all personal information supplied is held securely, in accordance with the Data Protection Act 2018.</li>
+                    <li>Your personal information will only be processed with your knowledge.</li>
+                    <li>Only information we actually need is collated and processed.</li>
+                    <li>Your personal information is only seen by those who need it to do their job.</li>
+                    <li>Decisions affecting you are made on the basis of reliable and up to date information.</li>
+                    <li>Your information is protected from unauthorised or accidental disclosure.</li>
+                    <li>Inaccurate or misleading data will be corrected as soon as possible.</li>
+                    <li>Procedures are in place for promptly dealing with any dispute.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Secondary Employment -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-briefcase me-2"></i>Secondary Employment</h3>
+        </div>
+        <div class="portal-card-body">
+            <p>Do you currently hold any other employment, directorships, or business interests that may conflict with or impact your engagement?</p>
+            <div class="mb-3">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="has_secondary_employment" id="secondary_yes" value="yes" required>
+                    <label class="form-check-label" for="secondary_yes">Yes</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="has_secondary_employment" id="secondary_no" value="no">
+                    <label class="form-check-label" for="secondary_no">No</label>
+                </div>
+            </div>
+            <div id="secondaryEmploymentDetails" style="display: none;">
+                <label class="form-label" for="secondary_employment_details">Please provide details of your secondary employment, directorships or business interests:</label>
+                <textarea id="secondary_employment_details" name="secondary_employment_details" class="form-control" rows="3" placeholder="Job title, company name, nature of work, hours per week..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Fraud Prevention -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-shield-halved me-2"></i>Fraud Prevention</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="consent-text">
+                <p>I understand that personal information I have provided will be shared with <strong>Cifas</strong> who will use it to prevent fraud, other unlawful or dishonest conduct, malpractice, and other seriously improper conduct. If any of these are detected, I could be refused certain services or employment.</p>
+                <p>My personal information will also be used to verify my identity. Further details of how my information will be used by Optimus Solutions and Cifas, and my data protection rights, can be obtained by contacting Optimus Solutions at <a href="mailto:compliance@optimussolutions.co.uk">compliance@optimussolutions.co.uk</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 6: E-signature -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-signature me-2"></i>E-Signature</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="legal_name">Legal Name <span class="text-danger">*</span></label>
+                    <input type="text" id="legal_name" name="legal_name" class="form-control" placeholder="Enter your full legal name" required>
+                    <small class="text-muted">This will serve as your electronic signature</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="signature_date">Date</label>
+                    <input type="text" id="signature_date" name="signature_date" class="form-control" value="{{ now().strftime('%d %B %Y') if now is defined else '' }}" readonly>
+                </div>
+                <div class="col-12">
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_consent" name="confirm_consent" required>
+                        <label class="form-check-label" for="confirm_consent">
+                            <strong>I confirm that all information provided is correct and complete to the best of my knowledge. I understand that providing false or misleading information may result in the termination of my engagement and potential legal action.</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Upload Fallback (Contradiction Fix 4) -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-upload me-2"></i>Upload Signed Consent (Optional)</h3>
+        </div>
+        <div class="portal-card-body">
+            <p class="text-muted">If you have already signed a physical consent form, you can upload the signed document here instead of using the e-signature above.</p>
+            <div class="mb-3">
+                <label class="form-label" for="manual_consent">Signed Consent Document</label>
+                <input type="file" id="manual_consent" name="manual_consent" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                <small class="text-muted">Accepted formats: PDF, DOC, DOCX, JPG, PNG</small>
+            </div>
+            <div class="alert alert-info small">
+                <i class="fas fa-info-circle me-2"></i>
+                If you upload a signed document, the e-signature fields above are not required. The uploaded document will be used as your consent record.
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Button -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg" id="submitConsent">
+            <i class="fas fa-file-signature me-2"></i>Sign & Submit Consent Form
+        </button>
+        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Secondary employment toggle
+    var secondaryYes = document.getElementById('secondary_yes');
+    var secondaryNo = document.getElementById('secondary_no');
+    var detailsDiv = document.getElementById('secondaryEmploymentDetails');
+
+    if (secondaryYes && secondaryNo && detailsDiv) {
+        secondaryYes.addEventListener('change', function() {
+            detailsDiv.style.display = 'block';
+        });
+        secondaryNo.addEventListener('change', function() {
+            detailsDiv.style.display = 'none';
+        });
+    }
+
+    // Auto-fill date
+    var dateField = document.getElementById('signature_date');
+    if (dateField && !dateField.value) {
+        var now = new Date();
+        var options = { day: '2-digit', month: 'long', year: 'numeric' };
+        dateField.value = now.toLocaleDateString('en-GB', options);
+    }
+
+    // Form submission confirmation
+    var form = document.getElementById('consentForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var checkbox = document.getElementById('confirm_consent');
+            if (!checkbox.checked) {
+                e.preventDefault();
+                alert('Please confirm that all information provided is correct before signing.');
+                return false;
+            }
+            if (!confirm('Are you sure you want to sign and submit this consent form? This action cannot be undone.')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

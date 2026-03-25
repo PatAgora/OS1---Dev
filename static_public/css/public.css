@@ -1,0 +1,27 @@
+:root{
+  --brand-dark:#0f172a;
+  --brand-blue:#3b82f6;
+  --brand-accent:#1e3a8a;
+  --brand-light:#f9fafb;
+}
+.public-body{
+  background: linear-gradient(135deg, var(--brand-accent), var(--brand-blue));
+  min-height:100vh;
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+.card-brand{
+  border:none;
+  border-radius:16px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+}
+.btn-brand{
+  background: var(--brand-blue);
+  color:#fff;
+  font-weight:600;
+  border:none;
+  border-radius:10px;
+}
+.btn-brand:hover{ background: var(--brand-accent); color:#fff; }
+.link-brand{ color: #0b5ed7; text-decoration:none; font-weight:600; }
+.link-brand:hover{ text-decoration:underline; }
+.brand-badge{ background:rgba(59,130,246,.1); color:#0b5ed7; font-weight:600; }

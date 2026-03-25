@@ -1,0 +1,282 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'documents' %}
+
+{% block page_title %}Documents{% endblock %}
+{% block header_title %}Document Upload{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Documents</li>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-4">
+    <i class="fas fa-info-circle me-2"></i>
+    Upload all required documents below. Accepted formats: PDF, JPG, JPEG, PNG (max 10MB per file). Identity and Right to Work documents must be in date.
+</div>
+
+{% set categories = [
+    {'key': 'proof_of_identity', 'title': 'Proof of Identity', 'icon': 'id-card', 'description': 'Passport or Driving Licence - must be in date', 'has_expiry': true},
+    {'key': 'proof_of_address', 'title': 'Proof of Address', 'icon': 'home', 'description': 'Bank statement or utility bill - must be within 90 days', 'has_expiry': false},
+    {'key': 'right_to_work', 'title': 'Right to Work', 'icon': 'passport', 'description': 'Passport, birth certificate, share code, or visa', 'has_expiry': true},
+    {'key': 'cv', 'title': 'CV / Resume', 'icon': 'file-alt', 'description': 'Your most recent CV or resume', 'has_expiry': false},
+    {'key': 'qualifications', 'title': 'Qualifications', 'icon': 'graduation-cap', 'description': 'Certificates, degrees, professional qualifications', 'has_expiry': false},
+    {'key': 'other', 'title': 'Other Documents', 'icon': 'file-upload', 'description': 'Any other supporting documents', 'has_expiry': false}
+] %}
+
+{% for cat in categories %}
+<div class="portal-card mb-4" id="category-{{ cat.key }}">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-{{ cat.icon }} me-2"></i>{{ cat.title }}</h3>
+        {% set cat_docs = documents.get(cat.key, []) if documents else [] %}
+        {% if cat_docs|length > 0 %}
+        <span class="badge bg-success"><i class="fas fa-check me-1"></i>{{ cat_docs|length }} uploaded</span>
+        {% else %}
+        <span class="badge bg-secondary">Not uploaded</span>
+        {% endif %}
+    </div>
+    <div class="portal-card-body">
+        <p class="text-muted mb-3">{{ cat.description }}</p>
+
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="dropzone-{{ cat.key }}" data-category="{{ cat.key }}">
+            <div class="upload-zone-content">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <p class="upload-text">Drag & drop files here or <span class="upload-browse">click to browse</span></p>
+                <p class="upload-hint">PDF, JPG, JPEG, PNG - Max 10MB</p>
+            </div>
+            <input type="file" class="upload-input" id="file-{{ cat.key }}" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;">
+        </div>
+
+        {% if cat.has_expiry %}
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <label class="form-label" for="expiry-{{ cat.key }}">Document Expiry Date</label>
+                <input type="date" id="expiry-{{ cat.key }}" class="form-control expiry-date" data-category="{{ cat.key }}">
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Upload progress -->
+        <div class="upload-progress" id="progress-{{ cat.key }}" style="display: none;">
+            <div class="progress mt-2" style="height: 6px;">
+                <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+            </div>
+            <small class="text-muted">Uploading...</small>
+        </div>
+
+        <!-- Existing Documents -->
+        {% set cat_docs = documents.get(cat.key, []) if documents else [] %}
+        <div class="uploaded-documents mt-3" id="docs-{{ cat.key }}">
+            {% if cat_docs|length > 0 %}
+            {% for doc in cat_docs %}
+            <div class="uploaded-doc-item" data-doc-id="{{ doc.id }}">
+                <div class="doc-info">
+                    <i class="fas fa-file-{{ 'pdf' if doc.filename.endswith('.pdf') else 'image' }} doc-icon"></i>
+                    <div class="doc-details">
+                        <span class="doc-name">{{ doc.filename }}</span>
+                        <span class="doc-meta">Uploaded {{ doc.uploaded_at.strftime('%d %b %Y') if doc.uploaded_at else '' }}</span>
+                    </div>
+                </div>
+                <div class="doc-actions">
+                    <a href="/portal/api/download-document/{{ doc.id }}" class="btn btn-sm btn-outline-primary" title="Download">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-doc-btn" data-doc-id="{{ doc.id }}" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var csrfToken = getCsrfToken();
+
+    // Initialize all upload zones
+    var dropzones = document.querySelectorAll('.upload-zone');
+    dropzones.forEach(function(zone) {
+        var category = zone.getAttribute('data-category');
+        var fileInput = document.getElementById('file-' + category);
+
+        // Click to browse
+        zone.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            zone.classList.add('dragover');
+        });
+
+        zone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+        });
+
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            var files = e.dataTransfer.files;
+            if (files.length > 0) {
+                uploadFiles(files, category);
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                uploadFiles(this.files, category);
+                this.value = '';
+            }
+        });
+    });
+
+    // Upload files via AJAX
+    function uploadFiles(files, category) {
+        var progressDiv = document.getElementById('progress-' + category);
+        var progressBar = progressDiv.querySelector('.progress-bar');
+        var expiryInput = document.querySelector('.expiry-date[data-category="' + category + '"]');
+
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+
+            // Validate file size (10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File "' + file.name + '" exceeds the 10MB limit.');
+                continue;
+            }
+
+            // Validate file type
+            var validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            if (!validTypes.includes(file.type)) {
+                alert('File "' + file.name + '" is not a supported format. Please upload PDF, JPG, JPEG, or PNG files.');
+                continue;
+            }
+
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('doc_type', category);
+            formData.append('csrf_token', csrfToken);
+
+            if (expiryInput && expiryInput.value) {
+                formData.append('expiry_date', expiryInput.value);
+            }
+
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '30%';
+
+            fetch('/portal/api/upload-document', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(function(response) {
+                progressBar.style.width = '70%';
+                return response.json();
+            })
+            .then(function(data) {
+                progressBar.style.width = '100%';
+                setTimeout(function() {
+                    progressDiv.style.display = 'none';
+                    progressBar.style.width = '0%';
+                }, 500);
+
+                if (data.success) {
+                    addDocumentToList(category, data.document);
+                    updateCategoryBadge(category);
+                } else {
+                    alert('Upload failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function(err) {
+                progressDiv.style.display = 'none';
+                progressBar.style.width = '0%';
+                alert('Upload failed. Please try again.');
+                console.error('Upload error:', err);
+            });
+        }
+    }
+
+    // Add uploaded document to the list
+    function addDocumentToList(category, doc) {
+        var container = document.getElementById('docs-' + category);
+        var now = new Date();
+        var dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        var extension = doc.filename.split('.').pop().toLowerCase();
+        var iconClass = extension === 'pdf' ? 'file-pdf' : 'file-image';
+
+        var html = '<div class="uploaded-doc-item" data-doc-id="' + doc.id + '">' +
+            '<div class="doc-info">' +
+            '<i class="fas fa-' + iconClass + ' doc-icon"></i>' +
+            '<div class="doc-details">' +
+            '<span class="doc-name">' + doc.filename + '</span>' +
+            '<span class="doc-meta">Uploaded ' + dateStr + '</span>' +
+            '</div></div>' +
+            '<div class="doc-actions">' +
+            '<a href="/portal/api/download-document/' + doc.id + '" class="btn btn-sm btn-outline-primary" title="Download"><i class="fas fa-download"></i></a>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger delete-doc-btn" data-doc-id="' + doc.id + '" title="Delete"><i class="fas fa-trash"></i></button>' +
+            '</div></div>';
+
+        container.insertAdjacentHTML('beforeend', html);
+    }
+
+    // Update category badge
+    function updateCategoryBadge(category) {
+        var card = document.getElementById('category-' + category);
+        var badge = card.querySelector('.portal-card-header .badge');
+        var docCount = card.querySelectorAll('.uploaded-doc-item').length;
+
+        if (docCount > 0) {
+            badge.className = 'badge bg-success';
+            badge.innerHTML = '<i class="fas fa-check me-1"></i>' + docCount + ' uploaded';
+        } else {
+            badge.className = 'badge bg-secondary';
+            badge.textContent = 'Not uploaded';
+        }
+    }
+
+    // Delete document handler (delegated)
+    document.addEventListener('click', function(e) {
+        var deleteBtn = e.target.closest('.delete-doc-btn');
+        if (!deleteBtn) return;
+
+        var docId = deleteBtn.getAttribute('data-doc-id');
+        if (!confirm('Are you sure you want to delete this document?')) return;
+
+        fetch('/portal/api/delete-document/' + docId, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var item = deleteBtn.closest('.uploaded-doc-item');
+                var category = item.closest('.portal-card').id.replace('category-', '');
+                item.remove();
+                updateCategoryBadge(category);
+            } else {
+                alert('Delete failed: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(function(err) {
+            alert('Delete failed. Please try again.');
+            console.error('Delete error:', err);
+        });
+    });
+});
+</script>
+{% endblock %}

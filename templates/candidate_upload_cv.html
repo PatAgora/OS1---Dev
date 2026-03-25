@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<h2>Upload CV for {{ cand.name }}</h2>
+<form method="post" enctype="multipart/form-data">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.cv.label(class="form-label") }}
+    {{ form.cv(class="form-control") }}
+  </div>
+  {{ form.submit(class="btn btn-primary") }}
+</form>
+</div>
+{% endblock %}

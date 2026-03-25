@@ -1,0 +1,107 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Verify Two-Factor Authentication{% endblock %}
+{% block hero_title %}Two-Factor Authentication{% endblock %}
+{% block hero_subtitle %}Enter your authentication code to sign in{% endblock %}
+
+{% block auth_content %}
+<div class="os-form-card" style="max-width:480px;margin:0 auto;">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ 'danger' if category == 'error' else category }}">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/portal/verify-2fa" id="verify2faForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- TOTP Code Input -->
+        <div id="totpSection">
+            <div class="os-field">
+                <label for="totp_code"><i class="fas fa-mobile-alt" style="margin-right:6px;"></i> 6-Digit Authentication Code</label>
+                <input type="text" id="totp_code" name="totp_code" placeholder="000000"
+                       maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
+                       autocomplete="one-time-code" required autofocus
+                       style="font-size:28px;text-align:center;letter-spacing:10px;font-weight:600;padding:14px 0;">
+            </div>
+            <p style="font-size:13px;color:#64748b;margin:-1rem 0 1.5rem;text-align:center;">Open your authenticator app to view your code</p>
+
+            <button type="submit" class="os-btn-primary" style="margin-bottom:16px;">
+                <i class="fas fa-sign-in-alt" style="margin-right:6px;"></i> Verify & Sign In
+            </button>
+
+            <div style="text-align:center;">
+                <button type="button" onclick="toggleBackupCode()" style="border:none;background:none;color:#00d4ff;font-size:13px;cursor:pointer;font-family:inherit;">
+                    <i class="fas fa-key" style="margin-right:4px;"></i> Use a backup code instead
+                </button>
+            </div>
+        </div>
+
+        <!-- Backup Code Input (hidden by default) -->
+        <div id="backupSection" style="display:none;">
+            <div class="os-field">
+                <label for="backup_code"><i class="fas fa-key" style="margin-right:6px;"></i> Backup Code</label>
+                <input type="text" id="backup_code" name="backup_code" placeholder="Enter your backup code"
+                       autocomplete="off"
+                       style="font-size:16px;text-align:center;letter-spacing:2px;font-weight:500;padding:14px 0;">
+            </div>
+            <p style="font-size:13px;color:#64748b;margin:-1rem 0 1.5rem;text-align:center;">Enter one of your saved backup codes</p>
+
+            <button type="submit" class="os-btn-primary" style="margin-bottom:16px;">
+                <i class="fas fa-sign-in-alt" style="margin-right:6px;"></i> Verify & Sign In
+            </button>
+
+            <div style="text-align:center;">
+                <button type="button" onclick="toggleBackupCode()" style="border:none;background:none;color:#00d4ff;font-size:13px;cursor:pointer;font-family:inherit;">
+                    <i class="fas fa-mobile-alt" style="margin-right:4px;"></i> Use authenticator app instead
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <div class="os-form-footer">
+        <a href="/portal/login" style="font-size:13px;color:#64748b;text-decoration:none;">
+            <i class="fas fa-arrow-left" style="margin-right:4px;"></i> Back to login
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleBackupCode() {
+    var totp = document.getElementById('totpSection');
+    var backup = document.getElementById('backupSection');
+    var totpInput = document.getElementById('totp_code');
+    var backupInput = document.getElementById('backup_code');
+
+    if (backup.style.display === 'none') {
+        totp.style.display = 'none';
+        backup.style.display = 'block';
+        totpInput.removeAttribute('required');
+        totpInput.value = '';
+        backupInput.setAttribute('required', 'required');
+        backupInput.focus();
+    } else {
+        backup.style.display = 'none';
+        totp.style.display = 'block';
+        backupInput.removeAttribute('required');
+        backupInput.value = '';
+        totpInput.setAttribute('required', 'required');
+        totpInput.focus();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('totp_code').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+});
+</script>
+{% endblock %}

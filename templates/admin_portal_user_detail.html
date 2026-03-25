@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Portal User: {{ cand.name or 'Unknown' }}{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{{ url_for('admin_portal_users') }}">Portal User Management</a></li>
+          <li class="breadcrumb-item active">{{ cand.name or 'Unknown' }}</li>
+        </ol>
+      </nav>
+      <h1 class="mb-2">
+        <i class="fas fa-user-shield text-primary me-2"></i>
+        {{ cand.name or 'Unknown User' }}
+      </h1>
+      <p class="text-muted mb-0">
+        <i class="fas fa-envelope me-1"></i> {{ cand.email or 'No email' }}
+        {% if cand.phone %}
+          <span class="mx-2">|</span>
+          <i class="fas fa-phone me-1"></i> {{ cand.phone }}
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if not cand.email_verified %}
+      <form method="post" action="{{ url_for('admin_portal_user_verify', cand_id=cand.id) }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-check-circle me-1"></i> Verify Email
+        </button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('admin_portal_user_send_magic_link', cand_id=cand.id) }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-magic me-1"></i> Send Magic Link
+        </button>
+      </form>
+      <form method="post" action="{{ url_for('admin_portal_user_delete', cand_id=cand.id) }}" class="d-inline" onsubmit="return confirm('WARNING: This will permanently delete {{ cand.name }}.\n\nThis associate may have live applications, vetting checks, contracts, and documents — ALL of this information will be permanently removed.\n\nThis action cannot be undone. Are you absolutely sure?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger">
+          <i class="fas fa-trash me-1"></i> Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Left Column: User Details -->
+  <div class="col-md-8">
+    <!-- Basic Info Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0"><i class="fas fa-user me-2 text-primary"></i>User Details</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin_portal_user_update', cand_id=cand.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Full Name</label>
+              <input type="text" name="name" class="form-control" value="{{ cand.name or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email Address</label>
+              <input type="email" name="email" class="form-control" value="{{ cand.email or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" name="phone" class="form-control" value="{{ cand.phone or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                <option value="Available" {% if cand.status == 'Available' %}selected{% endif %}>Available</option>
+                <option value="On Assignment" {% if cand.status == 'On Assignment' %}selected{% endif %}>On Assignment</option>
+                <option value="On Hold" {% if cand.status == 'On Hold' %}selected{% endif %}>On Hold</option>
+                <option value="Unavailable" {% if cand.status == 'Unavailable' %}selected{% endif %}>Unavailable</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">About / Notes</label>
+              <textarea name="about" class="form-control" rows="3">{{ cand.about or '' }}</textarea>
+            </div>
+          </div>
+          
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i> Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Applications -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-0 py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-briefcase me-2 text-primary"></i>Job Applications</h5>
+          <span class="badge bg-primary">{{ applications|length }}</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% if applications %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Job</th>
+                <th>Status</th>
+                <th>AI Score</th>
+                <th>Applied</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for app in applications %}
+              <tr>
+                <td>
+                  {% if app.job %}
+                    <a href="{{ url_for('application_detail', app_id=app.id) }}" class="text-decoration-none">
+                      {{ app.job.title or 'Untitled Job' }}
+                    </a>
+                  {% else %}
+                    <span class="text-muted">Unknown Job</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge 
+                    {% if app.status == 'Hired' %}bg-success
+                    {% elif app.status == 'Rejected' %}bg-danger
+                    {% elif app.status == 'Interview' %}bg-info
+                    {% elif app.status == 'Shortlisted' %}bg-primary
+                    {% else %}bg-secondary{% endif %}">
+                    {{ app.status or 'New' }}
+                  </span>
+                </td>
+                <td>
+                  {% if app.ai_score %}
+                    <span class="badge 
+                      {% if app.ai_score >= 80 %}bg-success
+                      {% elif app.ai_score >= 60 %}bg-warning
+                      {% else %}bg-danger{% endif %}">
+                      {{ app.ai_score }}%
+                    </span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if app.created_at %}
+                    {{ app.created_at.strftime('%d %b %Y') }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{{ url_for('application_detail', app_id=app.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+          No applications yet
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Documents -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-file-alt me-2 text-primary"></i>Documents</h5>
+          <span class="badge bg-primary">{{ documents|length }}</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% if documents %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Document</th>
+                <th>Type</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for doc in documents %}
+              <tr>
+                <td>
+                  <i class="fas fa-file-pdf text-danger me-2"></i>
+                  {{ doc.original_name or doc.filename or 'Unknown' }}
+                </td>
+                <td>
+                  <span class="badge bg-secondary">{{ doc.doc_type or 'Unknown' }}</span>
+                </td>
+                <td>
+                  {% if doc.uploaded_at %}
+                    {{ doc.uploaded_at.strftime('%d %b %Y %H:%M') }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>
+                  {% if doc.filename %}
+                    <a href="{{ url_for('static', filename=doc.filename) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-download"></i>
+                    </a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+          No documents uploaded
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Right Column: Status & Activity -->
+  <div class="col-md-4">
+    <!-- Verification Status -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0"><i class="fas fa-shield-alt me-2 text-primary"></i>Email Status</h5>
+      </div>
+      <div class="card-body text-center py-4">
+        {% if cand.email_verified %}
+          <div class="mb-3">
+            <span class="bg-success bg-opacity-10 rounded-circle p-4 d-inline-flex">
+              <i class="fas fa-check-circle fa-3x text-success"></i>
+            </span>
+          </div>
+          <h5 class="text-success mb-2">Email Verified</h5>
+          {% if cand.email_verified_at %}
+            <small class="text-muted">Verified on {{ cand.email_verified_at.strftime('%d %b %Y at %H:%M') }}</small>
+          {% endif %}
+        {% else %}
+          <div class="mb-3">
+            <span class="bg-warning bg-opacity-10 rounded-circle p-4 d-inline-flex">
+              <i class="fas fa-clock fa-3x text-warning"></i>
+            </span>
+          </div>
+          <h5 class="text-warning mb-2">Pending Verification</h5>
+          <small class="text-muted">User has not verified their email</small>
+          <div class="mt-3">
+            <form method="post" action="{{ url_for('admin_portal_user_verify', cand_id=cand.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-success btn-sm">
+                <i class="fas fa-check me-1"></i> Mark as Verified
+              </button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Activity Timeline -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0"><i class="fas fa-clock me-2 text-primary"></i>Activity</h5>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="d-flex mb-3">
+            <div class="flex-shrink-0 me-3">
+              <span class="bg-primary bg-opacity-10 rounded-circle p-2 d-inline-flex">
+                <i class="fas fa-user-plus text-primary"></i>
+              </span>
+            </div>
+            <div>
+              <strong>Registered</strong>
+              <br>
+              <small class="text-muted">
+                {% if cand.created_at %}
+                  {{ cand.created_at.strftime('%d %b %Y at %H:%M') }}
+                {% else %}
+                  Unknown
+                {% endif %}
+              </small>
+            </div>
+          </li>
+          {% if cand.email_verified_at %}
+          <li class="d-flex mb-3">
+            <div class="flex-shrink-0 me-3">
+              <span class="bg-success bg-opacity-10 rounded-circle p-2 d-inline-flex">
+                <i class="fas fa-envelope-open text-success"></i>
+              </span>
+            </div>
+            <div>
+              <strong>Email Verified</strong>
+              <br>
+              <small class="text-muted">{{ cand.email_verified_at.strftime('%d %b %Y at %H:%M') }}</small>
+            </div>
+          </li>
+          {% endif %}
+          {% if cand.last_login_at %}
+          <li class="d-flex mb-3">
+            <div class="flex-shrink-0 me-3">
+              <span class="bg-info bg-opacity-10 rounded-circle p-2 d-inline-flex">
+                <i class="fas fa-sign-in-alt text-info"></i>
+              </span>
+            </div>
+            <div>
+              <strong>Last Login</strong>
+              <br>
+              <small class="text-muted">{{ cand.last_login_at.strftime('%d %b %Y at %H:%M') }}</small>
+            </div>
+          </li>
+          {% endif %}
+          {% if cand.last_activity_at %}
+          <li class="d-flex">
+            <div class="flex-shrink-0 me-3">
+              <span class="bg-warning bg-opacity-10 rounded-circle p-2 d-inline-flex">
+                <i class="fas fa-bolt text-warning"></i>
+              </span>
+            </div>
+            <div>
+              <strong>Last Activity</strong>
+              <br>
+              <small class="text-muted">{{ cand.last_activity_at.strftime('%d %b %Y at %H:%M') }}</small>
+            </div>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0"><i class="fas fa-bolt me-2 text-primary"></i>Quick Actions</h5>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <form method="post" action="{{ url_for('admin_portal_user_send_magic_link', cand_id=cand.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-primary w-100">
+              <i class="fas fa-magic me-1"></i> Send Sign-in Link
+            </button>
+          </form>
+          <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary" target="_blank">
+            <i class="fas fa-id-card me-1"></i> View Full Profile
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

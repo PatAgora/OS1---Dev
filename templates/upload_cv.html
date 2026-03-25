@@ -1,0 +1,11 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<h2 class="fw-bold mb-3">Upload Updated CV</h2>
+<form method="post" enctype="multipart/form-data" class="card p-3 shadow-sm border-0">
+  <div class="mb-2"><input class="form-control" type="file" name="cv" required></div>
+  <button class="btn btn-primary">Upload</button>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="container-xxl">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="fw-bold mb-1">{{ title }} — {{ engagement.name }} <span class="text-muted">({{ engagement.client }})</span></h3>
+      <div class="small text-secondary">
+        <a href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">&larr; Back to Dashboard</a>
+      </div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('engagements') }}">Back to Engagements</a>
+  </div>
+
+  {% if section in ['declared','interview_scheduled','interview_completed'] %}
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Associate</th>
+              <th>Email</th>
+              <th>Job</th>
+              {% if section=='interview_scheduled' %}<th>When</th>{% endif %}
+              {% if section=='interview_completed' %}<th>Completed at</th>{% endif %}
+              {% if section=='declared' %}<th class="text-center">AI score</th><th>Status</th><th>Interview</th>{% endif %}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in items %}
+            <tr>
+              <td>
+                <a class="fw-semibold"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=r.candidate.id,
+                                    stage=section,
+                                    job_id=r.job.id,
+                                    job_title=r.job.title,
+                                    interview_at=(r.interview_at|string) if r.interview_at else None) }}">
+                  {{ r.candidate.name }}
+                </a>
+              </td>
+              <td><a href="mailto:{{ r.candidate.email }}">{{ r.candidate.email }}</a></td>
+              <td>{{ r.job.title }}</td>
+              {% if section=='interview_scheduled' %}<td>{{ r.interview_at or '—' }}</td>{% endif %}
+              {% if section=='interview_completed' %}<td>{{ r.interview_done_at or '—' }}</td>{% endif %}
+              {% if section=='declared' %}
+                <td class="text-center fw-bold">{{ r.ai_score }}</td>
+                <td>{{ r.status }}</td>
+                <td>{% if r.interview_at %}{{ r.interview_at }}{% else %}—{% endif %}</td>
+              {% endif %}
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('application_detail', app_id=r.app_id) }}">Open application</a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if items|length == 0 %}
+            <tr><td colspan="8" class="text-center text-secondary py-4">Nothing to show yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  {% elif section == 'shortlist' %}
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Associate</th><th>Email</th><th>Job</th><th>Added</th><th></th></tr></thead>
+          <tbody>
+            {% for r in items %}
+            <tr>
+              <td>
+                <a class="fw-semibold"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=r.candidate.id,
+                                    stage='shortlist',
+                                    job_id=r.job.id,
+                                    job_title=r.job.title) }}">
+                  {{ r.candidate.name }}
+                </a>
+              </td>
+              <td><a href="mailto:{{ r.candidate.email }}">{{ r.candidate.email }}</a></td>
+              <td>{{ r.job.title }}</td>
+              <td class="text-nowrap">{{ r.created_at or "—" }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=r.candidate.id,
+                                    stage='shortlist',
+                                    job_id=r.job.id,
+                                    job_title=r.job.title) }}">
+                  Open profile
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if items|length == 0 %}
+            <tr><td colspan="5" class="text-center text-secondary py-4">No one shortlisted yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  {% elif section == 'vetting' %}
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Associate</th><th>Email</th><th>Job</th><th>Verifile Ref</th><th>Checks</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for v in items %}
+            <tr>
+              <td>
+                <a class="fw-semibold"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=v.candidate.id,
+                                    stage='vetting',
+                                    job_id=v.job.id,
+                                    job_title=v.job.title) }}">{{ v.candidate.name }}</a>
+              </td>
+              <td><a href="mailto:{{ v.candidate.email }}">{{ v.candidate.email }}</a></td>
+              <td>{{ v.job.title }}</td>
+              <td class="text-truncate" style="max-width:260px">{{ v.external_ref or '—' }}</td>
+              <td>
+                <span class="badge text-bg-{{ 'success' if v.checks.rtw else 'secondary' }}">RTW</span>
+                <span class="badge text-bg-{{ 'success' if v.checks.idv else 'secondary' }}">IDV</span>
+                <span class="badge text-bg-{{ 'success' if v.checks.dbs else 'secondary' }}">DBS</span>
+              </td>
+              <td>{{ v.status }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=v.candidate.id,
+                                    stage='vetting',
+                                    job_id=v.job.id,
+                                    job_title=v.job.title) }}">
+                  Open profile
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if items|length == 0 %}
+            <tr><td colspan="7" class="text-center text-secondary py-4">No vetting started yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- contract_issued / contract_signed -->
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Associate</th><th>Email</th><th>Job</th><th>Provider</th><th>Request ID</th><th>{{ 'Signed' if section=='contract_signed' else 'Sent' }}</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for e in items %}
+            <tr>
+              <td>
+                <a class="fw-semibold"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=e.candidate.id,
+                                    stage=('contract_signed' if section=='contract_signed' else 'contract_issued'),
+                                    job_id=e.job.id,
+                                    job_title=e.job.title) }}">{{ e.candidate.name }}</a>
+              </td>
+              <td><a href="mailto:{{ e.candidate.email }}">{{ e.candidate.email }}</a></td>
+              <td>{{ e.job.title }}</td>
+              <td>{{ e.provider }}</td>
+              <td class="text-truncate" style="max-width:260px">{{ e.request_id }}</td>
+              <td>{{ (e.signed_at if section=='contract_signed' else e.sent_at) or '—' }}</td>
+              <td>{{ e.status }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('candidate_profile',
+                                    cand_id=e.candidate.id,
+                                    stage=('contract_signed' if section=='contract_signed' else 'contract_issued'),
+                                    job_id=e.job.id,
+                                    job_title=e.job.title) }}">
+                  Open profile
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if items|length == 0 %}
+            <tr><td colspan="8" class="text-center text-secondary py-4">No records yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

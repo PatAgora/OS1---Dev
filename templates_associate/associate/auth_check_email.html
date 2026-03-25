@@ -1,0 +1,64 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Check Your Email{% endblock %}
+{% block hero_title %}Check Your Email{% endblock %}
+{% block hero_subtitle %}We've sent you a verification link{% endblock %}
+
+{% block auth_content %}
+<div class="os-form-card" style="max-width:540px;margin:0 auto;">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else category }}">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'exclamation-triangle' if category == 'warning' else 'check-circle' }}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div style="text-align:center;">
+        <!-- Envelope Icon -->
+        <div style="width:80px;height:80px;border-radius:50%;background:rgba(0,212,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 24px;">
+            <i class="fas fa-envelope" style="font-size:36px;color:#00d4ff;"></i>
+        </div>
+
+        <h2 class="os-form-heading" style="text-align:center;">Check Your Email</h2>
+
+        <p style="font-size:15px;color:#64748b;line-height:1.6;margin-bottom:24px;">
+            We've sent a verification link to
+            {% if email %}
+            <strong style="color:#0a1628;">{{ email }}</strong>.
+            {% else %}
+            your email address.
+            {% endif %}
+            <br>Click the link in the email to continue setting up your account.
+        </p>
+
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:24px;text-align:left;">
+            <p style="color:#64748b;font-size:14px;margin:0;">
+                <i class="fas fa-info-circle" style="color:#00d4ff;margin-right:6px;"></i>
+                <strong>Didn't receive it?</strong> Check your spam or junk folder. The email may take a few minutes to arrive.
+            </p>
+        </div>
+
+        <!-- Resend Link -->
+        <form method="POST" action="/portal/resend-verification" style="margin-bottom:16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if email %}
+            <input type="hidden" name="email" value="{{ email }}">
+            {% endif %}
+            <button type="submit" class="os-btn-primary" style="background:#e5e7eb;color:#0a1628;">
+                <i class="fas fa-redo" style="margin-right:6px;"></i> Resend Verification Email
+            </button>
+        </form>
+
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px;">
+            <a href="/portal/login" style="font-size:13px;color:#64748b;text-decoration:none;">
+                <i class="fas fa-arrow-left" style="margin-right:4px;"></i> Back to login
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

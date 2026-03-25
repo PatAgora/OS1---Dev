@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Timesheet Config — {{ engagement.name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-clock me-2"></i>Timesheet Configuration</h2>
+                    <p class="text-muted">{{ engagement.name }} — {{ engagement.client }}</p>
+                </div>
+                <a href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </a>
+            </div>
+
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- Time Types -->
+                <div class="card mb-4">
+                    <div class="card-header"><h5 class="mb-0">Time Types</h5></div>
+                    <div class="card-body">
+                        <p class="text-muted small">Select which time types are available for this engagement's timesheets.</p>
+                        {% for tt in ["Standard Time", "Overtime", "Holiday", "Sickness", "Unplanned Absence"] %}
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" name="time_types" value="{{ tt }}" id="tt_{{ loop.index }}" {% if tt in time_types %}checked{% endif %}>
+                            <label class="form-check-label" for="tt_{{ loop.index }}">{{ tt }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Overtime Rules -->
+                <div class="card mb-4">
+                    <div class="card-header"><h5 class="mb-0">Overtime Rules</h5></div>
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input type="hidden" name="overtime_enabled" value="0">
+                            <input type="checkbox" class="form-check-input" name="overtime_enabled" value="1" id="ot_enabled" {% if config and config.overtime_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="ot_enabled">Enable Overtime</label>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">OT Multiplier</label>
+                                <input type="number" name="overtime_multiplier" class="form-control" step="0.1" min="1" value="{{ config.overtime_multiplier if config else 1.5 }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">OT Rate Type</label>
+                                <select name="overtime_rate_type" class="form-select">
+                                    <option value="hourly" {% if not config or config.overtime_rate_type == 'hourly' %}selected{% endif %}>Hourly</option>
+                                    <option value="daily" {% if config and config.overtime_rate_type == 'daily' %}selected{% endif %}>Daily</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">OT Rate (&pound;)</label>
+                                <input type="number" name="overtime_rate" class="form-control" step="0.01" min="0" value="{{ config.overtime_rate if config else 0 }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rates -->
+                <div class="card mb-4">
+                    <div class="card-header"><h5 class="mb-0">Rates</h5></div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Day Rate (&pound;)</label>
+                                <input type="number" name="day_rate" class="form-control" step="0.01" min="0" value="{{ config.day_rate if config else 0 }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expenses -->
+                <div class="card mb-4">
+                    <div class="card-header"><h5 class="mb-0">Expenses</h5></div>
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input type="hidden" name="expense_enabled" value="0">
+                            <input type="checkbox" class="form-check-input" name="expense_enabled" value="1" id="exp_enabled" {% if config and config.expense_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="exp_enabled">Enable Expenses</label>
+                        </div>
+                        <p class="text-muted small">Select expense types and optionally set per-type limits.</p>
+                        {% for et in ["Travel", "Accommodation", "Meals", "Equipment", "Other"] %}
+                        <div class="row g-2 mb-2 align-items-center">
+                            <div class="col-auto">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="expense_types" value="{{ et }}" id="et_{{ loop.index }}" {% if et in expense_types %}checked{% endif %}>
+                                    <label class="form-check-label" for="et_{{ loop.index }}">{{ et }}</label>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <div class="input-group input-group-sm" style="width: 160px;">
+                                    <span class="input-group-text">&pound; Limit</span>
+                                    <input type="number" name="expense_limit_{{ et }}" class="form-control" step="0.01" min="0" value="{{ expense_limits.get(et, '') }}">
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>Save Configuration
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

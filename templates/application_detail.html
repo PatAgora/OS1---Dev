@@ -1,0 +1,2031 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Application · {{ cand.name }}{% endblock %}
+
+{% block head %}
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  .page-header-section .contact-info {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+  }
+  
+  /* Application Status Banner */
+  .status-banner {
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    animation: fadeInUp 0.6s ease;
+  }
+  
+  .status-banner.open {
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    border: 2px solid #86efac;
+  }
+  
+  .status-banner.closed {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    border: 2px solid #cbd5e1;
+  }
+  
+  .status-banner.info {
+    background: linear-gradient(135deg, #e8eef8 0%, #d0ddf0 100%);
+    border: 2px solid #93c5fd;
+  }
+  
+  .status-banner-badge {
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .status-banner-badge.open {
+    background: #059669;
+    color: white;
+  }
+  
+  .status-banner-badge.closed {
+    background: #64748b;
+    color: white;
+  }
+  
+  .status-banner-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+  }
+  
+  .status-banner-item strong {
+    color: #1f2937;
+    font-weight: 600;
+  }
+  
+  .status-banner-item span {
+    color: #374151;
+  }
+  
+  /* Section Headers */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  .section-subtitle {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+  }
+  
+  .btn-modern-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-sm {
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  /* AI Score Display */
+  .score-display {
+    font-size: 3rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Tag Chips */
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #f0f4fa 0%, #e8eef8 100%);
+    color: #1e3a8a;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .tag-chip .btn-remove {
+    padding: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border: none;
+    font-size: 0.7rem;
+    transition: all 0.2s ease;
+    line-height: 1;
+  }
+  
+  .tag-chip .btn-remove:hover {
+    background: #dc2626;
+    color: white;
+  }
+  
+  /* Profile Row Styles */
+  .profile-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .profile-row:last-child {
+    border-bottom: none;
+  }
+  
+  .profile-row i {
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  
+  /* Documents List */
+  .doc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .doc-list li {
+    padding: 0.625rem 0;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .doc-list li:last-child {
+    border-bottom: none;
+  }
+  
+  .doc-list a {
+    color: #1e3a8a;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+  
+  .doc-list a:hover {
+    color: #1e3a8a;
+    text-decoration: underline;
+  }
+  
+  .doc-list .doc-date {
+    color: #9ca3af;
+    font-size: 0.85rem;
+  }
+  
+  /* Summary Box */
+  .summary-box {
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.25rem;
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #374151;
+  }
+  
+  /* Details Disclosure */
+  details {
+    margin-top: 1rem;
+  }
+  
+  details summary {
+    cursor: pointer;
+    color: #1e3a8a;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+  }
+  
+  details summary:hover {
+    background: #f9fafb;
+  }
+  
+  details[open] summary {
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Interview Schedule Form */
+  .interview-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+  }
+  
+  @media (max-width: 768px) {
+    .interview-form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* Vetting Checks Matrix */
+  .vetting-section {
+    max-height: none;
+  }
+  
+  .vetting-check {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  
+  .vetting-check-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    cursor: pointer;
+    gap: 0.5rem;
+  }
+  
+  .vetting-check-header:hover {
+    background: #f3f4f6;
+  }
+  
+  .vetting-check-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+  }
+  
+  .vetting-check-title i {
+    width: 20px;
+    text-align: center;
+  }
+  
+  .vetting-status-badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  
+  .vetting-status-not_started {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  .vetting-status-in_progress {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .vetting-status-complete {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  
+  .vetting-status-not_required {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+  
+  .vetting-check-content {
+    display: none;
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+  }
+  
+  .vetting-check.expanded .vetting-check-content {
+    display: block;
+  }
+  
+  .vetting-check.expanded .vetting-check-header {
+    background: #f3f4f6;
+  }
+  
+  .vetting-field-group {
+    margin-bottom: 0.75rem;
+  }
+  
+  .vetting-field-group:last-child {
+    margin-bottom: 0;
+  }
+  
+  .vetting-field-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+  }
+  
+  .vetting-field-value {
+    font-size: 0.85rem;
+    color: #1f2937;
+  }
+  
+  .vetting-status-select {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+  }
+  
+  .vetting-expand-icon {
+    transition: transform 0.2s ease;
+    color: #9ca3af;
+  }
+  
+  .vetting-check.expanded .vetting-expand-icon {
+    transform: rotate(180deg);
+  }
+  
+  /* Empty State */
+  .empty-state-text {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.95rem;
+  }
+  
+  /* Interview Status */
+  .interview-status {
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .interview-status-completed {
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    border-color: #86efac;
+  }
+  
+  .interview-status-item {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+  }
+  
+  .interview-status-item:last-child {
+    margin-bottom: 0;
+  }
+  
+  .interview-status-item strong {
+    color: #1f2937;
+    font-weight: 600;
+  }
+  
+  /* Animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease;
+  }
+  
+  .fade-in-up:nth-child(1) { animation-delay: 0.1s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(2) { animation-delay: 0.2s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(3) { animation-delay: 0.3s; animation-fill-mode: both; }
+  .fade-in-up:nth-child(4) { animation-delay: 0.4s; animation-fill-mode: both; }
+</style>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="container-xxl px-4 pt-3 pb-4">
+  <!-- Page Header -->
+  <div class="page-header-section">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-user-circle"></i>
+          {{ cand.name }}
+        </h1>
+        <div class="contact-info">
+          <i class="fas fa-envelope me-2"></i>{{ cand.email or '—' }}
+          {% if cand.phone %}
+            <span class="mx-2">·</span>
+            <a href="tel:{{ cand.phone }}" class="text-decoration-none" style="color: inherit;" title="Click to call">
+              <i class="fas fa-phone me-2"></i>{{ cand.phone }}
+            </a>
+            <a href="https://teams.microsoft.com/l/call/0/0?users=4:{{ cand.phone|replace(' ', '') }}" class="btn btn-sm ms-2" style="background: #6264a7; color: white; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;" title="Call via Microsoft Teams" target="_blank">
+              <i class="fab fa-microsoft me-1"></i>Teams
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        {% if from_candidate %}
+          <a class="btn btn-modern btn-modern-outline" href="{{ url_for('resource_pool') }}">
+            <i class="fas fa-arrow-left me-2"></i>Back to Resource Pool
+          </a>
+        {% else %}
+          <a class="btn btn-modern btn-modern-outline" href="{{ url_for('applications') }}">
+            <i class="fas fa-arrow-left me-2"></i>Back to Applications
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Status Banner -->
+  {% if job %}
+    <div class="status-banner {% if job_open %}open{% else %}closed{% endif %}">
+      <div>
+        <span class="status-banner-badge {% if job_open %}open{% else %}closed{% endif %}">
+          {% if job_open %}Open Role{% else %}Closed Role{% endif %}
+        </span>
+      </div>
+      <div class="status-banner-item">
+        <i class="fas fa-briefcase"></i>
+        <strong>Role:</strong>
+        <span>{{ job.title }}</span>
+      </div>
+      <div class="status-banner-item">
+        <i class="fas fa-calendar-alt"></i>
+        <strong>Applied:</strong>
+        <span>{{ applied_on.strftime('%Y-%m-%d %H:%M UTC') if applied_on else '—' }}</span>
+      </div>
+      {% if appn and appn.status %}
+        <div class="status-banner-item">
+          <i class="fas fa-info-circle"></i>
+          <strong>Status:</strong>
+          <span>{{ appn.status }}</span>
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="status-banner info">
+      <div class="status-banner-item">
+        <i class="fas fa-info-circle"></i>
+        <strong>No active applications</strong>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- LEFT COLUMN -->
+    <div class="col-12 col-lg-8">
+      
+      <!-- Associate Info Card -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h2 class="section-title">
+          <i class="fas fa-user"></i>
+          Associate Information
+        </h2>
+        
+        <div class="mb-3">
+          <strong style="color: #1f2937;">{{ cand.name }}</strong>
+          <span class="text-muted">—</span>
+          <span style="color: #6b7280;">{{ cand.email }}</span>
+        </div>
+
+        <h6 class="section-subtitle">Documents</h6>
+        {% if docs %}
+          <ul class="doc-list">
+            {% for d in docs %}
+              <li>
+                <i class="fas fa-file-pdf" style="color: #dc2626;"></i>
+                {% if d.doc_type == 'cv' %}
+                  <a href="{{ url_for('download_cv', fname=d.filename) }}">
+                    {{ d.original_name or d.filename }}
+                  </a>
+                {% else %}
+                  <span>{{ d.original_name or d.filename }}</span>
+                {% endif %}
+                {% if d.uploaded_at %}
+                  <span class="doc-date">({{ d.uploaded_at.strftime('%Y-%m-%d %H:%M') }})</span>
+                {% endif %}
+                <form method="POST" action="{{ url_for('candidate_delete_cv', cand_id=cand.id, doc_id=d.id) }}" class="d-inline ms-2" onsubmit="return confirm('Are you sure you want to delete this document?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete document">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="empty-state-text mb-3">No documents uploaded.</div>
+        {% endif %}
+        
+        <!-- CV Upload Form -->
+        <div class="mt-3 pt-3" style="border-top: 1px solid #e5e7eb;">
+          <form method="POST" action="{{ url_for('candidate_upload_cv', cand_id=cand.id) }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="d-flex gap-2 align-items-end">
+              <div class="flex-grow-1">
+                <label class="field-label mb-1" style="font-size: 0.75rem;">Add CV / Document</label>
+                <input type="file" name="cv" class="form-control form-control-sm" accept=".pdf,.doc,.docx" required>
+              </div>
+              <button type="submit" class="btn btn-sm btn-outline-primary" title="Upload">
+                <i class="fas fa-upload"></i>
+              </button>
+            </div>
+            <small class="text-muted" style="font-size: 0.7rem;">PDF, DOC, or DOCX files</small>
+          </form>
+        </div>
+      </div>
+
+      <!-- AI Summary Card -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h2 class="section-title">
+          <i class="fas fa-brain"></i>
+          AI Summary
+        </h2>
+        
+        {% if appn and appn.ai_summary %}
+          <div class="summary-box">{{ appn.ai_summary }}</div>
+        {% elif cand.ai_summary %}
+          <div class="summary-box">{{ cand.ai_summary }}</div>
+        {% else %}
+          <div class="empty-state-text">No summary yet.</div>
+        {% endif %}
+        
+        <div class="mt-3">
+          {% if appn %}
+            <form method="POST" action="{{ url_for('action_summarise', app_id=appn.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-modern btn-modern-outline btn-modern-sm">
+                <i class="fas fa-sync-alt me-2"></i>Generate Summary
+              </button>
+            </form>
+          {% else %}
+            <form method="POST" action="{{ url_for('candidate_regenerate_summary') }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="candidate_id" value="{{ cand.id }}">
+              <button class="btn btn-modern btn-modern-outline btn-modern-sm">
+                <i class="fas fa-sync-alt me-2"></i>Generate Summary
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if appn %}
+      <!-- Interview Card -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+          <h2 class="section-title mb-0">
+            <i class="fas fa-handshake"></i>
+            Interview
+          </h2>
+          
+          {% if appn.interview_scheduled_at and not appn.interview_completed_at and not appn.interview_not_required %}
+            <form method="POST" action="{{ url_for('action_complete_interview', app_id=appn.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-modern btn-modern-success btn-modern-sm">
+                <i class="fas fa-check me-2"></i>Mark Completed
+              </button>
+            </form>
+          {% endif %}
+          {% if not appn.interview_completed_at and not appn.interview_not_required %}
+            <form method="POST" action="{{ url_for('action_interview_not_required', app_id=appn.id) }}" class="d-inline ms-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-modern btn-modern-outline btn-modern-sm" title="Skip interview stage">
+                <i class="fas fa-forward me-2"></i>Not Required
+              </button>
+            </form>
+          {% endif %}
+        </div>
+
+        <!-- Schedule Form -->
+        {% if not appn.interview_not_required and not appn.interview_completed_at %}
+        <form method="POST" action="{{ url_for('action_schedule_interview', app_id=appn.id) }}" class="mb-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="field-label">Interview Date/Time</label>
+              <input type="datetime-local" name="scheduled_at" class="form-control field-input" required>
+            </div>
+            <div class="col-md-5">
+              <label class="field-label">Interviewer Email (Optional)</label>
+              <input type="email" name="interviewer_email" placeholder="name@client.com" class="form-control field-input">
+            </div>
+            <div class="col-md-2 d-grid align-items-end">
+              <button class="btn btn-modern btn-modern-primary" type="submit">
+                <i class="fas fa-calendar-plus"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+        {% endif %}
+
+        <!-- Current Status -->
+        <div class="interview-status {% if appn.interview_completed_at or appn.interview_not_required %}interview-status-completed{% endif %}">
+          {% if appn.interview_not_required %}
+            <div class="interview-status-item" style="color: #1e3a8a; font-weight: 600;">
+              <i class="fas fa-forward me-2"></i>
+              Interview not required - stage skipped
+            </div>
+          {% elif appn.interview_scheduled_at %}
+            <div class="interview-status-item">
+              <i class="fas fa-calendar-check me-2"></i>
+              <strong>Scheduled:</strong> {{ appn.interview_scheduled_at }}
+            </div>
+          {% else %}
+            <div class="interview-status-item empty-state-text">
+              <i class="fas fa-calendar-times me-2"></i>
+              No interview scheduled.
+            </div>
+          {% endif %}
+
+          {% if appn.interview_completed_at %}
+            <div class="interview-status-item" style="color: #059669; font-weight: 600;">
+              <i class="fas fa-check-circle me-2"></i>
+              Interview completed: {{ appn.interview_completed_at }}
+            </div>
+          {% endif %}
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Interview Notes -->
+        <h6 class="section-subtitle">Interview Notes</h6>
+        <form method="POST" action="{{ url_for('action_save_interview_notes', app_id=appn.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <textarea
+              class="form-control field-input"
+              name="interview_notes"
+              rows="4"
+              placeholder="Feedback, concerns, recommendation, next steps…"
+            >{{ appn.interview_notes or '' }}</textarea>
+          </div>
+          <button class="btn btn-modern btn-modern-outline btn-modern-sm">
+            <i class="fas fa-save me-2"></i>Save Notes
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-12 col-lg-4">
+      
+      <!-- AI Match Score Card -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h6 class="section-subtitle">AI Match Score</h6>
+        <div class="score-display">
+          {% if appn %}{{ appn.ai_score }}{% else %}—{% endif %}
+        </div>
+        
+        {% if appn %}
+          <form method="POST" action="{{ url_for('action_score', app_id=appn.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-modern btn-modern-outline btn-modern-sm">
+              <i class="fas fa-calculator me-2"></i>Recalculate
+            </button>
+          </form>
+        {% endif %}
+        
+        {% if appn and appn.ai_explanation %}
+          <details>
+            <summary><i class="fas fa-question-circle me-2"></i>Why this score?</summary>
+            <div class="summary-box mt-2">{{ appn.ai_explanation }}</div>
+          </details>
+        {% endif %}
+      </div>
+
+      <!-- Associate Profile Card - Phase 1 Enterprise Fields -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="section-subtitle mb-0"><i class="fas fa-id-card me-2"></i>Associate Profile</h6>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#editProfileForm">
+            <i class="fas fa-edit"></i>
+          </button>
+        </div>
+        
+        <!-- Display Mode -->
+        <div id="profileDisplay">
+          <!-- Status & Availability -->
+          <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              {% set status = cand.status or 'Available' %}
+              <span class="badge {% if status == 'Available' %}bg-success{% elif status == 'On Contract' %}bg-info{% elif status == 'On Assignment' %}bg-primary{% elif status == 'On Notice' %}bg-warning text-dark{% elif status == 'Ex-Associate' %}bg-secondary{% elif status == 'Unavailable' %}bg-purple{% elif status == 'DNU' %}bg-danger{% elif status == 'Do Not Contact' %}bg-danger{% else %}bg-light text-dark{% endif %}" style="{% if status == 'Unavailable' %}background-color: #a855f7 !important;{% endif %}">
+                {{ status }}
+              </span>
+              {% if cand.security_clearance %}
+                <span class="badge bg-info">{{ cand.security_clearance|upper }}</span>
+              {% endif %}
+            </div>
+            {% if cand.status_notes %}
+              <small class="text-muted d-block">{{ cand.status_notes }}</small>
+            {% endif %}
+          </div>
+          
+          <!-- Location & Work Preference -->
+          <div class="profile-row">
+            <i class="fas fa-map-marker-alt text-muted"></i>
+            <span>{{ cand.location or 'Not specified' }}</span>
+            {% if cand.work_preference %}
+              <span class="badge bg-light text-dark ms-2">{{ cand.work_preference|title }}</span>
+            {% endif %}
+          </div>
+          
+          <!-- Availability -->
+          <div class="profile-row">
+            <i class="fas fa-calendar-check text-muted"></i>
+            {% if cand.available_from %}
+              Available from {{ cand.available_from.strftime('%d %b %Y') }}
+            {% elif cand.notice_period_days and cand.notice_period_days > 0 %}
+              {{ cand.notice_period_days }} days notice
+            {% else %}
+              Immediately available
+            {% endif %}
+          </div>
+          
+          <!-- Day Rate -->
+          <div class="profile-row">
+            <i class="fas fa-pound-sign text-muted"></i>
+            {% if cand.day_rate_min or cand.day_rate_max %}
+              {% if cand.day_rate_min and cand.day_rate_max %}
+                £{{ cand.day_rate_min }} - £{{ cand.day_rate_max }}/day
+              {% elif cand.day_rate_min %}
+                From £{{ cand.day_rate_min }}/day
+              {% else %}
+                Up to £{{ cand.day_rate_max }}/day
+              {% endif %}
+            {% else %}
+              Rate not specified
+            {% endif %}
+            {% if cand.ir35_preference %}
+              <span class="badge bg-{{ 'info' if cand.ir35_preference == 'outside' else 'secondary' }} ms-2">IR35: {{ cand.ir35_preference|title }}</span>
+            {% endif %}
+          </div>
+          
+          <!-- Contract Preference -->
+          <div class="profile-row">
+            <i class="fas fa-file-signature text-muted"></i>
+            {{ (cand.contract_preference or 'Not specified').replace('_', ' ')|title }}
+            {% if cand.has_ltd_company %}
+              <span class="badge bg-success ms-2">Ltd Company</span>
+            {% endif %}
+          </div>
+          
+          <!-- Clearance Expiry -->
+          {% if cand.security_clearance and cand.clearance_expiry %}
+          <div class="profile-row">
+            <i class="fas fa-shield-alt text-muted"></i>
+            {{ cand.security_clearance|upper }} expires {{ cand.clearance_expiry.strftime('%d %b %Y') }}
+          </div>
+          {% endif %}
+          
+          <!-- Last Contact -->
+          {% if cand.last_contacted_at %}
+          <div class="profile-row text-muted" style="font-size: 0.8rem;">
+            <i class="fas fa-clock"></i>
+            Last contacted {{ cand.last_contacted_at.strftime('%d %b %Y') }}
+            {% if cand.last_contacted_by %} by {{ cand.last_contacted_by }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Edit Mode (Collapsed) -->
+        <div class="collapse mt-3" id="editProfileForm">
+          <form method="POST" action="{{ url_for('candidate_profile_update', cand_id=cand.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="mb-2">
+              <label class="form-label small fw-bold">Status</label>
+              <select name="candidate_status" class="form-select form-select-sm">
+                <option value="Available" {{ 'selected' if cand.status == 'Available' else '' }}>Available</option>
+                <option value="On Contract" {{ 'selected' if cand.status == 'On Contract' else '' }}>On Contract</option>
+                <option value="On Assignment" {{ 'selected' if cand.status == 'On Assignment' else '' }}>On Assignment</option>
+                <option value="On Notice" {{ 'selected' if cand.status == 'On Notice' else '' }}>On Notice</option>
+                <option value="Ex-Associate" {{ 'selected' if cand.status == 'Ex-Associate' else '' }}>Ex-Associate</option>
+                <option value="Unavailable" {{ 'selected' if cand.status == 'Unavailable' else '' }}>Unavailable</option>
+                <option value="DNU" {{ 'selected' if cand.status == 'DNU' else '' }}>DNU (Do Not Use)</option>
+                <option value="Do Not Contact" {{ 'selected' if cand.status == 'Do Not Contact' else '' }}>Do Not Contact</option>
+              </select>
+            </div>
+            
+            <div class="mb-2">
+              <label class="form-label small fw-bold">Status Notes</label>
+              <input type="text" name="status_notes" class="form-control form-control-sm" value="{{ cand.status_notes or '' }}" placeholder="e.g., On assignment until March">
+            </div>
+            
+            <div class="mb-2">
+              <label class="form-label small fw-bold">Location</label>
+              <input type="text" name="location" class="form-control form-control-sm" value="{{ cand.location or '' }}" placeholder="e.g., London, Manchester, Remote">
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-bold">Available From</label>
+                <input type="date" name="available_from" class="form-control form-control-sm" value="{{ cand.available_from.strftime('%Y-%m-%d') if cand.available_from else '' }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Notice (days)</label>
+                <input type="number" name="notice_period_days" class="form-control form-control-sm" value="{{ cand.notice_period_days or 0 }}" min="0">
+              </div>
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-bold">Min Rate (£/day)</label>
+                <input type="number" name="day_rate_min" class="form-control form-control-sm" value="{{ cand.day_rate_min or '' }}" min="0" step="25">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Max Rate (£/day)</label>
+                <input type="number" name="day_rate_max" class="form-control form-control-sm" value="{{ cand.day_rate_max or '' }}" min="0" step="25">
+              </div>
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-bold">Contract Preference</label>
+                <select name="contract_preference" class="form-select form-select-sm">
+                  <option value="">Not specified</option>
+                  <option value="contract" {{ 'selected' if cand.contract_preference == 'contract' else '' }}>Contract</option>
+                  <option value="permanent" {{ 'selected' if cand.contract_preference == 'permanent' else '' }}>Permanent</option>
+                  <option value="either" {{ 'selected' if cand.contract_preference == 'either' else '' }}>Either</option>
+                  <option value="fixed_term" {{ 'selected' if cand.contract_preference == 'fixed_term' else '' }}>Fixed Term</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Work Preference</label>
+                <select name="work_preference" class="form-select form-select-sm">
+                  <option value="">Not specified</option>
+                  <option value="remote" {{ 'selected' if cand.work_preference == 'remote' else '' }}>Remote</option>
+                  <option value="hybrid" {{ 'selected' if cand.work_preference == 'hybrid' else '' }}>Hybrid</option>
+                  <option value="onsite" {{ 'selected' if cand.work_preference == 'onsite' else '' }}>On-site</option>
+                  <option value="flexible" {{ 'selected' if cand.work_preference == 'flexible' else '' }}>Flexible</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-bold">Security Clearance</label>
+                <select name="security_clearance" class="form-select form-select-sm">
+                  <option value="">None</option>
+                  <option value="bpss" {{ 'selected' if cand.security_clearance == 'bpss' else '' }}>BPSS</option>
+                  <option value="ctc" {{ 'selected' if cand.security_clearance == 'ctc' else '' }}>CTC</option>
+                  <option value="sc" {{ 'selected' if cand.security_clearance == 'sc' else '' }}>SC</option>
+                  <option value="esc" {{ 'selected' if cand.security_clearance == 'esc' else '' }}>eSC</option>
+                  <option value="dv" {{ 'selected' if cand.security_clearance == 'dv' else '' }}>DV</option>
+                  <option value="edv" {{ 'selected' if cand.security_clearance == 'edv' else '' }}>eDV</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Clearance Expiry</label>
+                <input type="date" name="clearance_expiry" class="form-control form-control-sm" value="{{ cand.clearance_expiry.strftime('%Y-%m-%d') if cand.clearance_expiry else '' }}">
+              </div>
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-bold">IR35 Preference</label>
+                <select name="ir35_preference" class="form-select form-select-sm">
+                  <option value="">Not specified</option>
+                  <option value="inside" {{ 'selected' if cand.ir35_preference == 'inside' else '' }}>Inside IR35</option>
+                  <option value="outside" {{ 'selected' if cand.ir35_preference == 'outside' else '' }}>Outside IR35</option>
+                  <option value="either" {{ 'selected' if cand.ir35_preference == 'either' else '' }}>Either</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Has Ltd Company</label>
+                <select name="has_ltd_company" class="form-select form-select-sm">
+                  <option value="0" {{ 'selected' if not cand.has_ltd_company else '' }}>No</option>
+                  <option value="1" {{ 'selected' if cand.has_ltd_company else '' }}>Yes</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="d-flex gap-2 mt-3">
+              <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                <i class="fas fa-save me-1"></i> Save Profile
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#editProfileForm">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tags Card -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="section-subtitle mb-0">Tags</h6>
+        </div>
+
+        {% if cand_tags and cand_tags|length %}
+          <!-- Group tags by category type -->
+          {% set tags_by_type = {} %}
+          {% for t in cand_tags %}
+            {% if t.category_type not in tags_by_type %}
+              {% set _ = tags_by_type.update({t.category_type: []}) %}
+            {% endif %}
+            {% set _ = tags_by_type[t.category_type].append(t) %}
+          {% endfor %}
+          
+          <div class="mb-3">
+            {% for cat_type, tags in tags_by_type.items() %}
+              <div class="mb-2">
+                <small class="text-muted text-uppercase" style="font-size: 0.65rem; font-weight: 600;">{{ cat_type }}</small>
+                <div class="d-flex flex-wrap gap-1 mt-1">
+                  {% for t in tags %}
+                    <span class="badge d-inline-flex align-items-center gap-1" 
+                          style="background: #e0e7ff; color: #3730a3; font-size: 0.75rem; font-weight: 500; padding: 0.35rem 0.5rem; border-radius: 6px;">
+                      {{ t.tag }}
+                      <form method="POST" action="{{ url_for('candidate_tag_remove', cand_id=cand.id) }}" class="d-inline m-0 p-0">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="tag_id" value="{{ t.id }}">
+                        <button type="submit" class="btn p-0 border-0 bg-transparent text-secondary" 
+                                style="font-size: 0.7rem; line-height: 1; opacity: 0.6;" 
+                                title="Remove" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </form>
+                    </span>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state-text mb-3">No tags yet.</div>
+        {% endif %}
+
+        <!-- Add New Tag Form (compact) -->
+        <form method="POST" action="{{ url_for('candidate_tag_add', cand_id=cand.id) }}" class="mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="d-flex gap-2">
+            <select name="tag_id" class="form-select form-select-sm flex-grow-1" style="font-size: 0.8rem;" required>
+              <option value="">Add tag…</option>
+              {% for c in cats %}
+                <optgroup label="{{ c.type }}: {{ c.name }}">
+                  {% for tg in tags_by_cat.get(c.id, []) %}
+                    <option value="{{ tg.id }}">{{ tg.tag }}</option>
+                  {% endfor %}
+                </optgroup>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+        </form>
+
+        <form method="POST" action="{{ url_for('candidate_regenerate_summary') }}" class="mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="candidate_id" value="{{ cand.id }}">
+          <button class="btn btn-outline-secondary btn-sm w-100">
+            <i class="fas fa-sync-alt me-1"></i>Retag from CV
+          </button>
+        </form>
+      </div>
+
+      <!-- Contract Card - Show for all associates -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h6 class="section-subtitle"><i class="fas fa-file-contract me-2"></i>Contract</h6>
+        
+        {% if contract %}
+          <!-- Contract exists - show details -->
+          <div class="contract-status mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge {% if contract.status == 'signed' %}bg-success{% elif contract.status == 'issued' %}bg-warning text-dark{% elif contract.status == 'on_notice' %}bg-orange text-dark{% elif contract.status == 'expired' or contract.status == 'terminated' %}bg-danger{% else %}bg-secondary{% endif %}"
+                    style="{% if contract.status == 'on_notice' %}background-color: #f97316 !important;{% endif %}">
+                {% if contract.status == 'on_notice' %}
+                  <i class="fas fa-exclamation-triangle me-1"></i>On Notice
+                {% else %}
+                  {{ contract.status|title }}
+                {% endif %}
+              </span>
+              {% if contract.contract_ref %}
+                <small class="text-muted">{{ contract.contract_ref }}</small>
+              {% endif %}
+            </div>
+            
+            <!-- On Notice Alert -->
+            {% if contract.status == 'on_notice' %}
+            <div class="alert alert-warning py-2 px-3 mb-3" style="font-size: 0.8rem;">
+              <i class="fas fa-exclamation-triangle me-1"></i>
+              <strong>Notice Period Active</strong><br>
+              <small>
+                Given by: <strong>{{ contract.notice_given_by|title if contract.notice_given_by else 'Unknown' }}</strong>
+                {% if contract.notice_given_at %} on {{ contract.notice_given_at.strftime('%d %b %Y') }}{% endif %}<br>
+                Last working day: <strong>{{ contract.notice_period_end.strftime('%d %b %Y') if contract.notice_period_end else 'TBD' }}</strong>
+              </small>
+            </div>
+            {% endif %}
+            
+            <!-- Terminated Alert -->
+            {% if contract.status == 'terminated' %}
+            <div class="alert alert-danger py-2 px-3 mb-3" style="font-size: 0.8rem;">
+              <i class="fas fa-times-circle me-1"></i>
+              <strong>Contract Terminated</strong><br>
+              <small>
+                {% if contract.termination_type %}Type: <strong>{{ contract.termination_type|replace('_', ' ')|title }}</strong><br>{% endif %}
+                {% if contract.terminated_at %}Date: <strong>{{ contract.terminated_at.strftime('%d %b %Y') }}</strong><br>{% endif %}
+                {% if contract.termination_reason %}Reason: {{ contract.termination_reason }}{% endif %}
+              </small>
+            </div>
+            {% endif %}
+            
+            <div style="font-size: 0.85rem; color: #4b5563;">
+              {% if engagement %}
+              <div class="mb-1">
+                <i class="fas fa-building me-2 text-primary"></i>
+                <strong>Engagement:</strong> {{ engagement.name }}
+              </div>
+              {% endif %}
+              {% if contract.role_title %}
+              <div class="mb-1">
+                <i class="fas fa-user-tie me-2 text-primary"></i>
+                <strong>Role:</strong> {{ contract.role_title }}
+              </div>
+              {% endif %}
+              {% if contract.contract_type %}
+              <div class="mb-1">
+                <i class="fas fa-file-alt me-2 text-secondary"></i>
+                <strong>Type:</strong> {{ contract.contract_type }}
+              </div>
+              {% endif %}
+              {% if contract.daily_rate %}
+              <div class="mb-1">
+                <i class="fas fa-pound-sign me-2 text-success"></i>
+                <strong>Daily Rate:</strong> £{{ contract.daily_rate }}
+              </div>
+              {% endif %}
+              <hr class="my-2" style="opacity: 0.2;">
+              {% if contract.start_date %}
+              <div class="mb-1">
+                <i class="fas fa-play me-2 text-primary"></i>
+                <strong>Contract Start:</strong> {{ contract.start_date.strftime('%d %b %Y') }}
+              </div>
+              {% endif %}
+              {% if contract.expiry_date %}
+              <div class="mb-1">
+                <i class="fas fa-calendar-times me-2 {% if now and contract.expiry_date < now %}text-danger{% else %}text-warning{% endif %}"></i>
+                <strong>Contract End:</strong> {{ contract.expiry_date.strftime('%d %b %Y') }}
+                {% if contract.original_end_date and contract.original_end_date != contract.expiry_date %}
+                  <small class="text-muted">(originally {{ contract.original_end_date.strftime('%d %b %Y') }})</small>
+                {% endif %}
+                {% if now and contract.expiry_date < now and contract.status not in ['terminated', 'on_notice'] %}
+                  <span class="text-danger">(Expired)</span>
+                {% endif %}
+              </div>
+              {% endif %}
+              <hr class="my-2" style="opacity: 0.2;">
+              {% if contract.issued_at %}
+              <div class="mb-1">
+                <i class="fas fa-paper-plane me-2 text-info"></i>
+                <strong>Issued:</strong> {{ contract.issued_at.strftime('%d %b %Y') }}
+              </div>
+              {% endif %}
+              {% if contract.signed_at %}
+              <div class="mb-1">
+                <i class="fas fa-signature me-2 text-success"></i>
+                <strong>Signed:</strong> {{ contract.signed_at.strftime('%d %b %Y') }}
+              </div>
+              {% endif %}
+              {% if contract.notes %}
+              <div class="mt-2 p-2" style="background: #f9fafb; border-radius: 6px; font-size: 0.8rem;">
+                <i class="fas fa-sticky-note me-1 text-muted"></i>
+                <span class="text-muted">{{ contract.notes }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Extension History -->
+          {% if contract.extensions %}
+          <details class="mb-3">
+            <summary style="font-size: 0.85rem; color: #6b7280; cursor: pointer;">
+              <i class="fas fa-history me-1"></i>Extension History ({{ contract.extensions|length }})
+            </summary>
+            <div class="mt-2" style="font-size: 0.8rem;">
+              {% for ext in contract.extensions|reverse %}
+              <div class="p-2 mb-1" style="background: #f0fdf4; border-radius: 6px; border-left: 3px solid #10b981;">
+                <strong>Extended to {{ ext.new_end_date.strftime('%d %b %Y') }}</strong>
+                <span class="text-muted">(from {{ ext.previous_end_date.strftime('%d %b %Y') }})</span>
+                {% if ext.new_daily_rate and ext.previous_daily_rate and ext.new_daily_rate != ext.previous_daily_rate %}
+                  <br><small>Rate changed: £{{ ext.previous_daily_rate }} → £{{ ext.new_daily_rate }}</small>
+                {% endif %}
+                {% if ext.extension_reason %}
+                  <br><small class="text-muted">{{ ext.extension_reason }}</small>
+                {% endif %}
+                <br><small class="text-muted">{{ ext.created_at.strftime('%d %b %Y') }}{% if ext.created_by %} by {{ ext.created_by }}{% endif %}</small>
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+          
+          {% if contract.status != 'signed' %}
+          <!-- Mark as signed -->
+          <form method="POST" action="{{ url_for('action_contract_sign', contract_id=contract.id) }}" class="mb-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-modern btn-modern-success btn-modern-sm w-100">
+              <i class="fas fa-check me-2"></i>Mark as Signed
+            </button>
+          </form>
+          {% endif %}
+          
+          <!-- Update contract details -->
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #6b7280; cursor: pointer;">
+              <i class="fas fa-edit me-1"></i>Edit Contract Terms
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_update', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Role Title</label>
+                <input type="text" name="role_title" class="form-control form-control-sm" 
+                       value="{{ contract.role_title or '' }}" placeholder="e.g. Senior Consultant">
+              </div>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Contract Type</label>
+                <select name="contract_type" class="form-select form-select-sm">
+                  <option value="Fixed Term" {% if contract.contract_type == 'Fixed Term' %}selected{% endif %}>Fixed Term</option>
+                  <option value="Permanent" {% if contract.contract_type == 'Permanent' %}selected{% endif %}>Permanent</option>
+                  <option value="Contractor" {% if contract.contract_type == 'Contractor' %}selected{% endif %}>Contractor</option>
+                  <option value="Temporary" {% if contract.contract_type == 'Temporary' %}selected{% endif %}>Temporary</option>
+                </select>
+              </div>
+              
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">Start Date</label>
+                  <input type="date" name="start_date" class="form-control form-control-sm" 
+                         value="{{ contract.start_date.strftime('%Y-%m-%d') if contract.start_date else '' }}">
+                </div>
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">End Date</label>
+                  <input type="date" name="expiry_date" class="form-control form-control-sm" 
+                         value="{{ contract.expiry_date.strftime('%Y-%m-%d') if contract.expiry_date else '' }}">
+                </div>
+              </div>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Daily Rate (£)</label>
+                <input type="number" name="daily_rate" class="form-control form-control-sm" 
+                       value="{{ contract.daily_rate or '' }}" placeholder="0">
+              </div>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                  <option value="draft" {% if contract.status == 'draft' %}selected{% endif %}>Draft</option>
+                  <option value="issued" {% if contract.status == 'issued' %}selected{% endif %}>Issued</option>
+                  <option value="signed" {% if contract.status == 'signed' %}selected{% endif %}>Signed</option>
+                  <option value="expired" {% if contract.status == 'expired' %}selected{% endif %}>Expired</option>
+                  <option value="terminated" {% if contract.status == 'terminated' %}selected{% endif %}>Terminated</option>
+                </select>
+              </div>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Notes</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" 
+                          placeholder="Any additional contract notes...">{{ contract.notes or '' }}</textarea>
+              </div>
+              
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                <i class="fas fa-save me-1"></i>Save Contract Terms
+              </button>
+            </form>
+          </details>
+          
+          <!-- Contract Actions for active contracts -->
+          {% if contract.status in ['signed', 'issued'] %}
+          
+          <!-- Extend Contract -->
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #059669; cursor: pointer;">
+              <i class="fas fa-calendar-plus me-1"></i>Extend Contract
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_extend', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">New End Date <span class="text-danger">*</span></label>
+                <input type="date" name="new_end_date" class="form-control form-control-sm" required
+                       min="{{ contract.expiry_date.strftime('%Y-%m-%d') if contract.expiry_date else '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">New Daily Rate (£)</label>
+                <input type="number" name="new_daily_rate" class="form-control form-control-sm" 
+                       value="{{ contract.daily_rate or '' }}" placeholder="Leave blank if unchanged">
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Reason for Extension</label>
+                <input type="text" name="extension_reason" class="form-control form-control-sm" 
+                       placeholder="e.g. Project extended, Good performance">
+              </div>
+              <button type="submit" class="btn btn-sm btn-success w-100">
+                <i class="fas fa-calendar-plus me-1"></i>Extend Contract
+              </button>
+            </form>
+          </details>
+          
+          <!-- Give Notice -->
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #f97316; cursor: pointer;">
+              <i class="fas fa-exclamation-triangle me-1"></i>Give Notice
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_notice', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Notice Given By <span class="text-danger">*</span></label>
+                <select name="notice_given_by" class="form-select form-select-sm" required>
+                  <option value="associate">Associate (Resignation)</option>
+                  <option value="company">Company</option>
+                  <option value="client">Client</option>
+                  <option value="mutual">Mutual Agreement</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Last Working Day <span class="text-danger">*</span></label>
+                <input type="date" name="notice_period_end" class="form-control form-control-sm" required>
+              </div>
+              <button type="submit" class="btn btn-sm btn-warning w-100">
+                <i class="fas fa-exclamation-triangle me-1"></i>Record Notice
+              </button>
+            </form>
+          </details>
+          
+          <!-- Terminate Contract -->
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #dc2626; cursor: pointer;">
+              <i class="fas fa-times-circle me-1"></i>Terminate Contract
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_terminate', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Termination Type <span class="text-danger">*</span></label>
+                <select name="termination_type" class="form-select form-select-sm" required>
+                  <option value="end_of_contract">End of Contract</option>
+                  <option value="resignation">Resignation</option>
+                  <option value="dismissal">Dismissal</option>
+                  <option value="redundancy">Redundancy</option>
+                  <option value="mutual">Mutual Agreement</option>
+                  <option value="client_ended">Client Ended Engagement</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Termination Date</label>
+                <input type="date" name="terminated_at" class="form-control form-control-sm" 
+                       value="{{ now.strftime('%Y-%m-%d') if now else '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Reason / Notes</label>
+                <textarea name="termination_reason" class="form-control form-control-sm" rows="2" 
+                          placeholder="Reason for termination..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-sm btn-danger w-100" 
+                      onclick="return confirm('Are you sure you want to terminate this contract?')">
+                <i class="fas fa-times-circle me-1"></i>Terminate Contract
+              </button>
+            </form>
+          </details>
+          
+          {% endif %}
+          
+          <!-- Cancel Notice (for contracts on notice) -->
+          {% if contract.status == 'on_notice' %}
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #059669; cursor: pointer;">
+              <i class="fas fa-undo me-1"></i>Cancel Notice
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_cancel_notice', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Restore End Date To</label>
+                <input type="date" name="restore_end_date" class="form-control form-control-sm"
+                       value="{{ contract.original_end_date.strftime('%Y-%m-%d') if contract.original_end_date else '' }}"
+                       placeholder="Leave blank to keep current">
+              </div>
+              <button type="submit" class="btn btn-sm btn-success w-100">
+                <i class="fas fa-undo me-1"></i>Cancel Notice & Restore Contract
+              </button>
+            </form>
+          </details>
+          
+          <!-- Can still terminate from on_notice status -->
+          <details class="mt-2">
+            <summary style="font-size: 0.85rem; color: #dc2626; cursor: pointer;">
+              <i class="fas fa-times-circle me-1"></i>Complete Termination
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_terminate', contract_id=contract.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="termination_type" value="{{ 'resignation' if contract.notice_given_by == 'candidate' else 'end_of_contract' }}">
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Final Termination Date</label>
+                <input type="date" name="terminated_at" class="form-control form-control-sm" 
+                       value="{{ contract.notice_period_end.strftime('%Y-%m-%d') if contract.notice_period_end else '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Final Notes</label>
+                <textarea name="termination_reason" class="form-control form-control-sm" rows="2" 
+                          placeholder="Any final notes...">Notice period completed</textarea>
+              </div>
+              <button type="submit" class="btn btn-sm btn-danger w-100">
+                <i class="fas fa-times-circle me-1"></i>Complete Termination
+              </button>
+            </form>
+          </details>
+          {% endif %}
+          
+        {% else %}
+          <!-- No contract - show issue form -->
+          <div class="empty-state-text mb-3">
+            <i class="fas fa-file-contract me-2"></i>No contract issued yet.
+          </div>
+          
+          {% if engagement %}
+          <!-- Engagement context available - direct issue -->
+          <details>
+            <summary class="btn btn-modern btn-modern-primary btn-modern-sm w-100">
+              <i class="fas fa-plus me-2"></i>Issue Contract
+            </summary>
+            <form method="POST" action="{{ url_for('action_contract_issue', cand_id=cand.id, eng_id=engagement.id) }}" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              
+              <div class="alert alert-info py-2 px-3 mb-3" style="font-size: 0.8rem;">
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>Engagement:</strong> {{ engagement.name }}
+                {% if engagement.start_date or engagement.end_date %}
+                <br><small class="text-muted">
+                  Engagement period: {{ engagement.start_date.strftime('%d %b %Y') if engagement.start_date else 'TBD' }} 
+                  – {{ engagement.end_date.strftime('%d %b %Y') if engagement.end_date else 'TBD' }}
+                </small>
+                {% endif %}
+              </div>
+              
+              <p class="text-muted mb-2" style="font-size: 0.75rem;">
+                <i class="fas fa-user me-1"></i>Set this associate's specific contract terms:
+              </p>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Role Title <span class="text-danger">*</span></label>
+                <input type="text" name="role_title" class="form-control form-control-sm" 
+                       value="{{ job.title if job else '' }}" placeholder="e.g. Case Handler" required>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Contract Type</label>
+                <select name="contract_type" class="form-select form-select-sm">
+                  <option value="Fixed Term">Fixed Term</option>
+                  <option value="Permanent">Permanent</option>
+                  <option value="Contractor">Contractor</option>
+                  <option value="Temporary">Temporary</option>
+                </select>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">Contract Start <span class="text-danger">*</span></label>
+                  <input type="date" name="start_date" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">Contract End <span class="text-danger">*</span></label>
+                  <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                </div>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Daily Rate (£) <span class="text-danger">*</span></label>
+                <input type="number" name="daily_rate" class="form-control form-control-sm" placeholder="0" required>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Notes</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" 
+                          placeholder="Any specific terms or notes for this contract..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-sm btn-success w-100">
+                <i class="fas fa-paper-plane me-1"></i>Issue Contract
+              </button>
+            </form>
+          </details>
+          {% elif engagements_list %}
+          <!-- No engagement context - show engagement selector -->
+          <details>
+            <summary class="btn btn-modern btn-modern-primary btn-modern-sm w-100">
+              <i class="fas fa-plus me-2"></i>Issue Contract
+            </summary>
+            <form method="POST" action="" id="contractIssueForm" class="mt-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Select Engagement <span class="text-danger">*</span></label>
+                <select name="engagement_id" id="engagementSelect" class="form-select form-select-sm" required onchange="updateContractFormAction()">
+                  <option value="">-- Select Engagement --</option>
+                  {% for eng in engagements_list %}
+                    <option value="{{ eng.id }}">{{ eng.name }} ({{ eng.client }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <p class="text-muted mb-2" style="font-size: 0.75rem;">
+                <i class="fas fa-user me-1"></i>Set this associate's specific contract terms:
+              </p>
+              
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Role Title <span class="text-danger">*</span></label>
+                <input type="text" name="role_title" class="form-control form-control-sm" placeholder="e.g. Case Handler" required>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Contract Type</label>
+                <select name="contract_type" class="form-select form-select-sm">
+                  <option value="Fixed Term">Fixed Term</option>
+                  <option value="Permanent">Permanent</option>
+                  <option value="Contractor">Contractor</option>
+                  <option value="Temporary">Temporary</option>
+                </select>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">Contract Start <span class="text-danger">*</span></label>
+                  <input type="date" name="start_date" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-6">
+                  <label class="field-label" style="font-size: 0.75rem;">Contract End <span class="text-danger">*</span></label>
+                  <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                </div>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Daily Rate (£) <span class="text-danger">*</span></label>
+                <input type="number" name="daily_rate" class="form-control form-control-sm" placeholder="0" required>
+              </div>
+              <div class="mb-2">
+                <label class="field-label" style="font-size: 0.75rem;">Notes</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" 
+                          placeholder="Any specific terms or notes for this contract..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-sm btn-success w-100">
+                <i class="fas fa-paper-plane me-1"></i>Issue Contract
+              </button>
+            </form>
+            <script>
+              function updateContractFormAction() {
+                var engId = document.getElementById('engagementSelect').value;
+                var form = document.getElementById('contractIssueForm');
+                if (engId) {
+                  form.action = '/action/contract/issue/{{ cand.id }}/' + engId;
+                } else {
+                  form.action = '';
+                }
+              }
+            </script>
+          </details>
+          {% else %}
+          <p class="text-muted small">No engagements available to issue a contract.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+  
+  <!-- FULL WIDTH VETTING SECTION - Below the two-column layout -->
+  <div class="row">
+    <div class="col-12">
+      <!-- Vetting Checks Matrix -->
+      <div class="modern-card p-4 mb-4 fade-in-up vetting-section">
+        <h2 class="section-title d-flex align-items-center justify-content-between">
+          <span><i class="fas fa-clipboard-check"></i> Pre-Employment Vetting</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualVettingModal" title="Manual vetting entry when API is unavailable">
+            <i class="fas fa-keyboard me-1"></i>Manual Entry
+          </button>
+        </h2>
+
+        <!-- REQ-269: Manual Vetting Entry Modal -->
+        <div class="modal fade" id="manualVettingModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form method="POST" action="{{ url_for('manual_vetting_entry', cand_id=cand.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header">
+                  <h5 class="modal-title"><i class="fas fa-keyboard me-2"></i>Manual Vetting Entry</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="text-muted small mb-3">Use this form to manually record vetting check results when the automated API is unavailable or for legacy/offline data.</p>
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Check Type <span class="text-danger">*</span></label>
+                    <select name="check_type" class="form-select" required>
+                      <option value="">Select check type...</option>
+                      <option value="Right to Work">Right to Work</option>
+                      <option value="Identity Verification">Identity Verification</option>
+                      <option value="Address History">Address History</option>
+                      <option value="DBS Check">DBS Check</option>
+                      <option value="Employment History">Employment History</option>
+                      <option value="References">References</option>
+                      <option value="Qualifications">Qualifications</option>
+                      <option value="Professional Registration">Professional Registration</option>
+                      <option value="Credit Check">Credit Check</option>
+                      <option value="Directorship / Disqualification">Directorship / Disqualification</option>
+                      <option value="Sanctions / PEP">Sanctions / PEP</option>
+                      <option value="Social Media Review">Social Media Review</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Status</label>
+                    <select name="status" class="form-select">
+                      <option value="COMPLETE">Complete</option>
+                      <option value="IN PROGRESS">In Progress</option>
+                      <option value="ON HOLD">On Hold</option>
+                      <option value="N/A">N/A</option>
+                      <option value="REFERRAL APPROVED">Referral Approved</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Result / Outcome</label>
+                    <textarea name="result_text" class="form-control" rows="2" placeholder="e.g. Clear, No adverse findings"></textarea>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label fw-bold">Reference Number</label>
+                      <input type="text" name="reference_number" class="form-control" placeholder="e.g. VER-2026-001">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label fw-bold">Completed Date</label>
+                      <input type="date" name="completed_date" class="form-control">
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Notes</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Any additional notes..."></textarea>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save Entry</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        </h2>
+        
+        {% set checks = [
+          ('rtw', 'Right to Work', 'fa-passport', 'Immigration status, doc type/number, expiry, share code, restrictions', vetting.rtw_status if vetting else 'not_started'),
+          ('idv', 'Identity Verification', 'fa-id-card', 'Names incl. aliases, ID doc details, selfie/liveness, provider txn ID', vetting.idv_status if vetting else 'not_started'),
+          ('address', 'Address History', 'fa-home', 'Previous addresses, dates, country, overseas flags, gap explanations', vetting.addr_status if vetting else 'not_started'),
+          ('dbs', 'DBS Check', 'fa-shield-alt', 'DBS level, barred list, consent, certificate no/date, outcome', vetting.dbs_status if vetting else 'not_started'),
+          ('employment', 'Employment History', 'fa-briefcase', 'Employer, title, dates, contact, gap reasons, overseas flags', vetting.emp_status if vetting else 'not_started'),
+          ('references', 'References', 'fa-user-friends', 'Referee details, relationship, questions, dates, responses', vetting.ref_status if vetting else 'not_started'),
+          ('qualifications', 'Qualifications', 'fa-graduation-cap', 'Institution, qualification, subject, grade, award date, ref no', vetting.qual_status if vetting else 'not_started'),
+          ('professional', 'Professional Registration', 'fa-certificate', 'Regulator, reg no, status, restrictions, expiry', vetting.prof_status if vetting else 'not_started'),
+          ('credit', 'Credit Check', 'fa-credit-card', 'Consent, credit markers, bureau ID', vetting.credit_status if vetting else 'not_started'),
+          ('directorship', 'Directorship / Disqualification', 'fa-building', 'Companies House match, declared roles, disqualification status', vetting.dir_status if vetting else 'not_started'),
+          ('sanctions', 'Sanctions / PEP', 'fa-gavel', 'Sanctions hits, PEP status, disposition, rationale', vetting.sanctions_status if vetting else 'not_started'),
+          ('social', 'Social Media Review', 'fa-share-alt', 'Consent, URLs, reviewer, findings, risk flags', vetting.social_status if vetting else 'not_started')
+        ] %}
+        
+        <!-- Vetting Summary at top -->
+        <div class="mb-4 p-3" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border-radius: 8px; border: 1px solid #86efac;">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <strong style="font-size: 0.95rem; color: #166534;">Vetting Progress</strong>
+            </div>
+            <div class="d-flex gap-4" style="font-size: 0.85rem;">
+              {% set complete_count = [vetting.rtw_status, vetting.idv_status, vetting.addr_status, vetting.dbs_status, vetting.emp_status, vetting.ref_status, vetting.qual_status, vetting.prof_status, vetting.credit_status, vetting.dir_status, vetting.sanctions_status, vetting.social_status]|select('equalto', 'complete')|list|length if vetting else 0 %}
+              {% set not_required_count = [vetting.rtw_status, vetting.idv_status, vetting.addr_status, vetting.dbs_status, vetting.emp_status, vetting.ref_status, vetting.qual_status, vetting.prof_status, vetting.credit_status, vetting.dir_status, vetting.sanctions_status, vetting.social_status]|select('equalto', 'not_required')|list|length if vetting else 0 %}
+              {% set in_progress_count = [vetting.rtw_status, vetting.idv_status, vetting.addr_status, vetting.dbs_status, vetting.emp_status, vetting.ref_status, vetting.qual_status, vetting.prof_status, vetting.credit_status, vetting.dir_status, vetting.sanctions_status, vetting.social_status]|select('equalto', 'in_progress')|list|length if vetting else 0 %}
+              <span class="text-success"><i class="fas fa-check-circle me-1"></i><strong>{{ complete_count }}</strong> Complete</span>
+              <span style="color: #b45309;"><i class="fas fa-clock me-1"></i><strong>{{ in_progress_count }}</strong> In Progress</span>
+              <span class="text-info"><i class="fas fa-minus-circle me-1"></i><strong>{{ not_required_count }}</strong> N/A</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Vetting checks in a responsive grid -->
+        <div class="row">
+        {% for check_id, check_name, check_icon, check_desc, check_status in checks %}
+          <div class="col-12 col-md-6 col-xl-4 mb-3">
+            <div class="vetting-check" data-check="{{ check_id }}">
+              <div class="vetting-check-header" data-bs-toggle="collapse" data-bs-target="#vetting-{{ check_id }}" aria-expanded="false">
+                <div class="vetting-check-title">
+                  <i class="fas {{ check_icon }}" style="color: #1e3a8a;"></i>
+                  <span>{{ check_name }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="vetting-status-badge vetting-status-{{ check_status }}">
+                    {% if check_status == 'complete' %}Complete{% elif check_status == 'in_progress' %}In Progress{% elif check_status == 'not_required' %}Not Required{% else %}Not Started{% endif %}
+                  </span>
+                  <i class="fas fa-chevron-down vetting-expand-icon"></i>
+                </div>
+              </div>
+              <div class="collapse" id="vetting-{{ check_id }}">
+                <div class="vetting-check-content" style="display: block;">
+                  <div class="vetting-field-group">
+                    <div class="vetting-field-label">Required Information</div>
+                    <div class="vetting-field-value text-muted" style="font-size: 0.8rem;">{{ check_desc }}</div>
+                  </div>
+                  
+                  {% if cand %}
+                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="mt-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="check_type" value="{{ check_name }}">
+
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <label class="vetting-field-label mb-0">Status:</label>
+                      <select name="status" class="vetting-status-select flex-grow-1">
+                        <option value="NOT STARTED" {% if check_status in ['not_started', 'NOT STARTED'] %}selected{% endif %}>Not Started</option>
+                        <option value="IN PROGRESS" {% if check_status in ['in_progress', 'IN PROGRESS'] %}selected{% endif %}>In Progress</option>
+                        <option value="ON HOLD" {% if check_status in ['on_hold', 'ON HOLD'] %}selected{% endif %}>On Hold</option>
+                        <option value="COMPLETE" {% if check_status in ['complete', 'COMPLETE'] %}selected{% endif %}>Complete</option>
+                        <option value="REFERRAL APPROVED" {% if check_status in ['referral_approved', 'REFERRAL APPROVED'] %}selected{% endif %}>Referral Approved</option>
+                        <option value="N/A" {% if check_status in ['not_required', 'N/A'] %}selected{% endif %}>Not Required</option>
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-save"></i>
+                      </button>
+                    </div>
+
+                    {% if check_status == 'complete' %}
+                    <div class="mt-2">
+                      <small class="text-success"><i class="fas fa-check-circle me-1"></i>Vetting Complete</small>
+                    </div>
+                    {% elif check_status == 'not_required' %}
+                    <div class="mt-2">
+                      <small class="text-info"><i class="fas fa-info-circle me-1"></i>Not Required</small>
+                    </div>
+                    {% endif %}
+                  </form>
+
+                  {# Automation toggle — allows pausing/resuming automated checks #}
+                  {% set vc_data = vetting_checks_map.get(check_name, {}) if vetting_checks_map is defined else {} %}
+                  {% if vc_data.get('id') %}
+                  <div class="mt-2 d-flex align-items-center gap-2" style="font-size: 0.8rem;">
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" role="switch"
+                        id="auto-{{ check_id }}" {% if vc_data.get('automation_enabled', true) %}checked{% endif %}
+                        onchange="toggleVettingAutomation({{ vc_data.id }}, this)">
+                      <label class="form-check-label text-muted" for="auto-{{ check_id }}">
+                        Automation {{ 'On' if vc_data.get('automation_enabled', true) else 'Paused' }}
+                      </label>
+                    </div>
+                  </div>
+                  {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+        </div>
+      </div>
+      
+      <!-- Activity Feed Section -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h2 class="section-title">
+          <i class="fas fa-stream"></i>
+          Activity Feed
+        </h2>
+        <p class="text-muted small mb-3">Calls, emails, assessments, flags and important events</p>
+        
+        {% if activity_feed %}
+        <div class="activity-feed" style="max-height: 400px; overflow-y: auto;">
+          {% for activity in activity_feed %}
+          <div class="activity-item d-flex align-items-start mb-3 pb-3 border-bottom" style="gap: 0.75rem;">
+            <div class="activity-icon" style="width: 36px; height: 36px; border-radius: 8px; background: {{ activity.color }}15; color: {{ activity.color }}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <i class="fas {{ activity.icon }}"></i>
+            </div>
+            <div class="activity-content flex-grow-1">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <strong style="color: #1f2937; font-size: 0.9rem;">{{ activity.title }}</strong>
+                  <span class="badge ms-2" style="background: {{ activity.color }}20; color: {{ activity.color }}; font-size: 0.65rem;">{{ activity.type.replace('_', ' ').title() }}</span>
+                </div>
+                <small class="text-muted">
+                  {{ activity.timestamp.strftime('%d %b %Y, %H:%M') if activity.timestamp else '—' }}
+                </small>
+              </div>
+              {% if activity.details %}
+              <p class="mb-0 text-muted small" style="margin-top: 0.25rem;">{{ activity.details }}</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-history fa-2x mb-2" style="opacity: 0.3;"></i>
+          <p class="mb-0">No activity recorded yet</p>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Placements Section (Active & Historic) -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h2 class="section-title">
+          <i class="fas fa-briefcase"></i>
+          Placements
+        </h2>
+        
+        <!-- Active Placements -->
+        <div class="mb-4">
+          <h6 class="fw-bold text-success mb-3">
+            <i class="fas fa-play-circle me-2"></i>Active Placements ({{ placements_active|length if placements_active else 0 }})
+          </h6>
+          {% if placements_active %}
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead style="background: #f0fdf4;">
+                <tr>
+                  <th style="font-size: 0.75rem; color: #166534;">Engagement</th>
+                  <th style="font-size: 0.75rem; color: #166534;">Client</th>
+                  <th style="font-size: 0.75rem; color: #166534;">Role</th>
+                  <th style="font-size: 0.75rem; color: #166534;">Period</th>
+                  <th style="font-size: 0.75rem; color: #166534;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in placements_active %}
+                <tr>
+                  <td style="font-weight: 500;">{{ p.engagement_name }}</td>
+                  <td>{{ p.client }}</td>
+                  <td>{{ p.role }}</td>
+                  <td style="font-size: 0.8rem;">
+                    {% if p.start_date and p.end_date %}
+                      {{ p.start_date.strftime('%d %b %y') if p.start_date is not string else p.start_date[:10] }} - 
+                      {{ p.end_date.strftime('%d %b %y') if p.end_date is not string else p.end_date[:10] }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if p.engagement_id %}
+                    <a href="{{ url_for('engagement_dashboard', eng_id=p.engagement_id) }}" class="btn btn-sm btn-outline-primary" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;">
+                      <i class="fas fa-external-link-alt me-1"></i>View
+                    </a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-3 text-muted" style="background: #f9fafb; border-radius: 8px;">
+            <i class="fas fa-inbox mb-2" style="opacity: 0.4;"></i>
+            <p class="mb-0 small">No active placements</p>
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Historic Placements -->
+        <div>
+          <h6 class="fw-bold text-muted mb-3">
+            <i class="fas fa-history me-2"></i>Historic Placements ({{ placements_historic|length if placements_historic else 0 }})
+          </h6>
+          {% if placements_historic %}
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead style="background: #f3f4f6;">
+                <tr>
+                  <th style="font-size: 0.75rem; color: #6b7280;">Engagement</th>
+                  <th style="font-size: 0.75rem; color: #6b7280;">Client</th>
+                  <th style="font-size: 0.75rem; color: #6b7280;">Role</th>
+                  <th style="font-size: 0.75rem; color: #6b7280;">Period</th>
+                  <th style="font-size: 0.75rem; color: #6b7280;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in placements_historic %}
+                <tr style="opacity: 0.75;">
+                  <td style="font-weight: 500;">{{ p.engagement_name }}</td>
+                  <td>{{ p.client }}</td>
+                  <td>{{ p.role }}</td>
+                  <td style="font-size: 0.8rem;">
+                    {% if p.start_date and p.end_date %}
+                      {{ p.start_date.strftime('%d %b %y') if p.start_date is not string else p.start_date[:10] }} - 
+                      {{ p.end_date.strftime('%d %b %y') if p.end_date is not string else p.end_date[:10] }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if p.engagement_id %}
+                    <a href="{{ url_for('engagement_dashboard', eng_id=p.engagement_id) }}" class="btn btn-sm btn-outline-secondary" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;">
+                      <i class="fas fa-external-link-alt me-1"></i>View
+                    </a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-3 text-muted" style="background: #f9fafb; border-radius: 8px;">
+            <i class="fas fa-archive mb-2" style="opacity: 0.4;"></i>
+            <p class="mb-0 small">No historic placements</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- General Notes Section -->
+      <div class="modern-card p-4 mb-4 fade-in-up">
+        <h2 class="section-title">
+          <i class="fas fa-sticky-note"></i>
+          General Notes
+        </h2>
+        <form method="POST" action="{{ url_for('action_save_general_notes', cand_id=cand.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <textarea
+              class="form-control field-input"
+              name="general_notes"
+              rows="4"
+              placeholder="Add any additional notes, observations, or updates about this associate…"
+            >{{ cand.general_notes or '' }}</textarea>
+          </div>
+          <button class="btn btn-modern btn-modern-outline btn-modern-sm">
+            <i class="fas fa-save me-2"></i>Save Notes
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce() }}">
+// Vetting check expand/collapse is now handled by Bootstrap collapse
+document.querySelectorAll('.vetting-check-header').forEach(header => {
+  header.addEventListener('click', function() {
+    const icon = this.querySelector('.vetting-expand-icon');
+    const isExpanded = this.getAttribute('aria-expanded') === 'true';
+    icon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+  });
+});
+
+// Toggle automation on/off for a specific vetting check
+function toggleVettingAutomation(checkId, el) {
+  fetch('/api/vetting/toggle-automation/' + checkId, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const label = el.parentElement.querySelector('.form-check-label');
+        label.textContent = data.automation_enabled ? 'Automation On' : 'Automation Paused';
+      } else {
+        alert(data.error || 'Failed to toggle automation');
+        el.checked = !el.checked;
+      }
+    })
+    .catch(() => { el.checked = !el.checked; });
+}
+</script>
+
+</div>
+{% endblock %}

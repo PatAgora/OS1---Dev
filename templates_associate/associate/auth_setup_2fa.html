@@ -1,0 +1,94 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Setup Two-Factor Authentication{% endblock %}
+{% block hero_title %}Enable Two-Factor Authentication{% endblock %}
+{% block hero_subtitle %}Add an extra layer of security to your account{% endblock %}
+
+{% block auth_content %}
+<div class="os-form-card" style="max-width:540px;margin:0 auto;">
+    <!-- Step Indicator -->
+    <div class="os-steps">
+        <div class="os-step completed"><span class="os-step-num"><i class="fas fa-check"></i></span><span>Email Verified</span></div>
+        <div class="os-step-line completed"></div>
+        <div class="os-step completed"><span class="os-step-num"><i class="fas fa-check"></i></span><span>Set Password</span></div>
+        <div class="os-step-line completed"></div>
+        <div class="os-step active"><span class="os-step-num">3</span><span>Enable 2FA</span></div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ 'danger' if category == 'error' else category }}">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="os-alert os-alert-info">
+        <i class="fas fa-shield-alt"></i>
+        <div>
+            <strong>Scan the QR code</strong>
+            <p style="margin:4px 0 0;font-size:13px;">Use Google Authenticator, Microsoft Authenticator, or Authy to scan the QR code below.</p>
+        </div>
+    </div>
+
+    <!-- QR Code -->
+    <div style="text-align:center;margin-bottom:1.5rem;">
+        <div style="display:inline-block;padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;">
+            <img src="{{ qr_url }}" alt="2FA QR Code" style="width:200px;height:200px;">
+        </div>
+    </div>
+
+    <!-- Manual Secret Key -->
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:24px;">
+        <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 8px;">
+            <i class="fas fa-key" style="margin-right:6px;"></i> Can't scan? Enter this key manually:
+        </p>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <code id="secretKey" style="flex:1;padding:8px 12px;background:#fff;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-family:monospace;letter-spacing:2px;color:#0a1628;word-break:break-all;">{{ secret }}</code>
+            <button type="button" onclick="copySecret()" id="copyBtn" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;color:#64748b;" title="Copy">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Verification Form -->
+    <form method="POST" action="/portal/setup-2fa">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="secret" value="{{ secret }}">
+
+        <div class="os-field">
+            <label for="totp_code">Verification Code *</label>
+            <input type="text" id="totp_code" name="totp_code" placeholder="Enter 6-digit code"
+                   maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
+                   autocomplete="one-time-code" required autofocus
+                   style="font-size:24px;text-align:center;letter-spacing:8px;font-weight:600;">
+        </div>
+        <p style="font-size:13px;color:#64748b;margin:-1rem 0 1.5rem;text-align:center;">Enter the 6-digit code from your authenticator app</p>
+
+        <button type="submit" class="os-btn-primary">
+            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> Verify & Enable 2FA
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copySecret() {
+    var text = document.getElementById('secretKey').textContent.trim();
+    navigator.clipboard.writeText(text).then(function() {
+        var btn = document.getElementById('copyBtn');
+        btn.innerHTML = '<i class="fas fa-check" style="color:#10b981;"></i>';
+        setTimeout(function(){ btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+    });
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('totp_code').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+});
+</script>
+{% endblock %}

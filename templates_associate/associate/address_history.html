@@ -1,0 +1,136 @@
+{% extends "associate/base.html" %}
+
+{% block page_title %}Address History{% endblock %}
+
+{% block content %}
+<div class="os-page-container">
+    <div class="os-page-header">
+        <h1><i class="fas fa-map-marker-alt"></i> Address History</h1>
+        <p class="os-subtitle">Provide 5 years of address history for DBS and Credit checks</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Coverage Progress -->
+    <div class="os-card" style="margin-bottom:24px;">
+        <div class="os-card-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;font-size:16px;">Address Coverage</h3>
+                <span style="font-size:14px;color:{% if coverage_pct >= 100 %}#059669{% elif coverage_pct >= 60 %}#d97706{% else %}#dc2626{% endif %};">
+                    {{ total_months }} of {{ required_months }} months ({{ coverage_pct }}%)
+                </span>
+            </div>
+            <div style="background:#e5e7eb;border-radius:8px;height:12px;overflow:hidden;">
+                <div style="background:{% if coverage_pct >= 100 %}#059669{% elif coverage_pct >= 60 %}#d97706{% else %}#dc2626{% endif %};height:100%;width:{{ coverage_pct }}%;border-radius:8px;transition:width 0.3s;"></div>
+            </div>
+            {% if coverage_pct < 100 %}
+            <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">
+                <i class="fas fa-info-circle"></i> You need {{ required_months - total_months }} more months of address history to reach 5 years.
+            </p>
+            {% else %}
+            <p style="margin:8px 0 0;font-size:13px;color:#059669;">
+                <i class="fas fa-check-circle"></i> 5-year address history requirement met.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Existing Addresses -->
+    {% if addresses %}
+    <div class="os-card" style="margin-bottom:24px;">
+        <div class="os-card-header"><h3>Your Addresses</h3></div>
+        <div class="os-card-body" style="padding:0;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#f9fafb;">
+                        <th style="padding:12px 16px;text-align:left;font-size:13px;color:#6b7280;">Address</th>
+                        <th style="padding:12px 16px;text-align:left;font-size:13px;color:#6b7280;">From</th>
+                        <th style="padding:12px 16px;text-align:left;font-size:13px;color:#6b7280;">To</th>
+                        <th style="padding:12px 16px;text-align:center;font-size:13px;color:#6b7280;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for addr in addresses %}
+                    <tr style="border-top:1px solid #e5e7eb;">
+                        <td style="padding:12px 16px;">
+                            <strong>{{ addr.address_line1 }}</strong>
+                            {% if addr.address_line2 %}<br>{{ addr.address_line2 }}{% endif %}
+                            <br>{{ addr.city }}{% if addr.postcode %}, {{ addr.postcode }}{% endif %}
+                            {% if addr.is_current %}<span style="background:#d1fae5;color:#059669;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;">Current</span>{% endif %}
+                        </td>
+                        <td style="padding:12px 16px;">{{ addr.from_date.strftime('%b %Y') if addr.from_date else '—' }}</td>
+                        <td style="padding:12px 16px;">{{ 'Present' if addr.is_current else (addr.to_date.strftime('%b %Y') if addr.to_date else '—') }}</td>
+                        <td style="padding:12px 16px;text-align:center;">
+                            <form method="POST" action="{{ url_for('associate.address_history_delete', addr_id=addr.id) }}" style="display:inline;" onsubmit="return confirm('Remove this address?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="os-btn-sm os-btn-outline-danger"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Add Address Form -->
+    <div class="os-card">
+        <div class="os-card-header"><h3><i class="fas fa-plus-circle"></i> Add Address</h3></div>
+        <div class="os-card-body">
+            <form method="POST" action="{{ url_for('associate.address_history') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="os-form-row">
+                    <div class="os-form-group" style="flex:2;">
+                        <label class="os-form-label">Address Line 1 *</label>
+                        <input type="text" name="address_line1" class="os-form-input" required>
+                    </div>
+                    <div class="os-form-group" style="flex:2;">
+                        <label class="os-form-label">Address Line 2</label>
+                        <input type="text" name="address_line2" class="os-form-input">
+                    </div>
+                </div>
+                <div class="os-form-row">
+                    <div class="os-form-group">
+                        <label class="os-form-label">City *</label>
+                        <input type="text" name="city" class="os-form-input" required>
+                    </div>
+                    <div class="os-form-group">
+                        <label class="os-form-label">Postcode *</label>
+                        <input type="text" name="postcode" class="os-form-input" required>
+                    </div>
+                    <div class="os-form-group">
+                        <label class="os-form-label">Country</label>
+                        <input type="text" name="country" class="os-form-input" value="United Kingdom">
+                    </div>
+                </div>
+                <div class="os-form-row">
+                    <div class="os-form-group">
+                        <label class="os-form-label">From Date *</label>
+                        <input type="date" name="from_date" class="os-form-input" required>
+                    </div>
+                    <div class="os-form-group" id="to_date_group">
+                        <label class="os-form-label">To Date</label>
+                        <input type="date" name="to_date" class="os-form-input" id="to_date_input">
+                    </div>
+                    <div class="os-form-group" style="align-self:flex-end;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" name="is_current" value="yes" id="is_current_cb" onchange="document.getElementById('to_date_group').style.display=this.checked?'none':'block';">
+                            <span style="font-size:14px;">Current address</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="os-btn-primary" style="margin-top:16px;">
+                    <i class="fas fa-plus"></i> Add Address
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

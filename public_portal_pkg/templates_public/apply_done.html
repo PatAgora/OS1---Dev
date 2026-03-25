@@ -1,0 +1,12 @@
+{% extends "public_base.html" %}
+{% block title %}Application submitted{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 640px;">
+  <div class="card card-brand p-4 p-md-5 bg-white text-center">
+    <div class="display-6 mb-2">🎉</div>
+    <h1 class="h4 fw-bold mb-2">Thanks — your application was submitted</h1>
+    <p class="text-muted">We’ll email you with updates. You can close this window now.</p>
+    <a class="btn btn-brand" href="{{ url_for('public.job_public', job_id=job.id) }}">Back to role</a>
+  </div>
+</div>
+{% endblock %}

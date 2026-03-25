@@ -1,0 +1,73 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'assignments' %}
+
+{% block page_title %}Assignments{% endblock %}
+{% block header_title %}Assignments{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Assignments</li>
+{% endblock %}
+
+{% block content %}
+<div class="portal-card">
+    <div class="portal-card-header">
+        <h2><i class="fas fa-briefcase me-2"></i> Assignments</h2>
+        {% if assignments %}
+        <span class="badge badge-in-progress">{{ assignments|length }} Total</span>
+        {% endif %}
+    </div>
+    {% if assignments %}
+    <div class="portal-card-body" style="padding: 0;">
+        <table class="portal-table">
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Project</th>
+                    <th>Client</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Pay Rate</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assignment in assignments %}
+                <tr>
+                    <td>
+                        <span class="font-semibold">{{ assignment.job_title or 'Untitled Role' }}</span>
+                    </td>
+                    <td>{{ assignment.engagement_name or 'N/A' }}</td>
+                    <td>{{ assignment.client or 'N/A' }}</td>
+                    <td>{{ assignment.start_date or 'TBC' }}</td>
+                    <td>{{ assignment.end_date or 'TBC' }}</td>
+                    <td>
+                        {% if assignment.day_rate %}
+                        &pound;{{ "%.2f"|format(assignment.day_rate) }}
+                        {% else %}
+                        TBC
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if assignment.status == 'On Contract' %}
+                        <span class="badge badge-complete"><i class="fas fa-circle" style="font-size: 6px;"></i> On Contract</span>
+                        {% else %}
+                        <span class="badge badge-not-started"><i class="fas fa-circle" style="font-size: 6px;"></i> Contract ended</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="portal-card-body text-center" style="padding: 48px 24px;">
+        <i class="fas fa-clipboard-list" style="font-size: 48px; color: var(--color-gray-300); margin-bottom: 16px;"></i>
+        <h3 style="font-size: 16px; font-weight: 600; color: var(--color-gray-700); margin-bottom: 8px;">No Assignments</h3>
+        <p class="text-muted text-sm">You don't have any assignments yet.</p>
+        <a href="/portal/vacancies" class="btn-primary mt-2">
+            <i class="fas fa-search"></i> Browse Vacancies
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

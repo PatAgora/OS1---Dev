@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Two-Factor Authentication - Optimus</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            background: #030a1d;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .login-container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* Left side - Branding */
+        .login-brand {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            background: #030a1d;
+        }
+
+        .brand-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .brand-logo {
+            max-width: 320px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .brand-logo img {
+            width: 100%;
+            height: auto;
+        }
+
+        .brand-features {
+            text-align: left;
+            margin-top: 0.5rem;
+        }
+
+        .brand-feature {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+        }
+
+        .brand-feature i {
+            width: 24px;
+            color: #1e3a8a;
+        }
+
+        /* Right side - Setup Form */
+        .login-form-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            background: #f9fafb;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 460px;
+            background: white;
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header .icon {
+            width: 64px;
+            height: 64px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .login-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e5e7eb;
+        }
+
+        .step-dot.active {
+            background: #1e3a8a;
+        }
+
+        .step-dot.completed {
+            background: #10b981;
+        }
+
+        .user-badge {
+            background: #f3f4f6;
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+
+        .info-box {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box h6 {
+            color: #92400e;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box p {
+            color: #78350f;
+            margin: 0;
+            font-size: 0.875rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1.25rem;
+            text-align: center;
+            letter-spacing: 4px;
+            transition: all 0.2s ease;
+            background: #f9fafb;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #1e3a8a;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+            color: white;
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .qr-container {
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+
+        .qr-container img {
+            border: 4px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .secret-key {
+            background: #f3f4f6;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            margin: 1rem 0;
+            font-family: monospace;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            word-break: break-all;
+        }
+
+        .backup-codes {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .backup-codes h6 {
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+
+        .backup-codes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+
+        .backup-code {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.5rem;
+            font-family: monospace;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .warning-box {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .warning-box p {
+            color: #991b1b;
+            margin: 0;
+            font-size: 0.875rem;
+        }
+
+        .success-box {
+            background: #dcfce7;
+            border: 1px solid #22c55e;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .success-box i {
+            font-size: 3rem;
+            color: #22c55e;
+            margin-bottom: 1rem;
+        }
+
+        .success-box h5 {
+            color: #166534;
+            margin-bottom: 0.5rem;
+        }
+
+        .success-box p {
+            color: #15803d;
+            margin: 0;
+        }
+
+        /* Alert styles */
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-info {
+            background: #e8eef8;
+            color: #1e3a8a;
+            border: 1px solid #d0ddf0;
+        }
+
+        .security-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+
+        .security-badge i {
+            color: #10b981;
+        }
+
+        /* Responsive */
+        @media (max-width: 991.98px) {
+            .login-brand {
+                display: none;
+            }
+
+            .login-form-container {
+                padding: 1.5rem;
+            }
+
+            .login-card {
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <!-- Left side - Branding -->
+        <div class="login-brand">
+            <div class="brand-content">
+                <div class="brand-logo">
+                    <img src="{{ url_for('static', filename='images/optimus-logo.png') }}" alt="Optimus">
+                </div>
+
+                <div class="brand-features">
+                    <div class="brand-feature">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Two-factor authentication protects your account</span>
+                    </div>
+                    <div class="brand-feature">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>Use any authenticator app on your phone</span>
+                    </div>
+                    <div class="brand-feature">
+                        <i class="fas fa-key"></i>
+                        <span>Backup codes for emergency access</span>
+                    </div>
+                    <div class="brand-feature">
+                        <i class="fas fa-lock"></i>
+                        <span>Required for all staff accounts</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side - 2FA Setup -->
+        <div class="login-form-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h1>Setup Two-Factor Authentication</h1>
+                    <p>Secure your account before continuing</p>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'danger' else 'info-circle' }}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% if user_email %}
+                <div class="text-center">
+                    <div class="user-badge">
+                        <i class="fas fa-user"></i>
+                        {{ user_email }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if step == "start" %}
+                <!-- Step 1: Introduction -->
+                <div class="step-indicator">
+                    <div class="step-dot active"></div>
+                    <div class="step-dot"></div>
+                    <div class="step-dot"></div>
+                </div>
+
+                <div class="info-box">
+                    <h6><i class="fas fa-exclamation-triangle me-1"></i> Security Requirement</h6>
+                    <p>Two-Factor Authentication (2FA) is mandatory for all users. You must set up 2FA before you can access the system.</p>
+                </div>
+
+                <h5 class="mb-3" style="color: #1e293b; font-size: 0.95rem; font-weight: 600;">What you'll need:</h5>
+                <ul class="mb-4" style="color: #64748b; font-size: 0.9rem; padding-left: 1.25rem;">
+                    <li>An authenticator app on your phone:
+                        <ul style="margin-top: 0.25rem;">
+                            <li>Google Authenticator</li>
+                            <li>Microsoft Authenticator</li>
+                            <li>Authy</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="generate">
+                    <button type="submit" class="btn-login">
+                        <i class="fas fa-qrcode"></i>
+                        Get Started
+                    </button>
+                </form>
+
+                <div class="security-badge">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Protected by 2FA authentication</span>
+                </div>
+
+                {% elif step == "verify" %}
+                <!-- Step 2: Scan QR & Verify -->
+                <div class="step-indicator">
+                    <div class="step-dot completed"></div>
+                    <div class="step-dot active"></div>
+                    <div class="step-dot"></div>
+                </div>
+
+                <h5 class="text-center mb-3" style="color: #1e293b; font-size: 0.95rem; font-weight: 600;">Scan this QR code with your authenticator app</h5>
+
+                {% if qr_url %}
+                <div class="qr-container">
+                    <img src="{{ qr_url }}" alt="QR Code" width="200" height="200">
+                </div>
+                {% else %}
+                <div class="qr-container">
+                    <div style="color:orange; padding:20px;">Unable to generate QR code. Please use the manual code below.</div>
+                </div>
+                {% endif %}
+
+                <p class="text-center text-muted mb-2" style="font-size: 0.85rem;">Or enter this code manually:</p>
+                <div class="secret-key">{{ secret }}</div>
+
+                <hr class="my-4" style="border-color: #e5e7eb;">
+
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="verify">
+                    <div class="mb-3">
+                        <label class="form-label">Enter the 6-digit code from your app:</label>
+                        <input type="text" name="token" class="form-control"
+                               maxlength="6" pattern="[0-9]{6}"
+                               placeholder="000000" required autofocus
+                               inputmode="numeric" autocomplete="one-time-code">
+                    </div>
+                    <button type="submit" class="btn-login">
+                        <i class="fas fa-check"></i>
+                        Verify & Continue
+                    </button>
+                </form>
+
+                {% elif step == "complete" %}
+                <!-- Step 3: Complete -->
+                <div class="step-indicator">
+                    <div class="step-dot completed"></div>
+                    <div class="step-dot completed"></div>
+                    <div class="step-dot completed"></div>
+                </div>
+
+                <div class="success-box">
+                    <i class="fas fa-check-circle"></i>
+                    <h5>2FA Setup Complete!</h5>
+                    <p>Your account is now protected</p>
+                </div>
+
+                {% if backup_codes %}
+                <div class="backup-codes">
+                    <h6><i class="fas fa-key me-2"></i>Backup Codes</h6>
+                    <p class="text-muted small mb-3">Save these codes somewhere safe. Each code can only be used once.</p>
+                    <div class="backup-codes-grid">
+                        {% for code in backup_codes %}
+                        <div class="backup-code">{{ code }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="warning-box">
+                    <p><i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>Important:</strong> Store these backup codes securely. You won't be able to see them again!</p>
+                </div>
+                {% endif %}
+
+                <a href="{{ next_page or url_for('index') }}" class="btn-login mt-3 d-block text-center text-decoration-none">
+                    <i class="fas fa-arrow-right"></i>
+                    Continue to Dashboard
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+</body>
+</html>

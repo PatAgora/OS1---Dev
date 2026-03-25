@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Two-Factor Authentication - OS1</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+        }
+        
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 2rem;
+        }
+        
+        .setup-card {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .setup-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .setup-icon {
+            width: 70px;
+            height: 70px;
+            background: var(--primary-gradient);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+        }
+        
+        .setup-icon i {
+            font-size: 1.75rem;
+            color: white;
+        }
+        
+        .setup-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .setup-subtitle {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+        
+        .step {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1.25rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .step-number {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        
+        .step-content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.25rem;
+        }
+        
+        .step-content p {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        
+        .qr-container {
+            text-align: center;
+            padding: 1.5rem;
+            background: white;
+            border: 2px dashed #e2e8f0;
+            border-radius: 16px;
+            margin: 1.5rem 0;
+        }
+        
+        .qr-container img {
+            max-width: 200px;
+            border-radius: 8px;
+        }
+        
+        .secret-key {
+            background: #f1f5f9;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #475569;
+            word-break: break-all;
+            margin-top: 1rem;
+        }
+        
+        .secret-key small {
+            display: block;
+            color: #94a3b8;
+            font-family: inherit;
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .token-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 0.4em;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            background: #f9fafb;
+            transition: all 0.2s ease;
+        }
+        
+        .token-input:focus {
+            outline: none;
+            border-color: #1e3a8a;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        
+        .btn-setup {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+        
+        .btn-setup:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+        
+        .setup-footer {
+            margin-top: 1.5rem;
+            text-align: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .setup-footer a {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .setup-footer a:hover {
+            color: #1e3a8a;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-card">
+        <div class="setup-header">
+            <div class="setup-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1 class="setup-title">Setup Two-Factor Authentication</h1>
+            <p class="setup-subtitle">Add an extra layer of security to your account</p>
+        </div>
+        
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <i class="fas fa-exclamation-circle"></i> {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>Download an Authenticator App</h4>
+                <p>Use Google Authenticator, Microsoft Authenticator, or Authy</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>Scan the QR Code</h4>
+                <p>Open your authenticator app and scan the code below</p>
+            </div>
+        </div>
+        
+        <div class="qr-container">
+            <img src="{{ qr_code }}" alt="QR Code for MFA Setup">
+            
+            <div class="secret-key">
+                <small>Can't scan? Enter this key manually:</small>
+                {{ secret }}
+            </div>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>Enter Verification Code</h4>
+                <p>Enter the 6-digit code from your authenticator app</p>
+            </div>
+        </div>
+        
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" 
+                   name="token" 
+                   class="token-input" 
+                   placeholder="000000" 
+                   maxlength="6" 
+                   pattern="[0-9]{6}"
+                   required 
+                   autocomplete="off">
+            
+            <button type="submit" class="btn-setup">
+                <i class="fas fa-check-circle"></i> Verify & Enable 2FA
+            </button>
+        </form>
+        
+        <div class="alert alert-warning" style="margin-top: 1.5rem;">
+            <small>
+                <i class="fas fa-exclamation-triangle"></i> 
+                <strong>Important:</strong> Save this secret key in a secure place. You'll need it if you lose access to your authenticator app.
+            </small>
+        </div>
+        
+        <div class="setup-footer">
+            <a href="{{ url_for('logout') }}">
+                <i class="fas fa-times"></i> Cancel and sign out
+            </a>
+        </div>
+    </div>
+    
+    <script>
+    // Auto-format token input
+    const tokenInput = document.querySelector('input[name="token"]');
+    tokenInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+    });
+    </script>
+</body>
+</html>

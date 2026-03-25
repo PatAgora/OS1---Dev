@@ -1,0 +1,146 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'vacancies' %}
+
+{% block page_title %}{{ job.title or 'Vacancy Detail' }}{% endblock %}
+{% block header_title %}{{ job.title or 'Vacancy Detail' }}{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/vacancies">Vacancies</a></li>
+<li class="breadcrumb-item active">{{ job.title or 'Detail' }}</li>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/portal/vacancies" class="btn-secondary btn-sm">
+        <i class="fas fa-arrow-left"></i> Back to Vacancies
+    </a>
+</div>
+
+<div class="portal-card">
+    <div class="portal-card-header">
+        <div>
+            <h2 style="font-size: 20px;">{{ job.title or 'Untitled Role' }}</h2>
+            {% if job.engagement_name or job.client %}
+            <p class="text-muted text-sm mt-1">
+                <i class="fas fa-building me-1"></i> {{ job.engagement_name or job.client or 'Confidential Client' }}
+            </p>
+            {% endif %}
+        </div>
+        <div>
+            {% if already_applied %}
+            <span class="badge badge-complete" style="font-size: 13px; padding: 6px 14px;">
+                <i class="fas fa-check-circle"></i> Already Applied
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="portal-card-body">
+        <!-- Key Details -->
+        <div class="timesheet-summary mb-3" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+            {% if job.location %}
+            <div class="summary-item">
+                <div class="summary-label"><i class="fas fa-map-marker-alt me-1"></i> Location</div>
+                <div class="summary-value" style="font-size: 15px;">{{ job.location }}</div>
+            </div>
+            {% endif %}
+            {% if job.day_rate or job.day_rate_min or job.day_rate_max %}
+            <div class="summary-item">
+                <div class="summary-label"><i class="fas fa-pound-sign me-1"></i> Day Rate</div>
+                <div class="summary-value" style="font-size: 15px;">
+                    {% if job.day_rate_min and job.day_rate_max %}
+                    &pound;{{ job.day_rate_min }} &ndash; &pound;{{ job.day_rate_max }}
+                    {% elif job.day_rate %}
+                    &pound;{{ job.day_rate }}
+                    {% elif job.day_rate_min %}
+                    From &pound;{{ job.day_rate_min }}
+                    {% elif job.day_rate_max %}
+                    Up to &pound;{{ job.day_rate_max }}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% if job.job_type or job.contract_type %}
+            <div class="summary-item">
+                <div class="summary-label"><i class="fas fa-file-contract me-1"></i> Type</div>
+                <div class="summary-value" style="font-size: 15px;">{{ job.job_type or job.contract_type }}</div>
+            </div>
+            {% endif %}
+            {% if job.posted_date or job.created_at %}
+            <div class="summary-item">
+                <div class="summary-label"><i class="fas fa-calendar me-1"></i> Posted</div>
+                <div class="summary-value" style="font-size: 15px;">{{ job.posted_date or job.created_at }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Full Description -->
+        <div class="form-section">
+            <h3><i class="fas fa-align-left me-2"></i> Job Description</h3>
+            <hr>
+            <div style="font-size: 14px; line-height: 1.8; color: var(--color-gray-700);">
+                {% if job.description %}
+                {{ job.description|safe }}
+                {% else %}
+                <p class="text-muted">No description provided.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Requirements -->
+        {% if job.requirements %}
+        <div class="form-section">
+            <h3><i class="fas fa-list-check me-2"></i> Requirements</h3>
+            <hr>
+            <div style="font-size: 14px; line-height: 1.8; color: var(--color-gray-700);">
+                {{ job.requirements|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action -->
+        <div style="border-top: 1px solid var(--color-gray-100); padding-top: 24px; margin-top: 32px;">
+            {% if already_applied %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    <strong>Application Submitted</strong>
+                    <p class="mb-0 text-sm">You have already applied for this position. We will be in touch if your profile is a match.</p>
+                </div>
+            </div>
+            <form method="POST" action="/portal/vacancies/{{ job.id or job.public_token }}/withdraw" style="margin-top: 8px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-secondary" style="font-size: 0.8rem;">
+                    <i class="fas fa-times"></i> Withdraw Application
+                </button>
+            </form>
+            {% else %}
+            <form method="POST" action="/portal/vacancies/{{ job.id or job.public_token }}/apply" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if not has_cv %}
+                <div style="margin-bottom: 16px; padding: 16px; background: var(--color-gray-50, #f9fafb); border-radius: 8px; border: 1px solid var(--color-gray-200, #e5e7eb);">
+                    <label style="display: block; font-weight: 600; font-size: 0.875rem; color: #374151; margin-bottom: 8px;">
+                        <i class="fas fa-file-pdf" style="color: #ef4444; margin-right: 4px;"></i> CV / Resume <span style="color: #ef4444;">*</span>
+                    </label>
+                    <p style="font-size: 0.8rem; color: #6b7280; margin-bottom: 8px;">Please upload your CV to apply. Accepted formats: PDF, DOC, DOCX (max 10MB)</p>
+                    <input type="file" name="cv_file" accept=".pdf,.doc,.docx" required
+                           style="font-size: 0.85rem; width: 100%;">
+                </div>
+                {% else %}
+                <p style="font-size: 0.8rem; color: #10b981; margin-bottom: 12px;">
+                    <i class="fas fa-check-circle"></i> CV on file — will be attached to your application.
+                </p>
+                {% endif %}
+                <div class="btn-group">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-paper-plane"></i> Apply Now
+                    </button>
+                    <a href="/portal/vacancies" class="btn-secondary">
+                        Back to Vacancies
+                    </a>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

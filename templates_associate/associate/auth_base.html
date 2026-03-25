@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block page_title %}Associate Portal{% endblock %} - Optimus Solutions</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/portal/associate_static/css/associate.css?v=20260319m" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;">
+
+<!-- Header — logo + Home link -->
+<header class="os-portal-header">
+    <div class="os-portal-header-inner">
+        <a href="https://www.optimussolutions.co.uk" class="os-portal-logo">
+            <img src="/static/images/optimus-logo-secondary.png" alt="Optimus Solutions">
+        </a>
+        <a href="https://www.optimussolutions.co.uk" class="os-portal-home-link">Home</a>
+    </div>
+</header>
+
+<!-- Hero banner -->
+<section class="os-hero">
+    <h1 class="os-hero-title">{% block hero_title %}Associate Portal{% endblock %}</h1>
+    <p class="os-hero-subtitle">{% block hero_subtitle %}Manage your onboarding, vetting and compliance{% endblock %}</p>
+</section>
+
+<!-- Main content area -->
+<section class="os-content">
+    <div class="os-content-inner os-content-auth">
+        {% block auth_content %}{% endblock %}
+    </div>
+</section>
+
+<!-- Website footer banner -->
+<footer class="os-footer">
+    <div class="os-footer-banner">
+        <img src="/static/images/optimus-logo-footer-new.png" alt="Optimus Solutions">
+    </div>
+</footer>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

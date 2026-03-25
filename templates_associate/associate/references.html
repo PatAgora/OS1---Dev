@@ -1,0 +1,501 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'references' %}
+
+{% block page_title %}References{% endblock %}
+{% block header_title %}Employment History & References{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">References</li>
+{% endblock %}
+
+{% block content %}
+<!-- Instructions Banner -->
+<div class="alert alert-info mb-4">
+    <div class="d-flex align-items-start">
+        <i class="fas fa-info-circle me-3 mt-1 fs-5"></i>
+        <div>
+            <strong>Employment History Requirements</strong>
+            <p class="mb-1">Please provide a minimum of 3-6 years of continuous employment history. All gaps of over 90 days must be explained with supporting evidence where possible.</p>
+            <p class="mb-0">References will be requested from each employer. If you are unable to provide a reference for any period, please indicate this and provide an explanation.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Gaps Detected Warning -->
+{% if gaps_detected and gaps_detected|length > 0 %}
+<div class="alert alert-warning mb-4">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Gaps detected in your employment history:</strong>
+    <ul class="mb-0 mt-2">
+        {% for gap in gaps_detected %}
+        <li>{{ gap.from_date.strftime('%b %Y') if gap.from_date else 'Unknown' }} to {{ gap.to_date.strftime('%b %Y') if gap.to_date else 'Unknown' }} ({{ gap.days }} days)</li>
+        {% endfor %}
+    </ul>
+    <p class="mb-0 mt-2">Please add a gap explanation for each period above.</p>
+</div>
+{% endif %}
+
+<!-- Reference House Warning Banner (hidden by default) -->
+<div class="alert alert-danger mb-4" id="referenceHouseWarning" style="display: none;">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    <strong>Reference House Detected:</strong> <span id="referenceHouseMessage"></span>
+</div>
+
+<!-- Existing Employment Timeline -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-history me-2"></i>Employment Timeline</h3>
+    </div>
+    <div class="portal-card-body">
+        {% if employment_entries and employment_entries|length > 0 %}
+        <div class="employment-timeline">
+            {% for entry in employment_entries %}
+            <div class="timeline-item {% if entry.entry_type is defined and entry.entry_type == 'gap' %}timeline-gap{% endif %}">
+                <div class="timeline-marker">
+                    {% if entry.entry_type is defined and entry.entry_type == 'gap' %}
+                    <i class="fas fa-pause-circle text-warning"></i>
+                    {% else %}
+                    <i class="fas fa-briefcase text-primary"></i>
+                    {% endif %}
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        {% if entry.entry_type is defined and entry.entry_type == 'gap' %}
+                        <h5>Career Gap</h5>
+                        <span class="badge bg-warning text-dark">{{ entry.reason if entry.reason else 'Not specified' }}</span>
+                        {% else %}
+                        <h5>{{ entry.company_name }}</h5>
+                        <span class="badge bg-primary">{{ entry.job_title }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="timeline-dates">
+                        <i class="fas fa-calendar me-1"></i>
+                        {{ entry.start_date.strftime('%b %Y') if entry.start_date else 'N/A' }} - {{ entry.end_date.strftime('%b %Y') if entry.end_date else 'Present' }}
+                    </p>
+                    {% if entry.agency_name is defined and entry.agency_name %}
+                    <p class="text-muted mb-1"><small>Agency: {{ entry.agency_name }}</small></p>
+                    {% endif %}
+                    {% if entry.referee_email is defined and entry.referee_email %}
+                    <p class="text-muted mb-1"><small>Referee: {{ entry.referee_email }}</small></p>
+                    {% endif %}
+                    {% if entry.reason_for_leaving is defined and entry.reason_for_leaving %}
+                    <p class="text-muted mb-1"><small>Reason for leaving: {{ entry.reason_for_leaving }}</small></p>
+                    {% endif %}
+                    <div class="timeline-actions mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-entry-btn" data-entry-id="{{ entry.id }}" data-entry-type="{{ entry.entry_type if entry.entry_type is defined else 'employment' }}">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-entry-btn" data-entry-id="{{ entry.id }}">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-briefcase"></i>
+            <p>No employment entries yet. Add your employment history below.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Employment Entry -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-plus-circle me-2"></i>Add Employment Entry</h3>
+    </div>
+    <div class="portal-card-body">
+        <form method="POST" action="/portal/references/add-employment" id="addEmploymentForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="entry_type" value="employment">
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="company_name">Company Name <span class="text-danger">*</span></label>
+                    <input type="text" id="company_name" name="company_name" class="form-control" placeholder="e.g. Barclays, HSBC, Deloitte..." required autocomplete="off">
+                    <div class="company-suggestions" id="companySuggestions" style="display: none;"></div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="agency_name">Agency Name <span class="text-muted">(if applicable)</span></label>
+                    <input type="text" id="agency_name" name="agency_name" class="form-control" placeholder="Leave blank if employed directly">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="referee_email">Referee Email <span class="text-danger">*</span></label>
+                    <input type="email" id="referee_email" name="referee_email" class="form-control" placeholder="referee@company.com" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="company_address">Company Address</label>
+                    <input type="text" id="company_address" name="company_address" class="form-control" placeholder="Company address">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="emp_start_date">Start Date <span class="text-danger">*</span></label>
+                    <input type="date" id="emp_start_date" name="start_date" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="emp_end_date">End Date <span class="text-danger">*</span></label>
+                    <input type="date" id="emp_end_date" name="end_date" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="job_title">Job Title <span class="text-danger">*</span></label>
+                    <input type="text" id="job_title" name="job_title" class="form-control" placeholder="Your role / job title" required>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label" for="reason_for_leaving">Reason for Leaving</label>
+                    <input type="text" id="reason_for_leaving" name="reason_for_leaving" class="form-control" placeholder="e.g. End of contract, career progression, redundancy...">
+                </div>
+
+                <!-- Permission to request reference -->
+                <div class="col-md-12">
+                    <label class="form-label">Permission to request reference now?</label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="permission_to_request" id="permission_yes" value="yes" checked>
+                        <label class="form-check-label" for="permission_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="permission_to_request" id="permission_no" value="no">
+                        <label class="form-check-label" for="permission_no">No</label>
+                    </div>
+                </div>
+                <div class="col-md-12" id="noPermissionSection" style="display: none;">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="no_permission_reason">Reason</label>
+                            <input type="text" id="no_permission_reason" name="no_permission_reason" class="form-control" placeholder="Why can't we request now?">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="future_permission_date">When can we request?</label>
+                            <input type="date" id="future_permission_date" name="future_permission_date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i> Add Employment Entry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Gap Entry -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-pause-circle me-2"></i>Add Gap Entry</h3>
+    </div>
+    <div class="portal-card-body">
+        <form method="POST" action="/portal/references/add-gap" id="addGapForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="entry_type" value="gap">
+
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label" for="gap_start_date">Start Date <span class="text-danger">*</span></label>
+                    <input type="date" id="gap_start_date" name="start_date" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="gap_end_date">End Date <span class="text-danger">*</span></label>
+                    <input type="date" id="gap_end_date" name="end_date" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="gap_reason">Reason <span class="text-danger">*</span></label>
+                    <select id="gap_reason" name="reason" class="form-select" required>
+                        <option value="">Select reason...</option>
+                        <option value="Career Break">Career Break</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Education">Education / Training</option>
+                        <option value="Unemployment">Unemployment</option>
+                        <option value="Health">Health / Medical</option>
+                        <option value="Parental Leave">Parental Leave</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="gap_evidence">Evidence Upload</label>
+                    <input type="file" id="gap_evidence" name="evidence" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                </div>
+                <!-- P13: Acceptable evidence guidance per gap type -->
+                <div class="col-md-12 mt-2">
+                    <div class="alert alert-light border" style="font-size:12px;padding:10px 14px;margin:0;">
+                        <strong><i class="fas fa-info-circle me-1"></i>Acceptable evidence by gap type:</strong>
+                        <ul style="margin:6px 0 0;padding-left:18px;">
+                            <li><strong>Unemployment:</strong> Job Seekers' Allowance / Universal Credit statements, bank statements showing incoming payments</li>
+                            <li><strong>Travel:</strong> Passport stamps, flight/hotel booking confirmations, car hire or card receipts</li>
+                            <li><strong>Parental Leave:</strong> Child's birth certificate</li>
+                            <li><strong>Education:</strong> Enrolment letter, qualification certificate, student loan statements</li>
+                            <li><strong>Career Break / Health:</strong> Bank statements, personal statement, medical letters (redacted)</li>
+                            <li><strong>Other:</strong> Payslips, P60/P45, employment contract, personal or professional reference</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-12" id="gapOtherReason" style="display: none;">
+                    <label class="form-label" for="gap_other_reason">Please specify:</label>
+                    <input type="text" id="gap_other_reason" name="other_reason" class="form-control" placeholder="Please describe the reason for this gap">
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-plus me-1"></i> Add Gap Entry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Qualifications -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-graduation-cap me-2"></i>Qualifications</h3>
+    </div>
+    <div class="portal-card-body">
+        {% if qualifications and qualifications|length > 0 %}
+        <div class="table-responsive mb-4">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Qualification</th>
+                        <th>Type</th>
+                        <th>Grade</th>
+                        <th>Institution</th>
+                        <th>Dates</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for qual in qualifications %}
+                    <tr>
+                        <td>{{ qual.qualification_name }}</td>
+                        <td>{{ qual.qualification_type if qual.qualification_type else '-' }}</td>
+                        <td>{{ qual.grade if qual.grade else '-' }}</td>
+                        <td>{{ qual.institution if qual.institution else '-' }}</td>
+                        <td>
+                            {{ qual.start_date.strftime('%b %Y') if qual.start_date else '' }} -
+                            {{ qual.end_date.strftime('%b %Y') if qual.end_date else 'Present' }}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-qual-btn" data-qual-id="{{ qual.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <h6 class="mb-3">Add Qualification</h6>
+        <form method="POST" action="/portal/references/add-qualification" id="addQualForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_name">Qualification Name <span class="text-danger">*</span></label>
+                    <input type="text" id="qual_name" name="name" class="form-control" placeholder="e.g. Computer Science" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_type">Type</label>
+                    <select id="qual_type" name="qual_type" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="GCSE">GCSE</option>
+                        <option value="A-Level">A-Level</option>
+                        <option value="HND">HND</option>
+                        <option value="BSc">BSc</option>
+                        <option value="BA">BA</option>
+                        <option value="MSc">MSc</option>
+                        <option value="MA">MA</option>
+                        <option value="MBA">MBA</option>
+                        <option value="PhD">PhD</option>
+                        <option value="Professional">Professional Certification</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_grade">Grade</label>
+                    <input type="text" id="qual_grade" name="grade" class="form-control" placeholder="e.g. First Class, 2:1, Distinction">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_institution">Institution <span class="text-danger">*</span></label>
+                    <input type="text" id="qual_institution" name="institution" class="form-control" placeholder="University or institution name" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="qual_start_date">Start Date</label>
+                    <input type="date" id="qual_start_date" name="start_date" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="qual_end_date">End Date</label>
+                    <input type="date" id="qual_end_date" name="end_date" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Permission to verify?</label>
+                    <div>
+                        <div class="form-check form-check-inline mt-2">
+                            <input class="form-check-input" type="radio" name="qual_permission" id="qual_perm_yes" value="yes" checked>
+                            <label class="form-check-label" for="qual_perm_yes">Yes</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="qual_permission" id="qual_perm_no" value="no">
+                            <label class="form-check-label" for="qual_perm_no">No</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i> Add Qualification
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var csrfToken = getCsrfToken();
+
+    // Permission toggle for employment
+    var permYes = document.getElementById('permission_yes');
+    var permNo = document.getElementById('permission_no');
+    var noPermSection = document.getElementById('noPermissionSection');
+
+    if (permYes && permNo && noPermSection) {
+        permNo.addEventListener('change', function() { noPermSection.style.display = 'block'; });
+        permYes.addEventListener('change', function() { noPermSection.style.display = 'none'; });
+    }
+
+    // Gap reason "Other" toggle
+    var gapReason = document.getElementById('gap_reason');
+    var gapOther = document.getElementById('gapOtherReason');
+    if (gapReason && gapOther) {
+        gapReason.addEventListener('change', function() {
+            gapOther.style.display = this.value === 'Other' ? 'block' : 'none';
+        });
+    }
+
+    // Company name autocomplete / reference house check
+    var companyInput = document.getElementById('company_name');
+    var suggestionsDiv = document.getElementById('companySuggestions');
+    var refereeEmail = document.getElementById('referee_email');
+    var warningBanner = document.getElementById('referenceHouseWarning');
+    var warningMessage = document.getElementById('referenceHouseMessage');
+    var debounceTimer;
+
+    if (companyInput && suggestionsDiv) {
+        companyInput.addEventListener('input', function() {
+            var query = this.value.trim();
+            clearTimeout(debounceTimer);
+
+            if (query.length < 2) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+
+            debounceTimer = setTimeout(function() {
+                fetch('/portal/api/company-lookup?q=' + encodeURIComponent(query), {
+                    headers: { 'X-CSRFToken': csrfToken }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.results && data.results.length > 0) {
+                        suggestionsDiv.innerHTML = '';
+                        data.results.forEach(function(item) {
+                            var div = document.createElement('div');
+                            div.className = 'suggestion-item';
+                            div.textContent = item.name;
+                            div.addEventListener('click', function() {
+                                companyInput.value = item.name;
+                                suggestionsDiv.style.display = 'none';
+                                // Auto-populate referee email if available
+                                if (item.referee_email && refereeEmail) {
+                                    refereeEmail.value = item.referee_email;
+                                }
+                                // Check for reference house flag
+                                if (item.is_reference_house && warningBanner && warningMessage) {
+                                    warningMessage.textContent = item.name + ' is flagged as a reference house. References from this company may require additional verification.';
+                                    warningBanner.style.display = 'block';
+                                } else if (warningBanner) {
+                                    warningBanner.style.display = 'none';
+                                }
+                            });
+                            suggestionsDiv.appendChild(div);
+                        });
+                        suggestionsDiv.style.display = 'block';
+                    } else {
+                        suggestionsDiv.style.display = 'none';
+                    }
+                })
+                .catch(function() {
+                    suggestionsDiv.style.display = 'none';
+                });
+            }, 300);
+        });
+
+        // Hide suggestions on click outside
+        document.addEventListener('click', function(e) {
+            if (!companyInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                suggestionsDiv.style.display = 'none';
+            }
+        });
+    }
+
+    // Delete entry handler
+    document.querySelectorAll('.delete-entry-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var entryId = this.getAttribute('data-entry-id');
+            if (!confirm('Are you sure you want to delete this entry?')) return;
+
+            fetch('/portal/references/delete-entry/' + entryId, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function() { alert('Failed to delete. Please try again.'); });
+        });
+    });
+
+    // Delete qualification handler
+    document.querySelectorAll('.delete-qual-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var qualId = this.getAttribute('data-qual-id');
+            if (!confirm('Are you sure you want to delete this qualification?')) return;
+
+            fetch('/portal/references/delete-qualification/' + qualId, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function() { alert('Failed to delete. Please try again.'); });
+        });
+    });
+});
+</script>
+{% endblock %}

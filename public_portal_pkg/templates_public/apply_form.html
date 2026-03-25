@@ -1,0 +1,26 @@
+{% extends "public_base.html" %}
+{% block title %}Apply · {{ job.title }}{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 640px;">
+  <div class="card card-brand p-4 p-md-5 bg-white">
+    <div class="mb-3">
+      <h1 class="h4 fw-bold mb-1">Apply for {{ job.title }}</h1>
+      <div class="text-muted">Role: {{ job.role_type or '—' }}</div>
+      <div class="small text-muted">Applying as <strong>{{ cand.name }}</strong> ({{ cand.email }})</div>
+    </div>
+
+    <form method="post" action="{{ url_for('public.job_apply_submit', job_id=job.id) }}" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Upload CV</label>
+        <input type="file" name="cv_file" class="form-control" accept=".pdf,.doc,.docx" required>
+        <div class="form-text">Accepted: PDF, DOC, DOCX</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Cover Letter (optional)</label>
+        <textarea name="cover_letter" class="form-control" rows="5" placeholder="Add a short intro..."></textarea>
+      </div>
+      <button class="btn btn-brand w-100" type="submit"><i class="fa-solid fa-paper-plane me-2"></i>Submit application</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

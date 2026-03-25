@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}System Diagnostics{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-stethoscope"></i> System Diagnostics</h1>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- AI Configuration -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-robot"></i> Google Gemini AI Configuration</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Status:</div>
+                <div class="col-md-9">
+                    {% if diagnostics.ai.configured %}
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Configured</span>
+                    {% else %}
+                        <span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Not Configured</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Provider:</div>
+                <div class="col-md-9">
+                    <code>{{ diagnostics.ai.provider }}</code>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">API Key:</div>
+                <div class="col-md-9">
+                    <code>{{ diagnostics.ai.key_prefix }}</code>
+                </div>
+            </div>
+
+            {% if diagnostics.ai.test_result %}
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Connection Test:</div>
+                <div class="col-md-9">
+                    {% if "successful" in diagnostics.ai.test_result %}
+                        <span class="text-success">{{ diagnostics.ai.test_result }}</span>
+                    {% else %}
+                        <span class="text-danger">{{ diagnostics.ai.test_result }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-3 font-weight-bold">Features:</div>
+                <div class="col-md-9">
+                    <ul class="list-unstyled mb-0">
+                        {% for feature in diagnostics.ai.features_enabled %}
+                        <li>
+                            {% if "disabled" in feature %}
+                                <i class="fas fa-times-circle text-warning"></i> {{ feature }}
+                            {% else %}
+                                <i class="fas fa-check-circle text-success"></i> {{ feature }}
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            {% if not diagnostics.ai.configured %}
+            <div class="alert alert-warning mt-3">
+                <h6><i class="fas fa-exclamation-triangle"></i> Gemini API Key Not Configured</h6>
+                <p class="mb-2">AI-powered features are currently disabled. To enable them:</p>
+                <ol class="mb-2">
+                    <li>Get a free API key from <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></li>
+                    <li>Set the <code>GEMINI_API_KEY</code> environment variable</li>
+                    <li>Restart the application</li>
+                </ol>
+                <p class="mb-0">
+                    <strong>Cost:</strong> Gemini 2.0 Flash is free tier eligible for low-volume use.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Database Configuration -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-database"></i> Database Configuration</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Status:</div>
+                <div class="col-md-9">
+                    <span class="badge badge-success">{{ diagnostics.database.status }}</span>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-3 font-weight-bold">Connection:</div>
+                <div class="col-md-9">
+                    <code>{{ diagnostics.database.engine }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Configuration -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-lock"></i> Authentication Configuration</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Status:</div>
+                <div class="col-md-9">
+                    <span class="badge badge-success">{{ diagnostics.authentication.status }}</span>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-3 font-weight-bold">Session Manager:</div>
+                <div class="col-md-9">
+                    <code>{{ diagnostics.authentication.login_manager }}</code>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-3 font-weight-bold">Password Hashing:</div>
+                <div class="col-md-9">
+                    <code>{{ diagnostics.authentication.password_hashing }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="fas fa-link"></i> Quick Links</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Internal</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('system_status') }}"><i class="fas fa-code"></i> API Status (JSON)</a></li>
+                        <li><a href="{{ url_for('admin_list_users') }}"><i class="fas fa-users"></i> User Management</a></li>
+                        <li><a href="{{ url_for('admin_create_user') }}"><i class="fas fa-user-plus"></i> Create User</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Documentation</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="https://github.com/ianagora/ats-onboarding" target="_blank"><i class="fab fa-github"></i> GitHub Repository</a></li>
+                        <li><a href="https://ai.google.dev/docs" target="_blank"><i class="fas fa-book"></i> Gemini AI Docs</a></li>
+                        <li><a href="https://docs.railway.app" target="_blank"><i class="fas fa-book"></i> Railway Docs</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-header h5 {
+    margin-bottom: 0;
+}
+
+code {
+    background-color: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #e83e8c;
+}
+
+.badge {
+    font-size: 0.9em;
+    padding: 0.35em 0.65em;
+}
+</style>
+</div>
+{% endblock %}

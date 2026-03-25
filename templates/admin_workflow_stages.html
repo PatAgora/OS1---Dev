@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Stages · Optimus OS1{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-project-diagram me-2"></i>Workflow Stages</h1>
+  <p class="subtitle">Current workflow pipeline stages used across the resourcing board.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="alert alert-info">
+  <i class="fas fa-info-circle me-1"></i>
+  <strong>Read-only view.</strong> Workflow stages are locked because they are tightly coupled to auto-transition logic
+  (e.g. vetting complete &rarr; Contract Issued, e-sign signed &rarr; Contract Signed). Editing stage names or IDs
+  would break these automations. Contact your system administrator to request changes.
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width:40px;">#</th>
+            <th style="width:140px;">Stage ID</th>
+            <th>Display Name</th>
+            <th>Short Name</th>
+            <th style="width:80px;">Colour</th>
+            <th style="width:160px;">Icon</th>
+            <th style="width:70px;" class="text-center">Active</th>
+            <th style="width:70px;" class="text-center">Terminal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stage in stages %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td><code>{{ stage.stage_id }}</code></td>
+            <td><strong>{{ stage.name }}</strong></td>
+            <td>{{ stage.short_name }}</td>
+            <td>
+              <span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:{{ stage.color }};vertical-align:middle;"></span>
+              <span class="text-muted small ms-1">{{ stage.color }}</span>
+            </td>
+            <td>
+              <i class="fas {{ stage.icon }} me-1"></i>
+              <code class="small">{{ stage.icon }}</code>
+            </td>
+            <td class="text-center">
+              {% if stage.is_active %}
+              <span class="badge bg-success">Yes</span>
+              {% else %}
+              <span class="badge bg-secondary">No</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if stage.is_terminal %}
+              <span class="badge bg-danger">Yes</span>
+              {% else %}
+              <span class="badge bg-light text-muted">No</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+  <div class="card-body">
+    <h6 class="card-title mb-2"><i class="fas fa-info-circle me-1 text-primary"></i>Stage Reference</h6>
+    <ul class="mb-0 small text-muted">
+      <li><strong>Stage ID</strong> is the internal identifier used to map application statuses to kanban columns.</li>
+      <li><strong>Terminal</strong> stages (e.g. Rejected/Withdrawn) appear at the far right of the workflow board.</li>
+      <li>Auto-transitions are hard-wired: vetting complete &rarr; Contract Issued, e-sign signed &rarr; Contract Signed.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

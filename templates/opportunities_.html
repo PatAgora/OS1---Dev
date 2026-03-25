@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Opportunities{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  
+  /* Page Header */
+  .page-header-section {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  .page-header-section h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  
+  .page-header-section .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+  
+  /* Section Headers */
+  .section-header {
+    margin-bottom: 2rem;
+  }
+  
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+  
+  .section-subtitle {
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+  
+  /* Form Fields */
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  /* Form Section Divider */
+  .section-divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, #e5e7eb 0%, #1e3a8a 50%, #e5e7eb 100%);
+    margin: 2rem 0;
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-outline-primary {
+    background: white;
+    border: 2px solid #1e3a8a;
+    color: #1e3a8a;
+  }
+  
+  .btn-modern-outline-primary:hover {
+    background: #1e3a8a;
+    color: white;
+  }
+  
+  .btn-modern-success {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+  }
+  
+  .btn-modern-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    color: white;
+  }
+  
+  /* Modern Table */
+  .modern-table {
+    font-size: 0.9rem;
+  }
+  
+  .modern-table thead th {
+    background: #f9fafb;
+    color: #374151;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.75rem;
+    border: none;
+  }
+  
+  .modern-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s ease;
+  }
+  
+  .modern-table tbody tr:hover {
+    background: #f9fafb;
+  }
+  
+  .modern-table tbody td {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border: none;
+  }
+  
+  /* Status Badges */
+  .status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: inline-block;
+  }
+  
+  .status-badge.won {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-badge.lost {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  
+  .status-badge.proposal {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .status-badge.info {
+    background: #e8eef8;
+    color: #1e3a8a;
+  }
+  
+  /* Value Display */
+  .value-display {
+    font-weight: 600;
+    color: #059669;
+    font-size: 0.95rem;
+  }
+  
+  /* Progress Bar */
+  .progress-modern {
+    height: 8px;
+    border-radius: 4px;
+    background: #e5e7eb;
+    overflow: hidden;
+  }
+  
+  .progress-modern .progress-bar {
+    background: linear-gradient(90deg, #1e3a8a, #1e3a8a);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  
+  /* Probability Display */
+  .probability-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 140px;
+  }
+  
+  .probability-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    white-space: nowrap;
+    min-width: 40px;
+  }
+  
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    border-radius: 12px;
+    border: 2px dashed #d1d5db;
+  }
+  
+  .empty-state-icon {
+    font-size: 3rem;
+    color: #d1d5db;
+    margin-bottom: 1rem;
+  }
+  
+  .empty-state-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+  
+  .empty-state-text {
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .fade-in-up {
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  
+  .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+  .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+  .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+  
+  /* Form Group Styling */
+  .form-section {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .form-section-title i {
+    color: #1e3a8a;
+    font-size: 0.875rem;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header-section {
+      padding: 1.5rem;
+    }
+    
+    .page-header-section h1 {
+      font-size: 1.5rem;
+    }
+  }
+</style>
+
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<div class="container-xxl px-4 pt-3 pb-4">
+  <!-- Enhanced Header -->
+  <div class="page-header-section fade-in-up stagger-1">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <h1>
+          <i class="fas fa-chart-line"></i>
+          Opportunities
+        </h1>
+        <p class="subtitle mb-0">Track potential engagements from first conversation through to signed work</p>
+      </div>
+      <a class="btn btn-modern-outline btn-sm" href="{{ url_for('projects') }}">
+        <i class="fas fa-arrow-left"></i> Back to Projects
+      </a>
+    </div>
+  </div>
+
+  <!-- Create Opportunity Form -->
+  <div class="modern-card mb-4 fade-in-up stagger-2">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-plus-circle"></i>
+          Create New Opportunity
+        </div>
+        <div class="section-subtitle">Fill in the details below to add a new opportunity to your pipeline</div>
+      </div>
+
+      <form method="POST" novalidate>
+        {{ form.csrf_token }}
+
+        <!-- Basic Information Section -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i class="fas fa-info-circle"></i>
+            Basic Information
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="field-label">Opportunity Name</label>
+              {{ form.name(class="field-input form-control", placeholder="e.g. EG002 – ACME Rollout") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Client</label>
+              {{ form.client(class="field-input form-control", placeholder="Client name") }}
+            </div>
+
+            <div class="col-md-2">
+              <label class="field-label">Stage</label>
+              {{ form.stage(class="field-input form-select") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Owner</label>
+              {{ form.owner(class="field-input form-select") }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Financial & Timeline Section -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i class="fas fa-calendar-dollar"></i>
+            Financial & Timeline
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="field-label">
+                Est. Start (DD-MM-YYYY)
+              </label>
+              {{ form.est_start(class="field-input form-control", placeholder="DD-MM-YYYY") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Est. Value (£)</label>
+              {{ form.est_value(class="field-input form-control", placeholder="e.g. 250000") }}
+            </div>
+
+            <div class="col-md-6">
+              <label class="field-label">Notes</label>
+              {{ form.notes(class="field-input form-control", placeholder="Optional notes…") }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Client Contact Section -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i class="fas fa-address-card"></i>
+            Client Contact Details
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="field-label">Contact Name</label>
+              {{ form.client_contact_name(class="field-input form-control", placeholder="Jane Smith") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Contact Role</label>
+              {{ form.client_contact_role(class="field-input form-control", placeholder="Head of Compliance") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Contact Phone</label>
+              {{ form.client_contact_phone(class="field-input form-control", placeholder="+44 20 7123 4567") }}
+            </div>
+
+            <div class="col-md-3">
+              <label class="field-label">Contact Email</label>
+              {{ form.client_contact_email(class="field-input form-control", placeholder="jane.smith@example.com") }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="d-flex gap-3">
+          <button type="submit" class="btn-modern btn-modern-primary">
+            <i class="fas fa-plus-circle"></i> Create Opportunity
+          </button>
+          <a href="{{ url_for('projects') }}" class="btn-modern btn-modern-outline">
+            <i class="fas fa-times"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Existing Opportunities Table (if items exist) -->
+  {% if items %}
+  <div class="modern-card fade-in-up stagger-3">
+    <div class="card-body p-4">
+      <div class="section-header">
+        <div>
+          <div class="section-title">
+            <i class="fas fa-list"></i>
+            Existing Opportunities
+          </div>
+          <div class="section-subtitle">All opportunities currently in your pipeline</div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table modern-table mb-0">
+          <thead>
+            <tr>
+              <th>Opportunity</th>
+              <th>Client</th>
+              <th class="text-center">Stage</th>
+              <th class="text-center">Est. Value</th>
+              <th class="text-center" style="min-width:180px;">Probability</th>
+              <th class="text-center">Est. Start</th>
+              <th>Owner</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in items %}
+            {% set st = (o.stage or '') %}
+            {% set st_low = st.lower() %}
+            <tr>
+              <td><strong>{{ o.name }}</strong></td>
+              <td>{{ o.client or '—' }}</td>
+              <td class="text-center">
+                <span class="status-badge
+                  {% if 'won' in st_low %}
+                    won
+                  {% elif 'lost' in st_low %}
+                    lost
+                  {% elif 'proposal' in st_low or 'contract' in st_low or 'verbal' in st_low %}
+                    proposal
+                  {% else %}
+                    info
+                  {% endif %}
+                ">{{ st or '—' }}</span>
+              </td>
+              <td class="text-center">
+                {% if o.est_value %}
+                  <span class="value-display">£{{ "{:,}".format(o.est_value) }}</span>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% set p = o.probability or 0 %}
+                <div class="probability-display mx-auto">
+                  <div class="progress-modern flex-grow-1">
+                    <div class="progress-bar"
+                         role="progressbar"
+                         style="width: {{ p }}%;"
+                         aria-valuenow="{{ p }}"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                    </div>
+                  </div>
+                  <span class="probability-value">{{ p }}%</span>
+                </div>
+              </td>
+              <td class="text-center">
+                {% if o.est_start %}
+                  <i class="far fa-calendar me-1"></i>{{ o.est_start }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>{{ o.owner or '—' }}</td>
+              <td class="text-center">
+                <div class="btn-group">
+                  <a class="btn btn-modern-outline btn-sm"
+                     href="{{ url_for('opportunity_edit', opp_id=o.id) }}">
+                    <i class="fas fa-edit"></i> Edit
+                  </a>
+
+                  {% if o._engagement_id %}
+                    <a class="btn btn-modern-primary btn-sm"
+                       href="{{ url_for('engagement_dashboard', eng_id=o._engagement_id) }}">
+                      <i class="fas fa-arrow-right"></i> View Project
+                    </a>
+                  {% else %}
+                    {% if st_low == 'closed won' %}
+                      <form method="POST"
+                            action="{{ url_for('opportunity_convert_v2', opp_id=o.id) }}"
+                            style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-modern-success btn-sm">
+                          <i class="fas fa-check-circle"></i> Create Engagement
+                        </button>
+                      </form>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<h2 class="fw-bold mb-3">Pipeline</h2>
+<div class="kanban d-flex gap-3 flex-wrap">
+  {% for col in columns %}
+  <div class="kb-col card shadow-sm border-0" data-col="{{ col }}">
+    <div class="card-header bg-white border-0 fw-semibold">{{ col }}</div>
+    <div class="kb-list list-group list-group-flush" id="list-{{ col|replace(' ','_') }}">
+      {% for app, cand, job in data[col] %}
+      <div class="list-group-item kb-item" data-id="{{ app.id }}">
+        <div class="fw-semibold">{{ cand.name }}</div>
+        <div class="small text-muted">{{ job.title }}</div>
+        <div class="d-flex justify-content-between mt-1">
+          <span class="badge text-bg-light">Score {{ app.ai_score }}</span>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('application_detail', app_id=app.id) }}">Open</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.querySelectorAll('.kb-list').forEach(function(listEl){
+  new Sortable(listEl, {
+    group: 'kb',
+    animation: 150,
+    onAdd: function (evt) {
+      const item = evt.item;
+      const appId = item.dataset.id;
+      const newStatus = evt.to.closest('.kb-col').dataset.col;
+      fetch("{{ url_for('kanban_move') }}", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({app_id: appId, new_status: newStatus})
+      }).then(r => r.json()).then(d => {
+        if (!d.ok) alert("Update failed");
+      }).catch(() => alert("Network error"));
+    }
+  });
+});
+</script>
+</div>
+{% endblock %}

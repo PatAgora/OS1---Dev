@@ -1,0 +1,323 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'declaration' %}
+
+{% block page_title %}Declaration{% endblock %}
+{% block header_title %}Declaration Form{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Declaration</li>
+{% endblock %}
+
+{% block content %}
+{% if already_signed and declaration %}
+<!-- Already Signed View -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-clipboard-check me-2"></i>Declaration Form</h3>
+        <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>Signed</span>
+    </div>
+    <div class="portal-card-body">
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i>
+            This declaration was signed on <strong>{{ declaration.signed_date.strftime('%d %B %Y at %H:%M') if declaration.signed_date else 'N/A' }}</strong>
+            by <strong>{{ declaration.legal_name }}</strong>.
+        </div>
+
+        <div class="declaration-readonly">
+            {% set questions = [
+                {'key': 'work_restrictions', 'label': 'a) Any restrictions on working within the United Kingdom?'},
+                {'key': 'criminal_convictions', 'label': 'b) Any unspent criminal convictions?'},
+                {'key': 'ccj_debt', 'label': 'c) In the last 10 years, any CCJ, Debt Relief Order or compromise arrangement?'},
+                {'key': 'bankruptcy', 'label': 'd) Ever been declared bankrupt or subject of an Individual Voluntary Arrangement (IVA)?'},
+                {'key': 'dismissed', 'label': 'e) Ever been dismissed from employment?'},
+                {'key': 'referencing_issues', 'label': 'f) Any issues with referencing we should be aware of?'}
+            ] %}
+
+            {% for q in questions %}
+            <div class="declaration-question-readonly mb-3">
+                <p class="fw-bold">{{ q.label }}</p>
+                {% set answer = declaration[q.key] if declaration[q.key] is defined else false %}
+                <p>
+                    <span class="badge bg-{{ 'warning' if answer else 'success' }}">{{ 'YES' if answer else 'NO' }}</span>
+                    {% if answer and declaration[q.key + '_detail'] is defined and declaration[q.key + '_detail'] %}
+                    <br><span class="text-muted mt-1 d-block">{{ declaration[q.key + '_detail'] }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            {% endfor %}
+
+            {% if declaration.disclosure_text is defined %}
+            <div class="declaration-question-readonly mb-3">
+                <p class="fw-bold">Open Disclosure:</p>
+                <p class="text-muted">{{ declaration.disclosure_text or 'N/A' }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="signature-display mt-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Signed by:</strong> {{ declaration.legal_name }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Date:</strong> {{ declaration.signed_date.strftime('%d %B %Y') if declaration.signed_date else 'N/A' }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- Declaration Form to Sign -->
+<form method="POST" action="/portal/declaration" id="declarationForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-info-circle me-2"></i>Important Information</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="alert alert-info mb-0">
+                <i class="fas fa-info-circle me-2"></i>
+                Please answer all questions honestly and in full. Any false or misleading information may result in the termination of your engagement.
+                If you answer "Yes" to any question, please provide full details in the text area provided.
+            </div>
+        </div>
+    </div>
+
+    <!-- Question a: Work Restrictions -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>a)</strong> Do you have any restrictions on your right to work within the United Kingdom?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="work_restrictions" id="work_restrictions_yes" value="yes" data-target="work_restrictions_details" required>
+                        <label class="form-check-label" for="work_restrictions_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="work_restrictions" id="work_restrictions_no" value="no" data-target="work_restrictions_details">
+                        <label class="form-check-label" for="work_restrictions_no">No</label>
+                    </div>
+                </div>
+                <div id="work_restrictions_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="work_restrictions_details" class="form-control" rows="3" placeholder="Please describe any restrictions on your right to work..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question b: Criminal Convictions -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>b)</strong> Do you have any unspent criminal convictions?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="criminal_convictions" id="criminal_convictions_yes" value="yes" data-target="criminal_convictions_details" required>
+                        <label class="form-check-label" for="criminal_convictions_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="criminal_convictions" id="criminal_convictions_no" value="no" data-target="criminal_convictions_details">
+                        <label class="form-check-label" for="criminal_convictions_no">No</label>
+                    </div>
+                </div>
+                <div id="criminal_convictions_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="criminal_convictions_details" class="form-control" rows="3" placeholder="Please describe the nature of the conviction(s)..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question c: CCJ/Debt Relief -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>c)</strong> In the last 10 years, have you been subject to a County Court Judgment (CCJ), Debt Relief Order, or any compromise arrangement with creditors?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="ccj_debt" id="ccj_debt_yes" value="yes" data-target="ccj_debt_details" required>
+                        <label class="form-check-label" for="ccj_debt_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="ccj_debt" id="ccj_debt_no" value="no" data-target="ccj_debt_details">
+                        <label class="form-check-label" for="ccj_debt_no">No</label>
+                    </div>
+                </div>
+                <div id="ccj_debt_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="ccj_debt_details" class="form-control" rows="3" placeholder="Please describe the CCJ, Debt Relief Order, or arrangement..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question d: Bankruptcy -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>d)</strong> Have you ever been declared bankrupt or been the subject of an Individual Voluntary Arrangement (IVA)?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="bankruptcy" id="bankruptcy_yes" value="yes" data-target="bankruptcy_details" required>
+                        <label class="form-check-label" for="bankruptcy_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="bankruptcy" id="bankruptcy_no" value="no" data-target="bankruptcy_details">
+                        <label class="form-check-label" for="bankruptcy_no">No</label>
+                    </div>
+                </div>
+                <div id="bankruptcy_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="bankruptcy_details" class="form-control" rows="3" placeholder="Please provide details of bankruptcy or IVA..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question e: Dismissed from Employment -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>e)</strong> Have you ever been dismissed from employment?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="dismissed" id="dismissed_yes" value="yes" data-target="dismissed_details" required>
+                        <label class="form-check-label" for="dismissed_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="dismissed" id="dismissed_no" value="no" data-target="dismissed_details">
+                        <label class="form-check-label" for="dismissed_no">No</label>
+                    </div>
+                </div>
+                <div id="dismissed_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="dismissed_details" class="form-control" rows="3" placeholder="Please provide details of the dismissal..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question f: Referencing Issues -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-body">
+            <div class="declaration-question">
+                <p class="question-text"><strong>f)</strong> Are there any issues with referencing that we should be aware of?</p>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="referencing_issues" id="referencing_issues_yes" value="yes" data-target="referencing_issues_details" required>
+                        <label class="form-check-label" for="referencing_issues_yes">Yes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input declaration-radio" type="radio" name="referencing_issues" id="referencing_issues_no" value="no" data-target="referencing_issues_details">
+                        <label class="form-check-label" for="referencing_issues_no">No</label>
+                    </div>
+                </div>
+                <div id="referencing_issues_details" class="declaration-details" style="display: none;">
+                    <label class="form-label">Please provide details:</label>
+                    <textarea name="referencing_issues_details" class="form-control" rows="3" placeholder="Please describe any referencing issues..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Disclosure -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-comment-dots me-2"></i>Open Disclosure</h3>
+        </div>
+        <div class="portal-card-body">
+            <p>Please disclose anything else that may be relevant to your background checks or engagement that has not been covered above.</p>
+            <p class="text-muted"><small>If you have nothing to declare, please add <strong>N/A</strong>.</small></p>
+            <textarea name="open_disclosure" class="form-control" rows="4" placeholder="Enter any additional disclosures here, or N/A if not applicable..." required></textarea>
+        </div>
+    </div>
+
+    <!-- E-Signature Section -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-signature me-2"></i>E-Signature</h3>
+        </div>
+        <div class="portal-card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="legal_name">Legal Name <span class="text-danger">*</span></label>
+                    <input type="text" id="legal_name" name="legal_name" class="form-control" placeholder="Enter your full legal name" required>
+                    <small class="text-muted">This will serve as your electronic signature</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="signature_date">Date</label>
+                    <input type="text" id="signature_date" name="signature_date" class="form-control" readonly>
+                </div>
+                <div class="col-12">
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_declaration" name="confirm_declaration" required>
+                        <label class="form-check-label" for="confirm_declaration">
+                            <strong>I confirm that all information provided is correct and complete to the best of my knowledge. I understand that providing false or misleading information may result in the termination of my engagement and potential legal action.</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Button -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg" id="submitDeclaration">
+            <i class="fas fa-file-signature me-2"></i>Sign & Submit Declaration
+        </button>
+        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle detail textareas based on Yes/No radio buttons
+    var radios = document.querySelectorAll('.declaration-radio');
+    radios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            var targetId = this.getAttribute('data-target');
+            var targetDiv = document.getElementById(targetId);
+            if (targetDiv) {
+                if (this.value === 'yes') {
+                    targetDiv.style.display = 'block';
+                } else {
+                    targetDiv.style.display = 'none';
+                }
+            }
+        });
+    });
+
+    // Auto-fill date
+    var dateField = document.getElementById('signature_date');
+    if (dateField && !dateField.value) {
+        var now = new Date();
+        var options = { day: '2-digit', month: 'long', year: 'numeric' };
+        dateField.value = now.toLocaleDateString('en-GB', options);
+    }
+
+    // Form submission confirmation
+    var form = document.getElementById('declarationForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var checkbox = document.getElementById('confirm_declaration');
+            if (!checkbox.checked) {
+                e.preventDefault();
+                alert('Please confirm that all information provided is correct before signing.');
+                return false;
+            }
+            if (!confirm('Are you sure you want to sign and submit this declaration? This action cannot be undone.')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

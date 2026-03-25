@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Create User - OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="fas fa-user-plus me-2"></i>Create User</h1>
+            <p class="subtitle mb-0">Add a new user to the system</p>
+        </div>
+        <a href="{{ url_for('admin_list_users') }}" class="btn btn-light">
+            <i class="fas fa-arrow-left me-1"></i> Back to Users
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('admin_create_user') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-semibold">
+                            <i class="fas fa-user text-muted me-1"></i> Full Name
+                        </label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               placeholder="Enter full name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold">
+                            <i class="fas fa-envelope text-muted me-1"></i> Email Address
+                        </label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               placeholder="name@company.com" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="role" class="form-label fw-semibold">
+                            <i class="fas fa-user-tag text-muted me-1"></i> Role
+                        </label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="employee">Employee</option>
+                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="send_magic_link" name="send_magic_link" value="1" checked>
+                            <label class="form-check-label" for="send_magic_link">
+                                <i class="fas fa-magic text-muted me-1"></i> Send magic link email
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            User will receive an email with a link to set their own password
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-user-plus me-2"></i> Create User
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4 border-info">
+            <div class="card-body">
+                <h6 class="text-info mb-3"><i class="fas fa-magic me-2"></i>Magic Link Info</h6>
+                <ul class="mb-0 small text-muted">
+                    <li>User will receive an email with a secure link to set their password</li>
+                    <li>Magic link expires after <strong>48 hours</strong></li>
+                    <li>If email sending is not configured, the link will be shown on screen for you to share</li>
+                    <li>After setting password, users will be required to set up Two-Factor Authentication</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

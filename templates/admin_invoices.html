@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices - OS1{% endblock %}
+
+{% block content %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .page-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .page-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+    }
+    .invoice-actions {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .invoice-actions .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .btn-primary-action {
+        background: #1e3a8a;
+        color: white;
+        border: none;
+    }
+    .btn-primary-action:hover {
+        background: #1e40af;
+        color: white;
+    }
+    .btn-secondary-action {
+        background: white;
+        color: #374151;
+        border: 1px solid #d1d5db;
+    }
+    .btn-secondary-action:hover {
+        background: #f3f4f6;
+    }
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border-left: 4px solid #030a1d;
+    }
+    .summary-card .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .summary-card .icon.draft {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+    .summary-card .icon.pending {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .summary-card .icon.paid {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .summary-card .icon.overdue {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .summary-card .details h4 {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin: 0 0 0.25rem 0;
+        font-weight: 500;
+    }
+    .summary-card .details .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .summary-card .details .amount {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    .invoice-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-bottom: 1.5rem;
+    }
+    .invoice-card .card-header {
+        background: #f8fafc;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 1rem 1.5rem;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .invoice-card .card-body {
+        padding: 1.5rem;
+    }
+    .filter-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .filter-bar input,
+    .filter-bar select {
+        padding: 0.5rem 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+    }
+    .filter-bar input:focus,
+    .filter-bar select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .invoice-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .invoice-table th,
+    .invoice-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .invoice-table th {
+        background: #f8fafc;
+        font-weight: 600;
+        color: #374151;
+    }
+    .invoice-table tr:hover {
+        background: #f9fafb;
+    }
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-draft {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+    .status-pending {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .status-paid {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .status-overdue {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .action-btn {
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: #e5e7eb;
+        color: #374151;
+    }
+    .action-btn:hover {
+        background: #d1d5db;
+    }
+    .action-btn i {
+        margin-right: 0.25rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6b7280;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #d1d5db;
+    }
+    .invoice-number {
+        font-family: monospace;
+        font-weight: 600;
+        color: #1e3a8a;
+    }
+    .amount-value {
+        font-weight: 600;
+        color: #1f2937;
+    }
+</style>
+
+<div class="container-fluid px-4 pt-3 pb-4">
+<div class="page-header">
+    <h1><i class="fas fa-file-invoice-dollar me-2"></i>Invoices</h1>
+    <p>Manage client invoices, track payments, and generate billing</p>
+</div>
+
+<!-- Action Buttons -->
+<div class="invoice-actions">
+    <a href="{{ url_for('admin_create_invoice') }}" class="btn btn-primary-action">
+        <i class="fas fa-plus"></i> Create Invoice
+    </a>
+    <a href="{{ url_for('admin_export_invoices') }}" class="btn btn-secondary-action">
+        <i class="fas fa-file-export"></i> Export
+    </a>
+    <a href="{{ url_for('admin_invoice_settings') }}" class="btn btn-secondary-action">
+        <i class="fas fa-cog"></i> Settings
+    </a>
+</div>
+
+<!-- Summary Cards -->
+<div class="summary-cards">
+    <div class="summary-card">
+        <div class="icon draft">
+            <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="details">
+            <h4>Draft</h4>
+            <div class="value">{{ draft_count|default(0) }}</div>
+            <div class="amount">£{{ "%.2f"|format(draft_amount|default(0)) }}</div>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="icon pending">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="details">
+            <h4>Pending Payment</h4>
+            <div class="value">{{ pending_count|default(0) }}</div>
+            <div class="amount">£{{ "%.2f"|format(pending_amount|default(0)) }}</div>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="icon paid">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="details">
+            <h4>Paid</h4>
+            <div class="value">{{ paid_count|default(0) }}</div>
+            <div class="amount">£{{ "%.2f"|format(paid_amount|default(0)) }}</div>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="icon overdue">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="details">
+            <h4>Overdue</h4>
+            <div class="value">{{ overdue_count|default(0) }}</div>
+            <div class="amount">£{{ "%.2f"|format(overdue_amount|default(0)) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <input type="text" placeholder="Search invoices..." id="invoice-search">
+    <select id="status-filter">
+        <option value="">All Status</option>
+        <option value="draft">Draft</option>
+        <option value="pending">Pending</option>
+        <option value="paid">Paid</option>
+        <option value="overdue">Overdue</option>
+    </select>
+    <select id="client-filter">
+        <option value="">All Clients</option>
+        {% for client in clients|default([]) %}
+        <option value="{{ client.id }}">{{ client.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="date" id="date-from" placeholder="From">
+    <input type="date" id="date-to" placeholder="To">
+</div>
+
+<!-- Invoices Table -->
+<div class="invoice-card">
+    <div class="card-header">
+        <span><i class="fas fa-list me-2"></i>All Invoices</span>
+        <span class="text-muted">{{ invoices|default([])|length }} total</span>
+    </div>
+    <div class="card-body">
+        {% if invoices|default([])|length > 0 %}
+        <table class="invoice-table">
+            <thead>
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Client</th>
+                    <th>Engagement</th>
+                    <th>Date</th>
+                    <th>Due Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invoices|default([]) %}
+                <tr>
+                    <td><span class="invoice-number">{{ inv.invoice_number }}</span></td>
+                    <td>{{ inv.client_name }}</td>
+                    <td>{{ inv.engagement_name }}</td>
+                    <td>{{ inv.invoice_date }}</td>
+                    <td>{{ inv.due_date }}</td>
+                    <td><span class="amount-value">£{{ "%.2f"|format(inv.total_amount or 0) }}</span></td>
+                    <td><span class="status-badge status-{{ inv.status|lower }}">{{ inv.status }}</span></td>
+                    <td>
+                        <a href="{{ url_for('admin_view_invoice', invoice_id=inv.id) }}" class="action-btn" title="View"><i class="fas fa-eye"></i></a>
+                        <a href="{{ url_for('admin_edit_invoice', invoice_id=inv.id) }}" class="action-btn" title="Edit"><i class="fas fa-edit"></i></a>
+                        <a href="{{ url_for('admin_invoice_pdf', invoice_id=inv.id) }}" class="action-btn" title="Download PDF"><i class="fas fa-file-pdf"></i></a>
+                        <button type="button" class="action-btn" title="Email Invoice" style="background:#dbeafe;color:#1e40af;"
+                           onclick="openSendModal('{{ inv.id }}', '{{ inv.invoice_number }}', '£{{ '%.2f'|format(inv.total_amount or 0) }}')">
+                            <i class="fas fa-envelope"></i>
+                        </button>
+                        <form method="POST" action="{{ url_for('admin_update_invoice_status', invoice_id=inv.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            {% if inv.status == 'Draft' %}
+                            <input type="hidden" name="status" value="Pending">
+                            <button type="submit" class="action-btn" title="Mark as Sent"><i class="fas fa-paper-plane"></i></button>
+                            {% elif inv.status == 'Pending' %}
+                            <input type="hidden" name="status" value="Paid">
+                            <button type="submit" class="action-btn" title="Mark as Paid" style="background:#dcfce7;color:#166534;"><i class="fas fa-check"></i></button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-file-invoice"></i>
+            <h5>No invoices found</h5>
+            <p>Create your first invoice to get started</p>
+            <a href="{{ url_for('admin_create_invoice') }}" class="btn btn-primary-action mt-3">
+                <i class="fas fa-plus"></i> Create Invoice
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search functionality
+    const searchInput = document.getElementById('invoice-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterInvoices);
+    }
+    
+    // Filter functionality
+    document.querySelectorAll('#status-filter, #client-filter, #date-from, #date-to').forEach(el => {
+        el.addEventListener('change', filterInvoices);
+    });
+    
+    function filterInvoices() {
+        const search = document.getElementById('invoice-search').value.toLowerCase();
+        const status = document.getElementById('status-filter').value.toLowerCase();
+        
+        document.querySelectorAll('.invoice-table tbody tr').forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const rowStatus = row.querySelector('.status-badge')?.textContent.toLowerCase() || '';
+            
+            const matchesSearch = text.includes(search);
+            const matchesStatus = !status || rowStatus.includes(status);
+            
+            row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+        });
+    }
+});
+</script>
+
+<!-- Send Invoice Modal -->
+<div class="modal fade" id="sendInvoiceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="POST" id="sendInvoiceForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-envelope me-2 text-primary"></i>Send Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="sendInvoiceInfo" class="text-muted mb-3"></p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="sendEmail">Recipient Email Address</label>
+          <input type="email" class="form-control" id="sendEmail" name="email" placeholder="client@company.com" required>
+        </div>
+        <div class="alert alert-info py-2" style="font-size:0.85rem;">
+          <i class="fas fa-paperclip me-1"></i> The invoice PDF will be generated and attached automatically.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-1"></i> Send</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openSendModal(invoiceId, invoiceNumber, amount) {
+  document.getElementById('sendInvoiceForm').action = '/admin/invoices/' + invoiceId + '/send';
+  document.getElementById('sendInvoiceInfo').textContent = 'Send ' + invoiceNumber + ' (' + amount + ') with PDF attachment.';
+  document.getElementById('sendEmail').value = '';
+  new bootstrap.Modal(document.getElementById('sendInvoiceModal')).show();
+}
+</script>
+</div>
+{% endblock %}

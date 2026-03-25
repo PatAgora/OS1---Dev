@@ -1,0 +1,94 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Register{% endblock %}
+{% block hero_title %}Associate Portal{% endblock %}
+{% block hero_subtitle %}Register to begin your onboarding journey{% endblock %}
+
+{% block auth_content %}
+<!-- Left: Registration form card -->
+<div class="os-form-card">
+    <h2 class="os-form-heading">Create Your Account</h2>
+    <p class="os-form-subtext">Enter your details to get started</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else category }}">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'exclamation-triangle' if category == 'warning' else 'check-circle' }}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/portal/register">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="os-field">
+                <label for="first_name">First Name *</label>
+                <input type="text" id="first_name" name="first_name" placeholder="First name" required>
+            </div>
+            <div class="os-field">
+                <label for="surname">Surname *</label>
+                <input type="text" id="surname" name="surname" placeholder="Surname" required>
+            </div>
+        </div>
+
+        <div class="os-field">
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" name="email" placeholder="name@company.com" required>
+        </div>
+
+        <div class="os-field">
+            <label for="phone">Phone Number *</label>
+            <input type="tel" id="phone" name="phone" placeholder="+44 7xxx xxx xxx" required>
+        </div>
+
+        <div class="os-field">
+            <label for="about">About You</label>
+            <textarea id="about" name="about" rows="3" placeholder="Tell us about your experience and what you're looking for..." style="width:100%;padding:0.75rem 0;border:none;border-bottom:2px solid #e5e7eb;font-size:15px;font-family:inherit;resize:vertical;background:transparent;"></textarea>
+        </div>
+
+        <button type="submit" class="os-btn-primary">Create Account</button>
+    </form>
+
+    <div class="os-form-footer">
+        <p>Already have an account? <a href="{{ url_for('associate.login', next=next) }}">Sign In</a></p>
+    </div>
+</div>
+
+<!-- Right: Info panel -->
+<div class="os-info-card">
+    <h2 class="os-info-heading">Why Register?</h2>
+
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-rocket"></i></div>
+        <div><strong>Quick Registration</strong><p>Get set up in just a few minutes</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-route"></i></div>
+        <div><strong>Guided Onboarding</strong><p>Step-by-step process to get you started</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-lock"></i></div>
+        <div><strong>Secure Documents</strong><p>Upload and manage documents safely</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-chart-line"></i></div>
+        <div><strong>Track Progress</strong><p>Real-time visibility of your onboarding status</p></div>
+    </div>
+
+    <div class="os-info-divider"></div>
+
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-envelope"></i></div>
+        <div><strong>Need Help?</strong><p>info@optimussolutions.co.uk</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-phone"></i></div>
+        <div><strong>Phone</strong><p>020 3917 7440</p></div>
+    </div>
+</div>
+{% endblock %}

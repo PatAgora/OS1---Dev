@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Two-Factor Authentication Setup{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-8">
+        <div class="text-center mb-8">
+            <i class="fas fa-shield-alt text-5xl text-blue-600 mb-4"></i>
+            <h1 class="text-3xl font-bold text-gray-800">
+                Two-Factor Authentication
+            </h1>
+        </div>
+
+        {% if step == "start" %}
+        <div class="space-y-6">
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-6 rounded">
+                <h2 class="text-xl font-semibold text-blue-900 mb-3">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    What is 2FA?
+                </h2>
+                <p class="text-blue-800 leading-relaxed">
+                    Two-Factor Authentication (2FA) adds an extra layer of security to your account.
+                    After enabling 2FA, you'll need to enter a 6-digit code from your phone in addition to your password when logging in.
+                </p>
+            </div>
+
+            <div class="bg-gray-50 p-6 rounded border border-gray-200">
+                <h3 class="font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-mobile-alt mr-2"></i>
+                    What You'll Need:
+                </h3>
+                <ul class="list-disc list-inside space-y-2 text-gray-700">
+                    <li>A smartphone (iPhone or Android)</li>
+                    <li>An authenticator app installed:
+                        <ul class="list-circle list-inside ml-6 mt-1 space-y-1 text-sm">
+                            <li>Google Authenticator</li>
+                            <li>Microsoft Authenticator</li>
+                            <li>Authy</li>
+                            <li>Or any TOTP-compatible app</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <form method="POST" class="text-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="action" value="generate"/>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition duration-200">
+                    <i class="fas fa-qrcode mr-2"></i>
+                    Enable Two-Factor Authentication
+                </button>
+                <div class="mt-4">
+                    <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-gray-800 text-sm">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Cancel and go back
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% elif step == "verify" %}
+        <div class="space-y-8">
+            <!-- Step 1: Scan QR Code -->
+            <div class="border-b pb-6">
+                <div class="flex items-center mb-4">
+                    <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">1</span>
+                    <h2 class="text-2xl font-semibold text-gray-800">Scan QR Code</h2>
+                </div>
+                <p class="text-gray-600 mb-6 ml-11">
+                    Open your authenticator app and scan this QR code:
+                </p>
+                
+                <div class="flex justify-center mb-6">
+                    <div class="bg-white p-6 border-4 border-gray-200 rounded-lg shadow-md">
+                        {% if qr_code %}
+                        <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="w-64 h-64" style="image-rendering: pixelated;"/>
+                        {% elif qr_url %}
+                        <img src="{{ qr_url }}" alt="QR Code" class="w-64 h-64" style="image-rendering: pixelated;"/>
+                        {% else %}
+                        <div class="w-64 h-64 flex items-center justify-center bg-gray-100 text-gray-400">
+                            <i class="fas fa-qrcode text-6xl"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded border border-gray-200 ml-11">
+                    <p class="text-sm text-gray-600 mb-2 font-semibold">
+                        <i class="fas fa-keyboard mr-2"></i>
+                        Can't scan? Enter this code manually:
+                    </p>
+                    <div class="bg-white p-3 rounded border border-gray-300 font-mono text-center">
+                        <code class="text-lg text-blue-600 font-bold tracking-wider">{{ secret }}</code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Verify Setup -->
+            <div>
+                <div class="flex items-center mb-4">
+                    <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">2</span>
+                    <h2 class="text-2xl font-semibold text-gray-800">Verify Setup</h2>
+                </div>
+                <p class="text-gray-600 mb-6 ml-11">
+                    Enter the 6-digit code from your authenticator app to verify:
+                </p>
+                
+                <form method="POST" class="ml-11">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="action" value="verify"/>
+                    <div class="mb-6">
+                        <input 
+                            type="text" 
+                            name="token" 
+                            placeholder="000000"
+                            pattern="[0-9]{6}"
+                            maxlength="6"
+                            class="w-full max-w-md px-6 py-4 text-3xl text-center font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                            autofocus
+                        />
+                        <p class="text-sm text-gray-500 mt-2 text-center">Enter the code shown in your app</p>
+                    </div>
+                    <div class="text-center">
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-200">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Verify and Enable 2FA
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% elif step == "complete" %}
+        <div class="space-y-6">
+            <div class="bg-green-50 border-l-4 border-green-500 p-6 rounded">
+                <p class="text-green-800 text-xl font-semibold">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    Two-Factor Authentication is now enabled!
+                </p>
+            </div>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-6 rounded">
+                <h2 class="text-xl font-semibold text-yellow-900 mb-3">
+                    <i class="fas fa-key mr-2"></i>
+                    Important: Save Your Backup Codes
+                </h2>
+                <p class="text-yellow-800 mb-4">
+                    Save these backup codes in a safe place. You can use them to access your account if you lose your phone.
+                    <strong>Each code can only be used once.</strong>
+                </p>
+                
+                <div class="bg-white p-6 rounded border-2 border-yellow-300 mb-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        {% for code in backup_codes %}
+                        <div class="bg-gray-50 p-4 rounded border border-gray-300 text-center font-mono text-lg font-bold">
+                            {{ code }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-red-50 border border-red-200 p-4 rounded">
+                    <p class="text-sm text-red-800">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Warning:</strong> You won't be able to see these codes again after leaving this page!
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-4">
+                <button onclick="window.print()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg">
+                    <i class="fas fa-print mr-2"></i>
+                    Print Backup Codes
+                </button>
+                <a href="{{ url_for('index') }}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg inline-block">
+                    <i class="fas fa-home mr-2"></i>
+                    Go to Dashboard
+                </a>
+            </div>
+        </div>
+
+        {% elif step == "already_enabled" %}
+        <div class="space-y-6">
+            <div class="bg-green-50 border-l-4 border-green-500 p-6 rounded">
+                <p class="text-green-800 font-semibold">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    Two-Factor Authentication is already enabled on your account.
+                </p>
+            </div>
+
+            <div class="border-t pt-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Disable 2FA</h2>
+                <p class="text-gray-600 mb-6">
+                    To disable Two-Factor Authentication, enter your password below:
+                </p>
+                
+                <form method="POST" action="{{ url_for('disable_2fa') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-6">
+                        <input 
+                            type="password" 
+                            name="password" 
+                            placeholder="Enter your password"
+                            class="w-full max-w-md px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                        />
+                    </div>
+                    <div class="flex gap-4">
+                        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg">
+                            <i class="fas fa-times-circle mr-2"></i>
+                            Disable 2FA
+                        </button>
+                        <a href="{{ url_for('index') }}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg inline-block">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+
+                <div class="mt-6 bg-yellow-50 border-l-4 border-yellow-500 p-4">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Warning:</strong> Disabling 2FA will make your account less secure.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    @media print {
+        .no-print, nav, footer, button:not(.print-button) { 
+            display: none !important; 
+        }
+        body { 
+            background: white; 
+        }
+    }
+</style>
+{% endblock %}

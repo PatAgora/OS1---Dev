@@ -1,0 +1,81 @@
+{% extends "associate/auth_base.html" %}
+
+{% block page_title %}Sign In{% endblock %}
+{% block hero_title %}Associate Portal{% endblock %}
+{% block hero_subtitle %}Sign in to manage your account{% endblock %}
+
+{% block auth_content %}
+<!-- Left: Login form card -->
+<div class="os-form-card">
+    <h2 class="os-form-heading">Sign In to Your Account</h2>
+    <p class="os-form-subtext">Enter your credentials below to access the portal</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="os-alert os-alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else category }}">
+                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'exclamation-triangle' if category == 'warning' else 'check-circle' }}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/portal/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="os-field">
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" name="email" placeholder="name@company.com" required autofocus>
+        </div>
+
+        <div class="os-field">
+            <label for="password">Password *</label>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+        </div>
+
+        <div class="os-forgot">
+            <a href="/portal/forgot-password">Forgot your password?</a>
+        </div>
+
+        <button type="submit" class="os-btn-primary">Sign In</button>
+    </form>
+
+    <div class="os-form-footer">
+        <p>Don't have an account? <a href="/portal/register">Create Account</a></p>
+    </div>
+</div>
+
+<!-- Right: Info panel -->
+<div class="os-info-card">
+    <h2 class="os-info-heading">Portal Information</h2>
+
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-shield-alt"></i></div>
+        <div><strong>Secure Access</strong><p>Enterprise-grade security with 2FA authentication</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-clipboard-check"></i></div>
+        <div><strong>Vetting & Compliance</strong><p>Complete your onboarding checks online</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-file-upload"></i></div>
+        <div><strong>Document Upload</strong><p>Securely upload and manage your documents</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-clock"></i></div>
+        <div><strong>Timesheets</strong><p>Submit and track your timesheets</p></div>
+    </div>
+
+    <div class="os-info-divider"></div>
+
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-envelope"></i></div>
+        <div><strong>Need Help?</strong><p>info@optimussolutions.co.uk</p></div>
+    </div>
+    <div class="os-info-item">
+        <div class="os-info-icon"><i class="fas fa-phone"></i></div>
+        <div><strong>Phone</strong><p>020 3917 7440</p></div>
+    </div>
+</div>
+{% endblock %}

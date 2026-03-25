@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check Your Email - Optimus Solutions</title>
+  
+  <!-- Bootstrap 5.3.2 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome 6.4.0 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --optimus-navy: #0a1628;
+      --optimus-cyan: #00d4ff;
+      --optimus-blue: #0066cc;
+      --optimus-text-muted: #94a3b8;
+      --optimus-bg-light: #f8fafc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #334155;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--optimus-bg-light);
+    }
+
+    /* Header */
+    .optimus-header {
+      background: var(--optimus-navy);
+      padding: 1rem 0;
+    }
+
+    .header-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .optimus-logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+
+    .optimus-logo img {
+      height: 32px;
+      width: auto;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .nav-link {
+      color: white;
+      text-decoration: none;
+      font-size: 0.938rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-link:hover, .nav-link.active { color: var(--optimus-cyan); }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+    }
+
+    .check-email-container {
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .email-icon {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #0066cc 0%, #00d4ff 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 2rem;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .email-icon i {
+      font-size: 48px;
+      color: white;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .page-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--optimus-navy);
+      margin-bottom: 1rem;
+    }
+
+    .page-subtitle {
+      font-size: 1.063rem;
+      color: #64748b;
+      margin-bottom: 1.5rem;
+    }
+
+    .email-address {
+      display: inline-block;
+      background: #e0f2fe;
+      color: var(--optimus-blue);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      margin-bottom: 2rem;
+    }
+
+    .info-card {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    .info-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--optimus-navy);
+      margin-bottom: 1rem;
+    }
+
+    .info-card ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .info-card li {
+      color: #64748b;
+      font-size: 0.938rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+      justify-content: center;
+    }
+
+    .btn-outline {
+      background: white;
+      color: #475569;
+      border: 2px solid #e5e7eb;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.938rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--optimus-blue);
+      color: var(--optimus-blue);
+    }
+
+    /* Footer */
+    .optimus-footer {
+      background: var(--optimus-navy);
+      padding: 4rem 0 2rem;
+      color: white;
+      margin-top: auto;
+    }
+
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1.5fr;
+      gap: 3rem;
+      margin-bottom: 3rem;
+    }
+
+    .footer-brand .footer-logo {
+      margin-bottom: 1rem;
+    }
+
+    .footer-brand .footer-logo img {
+      height: 36px;
+      width: auto;
+    }
+    .footer-brand .tagline { color: var(--optimus-text-muted); font-size: 0.938rem; }
+
+    .footer-section h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      color: white;
+    }
+
+    .footer-links { list-style: none; padding: 0; margin: 0; }
+    .footer-links li { margin-bottom: 0.75rem; }
+
+    .footer-links a {
+      color: var(--optimus-text-muted);
+      text-decoration: none;
+      font-size: 0.938rem;
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover { color: var(--optimus-cyan); }
+
+    .contact-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--optimus-text-muted);
+      font-size: 0.938rem;
+    }
+
+    .contact-item i { color: var(--optimus-cyan); margin-top: 0.25rem; }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 2rem;
+      text-align: center;
+      color: var(--optimus-text-muted);
+      font-size: 0.875rem;
+    }
+
+    @media (max-width: 768px) {
+      .header-container { flex-direction: column; gap: 1rem; }
+      .header-nav { gap: 1rem; flex-wrap: wrap; justify-content: center; }
+      .footer-grid { grid-template-columns: 1fr; gap: 2rem; }
+      .btn-group { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="optimus-header">
+  <div class="header-container">
+    <a href="{{ url_for('public.jobs_index') }}" class="optimus-logo">
+      <img src="{{ url_for('static', filename='images/optimus-logo-secondary.png') }}" alt="Optimus">
+    </a>
+    <nav class="header-nav">
+      <a href="https://optimussolutions.co.uk" class="nav-link" target="_blank">Home</a>
+      <a href="https://optimussolutions.co.uk/about" class="nav-link" target="_blank">About Us</a>
+      <a href="https://optimussolutions.co.uk/expertise" class="nav-link" target="_blank">Our Expertise</a>
+      <a href="https://optimussolutions.co.uk/services" class="nav-link" target="_blank">Services</a>
+      <a href="{{ url_for('public.jobs_index') }}" class="nav-link active">Work with Us</a>
+      <a href="https://optimussolutions.co.uk/contact" class="nav-link" target="_blank">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="check-email-container">
+    <div class="email-icon">
+      <i class="fas fa-envelope"></i>
+    </div>
+    
+    {% if is_signup %}
+    <h1 class="page-title">Verify Your Email</h1>
+    <p class="page-subtitle">
+      We've sent a verification link to your email address. Click the link to complete your registration.
+    </p>
+    {% else %}
+    <h1 class="page-title">Check Your Email</h1>
+    <p class="page-subtitle">
+      We've sent a secure sign-in link to your email address. Click the link to continue.
+    </p>
+    {% endif %}
+    
+    <div class="email-address">
+      <i class="fas fa-at"></i> {{ email }}
+    </div>
+    
+    <div class="info-card">
+      <h3><i class="fas fa-info-circle" style="color: var(--optimus-cyan); margin-right: 0.5rem;"></i> Next Steps</h3>
+      <ul>
+        <li>Check your inbox (and spam folder) for an email from Optimus Solutions</li>
+        <li>Click the secure link in the email</li>
+        <li>The link will expire in 30 minutes for security</li>
+        <li>If you don't receive the email, you can request a new link</li>
+      </ul>
+    </div>
+    
+    {% if fallback_link %}
+    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+      <h3 style="color: #92400e; font-size: 1rem; margin: 0 0 0.75rem;"><i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i> Email Delivery Issue</h3>
+      <p style="color: #92400e; font-size: 0.938rem; margin: 0 0 1rem;">We couldn't send the email. Please use this link to complete your registration:</p>
+      <a href="{{ fallback_link }}" style="background: #0066cc; color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+        <i class="fas fa-arrow-right" style="margin-right: 0.5rem;"></i> Complete Registration
+      </a>
+    </div>
+    {% endif %}
+    
+    <div class="btn-group">
+      <a href="{{ url_for('public.jobs_index') }}" class="btn-outline">
+        <i class="fas fa-briefcase"></i> Back to Jobs
+      </a>
+      {% if is_signup %}
+      <a href="{{ url_for('public.signup', next=next) }}" class="btn-outline">
+        <i class="fas fa-redo"></i> Request New Link
+      </a>
+      {% else %}
+      <a href="{{ url_for('public.login', next=next) }}" class="btn-outline">
+        <i class="fas fa-redo"></i> Request New Link
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</main>
+
+<footer class="optimus-footer">
+  <div class="footer-container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-logo">
+          <img src="{{ url_for('static', filename='images/optimus-logo-secondary.png') }}" alt="Optimus">
+        </div>
+        <p class="tagline">Your trusted partner in resourcing excellence.</p>
+      </div>
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <ul class="footer-links">
+          <li><a href="https://optimussolutions.co.uk/about" target="_blank">About Us</a></li>
+          <li><a href="https://optimussolutions.co.uk/expertise" target="_blank">Our Expertise</a></li>
+          <li><a href="https://optimussolutions.co.uk/services" target="_blank">Our Services</a></li>
+          <li><a href="{{ url_for('public.jobs_index') }}">Work with Us</a></li>
+          <li><a href="https://optimussolutions.co.uk/contact" target="_blank">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4>Services</h4>
+        <ul class="footer-links">
+          <li><a href="#">Resource Augmentation</a></li>
+          <li><a href="#">Managed Services</a></li>
+          <li><a href="#">Tech-Enabled Solutions</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4>Contact Us</h4>
+        <div class="contact-item"><i class="fas fa-envelope"></i><span>info@optimussolutions.co.uk</span></div>
+        <div class="contact-item"><i class="fas fa-phone"></i><span>020 3917 7440</span></div>
+        <div class="contact-item"><i class="fas fa-location-dot"></i><span>71-75 Shelton Street, London, WC2H 9JQ</span></div>
+        <div class="contact-item"><i class="fab fa-linkedin"></i><a href="https://linkedin.com/company/optimus-solutions" target="_blank" style="color: var(--optimus-text-muted);">Follow us on LinkedIn</a></div>
+      </div>
+    </div>
+    <div class="footer-bottom">&copy; 2026 Optimus. All rights reserved.</div>
+  </div>
+</footer>
+
+</body>
+</html>

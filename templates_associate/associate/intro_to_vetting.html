@@ -1,0 +1,281 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'intro_to_vetting' %}
+
+{% block page_title %}Intro to Vetting{% endblock %}
+{% block header_title %}Introduction to Vetting{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Dashboard</a></li>
+<li class="breadcrumb-item active">Intro to Vetting</li>
+{% endblock %}
+
+{% block content %}
+<!-- Welcome Card -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-book-open me-2"></i>An Introduction to Vetting</h3>
+    </div>
+    <div class="portal-card-body">
+        <p>This guide will help you understand the key checks we conduct and why they are important. Note that additional checks may be required based on client needs or your unique circumstances.</p>
+        <p>A dedicated Compliance Analyst will support you throughout the entire process to ensure a smooth and timely start.</p>
+        <p class="text-muted mb-0">Please click on the headings below to find out more information. If you would like to know more about where your data will be stored, please see our <a href="https://www.optimussolutions.co.uk/privacy-policy" target="_blank" rel="noopener">privacy policy</a>.</p>
+    </div>
+</div>
+
+<!-- Accordion Sections -->
+<div class="accordion portal-accordion" id="vettingAccordion">
+
+    <!-- 1. Proof of Identity & Address -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingID">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseID" aria-expanded="false" aria-controls="collapseID">
+                <i class="fas fa-id-card me-2 text-primary"></i> Proof of Identity &amp; Address
+            </button>
+        </h2>
+        <div id="collapseID" class="accordion-collapse collapse" aria-labelledby="headingID" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <h6>Why is this required?</h6>
+                <p>These documents confirm an individual's identity and reduce the risk of employing someone who may be impersonating another person.</p>
+
+                <h6>What documents are acceptable?</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Proof of Identity:</strong>
+                        <ul>
+                            <li>In-date Signed Passport</li>
+                            <li>In-date UK Full Photo Card Driver's Licence</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Proof of Address:</strong>
+                        <ul>
+                            <li>Bank/Building Society/Credit Card statement (dated within 90 days of start date)</li>
+                            <li>Utility Bill (dated within 90 days of start date)</li>
+                            <li>Council Tax Bill / Mortgage Statement (dated within 12 months of start date)</li>
+                            <li>In-date UK Full Driver's Licence (if not being used as ID)</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="text-muted"><small>This is not an exhaustive list. Please contact your assigned Compliance Analyst to discuss alternative options.</small></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Vetting Forms -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingForms">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseForms" aria-expanded="false" aria-controls="collapseForms">
+                <i class="fas fa-file-signature me-2 text-primary"></i> Vetting Forms
+            </button>
+        </h2>
+        <div id="collapseForms" class="accordion-collapse collapse" aria-labelledby="headingForms" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <h6>Why are they required?</h6>
+                <p>These forms provide us with your consent to conduct the necessary background checks and offer you the opportunity to disclose any information that might affect the vetting process. You may also be required to complete client-specific forms.</p>
+
+                <h6>How do I complete these documents?</h6>
+                <p>You can complete the required forms directly through this portal:</p>
+                <ul>
+                    <li><a href="/portal/consent-form"><i class="fas fa-file-signature me-1"></i> Consent Form</a> &mdash; consent to vetting checks</li>
+                    <li><a href="/portal/declaration"><i class="fas fa-clipboard-check me-1"></i> Declaration Form</a> &mdash; fit and proper declaration</li>
+                </ul>
+                <p class="text-muted"><small>On occasion, additional documents may need to be hand-signed. Your Compliance Analyst will be in touch if this is required.</small></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Criminal & Financial Probity Checks -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingCriminal">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCriminal" aria-expanded="false" aria-controls="collapseCriminal">
+                <i class="fas fa-shield-halved me-2 text-primary"></i> Criminal &amp; Financial Probity Checks
+            </button>
+        </h2>
+        <div id="collapseCriminal" class="accordion-collapse collapse" aria-labelledby="headingCriminal" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <h6>Why is this required?</h6>
+                <p>Our clients require us to carry out a basic criminal record and financial probity check to help understand our associates' history and assess potential risks.</p>
+
+                <h6>How is this carried out?</h6>
+                <p>We use a third-party supplier to carry out these checks. In most instances, we are required to verify identity and address documents via a video call beforehand. After the call, you will receive a link to an application form by email.</p>
+                <p>It's important this application is completed as soon as possible as the client typically requires these checks to be complete prior to your start date. On average, these checks take around five working days, but can take longer.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Referencing -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingRefs">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRefs" aria-expanded="false" aria-controls="collapseRefs">
+                <i class="fas fa-address-book me-2 text-primary"></i> Referencing
+            </button>
+        </h2>
+        <div id="collapseRefs" class="accordion-collapse collapse" aria-labelledby="headingRefs" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <h6>Why is this required?</h6>
+                <p>Reference checks help verify the information that you have provided on your CV and throughout your application, as well as verify your activity during a specified period. Most of our clients require three years' referencing. This includes all employment that you have undertaken during this period, as well as education and periods of unemployment.</p>
+
+                <p>As reference checks are dependent on a third party, we will ask you to download your HMRC Employment History at the start of the process to use as alternative evidence whilst we wait for responses.</p>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>How to download your HMRC Employment History:</strong>
+                    Visit <a href="https://www.gov.uk/check-income-tax-current-year" target="_blank" rel="noopener">HMRC online</a>, sign in, select &lsquo;Pay As You Earn (PAYE)&rsquo; and navigate to &lsquo;View and print Income Tax and employment history.&rsquo; Then select &lsquo;Print this page&rsquo;.
+                </div>
+
+                <h6>Additional Evidence</h6>
+                <p>If additional evidence is required to cover missing references or periods of non-employment, here are some examples of what we may accept (your Compliance Analyst will confirm what is required for your specific circumstances):</p>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Missing references:</strong>
+                        <ul>
+                            <li>Payslips / Bank Statements</li>
+                            <li>P60 / P45</li>
+                            <li>Employment Contract</li>
+                            <li>Personal Work Reference</li>
+                            <li>Professional Relationship Reference</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Periods of non-employment:</strong>
+                        <ul>
+                            <li><em>Seeking Employment:</em> JSA/Universal Credit Statements, Bank Statements</li>
+                            <li><em>Travelling:</em> Passport Stamps, Flight/Hotel Confirmation</li>
+                            <li><em>Maternity/Paternity:</em> Child's birth certificate</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <p>You can manage your employment history and references directly in the portal:</p>
+                <a href="/portal/references" class="btn btn-outline-primary btn-sm"><i class="fas fa-address-book me-1"></i> Go to References</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Umbrella Companies -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingUmbrella">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUmbrella" aria-expanded="false" aria-controls="collapseUmbrella">
+                <i class="fas fa-building me-2 text-primary"></i> Umbrella Companies (For Contractors Only)
+            </button>
+        </h2>
+        <div id="collapseUmbrella" class="accordion-collapse collapse" aria-labelledby="headingUmbrella" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <h6>What are they?</h6>
+                <p>An Umbrella/Employment company operates as an employer for contractors working on a fixed term assignment through Optimus Solutions. They offer a straightforward and stress-free route into work, which is particularly helpful if you are new to contracting.</p>
+
+                <h6>When should I register?</h6>
+                <p>Though registration is simple, the umbrella company may need to carry out their own checks, which can take a few days. It is therefore important that you register as soon as possible, as we are unable to issue your contract without a completed registration.</p>
+                <p class="text-muted"><small>If you register and do not end up commencing on the project, you will not be charged.</small></p>
+
+                <h6>Which companies do we work with?</h6>
+                <p>We must conduct thorough due diligence on any umbrella company we work with. We offer you the option to work with one of our approved umbrella partners:</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <strong>Trafalgar Workforce Solutions Ltd</strong>
+                            <ul class="list-unstyled mt-2 mb-0">
+                                <li><i class="fas fa-globe me-1 text-muted"></i> <a href="https://www.trafalgaraccounting.co.uk" target="_blank" rel="noopener">www.trafalgaraccounting.co.uk</a></li>
+                                <li><i class="fas fa-user-plus me-1 text-muted"></i> <a href="https://www.trafalgaraccounting.co.uk/sign-up-now" target="_blank" rel="noopener">Sign Up</a></li>
+                                <li><i class="fas fa-phone me-1 text-muted"></i> 020 7940 1990</li>
+                                <li><i class="fas fa-envelope me-1 text-muted"></i> john.harris@contractorsolutions.co.uk</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <strong>PayStream My Max 2 Ltd</strong>
+                            <ul class="list-unstyled mt-2 mb-0">
+                                <li><i class="fas fa-globe me-1 text-muted"></i> <a href="https://www.paystream.co.uk/umbrella/" target="_blank" rel="noopener">www.paystream.co.uk/umbrella</a></li>
+                                <li><i class="fas fa-user-plus me-1 text-muted"></i> <a href="https://portal.paystream.co.uk/Join" target="_blank" rel="noopener">Sign Up</a></li>
+                                <li><i class="fas fa-phone me-1 text-muted"></i> 0161 929 6000</li>
+                                <li><i class="fas fa-envelope me-1 text-muted"></i> new.business@paystream.co.uk</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="mt-3">You can manage your company details in the portal:</p>
+                <a href="/portal/company-details" class="btn btn-outline-primary btn-sm"><i class="fas fa-building me-1"></i> Go to Company Details</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. FAQs -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingFAQ">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFAQ" aria-expanded="false" aria-controls="collapseFAQ">
+                <i class="fas fa-question-circle me-2 text-primary"></i> Frequently Asked Questions
+            </button>
+        </h2>
+        <div id="collapseFAQ" class="accordion-collapse collapse" aria-labelledby="headingFAQ" data-bs-parent="#vettingAccordion">
+            <div class="accordion-body">
+                <div class="mb-4">
+                    <h6>How long will my vetting take to complete?</h6>
+                    <p>This will vary from person to person as we gather information from external sources. However, at the start of the vetting process, your Compliance Analyst will confirm the deadline for your assigned intake.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>What happens if my file isn't completed in time?</h6>
+                    <p>Depending on what is missing, your Compliance Analyst may ask you to provide alternative evidence in the interim. We will use this evidence to refer your file to the client for approval. This helps us to onboard you for your intended start date.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>What if I refuse to complete vetting?</h6>
+                    <p>Our clients require all associates to successfully complete the vetting process to a satisfactory level. Refusing to comply will result in your job offer being withdrawn.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>What can I do to speed up the vetting process?</h6>
+                    <p>Provide the requested information in a timely manner and help chase external sources where possible.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>Do I need to send Optimus Solutions a paper copy of my DBS check?</h6>
+                    <p>No. We receive confirmation from the provider as to whether your DBS is clear or not. If your DBS has convictions listed however, we will need you to send a picture of your DBS certificate to us once received in the post.</p>
+                </div>
+
+                <div class="mb-0">
+                    <h6>When will I receive my contract &amp; IT equipment?</h6>
+                    <p class="mb-0">With confirmation from our client, and your vetting file being successfully completed, you will typically receive your contract and IT equipment within five days of your intended start date. You will receive confirmation of this closer to your start date.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Next Steps CTA -->
+<div class="portal-card mt-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-arrow-right me-2"></i>Next Steps</h3>
+    </div>
+    <div class="portal-card-body">
+        <p>To begin the vetting process, please complete the following in order:</p>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <a href="/portal/consent-form" class="btn btn-primary w-100">
+                    <i class="fas fa-file-signature me-1"></i> Consent Form
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="/portal/declaration" class="btn btn-primary w-100">
+                    <i class="fas fa-clipboard-check me-1"></i> Declaration
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="/portal/documents" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-folder-open me-1"></i> Documents
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="/portal/references" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-address-book me-1"></i> References
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

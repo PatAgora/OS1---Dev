@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Identity Verification • Sumsub WebSDK</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- ✅ Correct WebSDK-Next script -->
+  <script src="https://static.sumsub.com/idensic/static/sns-websdk@latest.js"></script>
+
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: #0b0c0e;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    .muted { color: #9ca3af; }
+    .row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: center; margin: 10px 0; }
+    .actions { display: flex; gap: 10px; margin: 10px 0 14px; }
+    input {
+      width: 100%;
+      background: #0b0c0e;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #1e3a8a; color: white; cursor: pointer; }
+    button.secondary { background: #374151; }
+    #sumsub-container { width: 100%; min-height: 560px; border-radius: 12px; overflow: hidden; background: #0b0c0e10; }
+    #log {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 10px;
+      height: 180px;
+      overflow: auto;
+      background: #0b0c0e;
+      color: #d1d5db;
+    }
+    .ok { color: #10b981; font-weight: 600; }
+    .err { color: #f87171; font-weight: 600; }
+    .badge {
+      display: inline-block;
+      background: #312e81;
+      color: #c7d2fe;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Identity Verification <span class="badge">Sumsub Sandbox</span></h1>
+      <p class="muted">Please complete your verification below. This widget is hosted by Sumsub.</p>
+
+      <div class="row">
+        <div>externalUserId</div>
+        <div><input id="ext" value="{{ external_user_id }}" /></div>
+      </div>
+      <div class="row">
+        <div>ttlInSecs</div>
+        <div><input id="ttl" value="{{ ttl }}" /></div>
+      </div>
+      <div class="row">
+        <div>Language</div>
+        <div><input id="lang" value="{{ lang }}" /></div>
+      </div>
+      <div class="row">
+        <div>Theme</div>
+        <div><input id="theme" value="{{ theme }}" /></div>
+      </div>
+      <div class="row">
+        <div>Level Name</div>
+        <div><input id="levelName" placeholder="e.g. id-and-liveness" value="{{ level_name or '' }}" /></div>
+      </div>
+
+      <div class="actions">
+        <button id="start">Start/Reload WebSDK</button>
+        <button id="mobile" class="secondary">Continue on Mobile</button>
+      </div>
+
+      <div class="row">
+        <div>Status</div>
+        <div id="status" class="muted">Idle</div>
+      </div>
+
+      <div id="sumsub-container"></div>
+
+      <h3 style="margin-top:16px">Events & Errors</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    // --- DOM helpers
+    const extEl = document.getElementById('ext');
+    const ttlEl = document.getElementById('ttl');
+    const langEl = document.getElementById('lang');
+    const themeEl = document.getElementById('theme');
+    const levelEl = document.getElementById('levelName');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const startBtn = document.getElementById('start');
+    const mobileBtn = document.getElementById('mobile');
+
+    function log(line, cls='') {
+      const time = new Date().toISOString().split('T')[1].replace('Z','');
+      const div = document.createElement('div');
+      div.innerHTML = `<span class="muted">${time}</span> ${cls ? `<span class="${cls}">${line}</span>` : line}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+      if (cls === 'err') statusEl.innerHTML = '<span class="err">'+line+'</span>';
+    }
+
+    async function getToken(userId, ttl, levelName) {
+      const qs = new URLSearchParams({ ttlInSecs: ttl || '600' });
+      if (levelName) qs.set('levelName', levelName);
+      const url = `/sumsub/access_token/${encodeURIComponent(userId)}?` + qs.toString();
+
+      const res = await fetch(url, { method: 'POST' });
+      const ctype = (res.headers.get('Content-Type') || '').toLowerCase();
+      const isJson = ctype.includes('application/json');
+
+      if (!res.ok) {
+        const body = isJson ? await res.json().catch(() => ({})) : await res.text();
+        throw new Error(`Token HTTP ${res.status}: ${isJson ? JSON.stringify(body) : body}`);
+      }
+      const data = isJson ? await res.json() : {};
+      const token = data.token || data.accessToken || data['access_token'];
+      if (!token) throw new Error('No token field in response JSON.');
+      return token;
+    }
+
+    let sdk = null;
+
+    async function start() {
+      const userId = extEl.value.trim();
+      const ttl = ttlEl.value.trim() || '600';
+      const lang = langEl.value.trim() || 'en';
+      const theme = themeEl.value.trim() || 'light';
+      const levelName = levelEl.value.trim();
+
+      statusEl.textContent = 'Requesting access token…';
+      log('Requesting access token…');
+
+      try {
+        const token = await getToken(userId, ttl, levelName);
+        log('Token OK — initializing SNS WebSDK…', 'ok');
+
+        if (sdk && sdk.destroy) { try { sdk.destroy(); } catch {} }
+
+        // ✅ Correct SNS WebSDK init/build/launch
+        sdk = SNSWebSdk
+          .init(token, { lang })
+          .withConf({ uiConf: { theme } })
+          .onMessage((type, payload) => log(`event: ${type} — ${JSON.stringify(payload || {})}`))
+          .onError((err) => log('SDK error: ' + (err?.message || JSON.stringify(err)), 'err'))
+          .build();
+
+        sdk.launch('#sumsub-container');
+        statusEl.innerHTML = '<span class="ok">WebSDK running</span>';
+        log('WebSDK launched.', 'ok');
+
+      } catch (e) {
+        log('Token/Init failed: ' + e.message, 'err');
+        if (!levelName) log('Hint: provide a valid levelName (e.g. id-and-liveness or basic-kyb-level).', 'muted');
+      }
+    }
+
+    async function handoffToMobile() {
+      try {
+        if (!sdk || !sdk.handoff) {
+          log('Handoff not available (SDK not started yet).', 'err');
+          return;
+        }
+        await sdk.handoff();
+        log('Mobile handoff initiated.', 'ok');
+      } catch (e) {
+        log('Handoff error: ' + e.message, 'err');
+      }
+    }
+
+    startBtn.addEventListener('click', start);
+    mobileBtn.addEventListener('click', handoffToMobile);
+    window.addEventListener('load', start);
+  </script>
+</body>
+</html>

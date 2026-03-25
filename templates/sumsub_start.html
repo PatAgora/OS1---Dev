@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Identity Verification — {{ sumsub_label }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Primary load: WebSDK via local Flask proxy -->
+  <script src="/sumsub/sdk.js" id="sumsub-sdk-proxy"></script>
+
+  <!-- Fallbacks: try Sumsub CDN paths if proxy fails -->
+  <script>
+    (function ensureSdk(){
+      function have() { return !!window.SNSWebSdk; }
+
+      function inject(src, id){
+        if (document.getElementById(id)) return;
+        var s = document.createElement('script');
+        s.id = id; s.src = src; s.async = true; s.crossOrigin = 'anonymous';
+        document.head.appendChild(s);
+      }
+
+      // Try legacy CDN path first if proxy didn’t load
+      if (!have()) inject("https://static.sumsub.com/idensic/static/sns-websdk-builder.js", "sumsub-sdk-cdn-legacy");
+
+      // If that fails (network or block), try the newer path
+      window.addEventListener('error', function(){
+        if (!have()) inject("https://static.sumsub.com/idensic/assets/websdk-builder.js", "sumsub-sdk-cdn-new");
+      }, { once: true });
+
+      // After delay, show message if nothing loaded
+      setTimeout(function(){
+        if (!have()) {
+          const el = document.getElementById('status');
+          if (el) el.innerHTML = '<span class="error">Could not load SNSWebSdk from proxy or CDN.<br>Check VPN/ad-block and reload.</span>';
+        }
+      }, 1500);
+    })();
+  </script>
+
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0; font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: #0b1220; color: #e6edf3;
+    }
+    .wrap { max-width: 960px; margin: 48px auto; padding: 0 16px; }
+    .card {
+      background: #0f172a; border-radius: 14px; padding: 24px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.3);
+    }
+    h2 { margin: 0 0 18px; font-weight: 600; }
+    .badge { font-size: 12px; padding: 3px 8px; background:#26334d; border-radius:999px; margin-left:10px; }
+    .grid { display:grid; grid-template-columns: 160px 1fr; gap:10px 14px; align-items:center; }
+    .input, .select {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #24324a;
+      background: #0b1220; color: #e6edf3;
+    }
+    .actions { margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap; }
+    .btn {
+      padding: 10px 14px; background:#1f6feb; border:0; border-radius:10px; color:#fff; cursor:pointer;
+    }
+    .btn.secondary { background:#30363d; }
+    .status { margin-top: 18px; min-height: 24px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .status .error { color:#ff6b6b; }
+    .sdk-box { margin-top:24px; background:#0b1220; border:1px solid #24324a; border-radius:12px; padding:8px; min-height:520px; }
+    #sumsub-websdk-container { min-height:500px; }
+    label { opacity:.8; }
+    a { color:#9ecbff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>Identity Verification <span class="badge">{{ sumsub_label }}</span></h2>
+      <p>Please complete your verification below. This widget is hosted by Sumsub.</p>
+
+      <div class="grid">
+        <label for="externalUserId">externalUserId</label>
+        <input id="externalUserId" class="input" value="{{ external_user_id }}" />
+
+        <label for="ttl">ttlInSecs</label>
+        <input id="ttl" class="input" type="number" min="60" step="60" value="{{ ttl }}" />
+
+        <label for="lang">Language</label>
+        <input id="lang" class="input" value="{{ lang or 'en' }}" />
+
+        <label for="theme">Theme</label>
+        <select id="theme" class="select">
+          <option value="light" {{ 'selected' if (theme or 'light') == 'light' else '' }}>light</option>
+          <option value="dark"  {{ 'selected' if (theme or 'light') == 'dark'  else '' }}>dark</option>
+        </select>
+
+        <label for="levelName">Level Name</label>
+        <input id="levelName" class="input" placeholder="e.g. id-and-liveness" value="{{ level_name }}" />
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btnStart">Start/Reload WebSDK</button>
+        <button class="btn secondary" id="btnMobile">Continue on Mobile</button>
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div class="sdk-box">
+        <div id="sumsub-websdk-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const statusEl = $('#status');
+
+    function setStatus(text, isError=false) {
+      statusEl.innerHTML = isError ? `<span class="error">${text}</span>` : text;
+      console.log('[Sumsub]', text);
+    }
+
+    async function fetchToken(userId, ttl, levelName) {
+      const params = new URLSearchParams();
+      params.set('ttlInSecs', ttl);
+      if (levelName) params.set('levelName', levelName);
+      const url = `/sumsub/access_token/${encodeURIComponent(userId)}?` + params.toString();
+
+      const res = await fetch(url, { method: 'POST' });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Token HTTP ${res.status}: ${txt}`);
+      }
+      const data = await res.json();
+      if (!data.token) throw new Error('No token in response.');
+      return data.token;
+    }
+
+    function ensureSdkLoaded() {
+      if (!window.SNSWebSdk) {
+        throw new Error("SNSWebSdk is not defined (script failed to load). Check network/CORS and try again.");
+      }
+    }
+
+    async function startWebSdk() {
+      try {
+        setStatus('Requesting token…');
+        ensureSdkLoaded();
+
+        const userId = $('#externalUserId').value.trim();
+        const ttl = parseInt($('#ttl').value, 10) || 600;
+        const level = $('#levelName').value.trim();
+        const theme = $('#theme').value || 'light';
+        const lang = $('#lang').value || 'en';
+
+        const token = await fetchToken(userId, ttl, level);
+        setStatus('Initializing WebSDK…');
+
+        const mount = document.getElementById('sumsub-websdk-container');
+        mount.innerHTML = '';
+
+        const sdk = SNSWebSdk.init(token, {
+          lang,
+          uiConf: { theme },
+          onMessage: (type, payload) => {
+            console.log('[Sumsub event]', type, payload);
+            if (type === 'idCheck.onReady') setStatus('WebSDK ready');
+            if (type === 'idCheck.onComplete') setStatus('✅ Verification complete');
+          },
+          onError: (err) => setStatus(`SDK error: ${err && err.message ? err.message : err}`, true)
+        });
+
+        sdk.mount('#sumsub-websdk-container');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Token/Init failed: ${e.message}`, true);
+      }
+    }
+
+    async function continueOnMobile() {
+      try {
+        ensureSdkLoaded();
+        const userId = $('#externalUserId').value.trim();
+        const ttl = parseInt($('#ttl').value, 10) || 600;
+        const level = $('#levelName').value.trim();
+        const token = await fetchToken(userId, ttl, level);
+
+        const url = `https://web.sumsub.com/?token=${encodeURIComponent(token)}`;
+        window.open(url, '_blank', 'noopener');
+        setStatus('Opened mobile verification in a new tab.');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Mobile handoff failed: ${e.message}`, true);
+      }
+    }
+
+    $('#btnStart').addEventListener('click', startWebSdk);
+    $('#btnMobile').addEventListener('click', continueOnMobile);
+  </script>
+</body>
+</html>

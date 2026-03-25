@@ -1,0 +1,1681 @@
+{% extends "base.html" %}
+{% block title %}Revenue Summary - OS1{% endblock %}
+
+{% block head %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 16px;
+        margin-top: 0 !important;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 20px rgba(5, 150, 105, 0.3);
+    }
+    
+    /* Container padding now handled by px-4 pt-3 pb-4 classes */
+    
+    .page-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .page-header .subtitle {
+        opacity: 0.9;
+        font-size: 0.95rem;
+    }
+    
+    /* Multi-select Dropdown */
+    .dropdown-multiselect {
+        position: relative;
+        width: 100%;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        background: white;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        text-align: left;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle:hover {
+        border-color: #9ca3af;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle:focus {
+        outline: none;
+        border-color: #1e3a8a;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .dropdown-multiselect .dropdown-toggle .selected-text {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #374151;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle .selected-text.placeholder {
+        color: #9ca3af;
+    }
+    
+    .dropdown-multiselect .dropdown-toggle i {
+        margin-left: 0.5rem;
+        color: #6b7280;
+        transition: transform 0.2s;
+    }
+    
+    .dropdown-multiselect.open .dropdown-toggle i {
+        transform: rotate(180deg);
+    }
+    
+    .dropdown-multiselect .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        margin-top: 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        display: none;
+    }
+    
+    .dropdown-multiselect.open .dropdown-menu {
+        display: block;
+    }
+    
+    .dropdown-multiselect .dropdown-item {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.15s;
+        font-size: 0.85rem;
+    }
+    
+    .dropdown-multiselect .dropdown-item:hover {
+        background: #f3f4f6;
+    }
+    
+    .dropdown-multiselect .dropdown-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .dropdown-item label {
+        flex: 1;
+        cursor: pointer;
+        margin: 0;
+        font-weight: normal;
+    }
+    
+    .dropdown-multiselect .dropdown-search {
+        padding: 0.5rem;
+        border-bottom: 1px solid #e5e7eb;
+        position: sticky;
+        top: 0;
+        background: white;
+    }
+    
+    .dropdown-multiselect .dropdown-search input {
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+    
+    .dropdown-multiselect .dropdown-search input:focus {
+        outline: none;
+        border-color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .select-actions {
+        padding: 0.5rem;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        gap: 0.5rem;
+        position: sticky;
+        bottom: 0;
+        background: white;
+    }
+    
+    .dropdown-multiselect .select-actions button {
+        flex: 1;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.75rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .dropdown-multiselect .select-actions .btn-select-all {
+        background: #f0f4fa;
+        color: #1e3a8a;
+    }
+    
+    .dropdown-multiselect .select-actions .btn-clear-all {
+        background: #f3f4f6;
+        color: #374151;
+    }
+    
+    /* Filter Sections */
+    .filter-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .filter-section * {
+        cursor: default;
+    }
+    
+    .filter-section button,
+    .filter-section select,
+    .filter-section input[type="checkbox"],
+    .filter-section label,
+    .filter-section .dropdown-toggle,
+    .filter-section .dropdown-item,
+    .filter-section .period-btn {
+        cursor: pointer !important;
+    }
+    
+    .filter-section input[type="text"],
+    .filter-section input[type="date"] {
+        cursor: text !important;
+    }
+    
+    .filter-section-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .filter-section-title i {
+        color: #1e3a8a;
+    }
+    
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .filter-group {
+        flex: 1;
+        min-width: 150px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .filter-group label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 0.35rem;
+        height: 18px;
+        line-height: 18px;
+    }
+    
+    .filter-group select,
+    .filter-group input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        background: white;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        height: 38px;
+        box-sizing: border-box;
+    }
+    
+    .filter-group select:focus,
+    .filter-group input:focus {
+        outline: none;
+        border-color: #1e3a8a;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .filter-group select[multiple] {
+        height: auto;
+        min-height: 80px;
+    }
+    
+    .period-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        height: 38px;
+        align-items: center;
+    }
+    
+    .period-btn {
+        padding: 0.45rem 0.9rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: white;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .period-btn:hover {
+        border-color: #1e3a8a;
+        background: #f0f4fa;
+    }
+    
+    .period-btn.active {
+        background: #1e3a8a;
+        color: white;
+        border-color: #1e3a8a;
+    }
+    
+    .filter-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+    
+    .btn-apply-filter {
+        background: #059669;
+        color: white;
+        border: none;
+        padding: 0.6rem 1.5rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .btn-apply-filter:hover {
+        background: #047857;
+    }
+    
+    .btn-clear-filter {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        padding: 0.6rem 1.5rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-clear-filter:hover {
+        background: #e5e7eb;
+    }
+    
+    /* KPI Summary Cards - Updated for 13 tiles */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .kpi-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+        border-left: 4px solid #030a1d;
+    }
+    
+    .kpi-card .kpi-label {
+        font-size: 0.65rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+        line-height: 1.2;
+    }
+    
+    .kpi-card .kpi-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #111827;
+    }
+    
+    .kpi-card .kpi-subvalue {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.15rem;
+    }
+    
+    .kpi-value.positive { color: #059669; }
+    .kpi-value.negative { color: #dc2626; }
+    
+    /* Client Accordion */
+    .client-section {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .client-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.2s ease;
+    }
+    
+    .client-header:hover {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    }
+    
+    .client-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .client-name i {
+        color: #1e3a8a;
+    }
+    
+    .client-summary {
+        display: flex;
+        gap: 1.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .client-summary .metric {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    
+    .client-summary .metric-label {
+        color: #6b7280;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+    }
+    
+    .client-summary .metric-value {
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .client-summary .metric-value.positive { color: #059669; }
+    .client-summary .metric-value.negative { color: #dc2626; }
+    
+    .client-body {
+        padding: 1rem 1.5rem;
+        display: none;
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    .client-section.expanded .client-body {
+        display: block;
+    }
+    
+    .client-section.expanded .toggle-icon {
+        transform: rotate(180deg);
+    }
+    
+    .toggle-icon {
+        transition: transform 0.2s ease;
+        color: #6b7280;
+    }
+    
+    /* Engagement Table */
+    .engagement-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    
+    .engagement-table th {
+        background: #f8fafc;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #374151;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    
+    .engagement-table th.number {
+        text-align: right;
+    }
+    
+    .engagement-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: top;
+    }
+    
+    .engagement-table td.number {
+        text-align: right;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    }
+    
+    .engagement-table tr:hover {
+        background: #f8fafc;
+    }
+    
+    .engagement-name {
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .engagement-ref {
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-badge.active { background: #dcfce7; color: #166534; }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.completed { background: #e0e7ff; color: #3730a3; }
+    .status-badge.default { background: #f3f4f6; color: #374151; }
+    
+    /* Roles breakdown */
+    .roles-breakdown {
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+    
+    .role-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        border-bottom: 1px dashed #e5e7eb;
+    }
+    
+    .role-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* Charts Section */
+    .charts-section {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .chart-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .chart-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .chart-card h3 i {
+        color: #1e3a8a;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 280px;
+    }
+    
+    /* Client List Summary */
+    .client-list-summary {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .client-list-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .client-list-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .client-list-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    
+    .client-list-table th {
+        background: #f8fafc;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #374151;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    
+    .client-list-table th.number {
+        text-align: right;
+    }
+    
+    .client-list-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .client-list-table td.number {
+        text-align: right;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    }
+    
+    .client-list-table tr:hover {
+        background: #f8fafc;
+    }
+    
+    .client-list-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .client-list-table tfoot tr {
+        background: #f1f5f9;
+        font-weight: 600;
+    }
+    
+    .client-color-dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    
+    .percent-badge {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: #e8eef8;
+        color: #0369a1;
+    }
+    
+    /* Active filter badges */
+    .active-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+    
+    .filter-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.6rem;
+        background: #f0f4fa;
+        border: 1px solid #d0ddf0;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        color: #1e3a8a;
+    }
+    
+    .filter-badge .remove-filter {
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .filter-badge .remove-filter:hover {
+        opacity: 1;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .charts-section {
+            grid-template-columns: 1fr;
+        }
+        
+        .client-summary {
+            display: none;
+        }
+        
+        .engagement-table,
+        .client-list-table {
+            display: block;
+            overflow-x: auto;
+        }
+        
+        .filter-row {
+            flex-direction: column;
+        }
+        
+        .filter-group {
+            min-width: 100%;
+        }
+    }
+</style>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1><i class="fas fa-chart-line me-2"></i>Revenue Summary</h1>
+        <p class="subtitle">Financial overview by engagement and client as of {{ today.strftime('%d %B %Y') }}</p>
+    </div>
+    
+    <!-- Filter Sections -->
+    <form id="filterForm" method="GET" action="{{ url_for('revenue') }}">
+    <!-- Filter Section 1: Client, Engagement, Date Range -->
+    <div class="filter-section">
+        <div class="filter-section-title">
+            <i class="fas fa-filter"></i>
+            Filter by Entity
+        </div>
+            <div class="filter-row">
+                <div class="filter-group" style="min-width: 200px;">
+                    <label>Client</label>
+                    <div class="dropdown-multiselect" id="clientDropdown">
+                        <button type="button" class="dropdown-toggle" onclick="toggleDropdown('clientDropdown')">
+                            <span class="selected-text">
+                                {% if selected_clients %}{{ selected_clients|length }} selected{% else %}All Clients{% endif %}
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <div class="dropdown-search">
+                                <input type="text" placeholder="Search clients..." onkeyup="filterDropdownItems(this, 'clientDropdown')">
+                            </div>
+                            <div class="dropdown-items">
+                                {% for c in all_clients %}
+                                <div class="dropdown-item">
+                                    <input type="checkbox" id="client_{{ loop.index }}" name="clients" value="{{ c }}" {% if c in selected_clients %}checked{% endif %} onchange="updateDropdownText('clientDropdown'); cascadeClientToEngagement()">
+                                    <label for="client_{{ loop.index }}">{{ c }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="select-actions">
+                                <button type="button" class="btn-select-all" onclick="selectAll('clientDropdown'); cascadeClientToEngagement()">Select All</button>
+                                <button type="button" class="btn-clear-all" onclick="clearAll('clientDropdown'); cascadeClientToEngagement()">Clear All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-group" style="min-width: 220px;">
+                    <label>Engagement</label>
+                    <div class="dropdown-multiselect" id="engagementDropdown">
+                        <button type="button" class="dropdown-toggle" onclick="toggleDropdown('engagementDropdown')">
+                            <span class="selected-text">
+                                {% if selected_engagements %}{{ selected_engagements|length }} selected{% else %}All Engagements{% endif %}
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <div class="dropdown-search">
+                                <input type="text" placeholder="Search engagements..." onkeyup="filterDropdownItems(this, 'engagementDropdown')">
+                            </div>
+                            <div class="dropdown-items">
+                                {% for e in all_engagements %}
+                                <div class="dropdown-item" data-client="{{ e.client }}">
+                                    <input type="checkbox" id="eng_{{ loop.index }}" name="engagements" value="{{ e.id }}" {% if e.id|string in selected_engagements %}checked{% endif %} onchange="updateDropdownText('engagementDropdown')">
+                                    <label for="eng_{{ loop.index }}">{{ e.name }} ({{ e.client }})</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="select-actions">
+                                <button type="button" class="btn-select-all" onclick="selectAll('engagementDropdown')">Select All</button>
+                                <button type="button" class="btn-clear-all" onclick="clearAll('engagementDropdown')">Clear All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-group" style="min-width: 140px;">
+                    <label for="dateFrom">Date From</label>
+                    <input type="date" id="dateFrom" name="date_from" value="{{ date_from }}">
+                </div>
+                <div class="filter-group" style="min-width: 140px;">
+                    <label for="dateTo">Date To</label>
+                    <input type="date" id="dateTo" name="date_to" value="{{ date_to }}">
+                </div>
+            </div>
+    </div>
+    
+    <!-- Filter Section 2: Period Selection -->
+    <div class="filter-section">
+        <div class="filter-section-title">
+            <i class="fas fa-calendar-alt"></i>
+            Filter by Period
+        </div>
+        <div class="filter-row">
+            <div class="filter-group" style="min-width: 120px;">
+                <label for="fyFilter">Financial Year</label>
+                <select id="fyFilter" name="fy">
+                    <option value="">All Years</option>
+                    {% for year in financial_years %}
+                    {% set next_year = (year|int + 1)|string %}
+                    <option value="{{ year }}" {% if selected_fy == year %}selected{% endif %}>FY {{ year }}/{{ next_year[-2:] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Quarter</label>
+                <div class="period-buttons">
+                    <button type="button" class="period-btn {% if selected_quarter == '1' %}active{% endif %}" data-quarter="1" onclick="setQuarter('1')">Q1</button>
+                    <button type="button" class="period-btn {% if selected_quarter == '2' %}active{% endif %}" data-quarter="2" onclick="setQuarter('2')">Q2</button>
+                    <button type="button" class="period-btn {% if selected_quarter == '3' %}active{% endif %}" data-quarter="3" onclick="setQuarter('3')">Q3</button>
+                    <button type="button" class="period-btn {% if selected_quarter == '4' %}active{% endif %}" data-quarter="4" onclick="setQuarter('4')">Q4</button>
+                </div>
+                <input type="hidden" id="quarterFilter" name="quarter" value="{{ selected_quarter }}">
+            </div>
+            <div class="filter-group" style="min-width: 120px;">
+                <label for="monthFilter">Month</label>
+                <select id="monthFilter" name="month">
+                    <option value="">All Months</option>
+                    <option value="1" {% if selected_month == '1' %}selected{% endif %}>January</option>
+                    <option value="2" {% if selected_month == '2' %}selected{% endif %}>February</option>
+                    <option value="3" {% if selected_month == '3' %}selected{% endif %}>March</option>
+                    <option value="4" {% if selected_month == '4' %}selected{% endif %}>April</option>
+                    <option value="5" {% if selected_month == '5' %}selected{% endif %}>May</option>
+                    <option value="6" {% if selected_month == '6' %}selected{% endif %}>June</option>
+                    <option value="7" {% if selected_month == '7' %}selected{% endif %}>July</option>
+                    <option value="8" {% if selected_month == '8' %}selected{% endif %}>August</option>
+                    <option value="9" {% if selected_month == '9' %}selected{% endif %}>September</option>
+                    <option value="10" {% if selected_month == '10' %}selected{% endif %}>October</option>
+                    <option value="11" {% if selected_month == '11' %}selected{% endif %}>November</option>
+                    <option value="12" {% if selected_month == '12' %}selected{% endif %}>December</option>
+                </select>
+            </div>
+            <div class="filter-group" style="min-width: 80px;">
+                <label for="weekFilter">Week</label>
+                <select id="weekFilter" name="week">
+                    <option value="">All Weeks</option>
+                    {% for w in range(1, 53) %}
+                    <option value="{{ w }}" {% if selected_week == w|string %}selected{% endif %}>Week {{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="filter-actions">
+            <button type="submit" class="btn-apply-filter">
+                <i class="fas fa-check me-1"></i> Apply Filters
+            </button>
+            <button type="button" class="btn-clear-filter" onclick="clearFilters()">
+                <i class="fas fa-times me-1"></i> Clear All
+            </button>
+        </div>
+        
+        <!-- Active Filters Display -->
+        <div class="active-filters" id="activeFilters">
+            {% if selected_clients %}
+                {% for c in selected_clients %}
+                <span class="filter-badge">
+                    <i class="fas fa-building"></i> {{ c }}
+                    <i class="fas fa-times-circle remove-filter" onclick="removeFilter('clients', '{{ c }}')"></i>
+                </span>
+                {% endfor %}
+            {% endif %}
+            {% if selected_fy %}
+            <span class="filter-badge">
+                <i class="fas fa-calendar"></i> FY {{ selected_fy }}
+                <i class="fas fa-times-circle remove-filter" onclick="removeFilter('fy', '')"></i>
+            </span>
+            {% endif %}
+            {% if selected_quarter %}
+            <span class="filter-badge">
+                <i class="fas fa-calendar-week"></i> Q{{ selected_quarter }}
+                <i class="fas fa-times-circle remove-filter" onclick="removeFilter('quarter', '')"></i>
+            </span>
+            {% endif %}
+            {% if selected_month %}
+            <span class="filter-badge">
+                <i class="fas fa-calendar-day"></i> {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][selected_month|int] }}
+                <i class="fas fa-times-circle remove-filter" onclick="removeFilter('month', '')"></i>
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    </form>
+    
+    <!-- KPI Summary Cards - 13 tiles -->
+    <div class="kpi-grid">
+        <div class="kpi-card headcount">
+            <div class="kpi-label">On Contract Headcount</div>
+            <div class="kpi-value">{{ kpis.on_contract_headcount }}</div>
+        </div>
+        <div class="kpi-card forecast-rev">
+            <div class="kpi-label">Forecast Revenue</div>
+            <div class="kpi-value">£{{ "{:,.0f}".format(kpis.forecast_revenue) }}</div>
+        </div>
+        <div class="kpi-card forecast-cos">
+            <div class="kpi-label">Forecast CoS</div>
+            <div class="kpi-value">£{{ "{:,.0f}".format(kpis.forecast_cost) }}</div>
+        </div>
+        <div class="kpi-card forecast-margin">
+            <div class="kpi-label">Forecast Margin (£)</div>
+            <div class="kpi-value {% if kpis.forecast_margin >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.forecast_margin) }}</div>
+        </div>
+        <div class="kpi-card forecast-margin-pct">
+            <div class="kpi-label">Forecast Margin (%)</div>
+            <div class="kpi-value {% if kpis.forecast_margin_pct >= 0 %}positive{% else %}negative{% endif %}">{{ "{:.1f}".format(kpis.forecast_margin_pct) }}%</div>
+        </div>
+        <div class="kpi-card actual-rev">
+            <div class="kpi-label">Actual Revenue</div>
+            <div class="kpi-value">£{{ "{:,.0f}".format(kpis.actual_revenue) }}</div>
+        </div>
+        <div class="kpi-card actual-cost">
+            <div class="kpi-label">Actual Costs</div>
+            <div class="kpi-value">£{{ "{:,.0f}".format(kpis.actual_cost) }}</div>
+        </div>
+        <div class="kpi-card actual-margin">
+            <div class="kpi-label">Actual Margin (£)</div>
+            <div class="kpi-value {% if kpis.actual_margin >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.actual_margin) }}</div>
+        </div>
+        <div class="kpi-card actual-margin-pct">
+            <div class="kpi-label">Actual Margin (%)</div>
+            <div class="kpi-value {% if kpis.actual_margin_pct >= 0 %}positive{% else %}negative{% endif %}">{{ "{:.1f}".format(kpis.actual_margin_pct) }}%</div>
+        </div>
+        <div class="kpi-card avg-margin-pp">
+            <div class="kpi-label">Avg Margin pp (£)</div>
+            <div class="kpi-value {% if kpis.avg_margin_pp >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.avg_margin_pp) }}</div>
+        </div>
+        <div class="kpi-card avg-margin-pp-pct">
+            <div class="kpi-label">Avg Margin pp (%)</div>
+            <div class="kpi-value {% if kpis.avg_margin_pp_pct >= 0 %}positive{% else %}negative{% endif %}">{{ "{:.1f}".format(kpis.avg_margin_pp_pct) }}%</div>
+        </div>
+        <div class="kpi-card variance-rev">
+            <div class="kpi-label">Revenue Variance</div>
+            <div class="kpi-value {% if kpis.revenue_variance >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.revenue_variance) }}</div>
+            <div class="kpi-subvalue">Forecast vs Actual</div>
+        </div>
+        <div class="kpi-card variance-margin">
+            <div class="kpi-label">Margin Variance</div>
+            <div class="kpi-value {% if kpis.margin_variance >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.margin_variance) }}</div>
+            <div class="kpi-subvalue">Forecast vs Actual</div>
+        </div>
+    </div>
+    
+    <!-- Charts Section (Doughnut & Bar) -->
+    <div class="charts-section">
+        <div class="chart-card">
+            <h3><i class="fas fa-chart-pie"></i> Revenue by Client</h3>
+            <div class="chart-container">
+                <canvas id="revenueByClientChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3><i class="fas fa-users"></i> Headcount by Client</h3>
+            <div class="chart-container">
+                <canvas id="headcountByClientChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Client List Summary Table -->
+    <div class="client-list-summary">
+        <div class="client-list-header">
+            <h3><i class="fas fa-list text-primary"></i> Client Summary</h3>
+        </div>
+        <table class="client-list-table">
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th class="number">Engagements</th>
+                    <th class="number">Headcount</th>
+                    <th class="number">Forecast Rev</th>
+                    <th class="number">Actual Rev</th>
+                    <th class="number">Forecast Margin</th>
+                    <th class="number">Actual Margin</th>
+                    <th class="number">Variance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr onclick="scrollToClient('{{ client.name }}')" style="cursor: pointer;">
+                    <td>
+                        <span class="client-color-dot" style="background: {{ loop.cycle('#1e3a8a', '#10b981', '#f59e0b', '#ef4444', '#1e3a8a', '#ec4899', '#1e3a8a', '#84cc16') }};"></span>
+                        {{ client.name }}
+                    </td>
+                    <td class="number">{{ client.engagements|length }}</td>
+                    <td class="number">{{ client.total_headcount }}</td>
+                    <td class="number">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
+                    <td class="number">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
+                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
+                    <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
+                    <td class="number">
+                        {% set variance = client.total_actual_revenue - client.total_forecast_revenue %}
+                        <span style="color: {% if variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
+                            £{{ "{:,.0f}".format(variance) }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td><strong>Total</strong></td>
+                    <td class="number">{% set total_eng = namespace(count=0) %}{% for c in clients %}{% set total_eng.count = total_eng.count + c.engagements|length %}{% endfor %}{{ total_eng.count }}</td>
+                    <td class="number">{{ kpis.on_contract_headcount }}</td>
+                    <td class="number">£{{ "{:,.0f}".format(kpis.forecast_revenue) }}</td>
+                    <td class="number">£{{ "{:,.0f}".format(kpis.actual_revenue) }}</td>
+                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(kpis.forecast_margin) }}</td>
+                    <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(kpis.actual_margin) }}</td>
+                    <td class="number">
+                        <span style="color: {% if kpis.revenue_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
+                            £{{ "{:,.0f}".format(kpis.revenue_variance) }}
+                        </span>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    
+    <!-- Client Breakdown -->
+    <h2 class="h5 mb-3"><i class="fas fa-building me-2 text-primary"></i>By Client</h2>
+    
+    {% for client in clients %}
+    <div class="client-section" data-client="{{ client.name }}">
+        <div class="client-header" onclick="toggleClient(this)">
+            <div class="client-name">
+                <i class="fas fa-briefcase"></i>
+                {{ client.name }}
+                <span class="badge bg-secondary">{{ client.engagements|length }} engagement{{ 's' if client.engagements|length != 1 else '' }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="client-summary">
+                    <div class="metric">
+                        <span class="metric-label">Headcount</span>
+                        <span class="metric-value">{{ client.total_headcount }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Forecast</span>
+                        <span class="metric-value positive">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Actual</span>
+                        <span class="metric-value positive">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Margin</span>
+                        <span class="metric-value positive">£{{ "{:,.0f}".format(client.total_actual_margin) }}</span>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </div>
+        </div>
+        <div class="client-body">
+            <table class="engagement-table">
+                <thead>
+                    <tr>
+                        <th>Engagement</th>
+                        <th>Status</th>
+                        <th>Dates</th>
+                        <th class="number">Headcount</th>
+                        <th class="number">Forecast Rev.</th>
+                        <th class="number">Actual Rev.</th>
+                        <th class="number">Forecast Margin</th>
+                        <th class="number">Actual Margin</th>
+                        <th class="number">Variance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eng in client.engagements %}
+                    <tr>
+                        <td>
+                            <div class="engagement-name">
+                                <a href="{{ url_for('engagement_dashboard', eng_id=eng.id) }}">{{ eng.name or 'Unnamed' }}</a>
+                            </div>
+                            <div class="engagement-ref">{{ eng.ref }}</div>
+                        </td>
+                        <td>
+                            {% set status_lower = eng.status|lower if eng.status else 'unknown' %}
+                            <span class="status-badge {% if status_lower == 'active' or status_lower == 'in progress' %}active{% elif status_lower == 'pending' %}pending{% elif status_lower == 'completed' %}completed{% else %}default{% endif %}">
+                                {{ eng.status or 'Unknown' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if eng.start_date %}
+                            {{ eng.start_date.strftime('%d/%m/%y') if eng.start_date is not string else eng.start_date[:10] }}
+                            {% else %}—{% endif %}
+                            —
+                            {% if eng.end_date %}
+                            {{ eng.end_date.strftime('%d/%m/%y') if eng.end_date is not string else eng.end_date[:10] }}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="number">{{ eng.total_headcount }}</td>
+                        <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(eng.forecast_revenue) }}</td>
+                        <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(eng.actual_revenue) }}</td>
+                        <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
+                        <td class="number">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
+                        <td class="number">
+                            {% set eng_variance = eng.actual_revenue - eng.forecast_revenue %}
+                            <span style="color: {% if eng_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
+                                £{{ "{:,.0f}".format(eng_variance) }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f8fafc; font-weight: 600;">
+                        <td colspan="3">Client Total</td>
+                        <td class="number">{{ client.total_headcount }}</td>
+                        <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
+                        <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
+                        <td class="number">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
+                        <td class="number">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
+                        <td class="number">
+                            {% set client_variance = client.total_actual_revenue - client.total_forecast_revenue %}
+                            <span style="color: {% if client_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
+                                £{{ "{:,.0f}".format(client_variance) }}
+                            </span>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        No engagement data available. Create engagements with plans to see revenue forecasts.
+    </div>
+    {% endfor %}
+    
+    <!-- Actual vs Forecast Revenue Chart (moved above Power BI) -->
+    <div class="chart-card" style="margin: 2rem 0;">
+        <h3><i class="fas fa-chart-line"></i> Actual Revenue vs Forecast Revenue</h3>
+        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem;">Monthly comparison of actual billed revenue against forecasted projections</p>
+        <div class="chart-container" style="height: 350px;">
+            <canvas id="revenueVsForecastChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Forecast Margin vs Actual Margin Chart -->
+    <div class="chart-card" style="margin: 2rem 0;">
+        <h3><i class="fas fa-chart-area"></i> Forecast Margin vs Actual Margin</h3>
+        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem;">Monthly comparison of forecasted gross margin against actual realised margin</p>
+        <div class="chart-container" style="height: 350px;">
+            <canvas id="marginVsForecastChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Chart.js configuration
+const chartColors = [
+    '#1e3a8a', '#10b981', '#f59e0b', '#ef4444', '#1e3a8a', 
+    '#ec4899', '#1e3a8a', '#84cc16', '#f97316', '#1e3a8a'
+];
+
+// Trend data from template (Actual vs Forecast)
+const trendData = {
+    labels: {{ trend_data.labels | tojson }},
+    forecast: {{ trend_data.forecast | tojson }},
+    actual: {{ trend_data.actual | tojson }},
+    forecast_margin: {{ trend_data.forecast_margin | tojson }},
+    actual_margin: {{ trend_data.actual_margin | tojson }}
+};
+
+// Revenue vs Forecast Line Chart
+const revenueVsForecastCtx = document.getElementById('revenueVsForecastChart');
+if (revenueVsForecastCtx) {
+    new Chart(revenueVsForecastCtx, {
+        type: 'line',
+        data: {
+            labels: trendData.labels,
+            datasets: [
+                {
+                    label: 'Forecast Revenue',
+                    data: trendData.forecast,
+                    borderColor: '#1e3a8a',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#1e3a8a',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                },
+                {
+                    label: 'Actual Revenue',
+                    data: trendData.actual,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    spanGaps: false,  // Stop line at last data point (don't connect across nulls)
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 20,
+                        font: { size: 12, weight: '500' },
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            if (value === null || value === undefined) {
+                                return null;  // Don't show tooltip for null values
+                            }
+                            return `${context.dataset.label}: £${value.toLocaleString('en-GB', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: { size: 11 }
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        font: { size: 11 },
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return '£' + (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return '£' + (value / 1000).toFixed(0) + 'K';
+                            }
+                            return '£' + value;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Client data from template
+const clientData = [
+    {% for client in clients %}
+    {
+        name: "{{ client.name }}",
+        forecast: {{ client.total_forecast_revenue }},
+        actual: {{ client.total_actual_revenue }},
+        headcount: {{ client.total_headcount }},
+        margin: {{ client.total_forecast_margin }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Revenue by Client Pie Chart
+const revenueCtx = document.getElementById('revenueByClientChart');
+if (revenueCtx && clientData.length > 0) {
+    new Chart(revenueCtx, {
+        type: 'doughnut',
+        data: {
+            labels: clientData.map(c => c.name),
+            datasets: [{
+                data: clientData.map(c => c.actual),
+                backgroundColor: chartColors.slice(0, clientData.length),
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15,
+                        font: { size: 11 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `£${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Headcount by Client Bar Chart
+const headcountCtx = document.getElementById('headcountByClientChart');
+if (headcountCtx && clientData.length > 0) {
+    new Chart(headcountCtx, {
+        type: 'bar',
+        data: {
+            labels: clientData.map(c => c.name),
+            datasets: [{
+                label: 'Headcount',
+                data: clientData.map(c => c.headcount),
+                backgroundColor: chartColors.slice(0, clientData.length),
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#f3f4f6'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Forecast Margin vs Actual Margin Line Chart
+const marginVsForecastCtx = document.getElementById('marginVsForecastChart');
+if (marginVsForecastCtx) {
+    new Chart(marginVsForecastCtx, {
+        type: 'line',
+        data: {
+            labels: trendData.labels,
+            datasets: [
+                {
+                    label: 'Forecast Margin',
+                    data: trendData.forecast_margin,
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#7c3aed',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                },
+                {
+                    label: 'Actual Margin',
+                    data: trendData.actual_margin,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    spanGaps: false,
+                    pointBackgroundColor: '#f59e0b',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 20,
+                        font: { size: 12, weight: '500' },
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            if (value === null || value === undefined) return null;
+                            return `${context.dataset.label}: £${value.toLocaleString('en-GB', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                    ticks: {
+                        font: { size: 11 },
+                        callback: function(value) {
+                            if (value >= 1000000) return '£' + (value / 1000000).toFixed(1) + 'M';
+                            else if (value >= 1000) return '£' + (value / 1000).toFixed(0) + 'K';
+                            return '£' + value;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Filter Functions
+function setQuarter(q) {
+    document.getElementById('quarterFilter').value = q;
+    document.querySelectorAll('.period-btn[data-quarter]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.quarter === q);
+    });
+}
+
+// Dropdown Multi-select Functions
+function toggleDropdown(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const isOpen = dropdown.classList.contains('open');
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-multiselect.open').forEach(d => {
+        if (d.id !== dropdownId) {
+            d.classList.remove('open');
+        }
+    });
+    
+    dropdown.classList.toggle('open');
+}
+
+function updateDropdownText(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+    const textSpan = dropdown.querySelector('.selected-text');
+    
+    if (checkboxes.length === 0) {
+        textSpan.textContent = dropdownId === 'clientDropdown' ? 'All Clients' : 'All Engagements';
+    } else {
+        textSpan.textContent = checkboxes.length + ' selected';
+    }
+}
+
+function filterDropdownItems(input, dropdownId) {
+    const filter = input.value.toLowerCase();
+    const dropdown = document.getElementById(dropdownId);
+    const items = dropdown.querySelectorAll('.dropdown-item');
+    
+    items.forEach(item => {
+        const label = item.querySelector('label').textContent.toLowerCase();
+        item.style.display = label.includes(filter) ? '' : 'none';
+    });
+}
+
+function selectAll(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([style*="display: none"]) input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateDropdownText(dropdownId);
+}
+
+function clearAll(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateDropdownText(dropdownId);
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown-multiselect')) {
+        document.querySelectorAll('.dropdown-multiselect.open').forEach(d => {
+            d.classList.remove('open');
+        });
+    }
+});
+
+// Cascade: when client selection changes, show only matching engagements
+function cascadeClientToEngagement() {
+    const selectedClients = Array.from(
+        document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
+    const engItems = document.querySelectorAll('#engagementDropdown .dropdown-item[data-client]');
+    engItems.forEach(item => {
+        if (selectedClients.length === 0) {
+            // No client filter — show all engagements
+            item.style.display = '';
+        } else {
+            const client = item.getAttribute('data-client');
+            item.style.display = selectedClients.includes(client) ? '' : 'none';
+            // Uncheck hidden items
+            if (!selectedClients.includes(client)) {
+                const cb = item.querySelector('input[type="checkbox"]');
+                if (cb) cb.checked = false;
+            }
+        }
+    });
+    updateDropdownText('engagementDropdown');
+}
+
+// Run cascade on page load (if clients are pre-selected)
+document.addEventListener('DOMContentLoaded', cascadeClientToEngagement);
+
+function clearFilters() {
+    document.getElementById('filterForm').reset();
+    document.getElementById('quarterFilter').value = '';
+    document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+    // Clear dropdown multi-selects
+    document.querySelectorAll('.dropdown-multiselect input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+    });
+    updateDropdownText('clientDropdown');
+    updateDropdownText('engagementDropdown');
+    // Submit to clear
+    window.location.href = '{{ url_for("revenue") }}';
+}
+
+function removeFilter(filterName, value) {
+    const url = new URL(window.location.href);
+    if (value) {
+        // For multi-value filters like clients
+        const values = url.searchParams.getAll(filterName);
+        url.searchParams.delete(filterName);
+        values.filter(v => v !== value).forEach(v => url.searchParams.append(filterName, v));
+    } else {
+        url.searchParams.delete(filterName);
+    }
+    window.location.href = url.toString();
+}
+
+function toggleClient(header) {
+    const section = header.closest('.client-section');
+    section.classList.toggle('expanded');
+}
+
+function scrollToClient(clientName) {
+    const clientSection = document.querySelector(`.client-section[data-client="${clientName}"]`);
+    if (clientSection) {
+        clientSection.classList.add('expanded');
+        clientSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Auto-expand first client
+document.addEventListener('DOMContentLoaded', function() {
+    const firstClient = document.querySelector('.client-section');
+    if (firstClient) {
+        firstClient.classList.add('expanded');
+    }
+    
+    // Sync filter form with period filters
+    const fySelect = document.getElementById('fyFilter');
+    const quarterInput = document.getElementById('quarterFilter');
+    const monthSelect = document.getElementById('monthFilter');
+    const weekSelect = document.getElementById('weekFilter');
+    
+    [fySelect, monthSelect, weekSelect].forEach(el => {
+        if (el) {
+            el.addEventListener('change', function() {
+                // Auto-submit could be added here for instant filtering
+            });
+        }
+    });
+
+    // Cascading Client -> Engagement filter
+    // When client checkboxes change, show/hide engagement items accordingly
+    const clientDropdown = document.getElementById('clientDropdown');
+    const engDropdown = document.getElementById('engagementDropdown');
+
+    function getSelectedClients() {
+        const checked = clientDropdown.querySelectorAll('input[type="checkbox"]:checked');
+        return Array.from(checked).map(cb => cb.value);
+    }
+
+    function filterEngagementsByClient() {
+        const selectedClients = getSelectedClients();
+        const engItems = engDropdown.querySelectorAll('.dropdown-item[data-client]');
+
+        engItems.forEach(item => {
+            const engClient = item.getAttribute('data-client');
+            if (selectedClients.length === 0) {
+                // No client filter — show all engagements
+                item.style.display = '';
+            } else if (selectedClients.includes(engClient)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+                // Uncheck hidden engagement items
+                const cb = item.querySelector('input[type="checkbox"]');
+                if (cb) cb.checked = false;
+            }
+        });
+        updateDropdownText('engagementDropdown');
+    }
+
+    // Attach change listeners to all client checkboxes
+    if (clientDropdown) {
+        clientDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', filterEngagementsByClient);
+        });
+        // Run once on load to apply initial state
+        filterEngagementsByClient();
+    }
+});
+</script>
+</div>
+{% endblock %}

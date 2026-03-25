@@ -1,0 +1,21 @@
+{% extends "public_base.html" %}
+{% block title %}Create account{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 520px;">
+  <div class="card card-brand p-4 p-md-5 bg-white">
+    <h1 class="h4 fw-bold mb-3">Create a candidate account</h1>
+    <form method="post" action="{{ url_for('public.signup') }}{% if request.args.get('next') %}?next={{ request.args.get('next')|urlencode }}{% endif %}">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Full name</label>
+        <input type="text" name="name" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Email</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <button class="btn btn-brand w-100" type="submit">Create account</button>
+    </form>
+    <p class="mt-3 mb-0 text-muted">Already registered? <a class="link-brand" href="{{ url_for('public.login', next=request.args.get('next')) }}">Sign in</a></p>
+  </div>
+</div>
+{% endblock %}

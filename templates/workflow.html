@@ -1,0 +1,1856 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow · Optimus OS1{% endblock %}
+
+{% block head %}
+<style>
+  /* ===== Workflow Page Styles ===== */
+  .workflow-header {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  .workflow-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .workflow-header p {
+    margin: 0.5rem 0 0 0;
+    opacity: 0.9;
+  }
+
+  /* Stage Summary Cards - aligned with Kanban */
+  .stage-summary {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 0 1.5rem 0;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+
+  .stage-summary-card {
+    flex: 1 1 0;
+    min-width: 160px;
+    max-width: 200px;
+    background: white;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-left: 4px solid #030a1d;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .stage-summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+
+  .stage-summary-card .stage-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    background: #f0f4fa;
+    color: #030a1d;
+  }
+
+  .stage-summary-card .stage-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+  }
+
+  .stage-summary-card .stage-name {
+    font-size: 0.7rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Kanban Board — horizontal scroll starts at left nav edge */
+  .workflow-scroll-wrapper {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -1rem;
+    padding: 0 1rem 1rem 0;
+    position: relative;
+    z-index: 10;
+  }
+
+  .kanban-container {
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+    flex-wrap: nowrap;
+    min-width: max-content;
+  }
+
+  .kanban-column {
+    flex: 0 0 200px;
+    min-width: 180px;
+    max-width: 220px;
+    background: #f3f4f6;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Hidden columns via Focus View */
+  .kanban-column.focus-hidden {
+    display: none !important;
+  }
+  .stage-summary-card.focus-hidden {
+    display: none !important;
+  }
+
+  .kanban-column-header {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+    border-radius: 12px 12px 0 0;
+    height: 52px;
+    display: flex;
+    align-items: center;
+  }
+
+  .kanban-column-header h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: 100%;
+    line-height: 1.3;
+  }
+
+  .kanban-column-header h3 .stage-title {
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kanban-column-header .column-count {
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 0.7rem;
+    padding: 0.125rem 0.4rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Focus checkbox in column header */
+  .kanban-column-header .focus-cb {
+    width: 14px;
+    height: 14px;
+    margin-right: 0.25rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: #1e3a8a;
+  }
+
+  .kanban-column-body {
+    flex: 1;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .kanban-column-body:empty::after {
+    content: "No items";
+    color: #9ca3af;
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 1.5rem 0.5rem;
+  }
+
+  /* Kanban Cards */
+  .kanban-card {
+    background: white;
+    border-radius: 8px;
+    padding: 0.625rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    cursor: grab;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border-left: 4px solid #030a1d;
+    font-size: 0.8rem;
+    position: relative;
+  }
+
+  .kanban-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .kanban-card:active {
+    cursor: grabbing;
+  }
+
+  .kanban-card.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg);
+  }
+
+  /* Bulk select checkbox on card */
+  .kanban-card .bulk-select-cb {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: #ef4444;
+    display: none;
+  }
+  .bulk-mode .kanban-card .bulk-select-cb {
+    display: block;
+  }
+  .kanban-card.bulk-selected {
+    outline: 2px solid #ef4444;
+    outline-offset: -2px;
+  }
+
+  .kanban-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.375rem;
+  }
+
+  .kanban-card .associate-name {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+
+  /* Contact Details */
+  .kanban-card .card-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .kanban-card .contact-item {
+    font-size: 0.65rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .kanban-card .contact-item i {
+    width: 12px;
+    color: #9ca3af;
+  }
+
+  .kanban-card .contact-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Card Details (Client, Engagement, Role, Intake) */
+  .kanban-card .card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .kanban-card .detail-item {
+    font-size: 0.65rem;
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .kanban-card .detail-label {
+    color: #9ca3af;
+    font-weight: 500;
+    min-width: 65px;
+  }
+
+  .kanban-card .detail-value {
+    color: #374151;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  /* Vetting Status Bar with RAG */
+  .kanban-card .vetting-status-bar {
+    background: #f9fafb;
+    border-radius: 4px;
+    padding: 0.375rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .kanban-card .vetting-header {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .kanban-card .vetting-label {
+    font-size: 0.6rem;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .kanban-card .vetting-count {
+    font-size: 0.6rem;
+    color: #374151;
+    font-weight: 600;
+    margin-left: auto;
+  }
+
+  .kanban-card .rag-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .kanban-card .rag-indicator.rag-green {
+    background: #22c55e;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+  }
+
+  .kanban-card .rag-indicator.rag-amber {
+    background: #f59e0b;
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+  }
+
+  .kanban-card .rag-indicator.rag-red {
+    background: #ef4444;
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+  }
+
+  .kanban-card .rag-indicator.rag-grey {
+    background: #9ca3af;
+  }
+
+  .kanban-card .vetting-bar {
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .kanban-card .vetting-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .kanban-card .vetting-fill.rag-green {
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+  }
+
+  .kanban-card .vetting-fill.rag-amber {
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+  }
+
+  .kanban-card .vetting-fill.rag-red {
+    background: linear-gradient(90deg, #ef4444, #dc2626);
+  }
+
+  .kanban-card .vetting-fill.rag-grey {
+    background: #9ca3af;
+  }
+
+  /* Warning style for placed cards with incomplete vetting */
+  .kanban-card .vetting-status-bar.vetting-warning {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+  }
+
+  .kanban-card .candidate-location {
+    font-size: 0.7rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.125rem;
+  }
+
+  .kanban-card .job-badge {
+    font-size: 0.6rem;
+    background: #e8eef8;
+    color: #1e3a8a;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: normal;
+    word-wrap: break-word;
+    line-height: 1.3;
+  }
+
+  .kanban-card .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.375rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid #f3f4f6;
+  }
+
+  .kanban-card .meta-item {
+    font-size: 0.6rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+
+  .kanban-card .card-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+  }
+
+  .kanban-card .card-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.625rem;
+  }
+
+  /* Status badges */
+  .status-badge {
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .status-badge.yes { background: #dcfce7; color: #166534; }
+  .status-badge.maybe { background: #fef3c7; color: #92400e; }
+  .status-badge.no { background: #fee2e2; color: #991b1b; }
+
+  /* Score indicator */
+  .ai-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.625rem;
+    color: #6b7280;
+  }
+
+  .ai-score .score-bar {
+    width: 40px;
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .ai-score .score-fill {
+    height: 100%;
+    background: #1e3a8a;
+    border-radius: 2px;
+  }
+
+  /* Vetting progress */
+  .vetting-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.625rem;
+    color: #6b7280;
+  }
+
+  .vetting-progress .progress-bar {
+    flex: 1;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .vetting-progress .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    border-radius: 3px;
+  }
+
+  /* Filters */
+  .workflow-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .workflow-filters .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 120px;
+    max-width: 160px;
+  }
+
+  .workflow-filters label {
+    font-size: 0.7rem;
+    color: #6b7280;
+    font-weight: 500;
+    height: 16px;
+  }
+
+  .workflow-filters select,
+  .workflow-filters input {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    width: 100%;
+    height: 34px;
+  }
+
+  .filter-buttons-group {
+    flex: 0 0 auto;
+    min-width: auto;
+    max-width: none;
+  }
+
+  .filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .filter-buttons .btn {
+    height: 34px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  /* Summary Info Cards */
+  .info-cards-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+
+  .info-card {
+    flex: 1;
+    min-width: 260px;
+    max-width: 380px;
+    background: white;
+    border-radius: 10px;
+    padding: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .info-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .info-card-header .icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+  }
+
+  .info-card-header h4 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .info-card-header .badge {
+    margin-left: auto;
+    font-size: 0.7rem;
+  }
+
+  .info-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .info-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .info-stat:last-child {
+    border-bottom: none;
+  }
+
+  .info-stat .label {
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+
+  .info-stat .value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .info-stat .value.warning {
+    color: #f59e0b;
+  }
+
+  .info-stat .value.success {
+    color: #10b981;
+  }
+
+  .info-stat .value.danger {
+    color: #ef4444;
+  }
+
+  .info-list {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .info-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.8rem;
+  }
+
+  .info-list-item:last-child {
+    border-bottom: none;
+  }
+
+  .info-list-item .name {
+    color: #374151;
+    font-weight: 500;
+  }
+
+  .info-list-item .days {
+    color: #ef4444;
+    font-size: 0.75rem;
+  }
+
+  /* Drop zone highlighting */
+  .kanban-column-body.drag-over {
+    background: #e8eef8;
+    border: 2px dashed #1e3a8a;
+    border-radius: 8px;
+  }
+
+  /* Bulk Reject Modal */
+  .bulk-reject-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+  }
+  .bulk-reject-overlay.show {
+    display: flex;
+  }
+  .bulk-reject-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 480px;
+    max-width: 90vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  }
+  .bulk-reject-modal h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+  }
+  .bulk-reject-modal textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .stage-summary {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .kanban-column {
+      flex: 0 0 260px;
+      min-width: 260px;
+    }
+  }
+</style>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<!-- Page Header -->
+<div class="workflow-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1><i class="fas fa-columns me-2"></i>Workflow</h1>
+      <p>Track associates through each stage of the resourcing process</p>
+    </div>
+    <div class="d-flex gap-2">
+      <!-- Focus View Button -->
+      <button class="btn btn-outline-light btn-sm" id="focusBtn" onclick="applyFocusView()" title="Hide unchecked columns" style="display:none;">
+        <i class="fas fa-eye me-1"></i> Focus
+      </button>
+      <button class="btn btn-outline-light btn-sm" id="focusResetBtn" onclick="resetFocusView()" style="display:none;">
+        <i class="fas fa-eye-slash me-1"></i> Show All
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form id="filterForm" method="GET" action="{{ url_for('workflow') }}" class="workflow-filters">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label for="filterEngStatus">Engagement Status</label>
+      <select id="filterEngStatus" name="eng_status">
+        <option value="active" {% if eng_status_filter == 'active' %}selected{% endif %}>Active Only</option>
+        <option value="all" {% if eng_status_filter == 'all' %}selected{% endif %}>All Time</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterOwner">Owner</label>
+      <select id="filterOwner" name="owner">
+        <option value="all">All Owners</option>
+        {% for owner in all_owners %}
+        <option value="{{ owner }}" {% if owner_filter == owner %}selected{% endif %}>{{ owner }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterClient">Client</label>
+      <select id="filterClient" name="client">
+        <option value="all">All Clients</option>
+        {% for client in all_clients %}
+        <option value="{{ client }}" {% if client_filter == client %}selected{% endif %}>{{ client }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterEngagement">Engagement</label>
+      <select id="filterEngagement" name="engagement">
+        <option value="all">All Engagements</option>
+        {% for eng in all_engagements %}
+        <option value="{{ eng.id }}" {% if engagement_filter == eng.id|string %}selected{% endif %}>{{ eng.name }} ({{ eng.client }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterRole">Role</label>
+      <select id="filterRole" name="role">
+        <option value="all">All Roles</option>
+        {% for role in all_roles %}
+        <option value="{{ role }}" {% if role_filter == role %}selected{% endif %}>{{ role }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterIntake">Intake</label>
+      <select id="filterIntake" name="intake">
+        <option value="all">All Intakes</option>
+        {% for intake in all_intakes %}
+        <option value="{{ intake }}" {% if intake_filter == intake %}selected{% endif %}>{{ intake }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if all_analysts is defined and all_analysts %}
+    <div class="filter-group">
+      <label for="filterAnalyst">Analyst</label>
+      <select id="filterAnalyst" name="analyst">
+        <option value="all">All Analysts</option>
+        {% for a in all_analysts %}
+        <option value="{{ a.id }}" {% if analyst_filter == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="filter-group">
+      <label for="searchName">Search</label>
+      <input type="text" id="searchName" placeholder="Search by name..." oninput="applyClientFilter()">
+    </div>
+    <div class="filter-group filter-buttons-group">
+      <label>&nbsp;</label>
+      <div class="filter-buttons">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()"><i class="fas fa-times me-1"></i> Clear</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Stage Summary Cards (KPI row) -->
+<div class="stage-summary">
+  {% for stage in stages %}
+  <div class="stage-summary-card" data-stage-summary="{{ stage.id }}">
+    <div class="stage-icon">
+      <i class="fas {{ stage.icon }}"></i>
+    </div>
+    <div class="stage-count">{{ stage.count }}</div>
+    <div class="stage-name">{{ stage.name }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Action Buttons -->
+<div class="d-flex gap-2" style="margin-bottom: 0.5rem;">
+  <button class="btn btn-outline-danger btn-sm" id="bulkRejectToggle" onclick="toggleBulkMode()">
+    <i class="fas fa-ban me-1"></i> Bulk Reject
+  </button>
+  <button class="btn btn-danger btn-sm" id="bulkRejectConfirm" onclick="openBulkRejectModal()" style="display:none;">
+    <i class="fas fa-trash me-1"></i> Reject Selected (<span id="bulkCount">0</span>)
+  </button>
+  <button class="btn btn-outline-secondary btn-sm" id="bulkRejectCancel" onclick="cancelBulkMode()" style="display:none;">
+    Cancel
+  </button>
+  <button class="btn btn-outline-secondary btn-sm" onclick="refreshWorkflow()">
+    <i class="fas fa-sync-alt me-1"></i> Refresh
+  </button>
+</div>
+
+<!-- Kanban Board — wrapped for horizontal scroll starting at nav edge -->
+<div class="workflow-scroll-wrapper">
+<div class="kanban-container" id="kanbanContainer">
+  {% for stage in stages %}
+  <div class="kanban-column" data-stage="{{ stage.id }}">
+    <div class="kanban-column-header">
+      <h3>
+        <input type="checkbox" class="focus-cb" data-stage="{{ stage.id }}" checked onchange="onFocusCbChange()">
+        <i class="fas {{ stage.icon }}" style="color: {{ stage.color }}; flex-shrink: 0;"></i>
+        <span class="stage-title" title="{{ stage.name }}">{{ stage.name }}</span>
+        <span class="column-count">{{ stage.count }}</span>
+      </h3>
+    </div>
+    <div class="kanban-column-body"
+         data-stage="{{ stage.id }}"
+         ondrop="handleDrop(event)"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)">
+
+      {% for card in stage_data.get(stage.id, []) %}
+      <div class="kanban-card"
+           draggable="true"
+           data-id="{{ card.id }}"
+           data-type="{{ card.type }}"
+           data-job-id="{{ card.get('job_id', '') }}"
+           data-engagement-id="{{ card.get('engagement_id', '') }}"
+           data-candidate-id="{{ card.candidate_id }}"
+           data-sla-status="{{ card.vetting_progress.sla_status if card.vetting_progress else 'in' }}"
+           data-vetting-complete="{{ card.vetting_progress.complete if card.vetting_progress else 0 }}"
+           data-vetting-total="{{ card.vetting_progress.effective_total if card.vetting_progress else 0 }}"
+           ondragstart="handleDragStart(event)"
+           ondragend="handleDragEnd(event)"
+           style="--card-accent: {{ stage.color }}">
+
+        <!-- Bulk select checkbox (hidden until bulk mode) -->
+        <input type="checkbox" class="bulk-select-cb" data-card-id="{{ card.id }}" onchange="updateBulkCount()">
+
+        <!-- Associate Name -->
+        <div class="card-header">
+          <div>
+            <h4 class="associate-name">{{ card.name }}</h4>
+          </div>
+          {% if card.get('job_title') %}
+          <span class="job-badge" title="{{ card.job_title }}">{{ card.job_title }}</span>
+          {% endif %}
+        </div>
+
+        <!-- Contact Details -->
+        <div class="card-contact">
+          {% if card.email %}
+          <div class="contact-item" title="{{ card.email }}">
+            <i class="fas fa-envelope"></i>
+            <span>{{ card.email[:20] }}{{ '...' if card.email|length > 20 else '' }}</span>
+          </div>
+          {% endif %}
+          {% if card.phone %}
+          <div class="contact-item">
+            <i class="fas fa-phone"></i>
+            <span>{{ card.phone }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Client, Engagement, Role, Intake -->
+        <div class="card-details">
+          {% if card.client %}
+          <div class="detail-item">
+            <span class="detail-label">Client:</span>
+            <span class="detail-value">{% if card.engagement_id %}<a href="{{ url_for('engagement_dashboard', eng_id=card.engagement_id) }}" style="color:inherit;text-decoration:underline dotted;">{{ card.client }}</a>{% else %}{{ card.client }}{% endif %}</span>
+          </div>
+          {% endif %}
+          {% if card.engagement_name %}
+          <div class="detail-item">
+            <span class="detail-label">Engagement:</span>
+            <span class="detail-value">{% if card.engagement_id %}<a href="{{ url_for('engagement_dashboard', eng_id=card.engagement_id) }}" style="color:inherit;text-decoration:underline dotted;">{{ card.engagement_name }}</a>{% else %}{{ card.engagement_name }}{% endif %}</span>
+          </div>
+          {% endif %}
+          <div class="detail-item">
+            <span class="detail-label">Intake:</span>
+            <span class="detail-value">{{ card.intake }}</span>
+          </div>
+          {% if card.job_title %}
+          <div class="detail-item">
+            <span class="detail-label">Role:</span>
+            <span class="detail-value">{{ card.job_title }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Vetting Progress Bar with RAG Status -->
+        {% set vetting_incomplete = card.vetting_progress and card.vetting_progress.complete < card.vetting_progress.effective_total %}
+        <div class="vetting-status-bar">
+          {% if card.vetting_progress %}
+          <div class="vetting-header">
+            <span class="vetting-label">Vetting</span>
+            <span class="vetting-count">{{ card.vetting_progress.complete }}/{{ card.vetting_progress.effective_total }}</span>
+            <span class="rag-indicator rag-{{ card.vetting_progress.rag }}" title="{{ card.vetting_progress.rag|upper }}"></span>
+          </div>
+          <div class="vetting-bar">
+            <div class="vetting-fill rag-{{ card.vetting_progress.rag }}" style="width: {{ card.vetting_progress.percentage }}%"></div>
+          </div>
+          {% else %}
+          <div class="vetting-header">
+            <span class="vetting-label">Vetting</span>
+            <span class="vetting-count">Not Started</span>
+            <span class="rag-indicator rag-grey" title="No vetting data"></span>
+          </div>
+          <div class="vetting-bar">
+            <div class="vetting-fill rag-grey" style="width: 0%"></div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="card-actions">
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}"
+             class="btn btn-outline-primary btn-sm"
+             title="View Profile">
+            <i class="fas fa-user"></i>
+          </a>
+          {% if card.get('job_id') and card.get('engagement_id') %}
+          <a href="{{ url_for('engagement_job_detail', eng_id=card.engagement_id, job_id=card.job_id) }}"
+             class="btn btn-outline-secondary btn-sm"
+             title="View Job">
+            <i class="fas fa-briefcase"></i>
+          </a>
+          {% elif card.get('job_id') %}
+          <a href="{{ url_for('job_edit', job_id=card.job_id) }}"
+             class="btn btn-outline-secondary btn-sm"
+             title="View Job">
+            <i class="fas fa-briefcase"></i>
+          </a>
+          {% endif %}
+
+          {# Placement link for Contract Sent stage #}
+          {% if stage.id == 'contract_sent' %}
+          <a href="{{ url_for('placements') }}"
+             class="btn btn-outline-success btn-sm"
+             title="View Placements">
+            <i class="fas fa-check-circle"></i>
+          </a>
+          {% endif %}
+
+          <!-- Stage-specific action buttons -->
+          {% if stage.id == 'pipeline' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Shortlist')" title="Pass CV">
+            <i class="fas fa-check"></i>
+          </button>
+          {% elif stage.id == 'shortlist' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'I&A')" title="Pass Tele-screen">
+            <i class="fas fa-phone-alt"></i>
+          </button>
+          {% elif stage.id == 'ia' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Client Review')" title="Pass I&A">
+            <i class="fas fa-clipboard-check"></i>
+          </button>
+          {% elif stage.id == 'client_review' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Offered')" title="Make Offer">
+            <i class="fas fa-hand-holding-usd"></i>
+          </button>
+          {% elif stage.id == 'offered' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Accepted')" title="Accept Offer">
+            <i class="fas fa-thumbs-up"></i>
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="advanceStage({{ card.id }}, 'Rejected')" title="Decline Offer">
+            <i class="fas fa-thumbs-down"></i>
+          </button>
+          {% elif stage.id == 'accepted' %}
+          <button class="btn btn-info btn-sm" onclick="triggerVetting({{ card.candidate_id }})" title="Start Vetting">
+            <i class="fas fa-play-circle"></i>
+          </button>
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Ready to Contract')" title="Vetting Complete">
+            <i class="fas fa-shield-alt"></i>
+          </button>
+          {% elif stage.id == 'ready_to_contract' %}
+          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Contract Sent')" title="Send Contract">
+            <i class="fas fa-file-signature"></i>
+          </button>
+          {% elif stage.id == 'contract_sent' %}
+          {# No "Placed" advance button — signed contracts move to Placements section #}
+          {% endif %}
+
+          {# REQ-274: General Skip/Unskip stage dropdown #}
+          <div class="dropdown d-inline-block">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                    data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-expanded="false" title="Skip / Move stage"
+                    style="padding:0.2rem 0.4rem;font-size:0.6rem;">
+              <i class="fas fa-forward"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.75rem;min-width:180px;z-index:9999;">
+              <li class="dropdown-header">Skip to...</li>
+              {% for target in stages %}
+                {% if target.id != stage.id %}
+                <li>
+                  <form method="POST" action="{{ url_for('action_skip_stage', app_id=card.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="target_stage" value="{{ target.name }}">
+                    <button type="submit" class="dropdown-item">
+                      <i class="fas {{ target.icon }} me-1" style="color:{{ target.color }};width:14px;"></i> {{ target.short }}
+                    </button>
+                  </form>
+                </li>
+                {% endif %}
+              {% endfor %}
+              <li><hr class="dropdown-divider"></li>
+              <li class="dropdown-header">Move back to...</li>
+              {% for target in stages %}
+                {% if target.id != stage.id %}
+                <li>
+                  <form method="POST" action="{{ url_for('action_unskip_stage', app_id=card.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="target_stage" value="{{ target.name }}">
+                    <button type="submit" class="dropdown-item">
+                      <i class="fas {{ target.icon }} me-1" style="color:{{ target.color }};width:14px;"></i> {{ target.short }}
+                    </button>
+                  </form>
+                </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+  {% endfor %}
+</div>
+</div>
+
+<!-- Unsigned Contracts & Vetting Summary Cards -->
+<div class="info-cards-row" style="margin-top: 0.75rem;">
+  <!-- Unsigned Contracts Card -->
+  <div class="info-card">
+    <div class="info-card-header">
+      <div class="icon" style="background: #fee2e2; color: #ef4444;">
+        <i class="fas fa-file-signature"></i>
+      </div>
+      <h4>Unsigned Contracts</h4>
+      <span class="badge bg-{{ 'danger' if unsigned_contracts|length > 0 else 'success' }}">
+        {{ unsigned_contracts|length }}
+      </span>
+    </div>
+    <div class="info-card-body">
+      {% if unsigned_contracts|length == 0 %}
+      <div class="text-center py-2 text-muted">
+        <i class="fas fa-check-circle mb-1" style="font-size: 1.25rem;"></i>
+        <p class="mb-0" style="font-size: 0.8rem;">All contracts signed</p>
+      </div>
+      {% else %}
+      <div class="info-stat">
+        <span class="label">Contracts Awaiting Signature</span>
+        <span class="value danger">{{ unsigned_contracts|length }}</span>
+      </div>
+      <div class="info-list">
+        {% for item in unsigned_contracts[:5] %}
+        <div class="info-list-item">
+          <span class="name">{{ item.candidate.name }}</span>
+          <span class="days">{{ item.days_pending }} days pending</span>
+        </div>
+        {% endfor %}
+        {% if unsigned_contracts|length > 5 %}
+        <div class="info-list-item text-muted">
+          <span>+ {{ unsigned_contracts|length - 5 }} more...</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Vetting Summary Card -->
+  <div class="info-card">
+    <div class="info-card-header">
+      <div class="icon" style="background: #e8eef8; color: #1e3a8a;">
+        <i class="fas fa-shield-alt"></i>
+      </div>
+      <h4>Vetting Summary</h4>
+      <span class="badge bg-primary" id="vettingTotalBadge">{{ vetting_summary.total_candidates }}</span>
+    </div>
+    <div class="info-card-body">
+      <!-- SLA Toggle -->
+      <div class="sla-toggle-container" style="margin-bottom: 0.4rem;">
+        <div class="btn-group btn-group-sm w-100" role="group" aria-label="SLA Filter">
+          <button type="button" class="btn btn-outline-secondary sla-toggle-btn active" data-sla="all" onclick="toggleSLAFilter('all')">
+            All
+          </button>
+          <button type="button" class="btn btn-outline-success sla-toggle-btn" data-sla="in" onclick="toggleSLAFilter('in')">
+            <i class="fas fa-check-circle me-1"></i>In SLA ({{ vetting_summary.in_sla|default(0) }})
+          </button>
+          <button type="button" class="btn btn-outline-danger sla-toggle-btn" data-sla="out" onclick="toggleSLAFilter('out')">
+            <i class="fas fa-exclamation-circle me-1"></i>Out ({{ vetting_summary.out_of_sla|default(0) }})
+          </button>
+        </div>
+      </div>
+
+      <div style="font-size: 0.7rem; color: #9ca3af; margin-bottom: 0.5rem; text-align: center;">
+        SLA: {{ vetting_summary.sla_days|default(7) }} days to complete vetting
+      </div>
+      <div class="info-stat" id="notStartedRow">
+        <span class="label">Not Started (0/10)</span>
+        <span class="value warning" id="notStartedCount">{{ vetting_summary.not_started }}</span>
+      </div>
+      <div class="info-stat" id="inProgressRow">
+        <span class="label">In Progress (1-9/10)</span>
+        <span class="value" style="color: #1e3a8a;" id="inProgressCount"
+              data-all="{{ vetting_summary.in_progress }}"
+              data-in="{{ vetting_summary.in_progress_in_sla|default(0) }}"
+              data-out="{{ vetting_summary.in_progress_out_sla|default(0) }}">{{ vetting_summary.in_progress }}</span>
+      </div>
+      <div class="info-stat" id="completeRow">
+        <span class="label">Complete (10/10)</span>
+        <span class="value success" id="completeCount">{{ vetting_summary.complete }}</span>
+      </div>
+
+      <!-- Clickable Associate List (SLA Detail) -->
+      <hr class="my-2">
+      <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500; margin-bottom: 0.5rem; cursor: pointer;" onclick="document.getElementById('vettingCandidateList').style.display = document.getElementById('vettingCandidateList').style.display === 'none' ? 'block' : 'none'">
+        <i class="fas fa-users me-1"></i>Associates In Vetting <i class="fas fa-chevron-down" style="font-size: 0.6rem;"></i>
+      </div>
+      <div id="vettingCandidateList" style="max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem;">
+        {% for vc in vetting_summary.candidates if vc.status == 'in_progress' %}
+        <a href="#" onclick="event.preventDefault(); filterChartByCandidate({{ vc.id }}, '{{ vc.name }}')"
+           class="d-flex justify-content-between align-items-center vetting-candidate-row"
+           data-sla-status="{{ vc.sla_status }}" data-cand-id="{{ vc.id }}"
+           style="padding: 0.3rem 0.5rem; font-size: 0.75rem; text-decoration: none; color: #374151; border-bottom: 1px solid #f3f4f6; display: block; cursor: pointer;">
+          <span style="font-weight: 500;">{{ vc.name }}</span>
+          <span>
+            <span style="color: #6b7280;">{{ vc.complete }}/{{ vc.total }}</span>
+            {% if vc.sla_status == 'out' %}
+            <span class="badge" style="background: #ef4444; color: white; font-size: 0.6rem; padding: 0.15rem 0.35rem; margin-left: 0.25rem;">{{ vc.days_elapsed }}d</span>
+            {% else %}
+            <span class="badge" style="background: #10b981; color: white; font-size: 0.6rem; padding: 0.15rem 0.35rem; margin-left: 0.25rem;">{{ vc.days_elapsed }}d</span>
+            {% endif %}
+          </span>
+        </a>
+        {% endfor %}
+        {% if not vetting_summary.candidates|selectattr('status', 'equalto', 'in_progress')|list %}
+        <div style="font-size: 0.75rem; color: #9ca3af; text-align: center; padding: 0.5rem;">No associates in vetting</div>
+        {% endif %}
+      </div>
+
+      <!-- By Check Type Chart -->
+      <hr class="my-2">
+      <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 0.5rem;">
+        <span style="font-size: 0.75rem; color: #6b7280; font-weight: 500;" id="checkTypeChartTitle">Outstanding by Check Type</span>
+        <a href="#" id="checkTypeShowAll" onclick="event.preventDefault(); resetChartToAll()" style="font-size: 0.65rem; color: #3b82f6; text-decoration: none; display: none;">Show All</a>
+      </div>
+      <div style="height: 180px; position: relative;">
+        <canvas id="checkTypeChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Reject Modal -->
+<div class="bulk-reject-overlay" id="bulkRejectOverlay">
+  <div class="bulk-reject-modal">
+    <h4><i class="fas fa-ban text-danger me-2"></i>Bulk Reject Applications</h4>
+    <p style="font-size: 0.85rem; color: #6b7280;">
+      You are about to reject <strong id="bulkRejectCount">0</strong> application(s).
+      A rejection email will be sent to each associate.
+    </p>
+    <div style="margin-bottom: 1rem;">
+      <label style="font-size: 0.8rem; font-weight: 500; color: #374151; display: block; margin-bottom: 0.25rem;">
+        Rejection Message
+      </label>
+      <textarea id="bulkRejectReason">Unfortunately, your application has not been successful at this time. We appreciate your interest and wish you all the best in your future endeavours.</textarea>
+    </div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button class="btn btn-outline-secondary btn-sm" onclick="closeBulkRejectModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="executeBulkReject()">
+        <i class="fas fa-ban me-1"></i> Confirm Rejection
+      </button>
+    </div>
+  </div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Check type data for chart - stored as JavaScript objects for SLA filtering
+const checkTypeDataAll = {{ vetting_summary.by_type | tojson | safe }};
+const checkTypeDataInSla = {{ vetting_summary.by_type_in_sla | tojson | safe }};
+const checkTypeDataOutSla = {{ vetting_summary.by_type_out_sla | tojson | safe }};
+const checkTypeByCandidate = {{ vetting_summary.by_candidate | tojson | safe }};
+let selectedCandidateId = null;
+
+function filterChartByCandidate(candId, candName) {
+  selectedCandidateId = candId;
+  console.log('[VETTING DEBUG] filterChartByCandidate called:', candId, candName);
+  console.log('[VETTING DEBUG] checkTypeByCandidate keys:', Object.keys(checkTypeByCandidate));
+  console.log('[VETTING DEBUG] checkTypeByCandidate full:', JSON.stringify(checkTypeByCandidate));
+  const data = checkTypeByCandidate[String(candId)] || checkTypeByCandidate[candId] || {};
+  console.log('[VETTING DEBUG] data for candidate:', JSON.stringify(data));
+  updateChartWithData(data);
+  document.getElementById('checkTypeChartTitle').textContent = candName;
+  document.getElementById('checkTypeShowAll').style.display = 'inline';
+  // Highlight selected row
+  document.querySelectorAll('.vetting-candidate-row').forEach(r => {
+    r.style.background = r.dataset.candId == candId ? '#eff6ff' : '';
+    r.style.fontWeight = r.dataset.candId == candId ? '600' : '';
+  });
+}
+
+function resetChartToAll() {
+  selectedCandidateId = null;
+  updateChartWithData(checkTypeDataAll);
+  document.getElementById('checkTypeChartTitle').textContent = 'Outstanding by Check Type';
+  document.getElementById('checkTypeShowAll').style.display = 'none';
+  document.querySelectorAll('.vetting-candidate-row').forEach(r => {
+    r.style.background = '';
+    r.style.fontWeight = '';
+  });
+}
+
+function updateChartWithData(data) {
+  if (!checkTypeChart) { console.log('[VETTING DEBUG] checkTypeChart is null!'); return; }
+  const labels = Object.keys(data).map(l => l.length > 18 ? l.substring(0, 15) + '...' : l);
+  checkTypeFullLabels = Object.keys(data);
+  const outstanding = Object.values(data).map(d => (d.in_progress || 0) + (d.not_started || 0));
+  console.log('[VETTING DEBUG] updateChartWithData labels:', labels, 'data:', outstanding);
+  checkTypeChart.data.labels = labels;
+  checkTypeChart.data.datasets[0].data = outstanding;
+  checkTypeChart.update('none');
+}
+
+// Initialize check type chart
+let checkTypeChart = null;
+let checkTypeFullLabels = [];
+
+function initCheckTypeChart() {
+  const ctx = document.getElementById('checkTypeChart');
+  if (!ctx) return;
+
+  const data = checkTypeDataAll;
+  if (!data || Object.keys(data).length === 0) {
+    ctx.parentElement.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 2rem; font-size: 0.8rem;">No in-progress vetting data available</div>';
+    return;
+  }
+
+  checkTypeFullLabels = Object.keys(data);
+
+  const labels = checkTypeFullLabels.map(label => {
+    return label.length > 18 ? label.substring(0, 15) + '...' : label;
+  });
+
+  const outstandingData = Object.values(data).map(d => (d.in_progress || 0) + (d.not_started || 0));
+
+  checkTypeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Outstanding',
+          data: outstandingData,
+          backgroundColor: 'rgba(239, 68, 68, 0.75)',
+          borderColor: 'rgb(239, 68, 68)',
+          borderWidth: 1,
+          borderRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            font: { size: 9 },
+            stepSize: 1
+          },
+          grid: {
+            color: 'rgba(0,0,0,0.05)'
+          }
+        },
+        y: {
+          ticks: {
+            font: { size: 9 },
+            color: '#374151'
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            title: function(context) {
+              return checkTypeFullLabels[context[0].dataIndex];
+            },
+            label: function(context) {
+              return context.raw + ' outstanding';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateCheckTypeChart(filter) {
+  if (!checkTypeChart) return;
+
+  let data;
+  if (filter === 'in') {
+    data = checkTypeDataInSla;
+  } else if (filter === 'out') {
+    data = checkTypeDataOutSla;
+  } else {
+    data = checkTypeDataAll;
+  }
+
+  if (!data || Object.keys(data).length === 0) {
+    checkTypeChart.data.labels = [];
+    checkTypeChart.data.datasets[0].data = [];
+    checkTypeChart.update();
+    return;
+  }
+
+  checkTypeFullLabels = Object.keys(data);
+
+  const labels = checkTypeFullLabels.map(label => {
+    return label.length > 18 ? label.substring(0, 15) + '...' : label;
+  });
+
+  const outstandingData = Object.values(data).map(d => (d.in_progress || 0) + (d.not_started || 0));
+
+  checkTypeChart.data.labels = labels;
+  checkTypeChart.data.datasets[0].data = outstandingData;
+  checkTypeChart.update();
+}
+
+// Initialize chart on page load
+document.addEventListener('DOMContentLoaded', function() {
+  initCheckTypeChart();
+});
+
+// Drag and Drop functionality
+let draggedCard = null;
+let originalColumn = null;
+
+function handleDragStart(event) {
+  draggedCard = event.target;
+  originalColumn = event.target.closest('.kanban-column-body').dataset.stage;
+  event.target.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', JSON.stringify({
+    id: event.target.dataset.id,
+    type: event.target.dataset.type
+  }));
+}
+
+function handleDragEnd(event) {
+  event.target.classList.remove('dragging');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+
+  const targetColumn = event.currentTarget;
+  const targetStage = targetColumn.dataset.stage;
+
+  if (!draggedCard || targetStage === originalColumn) {
+    return;
+  }
+
+  const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
+
+  // Move the card visually first for better UX
+  targetColumn.appendChild(draggedCard);
+
+  // Update the server
+  fetch('/api/workflow/move', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      card_id: cardData.id,
+      card_type: cardData.type,
+      from_stage: originalColumn,
+      to_stage: targetStage
+    })
+  })
+  .then(async response => {
+    const contentType = response.headers.get('content-type');
+
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Session expired. Please refresh the page and log in again.');
+    }
+
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+      throw new Error(data.error || 'Server error');
+    }
+
+    return data;
+  })
+  .then(data => {
+    showToast('Card moved successfully', 'success');
+    setTimeout(() => window.location.reload(), 500);
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    const originalColumnEl = document.querySelector('[data-stage="' + originalColumn + '"]');
+    if (originalColumnEl && draggedCard) {
+      originalColumnEl.appendChild(draggedCard);
+    }
+    showToast(error.message || 'Failed to move card', 'danger');
+  });
+}
+
+// Update column counts and summary cards after drag or filter
+function updateColumnCounts() {
+  document.querySelectorAll('.kanban-column:not(.focus-hidden)').forEach(column => {
+    const stageId = column.dataset.stage;
+    const body = column.querySelector('.kanban-column-body');
+
+    const visibleCards = body.querySelectorAll('.kanban-card:not([style*="display: none"])');
+    const count = visibleCards.length;
+
+    const countBadge = column.querySelector('.column-count');
+    if (countBadge) {
+      countBadge.textContent = count;
+    }
+
+    const summaryCard = document.querySelector('[data-stage-summary="' + stageId + '"]');
+    if (summaryCard) {
+      const summaryCount = summaryCard.querySelector('.stage-count');
+      if (summaryCount) {
+        summaryCount.textContent = count;
+        summaryCard.style.transform = 'scale(1.05)';
+        summaryCard.style.transition = 'transform 0.2s ease';
+        setTimeout(() => {
+          summaryCard.style.transform = '';
+        }, 300);
+      }
+    }
+  });
+}
+
+// Client-side search filter (instant)
+function applyClientFilter() {
+  const searchFilter = document.getElementById('searchName').value.toLowerCase();
+
+  document.querySelectorAll('.kanban-card').forEach(card => {
+    let show = true;
+
+    if (searchFilter) {
+      const name = card.querySelector('.associate-name').textContent.toLowerCase();
+      if (!name.includes(searchFilter)) {
+        show = false;
+      }
+    }
+
+    card.style.display = show ? '' : 'none';
+  });
+
+  updateColumnCounts();
+}
+
+// Clear all filters
+function clearFilters() {
+  window.location.href = '{{ url_for("workflow") }}';
+}
+
+// Trigger vetting for a candidate — initialises all checks to In Progress
+function triggerVetting(candidateId) {
+  if (!confirm('Start vetting for this associate? All checks will be set to In Progress.')) return;
+  fetch('/api/vetting/trigger/' + candidateId, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      location.reload();
+    } else {
+      alert(data.error || 'Failed to start vetting');
+    }
+  })
+  .catch(() => alert('Network error'));
+}
+
+// Advance card to next stage via button click
+function advanceStage(cardId, newStatus) {
+  const confirmMessages = {
+    'Rejected': 'Are you sure you want to reject this associate?',
+    'Withdrawn': 'Are you sure you want to mark this as withdrawn?'
+  };
+
+  if (confirmMessages[newStatus]) {
+    if (!confirm(confirmMessages[newStatus])) {
+      return;
+    }
+  }
+
+  fetch('/api/workflow/move', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      card_id: cardId,
+      card_type: 'application',
+      to_stage: newStatus.toLowerCase().replace(/ /g, '_').replace('&', ''),
+      new_status: newStatus
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showToast('Error: ' + data.error, 'danger');
+    } else {
+      showToast('Stage updated successfully', 'success');
+      setTimeout(() => window.location.reload(), 500);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showToast('Failed to update stage', 'danger');
+  });
+}
+
+// Refresh the workflow page
+function refreshWorkflow() {
+  window.location.reload();
+}
+
+// Toast notifications
+function showToast(message, type) {
+  type = type || 'info';
+  const toast = document.createElement('div');
+  toast.className = 'alert alert-' + type + ' position-fixed bottom-0 end-0 m-3';
+  toast.style.zIndex = '9999';
+  toast.innerHTML = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ===== Focus View =====
+let focusActive = false;
+
+function onFocusCbChange() {
+  // Show Focus button if any checkbox is unchecked
+  const checkboxes = document.querySelectorAll('.focus-cb');
+  let anyUnchecked = false;
+  checkboxes.forEach(cb => {
+    if (!cb.checked) anyUnchecked = true;
+  });
+  document.getElementById('focusBtn').style.display = anyUnchecked ? '' : 'none';
+  // If focus is active and user changes checkboxes, re-apply
+  if (focusActive) applyFocusView();
+}
+
+function applyFocusView() {
+  focusActive = true;
+  const checkboxes = document.querySelectorAll('.focus-cb');
+  checkboxes.forEach(cb => {
+    const stageId = cb.dataset.stage;
+    const column = document.querySelector('.kanban-column[data-stage="' + stageId + '"]');
+    const summary = document.querySelector('[data-stage-summary="' + stageId + '"]');
+    if (!cb.checked) {
+      if (column) column.classList.add('focus-hidden');
+      if (summary) summary.classList.add('focus-hidden');
+    } else {
+      if (column) column.classList.remove('focus-hidden');
+      if (summary) summary.classList.remove('focus-hidden');
+    }
+  });
+  document.getElementById('focusBtn').style.display = 'none';
+  document.getElementById('focusResetBtn').style.display = '';
+  showToast('Focus view applied', 'info');
+}
+
+function resetFocusView() {
+  focusActive = false;
+  document.querySelectorAll('.focus-cb').forEach(cb => { cb.checked = true; });
+  document.querySelectorAll('.kanban-column.focus-hidden').forEach(col => col.classList.remove('focus-hidden'));
+  document.querySelectorAll('.stage-summary-card.focus-hidden').forEach(s => s.classList.remove('focus-hidden'));
+  document.getElementById('focusBtn').style.display = 'none';
+  document.getElementById('focusResetBtn').style.display = 'none';
+  showToast('Showing all columns', 'info');
+}
+
+// ===== Bulk Reject =====
+let bulkModeActive = false;
+
+function toggleBulkMode() {
+  bulkModeActive = true;
+  document.getElementById('kanbanContainer').classList.add('bulk-mode');
+  document.getElementById('bulkRejectToggle').style.display = 'none';
+  document.getElementById('bulkRejectConfirm').style.display = '';
+  document.getElementById('bulkRejectCancel').style.display = '';
+  showToast('Select cards to reject, then click "Reject Selected"', 'warning');
+}
+
+function cancelBulkMode() {
+  bulkModeActive = false;
+  document.getElementById('kanbanContainer').classList.remove('bulk-mode');
+  document.getElementById('bulkRejectToggle').style.display = '';
+  document.getElementById('bulkRejectConfirm').style.display = 'none';
+  document.getElementById('bulkRejectCancel').style.display = 'none';
+  // Uncheck all
+  document.querySelectorAll('.bulk-select-cb').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.kanban-card').classList.remove('bulk-selected');
+  });
+  updateBulkCount();
+}
+
+function updateBulkCount() {
+  const checked = document.querySelectorAll('.bulk-select-cb:checked');
+  document.getElementById('bulkCount').textContent = checked.length;
+  // Toggle visual selection
+  document.querySelectorAll('.bulk-select-cb').forEach(cb => {
+    const card = cb.closest('.kanban-card');
+    if (cb.checked) {
+      card.classList.add('bulk-selected');
+    } else {
+      card.classList.remove('bulk-selected');
+    }
+  });
+}
+
+function openBulkRejectModal() {
+  const checked = document.querySelectorAll('.bulk-select-cb:checked');
+  if (checked.length === 0) {
+    showToast('No cards selected. Check boxes on cards to select them.', 'warning');
+    return;
+  }
+  document.getElementById('bulkRejectCount').textContent = checked.length;
+  document.getElementById('bulkRejectOverlay').classList.add('show');
+}
+
+function closeBulkRejectModal() {
+  document.getElementById('bulkRejectOverlay').classList.remove('show');
+}
+
+function executeBulkReject() {
+  const checked = document.querySelectorAll('.bulk-select-cb:checked');
+  const cardIds = Array.from(checked).map(cb => cb.dataset.cardId);
+  const reason = document.getElementById('bulkRejectReason').value;
+
+  closeBulkRejectModal();
+  showToast('Rejecting ' + cardIds.length + ' applications...', 'info');
+
+  fetch('/api/workflow/bulk-reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ card_ids: cardIds, reason: reason })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.ok) {
+      showToast('Successfully rejected ' + data.rejected_count + ' applications', 'success');
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+    }
+  })
+  .catch(error => {
+    console.error('Bulk reject error:', error);
+    showToast('Failed to bulk reject', 'danger');
+  });
+}
+
+// SLA Toggle functionality
+let currentSLAFilter = 'all';
+
+function toggleSLAFilter(filter) {
+  currentSLAFilter = filter;
+
+  // Update button states
+  document.querySelectorAll('.sla-toggle-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.sla === filter) {
+      btn.classList.add('active');
+    }
+  });
+
+  // Filter kanban cards based on SLA status
+  const allCards = document.querySelectorAll('.kanban-card');
+  let visibleCount = 0;
+
+  allCards.forEach(card => {
+    const slaStatus = card.dataset.slaStatus || '';
+    const vettingComplete = parseInt(card.dataset.vettingComplete) || 0;
+    const vettingTotal = parseInt(card.dataset.vettingTotal) || 0;
+
+    const isInProgress = vettingComplete > 0 && vettingComplete < vettingTotal;
+
+    let showCard = true;
+
+    if (filter === 'in') {
+      showCard = isInProgress && slaStatus === 'in';
+    } else if (filter === 'out') {
+      showCard = isInProgress && slaStatus === 'out';
+    }
+
+    card.style.display = showCard ? '' : 'none';
+    if (showCard) visibleCount++;
+  });
+
+  // Update column counts
+  updateColumnCounts();
+
+  // Update summary counts based on filter
+  updateSummaryCounts(filter);
+
+  // Update check type chart
+  updateCheckTypeChart(filter);
+
+  if (filter === 'in') {
+    showToast('<i class="fas fa-check-circle me-1"></i> Showing ' + visibleCount + ' associates In SLA', 'success');
+  } else if (filter === 'out') {
+    showToast('<i class="fas fa-exclamation-circle me-1"></i> Showing ' + visibleCount + ' associates Out of SLA', 'warning');
+  } else {
+    showToast('<i class="fas fa-list me-1"></i> Showing all associates', 'info');
+  }
+}
+
+// Update summary counts based on SLA filter
+function updateSummaryCounts(filter) {
+  const notStartedRow = document.getElementById('notStartedRow');
+  const inProgressEl = document.getElementById('inProgressCount');
+  const completeRow = document.getElementById('completeRow');
+  const totalBadge = document.getElementById('vettingTotalBadge');
+
+  if (filter === 'all') {
+    if (notStartedRow) notStartedRow.style.display = '';
+    if (completeRow) completeRow.style.display = '';
+    if (inProgressEl) inProgressEl.textContent = inProgressEl.dataset.all;
+
+    if (totalBadge) {
+      const notStarted = {{ vetting_summary.not_started }};
+      const inProgress = parseInt(inProgressEl?.dataset.all || 0);
+      const complete = {{ vetting_summary.complete }};
+      totalBadge.textContent = notStarted + inProgress + complete;
+    }
+  } else {
+    if (notStartedRow) notStartedRow.style.display = 'none';
+    if (completeRow) completeRow.style.display = 'none';
+
+    if (inProgressEl) {
+      inProgressEl.textContent = inProgressEl.dataset[filter] || '0';
+    }
+
+    if (totalBadge) {
+      totalBadge.textContent = inProgressEl?.dataset[filter] || '0';
+    }
+  }
+}
+</script>
+</div>
+{% endblock %}

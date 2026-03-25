@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}My Timesheets{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<h3 class="mb-3">My Timesheets</h3>
+<div class="mb-3 text-muted">
+  Current week: {{ week[0].strftime('%Y-%m-%d') }} → {{ week[1].strftime('%Y-%m-%d') }}
+</div>
+<form method="post" class="card p-3 shadow-sm border-0 mb-4">
+  {{ form.csrf_token }}
+  <div class="row g-3">
+    <div class="col-md-6">{{ form.engagement_id.label }} {{ form.engagement_id(class="form-select") }}</div>
+    <div class="col-md-3">{{ form.hours.label }} {{ form.hours(class="form-control", min="0") }}</div>
+    <div class="col-12">{{ form.notes.label }} {{ form.notes(class="form-control", rows="3") }}</div>
+  </div>
+  <button class="btn btn-primary mt-3">{{ form.submit.label.text }}</button>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead><tr><th>Week</th><th>Engagement</th><th>Hours</th><th>Status</th><th>Submitted</th></tr></thead>
+    <tbody>
+      {% for ts, eng in items %}
+      <tr>
+        <td>{{ ts.period_start.strftime('%Y-%m-%d') }} → {{ ts.period_end.strftime('%Y-%m-%d') }}</td>
+        <td>{{ eng.name }} ({{ eng.client or '—' }})</td>
+        <td>{{ ts.hours }}</td>
+        <td><span class="badge text-bg-{{ 'success' if (ts.status or '').lower() == 'approved' else 'secondary' }}">{{ ts.status }}</span></td>
+        <td>{{ ts.submitted_at.strftime('%Y-%m-%d %H:%M') if ts.submitted_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</div>
+{% endblock %}

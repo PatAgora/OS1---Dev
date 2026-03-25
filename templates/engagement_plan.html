@@ -1,0 +1,767 @@
+{% extends "base.html" %}
+{% set hide_topbar = True %}
+{% block title %}Plan · {{ engagement.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+<style>
+  /* Modern Card Styles */
+  .modern-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease;
+    background: white;
+  }
+  
+  /* Header Section */
+  .page-header {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  .page-header h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .page-header .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+  }
+  
+  .page-header .version-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Plan Row Container */
+  .plan-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+    transition: all 0.2s ease;
+  }
+  
+  .plan-row:hover {
+    border-color: #1e3a8a;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  }
+  
+  .plan-row.template-row {
+    background: white;
+    border-style: dashed;
+  }
+  
+  /* Form Fields */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .field-label .required {
+    color: #dc2626;
+    font-weight: 600;
+  }
+  
+  .field-input {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: all 0.2s ease;
+    background: white;
+  }
+  
+  .field-input:focus {
+    outline: none;
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .field-input.missing-rate {
+    border-color: #dc2626;
+    background: #fef2f2;
+  }
+  
+  .field-input.missing-rate:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+  
+  /* Calculated Fields */
+  .calc-display {
+    border: 2px solid #e5e7eb;
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    border-radius: 8px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1f2937;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .calc-display.positive {
+    color: #059669;
+  }
+  
+  .calc-display.negative {
+    color: #dc2626;
+  }
+  
+  /* Buttons */
+  .btn-modern {
+    border-radius: 8px;
+    padding: 0.625rem 1.25rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+  }
+  
+  .btn-modern-primary {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%);
+    color: white;
+  }
+  
+  .btn-modern-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: white;
+  }
+  
+  .btn-modern-secondary {
+    background: white;
+    border: 2px solid #1e3a8a;
+    color: #1e3a8a;
+  }
+  
+  .btn-modern-secondary:hover {
+    background: #1e3a8a;
+    color: white;
+  }
+  
+  .btn-modern-outline {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #374151;
+  }
+  
+  .btn-modern-outline:hover {
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+    background: #f9fafb;
+  }
+  
+  .btn-modern-danger {
+    background: white;
+    border: 2px solid #dc2626;
+    color: #dc2626;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .btn-modern-danger:hover {
+    background: #dc2626;
+    color: white;
+  }
+  
+  .btn-add-role {
+    background: white;
+    border: 2px dashed #1e3a8a;
+    color: #1e3a8a;
+    width: 100%;
+    padding: 1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-add-role:hover {
+    background: #f0f4fa;
+    border-style: solid;
+  }
+  
+  /* Totals Panel */
+  .totals-panel {
+    background: linear-gradient(135deg, #f0f4fa 0%, #e8eef8 100%);
+    border: 2px solid #1e3a8a;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+  
+  .totals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .total-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .total-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+  }
+  
+  .total-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e3a8a;
+  }
+  
+  /* Warning Messages */
+  .row-warning {
+    flex: 1 1 100%;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: #dc2626;
+    display: none;
+  }
+  
+  .row-warning::before {
+    content: "⚠ ";
+    font-weight: 700;
+  }
+  
+  .global-warning {
+    background: #fef2f2;
+    border: 2px solid #dc2626;
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: #dc2626;
+    font-weight: 600;
+    display: none;
+  }
+  
+  .global-warning::before {
+    content: "⚠ ";
+    font-size: 1.25rem;
+  }
+  
+  /* Field Widths */
+  .field-role { flex: 1 1 180px; min-width: 160px; }
+  .field-intake { flex: 0 0 140px; }
+  .field-headcount { flex: 0 0 120px; }
+  .field-pay { flex: 0 0 120px; }
+  .field-charge { flex: 0 0 120px; }
+  .field-margin-pct { flex: 0 0 90px; }
+  .field-margin-abs { flex: 0 0 110px; }
+  .field-actions { flex: 0 0 auto; }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header {
+      padding: 1.5rem;
+    }
+    
+    .page-header h1 {
+      font-size: 1.5rem;
+    }
+    
+    .plan-row {
+      padding: 1rem;
+    }
+    
+    .field-group {
+      flex: 1 1 100% !important;
+      min-width: 100% !important;
+    }
+    
+    .field-actions {
+      flex: 1 1 100%;
+    }
+    
+    .totals-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* Animation */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .plan-row {
+    animation: fadeIn 0.3s ease forwards;
+  }
+  
+  /* Section Title */
+  .section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .section-title i {
+    color: #1e3a8a;
+  }
+</style>
+
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+
+<div class="container-xxl px-4 pt-3 pb-4">
+  <!-- Enhanced Header -->
+  <div class="page-header">
+    <h1>
+      Plan for {{ engagement.name }}
+      {% if engagement.client %}
+        <span style="opacity: 0.8; font-weight: 400;">({{ engagement.client }})</span>
+      {% endif %}
+    </h1>
+    <p class="subtitle">
+      Set planned headcount, pay rates, and client charge rates by role.
+    </p>
+    <div class="mt-3">
+      <span class="version-badge">
+        <i class="fas fa-code-branch"></i> Version {{ engagement.plan_version or 1 }}
+      </span>
+    </div>
+    <div class="mt-3">
+      <a class="btn btn-modern-outline btn-sm" href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Plan Form -->
+  <form method="POST" class="modern-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card-body p-4">
+      <div class="section-title">
+        <i class="fas fa-users-gear"></i>
+        Role Planning
+      </div>
+
+      <div id="plan-rows">
+        <input type="hidden" name="plan_version" value="{{ (engagement.plan_version or 1)|int }}">
+
+        {% for row in rows %}
+        <div class="plan-row" data-row-id="{{ row.id }}">
+          <!-- Role -->
+          <div class="field-group field-role">
+            <label class="field-label">Role</label>
+            <select name="role_type[]" class="field-input role-field">
+              {% for rt in role_types %}
+                <option value="{{ rt.name }}" {% if rt.name == row.role_type %}selected{% endif %}>
+                  {{ rt.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Intake Date -->
+          <div class="field-group field-intake">
+            <label class="field-label">Intake Date</label>
+            <input class="field-input intake-field"
+                   type="date"
+                   name="intake_date[]"
+                   value="{{ row.intake_date.strftime('%Y-%m-%d') if row.intake_date else '' }}">
+          </div>
+
+          <!-- Planned Headcount -->
+          <div class="field-group field-headcount">
+            <label class="field-label">Headcount</label>
+            <input class="field-input hc-field"
+                   type="number" min="0"
+                   name="planned_count[]"
+                   value="{{ row.planned_count or 0 }}">
+          </div>
+
+          <!-- Pay Rate -->
+          <div class="field-group field-pay">
+            <label class="field-label">Pay £/day <span class="required">*</span></label>
+            <input class="field-input pay-field"
+                   type="number" min="0"
+                   name="pay_rate[]"
+                   value="{{ row.pay_rate or 0 }}">
+          </div>
+
+          <!-- Charge Rate -->
+          <div class="field-group field-charge">
+            <label class="field-label">Charge £/day <span class="required">*</span></label>
+            <input class="field-input charge-field"
+                   type="number" min="0"
+                   name="charge_rate[]"
+                   value="{{ row.charge_rate or 0 }}">
+          </div>
+
+          <!-- Margin % -->
+          <div class="field-group field-margin-pct">
+            <label class="field-label">Margin %</label>
+            <div class="calc-display margin-pct">0%</div>
+          </div>
+
+          <!-- £ GM /day -->
+          <div class="field-group field-margin-abs">
+            <label class="field-label">£ GM /day</label>
+            <div class="calc-display margin-abs">£0</div>
+          </div>
+
+          <!-- Remove Button -->
+          <div class="field-group field-actions">
+            <label class="field-label" style="opacity: 0;">Action</label>
+            <button class="btn-modern btn-modern-danger js-remove-row" type="button">
+              <i class="fas fa-trash-alt"></i> Remove
+            </button>
+          </div>
+
+          <!-- Row Warning -->
+          <div class="row-warning">
+            Missing pay or charge rate for this role.
+          </div>
+
+          <!-- Hidden Fields -->
+          <input type="hidden" name="row_id[]" value="{{ row.id }}">
+          <input type="hidden" name="row_id_deleted_{{ row.id }}" value="0" class="js-deleted-flag">
+        </div>
+        {% endfor %}
+
+        <!-- Template Row (for cloning) -->
+        <div class="plan-row template-row" style="display: none;" id="template-row">
+          <!-- Role -->
+          <div class="field-group field-role">
+            <label class="field-label">Role</label>
+            <select name="role_type[]" class="field-input role-field">
+              <option value="">— select role —</option>
+              {% for rt in role_types %}
+                <option value="{{ rt.name }}">{{ rt.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Intake Date -->
+          <div class="field-group field-intake">
+            <label class="field-label">Intake Date</label>
+            <input class="field-input intake-field"
+                   type="date"
+                   name="intake_date[]"
+                   value="">
+          </div>
+
+          <!-- Planned Headcount -->
+          <div class="field-group field-headcount">
+            <label class="field-label">Headcount</label>
+            <input class="field-input hc-field"
+                   type="number" min="0"
+                   name="planned_count[]"
+                   value="0">
+          </div>
+
+          <!-- Pay Rate -->
+          <div class="field-group field-pay">
+            <label class="field-label">Pay £/day <span class="required">*</span></label>
+            <input class="field-input pay-field"
+                   type="number" min="0"
+                   name="pay_rate[]"
+                   value="0">
+          </div>
+
+          <!-- Charge Rate -->
+          <div class="field-group field-charge">
+            <label class="field-label">Charge £/day <span class="required">*</span></label>
+            <input class="field-input charge-field"
+                   type="number" min="0"
+                   name="charge_rate[]"
+                   value="0">
+          </div>
+
+          <!-- Margin % -->
+          <div class="field-group field-margin-pct">
+            <label class="field-label">Margin %</label>
+            <div class="calc-display margin-pct">0%</div>
+          </div>
+
+          <!-- £ GM /day -->
+          <div class="field-group field-margin-abs">
+            <label class="field-label">£ GM /day</label>
+            <div class="calc-display margin-abs">£0</div>
+          </div>
+
+          <!-- Remove Button -->
+          <div class="field-group field-actions">
+            <label class="field-label" style="opacity: 0;">Action</label>
+            <button class="btn-modern btn-modern-danger js-remove-row" type="button">
+              <i class="fas fa-trash-alt"></i> Remove
+            </button>
+          </div>
+
+          <!-- Row Warning -->
+          <div class="row-warning">
+            Missing pay or charge rate for this role.
+          </div>
+
+          <!-- Hidden Fields -->
+          <input type="hidden" name="row_id[]" value="">
+        </div>
+
+        <!-- Add Role Button -->
+        <button id="add-row" class="btn-add-role" type="button">
+          <i class="fas fa-plus-circle"></i> Add Role
+        </button>
+
+        <!-- Totals Panel -->
+        <div class="totals-panel">
+          <div class="totals-grid">
+            <div class="total-item">
+              <div class="total-label">Total Planned Headcount</div>
+              <div class="total-value" id="total-hc">0</div>
+            </div>
+            <div class="total-item">
+              <div class="total-label">Blended Margin %</div>
+              <div class="total-value" id="total-margin-pct">0%</div>
+            </div>
+            <div class="total-item">
+              <div class="total-label">Total £ GM /day</div>
+              <div class="total-value" id="total-margin-abs">£0</div>
+            </div>
+          </div>
+
+          <div id="global-warning" class="global-warning">
+            Some roles are missing pay or charge rates. Margins may be inaccurate.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="card-footer bg-light p-4" style="border-radius: 0 0 16px 16px;">
+      <div class="d-flex flex-wrap gap-3 align-items-center">
+        <button class="btn-modern btn-modern-primary" type="submit">
+          <i class="fas fa-save"></i> Save Plan (creates new version)
+        </button>
+        <a class="btn-modern btn-modern-outline" href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">
+          <i class="fas fa-times"></i> Cancel
+        </a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+(function(){
+  const rowsWrap   = document.getElementById('plan-rows');
+  const addBtn     = document.getElementById('add-row');
+  const totalHCEl  = document.getElementById('total-hc');
+  const totalPctEl = document.getElementById('total-margin-pct');
+  const totalAbsEl = document.getElementById('total-margin-abs');
+  const globalWarn = document.getElementById('global-warning');
+  const templateRow = document.getElementById('template-row');
+
+  function num(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function fmtGBP(n) {
+    const r = Math.round(n);
+    return "£" + r.toLocaleString('en-GB');
+  }
+
+  function calcRow(rowEl) {
+    const hcEl      = rowEl.querySelector('.hc-field');
+    const payEl     = rowEl.querySelector('.pay-field');
+    const chargeEl  = rowEl.querySelector('.charge-field');
+    const pctEl     = rowEl.querySelector('.margin-pct');
+    const absEl     = rowEl.querySelector('.margin-abs');
+    const warnEl    = rowEl.querySelector('.row-warning');
+
+    const hc      = num(hcEl && hcEl.value);
+    const pay     = num(payEl && payEl.value);
+    const charge  = num(chargeEl && chargeEl.value);
+
+    const grossPerHead = charge - pay;
+    let pct = 0;
+    if (charge > 0) {
+      pct = (grossPerHead / charge) * 100.0;
+    }
+
+    const grossBand = grossPerHead * hc;
+
+    pctEl.textContent = (charge > 0 && pay >= 0) ? (pct.toFixed(0) + "%") : "—";
+    absEl.textContent = fmtGBP(grossBand);
+
+    // Add color classes
+    if (grossBand > 0) {
+      absEl.classList.add('positive');
+      absEl.classList.remove('negative');
+    } else if (grossBand < 0) {
+      absEl.classList.add('negative');
+      absEl.classList.remove('positive');
+    } else {
+      absEl.classList.remove('positive', 'negative');
+    }
+
+    const missing = (pay <= 0 || charge <= 0);
+    if (missing && hc > 0) {
+      payEl.classList.add('missing-rate');
+      chargeEl.classList.add('missing-rate');
+      if (warnEl) warnEl.style.display = "block";
+    } else {
+      payEl.classList.remove('missing-rate');
+      chargeEl.classList.remove('missing-rate');
+      if (warnEl) warnEl.style.display = "none";
+    }
+
+    return {
+      hc,
+      pay,
+      charge,
+      grossBand,
+      revenueBand : charge * hc,
+      costBand    : pay * hc,
+      missing
+    };
+  }
+
+  function recalcAll() {
+    let totalHC = 0;
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let anyMissing = false;
+
+    rowsWrap.querySelectorAll('.plan-row').forEach(rowEl => {
+      if (rowEl.style.display === "none" || rowEl.id === "template-row") return;
+      const res = calcRow(rowEl);
+      totalHC += res.hc;
+      totalRevenue += res.revenueBand;
+      totalCost += res.costBand;
+      if (res.missing && res.hc > 0) anyMissing = true;
+    });
+
+    const totalGM = totalRevenue - totalCost;
+    let blendedPct = 0;
+    if (totalRevenue > 0) {
+      blendedPct = (totalGM / totalRevenue) * 100.0;
+    }
+
+    totalHCEl.textContent = totalHC.toString();
+    totalAbsEl.textContent = fmtGBP(totalGM);
+    totalPctEl.textContent = totalRevenue > 0 ? blendedPct.toFixed(0) + "%" : "0%";
+
+    globalWarn.style.display = anyMissing ? "block" : "none";
+  }
+
+  function bindFieldInputs(rowEl) {
+    rowEl.querySelectorAll('.hc-field, .pay-field, .charge-field').forEach(inp => {
+      inp.addEventListener('input', recalcAll);
+    });
+  }
+
+  function bindRemove(btn) {
+    btn.addEventListener('click', function() {
+      const rowEl = btn.closest('.plan-row');
+      const deletedFlag = rowEl.querySelector('.js-deleted-flag');
+      if (deletedFlag) {
+        deletedFlag.value = "1";
+        rowEl.style.display = "none";
+      } else {
+        rowEl.remove();
+      }
+      recalcAll();
+    });
+  }
+
+  // Bind initial rows
+  rowsWrap.querySelectorAll('.plan-row').forEach(rowEl => {
+    if (rowEl.id === "template-row") return;
+    const rm = rowEl.querySelector('.js-remove-row');
+    if (rm) bindRemove(rm);
+    bindFieldInputs(rowEl);
+  });
+
+  // Add new row
+  addBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+
+    const clone = templateRow.cloneNode(true);
+    clone.id = "";
+    clone.style.display = "flex";
+    clone.classList.remove('template-row');
+
+    clone.querySelectorAll('select[name="role_type[]"]').forEach(sel => {
+      sel.selectedIndex = 0;
+    });
+    clone.querySelectorAll('input[name="planned_count[]"]').forEach(inp => { inp.value = "0"; });
+    clone.querySelectorAll('input[name="pay_rate[]"]').forEach(inp => { inp.value = "0"; });
+    clone.querySelectorAll('input[name="charge_rate[]"]').forEach(inp => { inp.value = "0"; });
+    clone.querySelectorAll('input[name="row_id[]"]').forEach(inp => { inp.value = ""; });
+
+    const df = clone.querySelector('.js-deleted-flag');
+    if (df) df.remove();
+
+    const w = clone.querySelector('.row-warning');
+    if (w) w.style.display = "none";
+
+    rowsWrap.insertBefore(clone, addBtn);
+
+    const rmBtn = clone.querySelector('.js-remove-row');
+    if (rmBtn) bindRemove(rmBtn);
+    bindFieldInputs(clone);
+
+    recalcAll();
+  });
+
+  recalcAll();
+})();
+</script>
+
+</div>
+{% endblock %}

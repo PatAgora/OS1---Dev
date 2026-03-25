@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page { size: A4; margin: 2cm; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #1f2937; font-size: 12px; line-height: 1.5; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #1e3a8a; }
+        .brand h1 { color: #1e3a8a; font-size: 28px; margin: 0; }
+        .brand p { color: #6b7280; margin: 4px 0 0; font-size: 11px; }
+        .meta { text-align: right; }
+        .meta .number { font-size: 18px; font-weight: 700; font-family: monospace; }
+        .meta .date { color: #6b7280; margin-top: 4px; font-size: 11px; }
+        .status { display: inline-block; padding: 4px 14px; border-radius: 12px; font-weight: 600; font-size: 11px; margin-top: 6px; }
+        .status-draft { background: #f3f4f6; color: #6b7280; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-paid { background: #dcfce7; color: #166534; }
+        .status-overdue { background: #fee2e2; color: #991b1b; }
+        .details { margin-bottom: 24px; }
+        .details h3 { color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 6px; }
+        .details .name { font-size: 15px; font-weight: 600; }
+        .details .sub { color: #6b7280; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { background: #f8fafc; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #374151; border-bottom: 2px solid #e5e7eb; }
+        td { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+        .amount { text-align: right; }
+        .totals { float: right; width: 250px; margin-top: 10px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 6px 0; color: #6b7280; }
+        .totals-row .label { font-weight: 500; }
+        .totals-row.total { font-size: 16px; font-weight: 700; color: #1f2937; border-top: 2px solid #1e3a8a; padding-top: 10px; margin-top: 6px; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; clear: both; }
+        .footer h4 { font-size: 11px; font-weight: 600; color: #374151; margin: 0 0 4px; }
+        .footer p { color: #6b7280; font-size: 11px; margin: 0; }
+        /* xhtml2pdf flex workaround — use tables for layout */
+        .row { width: 100%; }
+        .row td { vertical-align: top; padding: 0; border: none; }
+    </style>
+</head>
+<body>
+    <table class="row" style="margin-bottom:30px;border-bottom:3px solid #1e3a8a;padding-bottom:20px;">
+        <tr>
+            <td style="width:50%;">
+                <h1 style="color:#1e3a8a;font-size:28px;margin:0;">INVOICE</h1>
+                <p style="color:#6b7280;margin:4px 0 0;font-size:11px;">Optimus Solutions</p>
+            </td>
+            <td style="width:50%;text-align:right;">
+                <div style="font-size:18px;font-weight:700;font-family:monospace;">{{ invoice.invoice_number }}</div>
+                <div style="color:#6b7280;margin-top:4px;font-size:11px;">
+                    Date: {{ invoice.invoice_date.strftime('%d %B %Y') if invoice.invoice_date else 'N/A' }}
+                </div>
+                {% if invoice.due_date %}
+                <div style="color:#6b7280;font-size:11px;">
+                    Due: {{ invoice.due_date.strftime('%d %B %Y') }}
+                </div>
+                {% endif %}
+                <div>
+                    <span class="status status-{{ invoice.status|lower }}">{{ invoice.status }}</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="row" style="margin-bottom:24px;">
+        <tr>
+            <td style="width:50%;">
+                <h3 style="color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;">Bill To</h3>
+                <div style="font-size:15px;font-weight:600;">{{ invoice.client_name }}</div>
+                {% if invoice.engagement_name %}
+                <div style="color:#6b7280;">{{ invoice.engagement_name }}</div>
+                {% endif %}
+            </td>
+            <td style="width:50%;">
+                <h3 style="color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;">Payment Terms</h3>
+                <div style="font-size:15px;font-weight:600;">{{ invoice.payment_terms or 'Net 30' }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:55%">Description</th>
+                <th style="width:15%">Qty</th>
+                <th style="width:15%" class="amount">Rate</th>
+                <th style="width:15%" class="amount">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in line_items %}
+            <tr>
+                <td>{{ item.description or '' }}</td>
+                <td>{{ item.quantity or '' }}</td>
+                <td class="amount">{% if item.rate is defined and item.rate %}&pound;{{ "%.2f"|format(item.rate) }}{% else %}&mdash;{% endif %}</td>
+                <td class="amount">&pound;{{ "%.2f"|format(item.amount or 0) }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align:center;color:#9ca3af;padding:20px;">No line items</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="row">
+        <tr>
+            <td style="width:55%;"></td>
+            <td style="width:45%;">
+                <table style="width:100%;">
+                    <tr>
+                        <td style="padding:6px 0;color:#6b7280;border:none;">Subtotal</td>
+                        <td style="padding:6px 0;text-align:right;border:none;">&pound;{{ "%.2f"|format(invoice.subtotal or 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 0;color:#6b7280;border:none;">VAT ({{ "%.1f"|format(invoice.vat_rate or 0) }}%)</td>
+                        <td style="padding:6px 0;text-align:right;border:none;">&pound;{{ "%.2f"|format(invoice.vat_amount or 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px 0 0;font-size:16px;font-weight:700;border-top:2px solid #1e3a8a;border-bottom:none;">Total</td>
+                        <td style="padding:10px 0 0;font-size:16px;font-weight:700;text-align:right;border-top:2px solid #1e3a8a;border-bottom:none;">&pound;{{ "%.2f"|format(invoice.total_amount or 0) }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    {% if invoice.notes %}
+    <div class="footer">
+        <h4>Notes</h4>
+        <p>{{ invoice.notes }}</p>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p style="text-align:center;margin-top:30px;color:#9ca3af;font-size:10px;">
+            Optimus Solutions &mdash; Financial Services Resourcing Specialists
+        </p>
+    </div>
+</body>
+</html>
