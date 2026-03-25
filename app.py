@@ -112,10 +112,11 @@ SIGNABLE_BASE_URL = os.getenv("SIGNABLE_BASE_URL", "https://api.signable.co.uk/v
 SIGNABLE_WEBHOOK_SECRET = os.getenv("SIGNABLE_WEBHOOK_SECRET", "")
 SIGNABLE_TEMPLATE_FINGERPRINT = os.getenv("SIGNABLE_TEMPLATE_FINGERPRINT", "")
 
-# Verifile (verifile.co.uk) — pre-employment screening API
-VERIFILE_API_KEY = os.getenv("VERIFILE_API_KEY", "")
-VERIFILE_BASE_URL = os.getenv("VERIFILE_BASE_URL", "https://api.verifile.co.uk/v3")
-VERIFILE_CLIENT_ID = os.getenv("VERIFILE_CLIENT_ID", "")
+# Verifile (verifile.co.uk) — pre-employment screening API (v1)
+VERIFILE_BASE_URL = os.getenv("VERIFILE_BASE_URL", "https://api.verifile.co.uk/int/api/v1")
+VERIFILE_APIM_KEY = os.getenv("VERIFILE_APIM_KEY", "")
+VERIFILE_USER_ID = os.getenv("VERIFILE_USER_ID", "")
+VERIFILE_SUBSIDIARY_ORG_ID = os.getenv("VERIFILE_SUBSIDIARY_ORG_ID", "")
 VERIFILE_WEBHOOK_SECRET = os.getenv("VERIFILE_WEBHOOK_SECRET", "")
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")
@@ -9644,14 +9645,15 @@ VERIFILE_ALL_PRODUCTS = {
 }
 
 def _verifile_headers():
-    """Return auth headers for the Verifile REST API."""
-    if not VERIFILE_API_KEY or _requests_lib is None:
-        raise RuntimeError("Verifile API key or requests library not configured")
+    """Return auth headers for the Verifile REST API (v1)."""
+    if not VERIFILE_APIM_KEY or _requests_lib is None:
+        raise RuntimeError("Verifile APIM key or requests library not configured")
     return {
-        "Authorization": f"Bearer {VERIFILE_API_KEY}",
+        "Ocp-Apim-Subscription-Key": VERIFILE_APIM_KEY,
+        "VerifileUserId": VERIFILE_USER_ID,
+        "VerifileSubsidiaryOrganisationId": VERIFILE_SUBSIDIARY_ORG_ID,
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "X-Client-Id": VERIFILE_CLIENT_ID,
     }
 
 def verifile_create_candidate(name: str, email: str, candidate_id: int) -> str:
@@ -9751,7 +9753,7 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     Updates VettingCheck rows with external_ref and external_provider.
     Returns count of successfully submitted checks.
     """
-    if not VERIFILE_API_KEY:
+    if not VERIFILE_APIM_KEY:
         return 0  # Verifile not configured — checks stay as manual
 
     webhook_url = f"{APP_BASE_URL}/webhook/verifile"
@@ -9901,7 +9903,7 @@ def webhook_verifile():
 @login_required
 def api_vetting_poll_verifile(cand_id):
     """Manually poll Verifile for updated statuses on all outstanding checks for a candidate."""
-    if not VERIFILE_API_KEY:
+    if not VERIFILE_APIM_KEY:
         return jsonify({"ok": False, "error": "Verifile API key not configured"}), 400
 
     with Session(engine) as s:
@@ -10273,7 +10275,7 @@ def api_vetting_trigger(cand_id):
 
         # Auto-submit to Verifile if API key is configured
         verifile_submitted = 0
-        if VERIFILE_API_KEY:
+        if VERIFILE_APIM_KEY:
             try:
                 verifile_submitted = verifile_submit_all_checks(
                     cand_id, cand.name, cand.email, checks_to_trigger, s
@@ -10287,7 +10289,7 @@ def api_vetting_trigger(cand_id):
         result_msg += f", {na_count} not required"
     if verifile_submitted:
         result_msg += f", {verifile_submitted} submitted to Verifile"
-    elif VERIFILE_API_KEY:
+    elif VERIFILE_APIM_KEY:
         result_msg += " (Verifile submission pending)"
 
     return jsonify({"ok": True, "message": result_msg})
@@ -16392,7 +16394,7 @@ def _setup_scheduler():
     @scheduler.scheduled_job('interval', hours=24, id='auto_poll_verifile')
     def auto_poll_verifile():
         with app.app_context():
-            if not VERIFILE_API_KEY:
+            if not VERIFILE_APIM_KEY:
                 return
             try:
                 with Session(engine) as s:
@@ -16406,8 +16408,7 @@ def _setup_scheduler():
                         try:
                             resp = requests.get(
                                 f"{VERIFILE_BASE_URL}/screenings/{vc.external_ref}",
-                                headers={"Authorization": f"Bearer {VERIFILE_API_KEY}",
-                                         "X-Client-Id": VERIFILE_CLIENT_ID},
+                                headers=_verifile_headers(),
                                 timeout=15
                             )
                             if resp.status_code == 200:
