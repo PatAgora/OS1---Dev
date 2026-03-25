@@ -10749,10 +10749,13 @@ def candidate_profile(cand_id: int):
                 'ts': d.uploaded_at.strftime('%d %b %Y') if getattr(d, 'uploaded_at', None) else '',
             })
 
+        engagement = None
         if latest_app:
             job = s.scalar(select(Job).where(Job.id == latest_app.job_id))
             job_open = _job_is_open(job)
             applied_on = latest_app.created_at
+            if job and job.engagement_id:
+                engagement = s.get(Engagement, job.engagement_id)
 
         # Tags data for the sidebar card
         cand_tags = s.scalars(
@@ -11057,6 +11060,7 @@ def candidate_profile(cand_id: int):
         tags_by_cat=tags_by_cat,
 
         # engagement/list context for banner in template
+        engagement=engagement,
         context=ctx if ctx.get("stage") else None,
 
         # === New wireframe data ===
