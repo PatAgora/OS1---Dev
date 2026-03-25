@@ -903,33 +903,6 @@
 
 <!-- Custom Metrics Widgets (REQ-266) -->
 <div class="metrics-grid">
-    <!-- Revenue Forecast Summary -->
-    <div class="chart-section">
-        <div class="chart-header">
-            <h3 class="chart-title">
-                <i class="fas fa-pound-sign"></i>
-                Revenue Forecast Summary
-            </h3>
-        </div>
-        <div class="revenue-forecast-grid">
-            <div class="forecast-metric forecast">
-                <div class="forecast-metric-label">Forecast Revenue</div>
-                <div class="forecast-metric-value">&pound;{{ "{:,.0f}".format(dashboard_forecast_revenue|default(0)) }}</div>
-            </div>
-            <div class="forecast-metric actual">
-                <div class="forecast-metric-label">Actual Revenue</div>
-                <div class="forecast-metric-value">&pound;{{ "{:,.0f}".format(dashboard_actual_revenue|default(0)) }}</div>
-            </div>
-            <div class="forecast-metric variance">
-                <div class="forecast-metric-label">Variance</div>
-                {% set variance_pct = ((dashboard_actual_revenue|default(0) / dashboard_forecast_revenue|default(1)) * 100 - 100) if dashboard_forecast_revenue|default(0) > 0 else 0 %}
-                <div class="forecast-metric-value {{ 'positive' if variance_pct >= 0 else 'negative' }}">
-                    {{ "+" if variance_pct >= 0 else "" }}{{ "{:.1f}".format(variance_pct) }}%
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Headcount Trend Chart -->
     <div class="chart-section">
         <div class="chart-header">

@@ -1415,6 +1415,24 @@ function updateCheckTypeChart(filter) {
 // Initialize chart on page load
 document.addEventListener('DOMContentLoaded', function() {
   initCheckTypeChart();
+
+  // Auto-focus on specific stages when arriving from dashboard tile links
+  const focusStage = '{{ focus_stage|default("") }}';
+  if (focusStage) {
+    // Map dashboard focus params to workflow stage IDs to show
+    const FOCUS_MAP = {
+      'offered': ['offered', 'accepted'],
+      'accepted': ['accepted'],
+      'ready_to_contract': ['ready_to_contract', 'contract_sent', 'placed'],
+      'contract_sent': ['contract_sent'],
+      'placed': ['placed'],
+    };
+    const showStages = FOCUS_MAP[focusStage] || [focusStage];
+    document.querySelectorAll('.focus-cb').forEach(cb => {
+      cb.checked = showStages.includes(cb.dataset.stage);
+    });
+    applyFocusView();
+  }
 });
 
 // Drag and Drop functionality

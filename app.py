@@ -5546,8 +5546,14 @@ def index():
                 .where(EngagementPlan.engagement_id.in_(eng_ids))
             ) or 0
         
-        # 3. Associates Offered (applications in "Offer" or later stage)
-        offer_stages = ["Offer", "Vetting", "Vetting In-Flight", "Contract Issued", "Contract Signed", "Onboarding", "Hired"]
+        # 3. Associates Offered (applications in "Offered" or later stage)
+        offer_stages = [
+            "Offered", "Offer Made", "Offer Sent",
+            "Accepted", "Offer Accepted",
+            "Ready to Contract", "Vetting Complete", "Vetting", "Vetting In-Flight",
+            "Contract Sent", "Contract Issued",
+            "Placed", "Contract Signed", "Contracted", "Active", "Hired", "Onboarding",
+        ]
         associates_offered_query = (
             select(func.count(func.distinct(Application.candidate_id)))
             .select_from(Application)
@@ -5563,7 +5569,11 @@ def index():
             select(func.count(Application.id))
             .select_from(Application)
             .join(Job, Job.id == Application.job_id)
-            .where(Application.status.in_(["Contract Issued", "Contract Signed", "Hired", "Onboarding"]))
+            .where(Application.status.in_([
+                "Ready to Contract", "Vetting Complete",
+                "Contract Sent", "Contract Issued",
+                "Placed", "Contract Signed", "Contracted", "Active", "Hired", "Onboarding",
+            ]))
         )
         if eng_ids:
             vetting_completed_query = vetting_completed_query.where(Job.engagement_id.in_(eng_ids))
@@ -5805,29 +5815,6 @@ def index():
 
         # === Dashboard Custom Metrics (REQ-266) ===
 
-        # Revenue Forecast Summary (reuses revenue page logic)
-        dashboard_forecast_revenue = 0
-        dashboard_actual_revenue = 0
-        for eng in active_engagements:
-            plans = s.scalars(
-                select(EngagementPlan)
-                .where(EngagementPlan.engagement_id == eng.id)
-            ).all()
-            planned_daily_rev = sum((p.charge_rate or 0) * (p.planned_count or 0) for p in plans)
-            eng_start = eng.start_date or now.date()
-            eng_end = eng.end_date or now.date()
-            if hasattr(eng_start, 'date') and callable(eng_start.date):
-                eng_start = eng_start.date()
-            if hasattr(eng_end, 'date') and callable(eng_end.date):
-                eng_end = eng_end.date()
-            delta = max(1, (eng_end - eng_start).days) if eng_end >= eng_start else 20
-            working_days = max(1, int(delta * 5 / 7))
-            dashboard_forecast_revenue += planned_daily_rev * working_days
-            import random
-            random.seed(eng.id)
-            actual_factor = 0.85 + random.random() * 0.30
-            dashboard_actual_revenue += planned_daily_rev * working_days * actual_factor
-
         # Headcount Trend (on-contract by month for last 6 months)
         headcount_trend_labels = []
         headcount_trend_data = []
@@ -5909,8 +5896,6 @@ def index():
         total_new_apps_7d=total_new_apps_7d,
         top_engagements=top_engagements,
         active_vacancies=active_vacancies,
-        dashboard_forecast_revenue=dashboard_forecast_revenue,
-        dashboard_actual_revenue=dashboard_actual_revenue,
         headcount_trend_labels=headcount_trend_labels,
         headcount_trend_data=headcount_trend_data,
         upcoming_leavers=upcoming_leavers,
@@ -6850,6 +6835,7 @@ def workflow():
     role_filter = request.args.get("role", "all")
     intake_filter = request.args.get("intake", "all")
     analyst_filter = request.args.get("analyst", "all")  # N15: Analyst filter
+    focus_stage = request.args.get("stage", "")  # Pre-focus on specific stage(s) from dashboard
     
     # REQ-273: Load workflow stages from DB config (falls back to defaults)
     with Session(engine) as s:
@@ -7413,6 +7399,7 @@ def workflow():
         analyst_filter=analyst_filter,
         unsigned_contracts=unsigned_contracts_data,
         vetting_summary=vetting_summary,
+        focus_stage=focus_stage,
     )
 
 @csrf.exempt
@@ -8811,7 +8798,8 @@ def public_job(token):
         job = s.scalar(select(Job).where(Job.public_token==token))
         if not job:
             abort(404)
-    return render_template("public_job.html", job=job)
+        # Render inside session so lazy-loaded relationships (e.g. job.engagement) work
+        return render_template("public_job.html", job=job)
 
 @login_required
 @app.route("/job/new", methods=["GET", "POST"])
