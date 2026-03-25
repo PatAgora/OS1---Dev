@@ -391,6 +391,10 @@
           </a>
           {% endif %}
           {% if view_exists('projects') %}
+          <a href="{{ url_for('pipeline') }}"
+             class="{% if request.endpoint == 'pipeline' %}active{% endif %}">
+            <i class="fas fa-funnel-dollar"></i><span>Pipeline</span>
+          </a>
           <a href="{{ url_for('projects') }}"
              class="{% if request.endpoint in ['projects', 'engagements','engagement_dashboard','engagement_plan','engagement_list'] %}active{% endif %}">
             <i class="fas fa-project-diagram"></i><span>Projects</span>

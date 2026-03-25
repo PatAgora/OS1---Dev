@@ -878,7 +878,7 @@
               {% set intakes = intake_data.get('intakes', []) %}
               
               <!-- Main Role Row -->
-              <tr class="role-main-row" data-role="{{ role }}" data-intake-dates="{{ intakes|map(attribute='date_display')|join(',') if intakes else '' }}">
+              <tr class="role-main-row" data-role="{{ role }}" data-intake-dates-iso="{{ intakes|map(attribute='date_raw')|select|map('strftime', '%Y-%m-%d')|join(',') if intakes else '' }}">
                 <td><strong>{{ role }}</strong></td>
                 <td class="text-center">{{ planned }}</td>
                 <td class="text-center">{{ signed }}</td>
@@ -904,7 +904,7 @@
                   {% set intake_scheduled = ((scheduled * intake.planned_count) / planned)|int if planned > 0 else 0 %}
                   {% set intake_left = intake.planned_count - intake_signed - intake_scheduled %}
                   {% set intake_fill_pct = (intake_signed * 100 / intake.planned_count)|int if intake.planned_count > 0 else 0 %}
-                  <tr class="intake-sub-row" data-role="{{ role }}" data-intake-date="{{ intake.date_display }}">
+                  <tr class="intake-sub-row" data-role="{{ role }}" data-intake-date="{{ intake.date_display }}" data-intake-date-iso="{{ intake.date_raw.strftime('%Y-%m-%d') if intake.date_raw else '' }}">
                     <td class="intake-date-cell">
                       <span class="intake-bullet">•</span>
                       {{ intake.date_display }}
@@ -953,9 +953,6 @@
           Active Job Posts
         </div>
         <div class="d-flex gap-2">
-          <a class="btn btn-modern-primary btn-sm" href="{{ url_for('jobs', eng_id=engagement.id) }}">
-            <i class="fas fa-plus"></i> New Job
-          </a>
           <a class="btn btn-modern-outline btn-sm" href="{{ url_for('jobs', eng_id=engagement.id) }}">
             <i class="fas fa-list"></i> Manage Jobs
           </a>
@@ -1067,12 +1064,30 @@
       const rowRole = row.dataset.role || '';
       let show = true;
       if (roleFilter && rowRole !== roleFilter) show = false;
-      // For intake date filtering on sub-rows
-      if (show && (intakeFrom || intakeTo) && row.classList.contains('intake-sub-row')) {
-        const intakeDate = row.dataset.intakeDate || '';
-        // Simple string comparison won't work for display dates, so skip date filter on display strings
-        // unless we have ISO dates. For now filter by role only.
+
+      // Date filter on main role rows — hide if none of its intakes are in range
+      if (show && (intakeFrom || intakeTo) && row.classList.contains('role-main-row')) {
+        const isoStr = row.dataset.intakeDatesIso || '';
+        if (isoStr) {
+          const dates = isoStr.split(',').filter(d => d);
+          const anyInRange = dates.some(d => {
+            if (intakeFrom && d < intakeFrom) return false;
+            if (intakeTo && d > intakeTo) return false;
+            return true;
+          });
+          if (!anyInRange) show = false;
+        }
       }
+
+      // Date filter on intake sub-rows
+      if (show && (intakeFrom || intakeTo) && row.classList.contains('intake-sub-row')) {
+        const isoDate = row.dataset.intakeDateIso || '';
+        if (isoDate) {
+          if (intakeFrom && isoDate < intakeFrom) show = false;
+          if (intakeTo && isoDate > intakeTo) show = false;
+        }
+      }
+
       row.style.display = show ? '' : 'none';
     });
   }

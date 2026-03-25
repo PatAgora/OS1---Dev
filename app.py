@@ -5097,7 +5097,7 @@ class OpportunityForm(FlaskForm):
     owner = SelectField("Owner", coerce=int, validators=[WTOptional()])
 
     # Display as DD-MM-YYYY to the user
-    est_start = StringField("Est. Start (DD-MM-YYYY)", validators=[WTOptional()])
+    est_start = StringField("Est. Start", validators=[WTOptional()])
 
     est_value = IntegerField("Est. Value (£)", validators=[WTOptional()])
 
@@ -6302,9 +6302,14 @@ def opportunities_():
     form.owner.choices = [(u[0], u[1]) for u in users_rows]  # (id, display)
 
     if form.validate_on_submit():
-        # Parse DD-MM-YYYY to datetime (UK style)
-        raw_start = form.est_start.data or ""
-        est_start_dt = parse_date_dmy(raw_start)
+        # Parse date (ISO YYYY-MM-DD from date picker, or DD-MM-YYYY fallback)
+        raw_start = (form.est_start.data or "").strip()
+        est_start_dt = None
+        if raw_start:
+            try:
+                est_start_dt = datetime.datetime.strptime(raw_start, "%Y-%m-%d")
+            except ValueError:
+                est_start_dt = parse_date_dmy(raw_start)
 
         # est_value is already numeric (IntegerField), but could be None
         val = form.est_value.data if form.est_value.data is not None else 0
@@ -6673,7 +6678,7 @@ def opportunity_edit(opp_id):
             client=opp.client,
             stage=opp.stage,
             owner=owner_id_for_form,
-            est_start=format_date_dmy(opp.est_start),  # "DD-MM-YYYY"
+            est_start=opp.est_start.strftime("%Y-%m-%d") if opp.est_start else "",
             est_value=opp.est_value or 0,
             notes=opp.notes or "",
             client_contact_name = opp.client_contact_name or "",
@@ -6700,7 +6705,14 @@ def opportunity_edit(opp_id):
             opp.client = form.client.data or ""
             opp.stage = form.stage.data
             opp.owner = new_owner_name
-            opp.est_start = parse_date_dmy(form.est_start.data)
+            raw_est = (form.est_start.data or "").strip()
+            if raw_est:
+                try:
+                    opp.est_start = datetime.datetime.strptime(raw_est, "%Y-%m-%d")
+                except ValueError:
+                    opp.est_start = parse_date_dmy(raw_est)  # fallback for DD-MM-YYYY
+            else:
+                opp.est_start = None
             opp.est_value = int(form.est_value.data or 0)
 
             # probability is now implicit; we keep writing it for downstream logic
@@ -8423,8 +8435,9 @@ def projects():
 
         return render_template(
             "projects.html",
+            view_mode="projects",
             opportunities=opportunities,
-            all_opportunities=opportunities,  # For the filter dropdowns
+            all_opportunities=opportunities,
             engagements=engagements,
             all_clients=all_clients,
             all_roles=all_roles,
@@ -8446,6 +8459,70 @@ def projects():
             closed_won_opps=closed_won_opps,
             closed_lost_opps=closed_lost_opps,
         )
+
+
+@app.route("/pipeline")
+@login_required
+def pipeline():
+    """Pipeline page — sales pipeline / opportunities view, separated from Projects."""
+    client_filter = request.args.get("client", "all")
+
+    with Session(engine) as s:
+        opp_clients = s.scalars(
+            select(Opportunity.client)
+            .distinct()
+            .where(Opportunity.client.isnot(None), Opportunity.client != "")
+        ).all()
+        all_clients = sorted(set(opp_clients))
+
+        opp_query = select(Opportunity).order_by(Opportunity.est_start.asc())
+        if client_filter != "all":
+            opp_query = opp_query.where(Opportunity.client == client_filter)
+        opportunities = s.scalars(opp_query).all()
+
+        kanban_stages = ["Qualified Lead", "Proposal", "Procurement"]
+        all_stage_names = ["Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
+        stage_data = {stage: [] for stage in all_stage_names}
+        for opp in opportunities:
+            stage = opp.stage or "Qualified Lead"
+            if stage in stage_data:
+                stage_data[stage].append(opp)
+
+        closed_won_opps = stage_data.get("Closed Won", [])
+        closed_lost_opps = stage_data.get("Closed Lost", [])
+        active_pipeline_opps = [o for o in opportunities
+                                if (o.stage or "").lower() not in ("closed won", "closed lost")]
+
+        return render_template(
+            "projects.html",
+            view_mode="pipeline",
+            opportunities=opportunities,
+            all_opportunities=opportunities,
+            engagements=[],
+            all_clients=all_clients,
+            all_roles=[],
+            engagement_roles={},
+            status_filter="all",
+            client_filter=client_filter,
+            pipeline_stages=kanban_stages,
+            stage_data=stage_data,
+            active_engagements=[],
+            active_count=0,
+            completed_count=0,
+            total_pipeline=len(active_pipeline_opps),
+            total_value=sum(opp.est_value or 0 for opp in active_pipeline_opps),
+            weighted_value=sum(
+                (opp.est_value or 0) * (getattr(opp, 'probability', 50) or 50) / 100
+                for opp in active_pipeline_opps
+            ),
+            closed_won_count=len(closed_won_opps),
+            closed_lost_count=len(closed_lost_opps),
+            closed_won_value=sum(o.est_value or 0 for o in closed_won_opps),
+            closed_lost_value=sum(o.est_value or 0 for o in closed_lost_opps),
+            closed_won_opps=closed_won_opps,
+            closed_lost_opps=closed_lost_opps,
+        )
+
 
 @login_required
 @app.route("/engagements/create", methods=["GET", "POST"])
@@ -12273,8 +12350,7 @@ def engagement_dashboard(eng_id):
         ).all()
         planned_by_role = {r: 0 for r in ROLE_TYPES}
         for r, cnt in plans:
-            if r in planned_by_role:
-                planned_by_role[r] = int(cnt or 0)
+            planned_by_role[r] = planned_by_role.get(r, 0) + int(cnt or 0)
         total_planned = sum(planned_by_role.values())
 
         # If engagement finished -> skip activity logic

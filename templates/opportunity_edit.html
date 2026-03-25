@@ -237,10 +237,10 @@
               <i class="fas fa-calendar-alt"></i>
               {{ form.est_start.label.text }}
             </label>
-            {{ form.est_start(class="form-control-modern", placeholder="DD/MM/YYYY") }}
+            <input type="date" name="est_start" class="form-control-modern" value="{{ form.est_start.data or '' }}">
             <div class="form-text small mt-1 ms-1">
               <i class="fas fa-info-circle me-1"></i>
-              Expected start date in UK format
+              Expected start date
             </div>
           </div>
 
