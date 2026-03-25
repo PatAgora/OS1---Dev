@@ -7476,7 +7476,7 @@ def api_workflow_move():
                     select(VettingCheck).where(VettingCheck.candidate_id == app_obj.candidate_id)
                 ).scalars().all()
                 _vet_map = {vc.check_type: vc.status.upper() for vc in _vet_checks}
-                _done = sum(1 for ct in _ALL_CHECKS if _vet_map.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED"])
+                _done = sum(1 for ct in _ALL_CHECKS if _vet_map.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
                 if _done < len(_ALL_CHECKS):
                     return jsonify({
                         "ok": False,
@@ -7683,7 +7683,7 @@ def workflow_move():
             ).scalars().all()
             check_statuses_map = {vc.check_type: vc.status.upper() for vc in all_checks}
             completed_count = sum(1 for ct in ALL_VETTING_CHECKS
-                                if check_statuses_map.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED"])
+                                if check_statuses_map.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
             if completed_count < len(ALL_VETTING_CHECKS):
                 return jsonify({
                     "ok": False,
@@ -9498,31 +9498,47 @@ def application_detail(app_id):
         except Exception:
             pass
 
-    # Render (note: no DB work after the session closes)
-    return render_template(
-        "application_detail.html",
-        appn=appn,
-        cand=cand,
-        job=job,
-        engagement=engagement,
-        docs=docs,
-        trust=trust,
-        trust_result=trust_result,
-        esig=esig,
-        interview_form=interview_form,
-        # Tags-only context:
-        cand_tags=cand_tags,
-        cats=cats,
-        tags_by_cat=tags_by_cat,
-        # Meta:
-        job_open=job_open,
-        applied_on=applied_on,
-        # Stage banner + UX hints:
-        stage_context=stage_ctx,
-        actions_disabled=actions_disabled,
-        # Vetting check data (for automation toggle):
-        vetting_checks_map=vetting_checks_map,
-    )
+        # Fetch pay rate from engagement plan for contract pre-population
+        plan_pay_rate = ""
+        if engagement and job:
+            try:
+                ep = s.scalar(
+                    select(EngagementPlan)
+                    .where(EngagementPlan.engagement_id == engagement.id)
+                    .where(EngagementPlan.role_type == job.role_type)
+                )
+                if ep and ep.pay_rate:
+                    plan_pay_rate = ep.pay_rate
+            except Exception:
+                pass
+
+        # Render inside session so lazy-loaded relationships work
+        return render_template(
+            "application_detail.html",
+            appn=appn,
+            cand=cand,
+            job=job,
+            engagement=engagement,
+            docs=docs,
+            trust=trust,
+            trust_result=trust_result,
+            esig=esig,
+            interview_form=interview_form,
+            # Tags-only context:
+            cand_tags=cand_tags,
+            cats=cats,
+            tags_by_cat=tags_by_cat,
+            # Meta:
+            job_open=job_open,
+            applied_on=applied_on,
+            # Stage banner + UX hints:
+            stage_context=stage_ctx,
+            actions_disabled=actions_disabled,
+            # Vetting check data (for automation toggle):
+            vetting_checks_map=vetting_checks_map,
+            # Contract pre-population:
+            plan_pay_rate=plan_pay_rate,
+        )
 
 @login_required
 @app.route("/action/score/<int:app_id>", methods=["POST"])
@@ -9937,7 +9953,7 @@ def webhook_verifile():
         ).scalars().all()
         check_statuses = {v.check_type: v.status.upper() for v in all_checks}
         completed_count = sum(1 for ct in ALL_VETTING_CHECKS
-                              if check_statuses.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED"])
+                              if check_statuses.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
 
         if completed_count == len(ALL_VETTING_CHECKS):
             active_app = s.scalar(
@@ -10812,11 +10828,13 @@ def candidate_profile(cand_id: int):
                 vetting_summary["not_started"] += 1
         
         # === Notes & Activity ===
+        # General Notes (user-added only, not auto-logged activities)
         candidate_notes = []
         try:
             candidate_notes = s.scalars(
                 select(CandidateNote)
                 .where(CandidateNote.candidate_id == cand_id)
+                .where(CandidateNote.note_type == "note")
                 .order_by(CandidateNote.created_at.desc())
                 .limit(50)
             ).all()
@@ -10993,25 +11011,6 @@ def candidate_profile(cand_id: int):
                     'details': (note.content[:150] + '...') if note.content and len(note.content) > 150 else (note.content or '')
                 })
 
-            # Get general/manual notes
-            general_notes = s.scalars(
-                select(CandidateNote)
-                .where(CandidateNote.candidate_id == cand_id)
-                .where((CandidateNote.note_type != "activity") | (CandidateNote.note_type == None))
-                .order_by(CandidateNote.created_at.desc())
-                .limit(10)
-            ).all()
-
-            for note in general_notes:
-                activity_feed.append({
-                    'type': 'note',
-                    'icon': 'fa-sticky-note',
-                    'color': '#6b7280',
-                    'title': note.note_type or 'Note Added',
-                    'timestamp': note.created_at,
-                    'details': (note.content[:100] + '...') if note.content and len(note.content) > 100 else (note.content or '')
-                })
-            
             # Sort by timestamp descending
             activity_feed.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.datetime.min, reverse=True)
             activity_feed = activity_feed[:30]  # Limit to 30 most recent
@@ -11090,9 +11089,12 @@ def update_vetting_check(cand_id: int):
     new_status = request.form.get("status", "NOT STARTED")
     notes = request.form.get("notes", "")
     
+    # Redirect back to referring page (application_detail or candidate_profile)
+    redirect_url = request.referrer or url_for("candidate_profile", cand_id=cand_id)
+
     if not check_type:
         flash("Invalid vetting check type", "error")
-        return redirect(url_for("candidate_profile", cand_id=cand_id))
+        return redirect(redirect_url)
     
     # All vetting check types
     ALL_VETTING_CHECKS = [
@@ -11148,7 +11150,7 @@ def update_vetting_check(cand_id: int):
         
         # Count completed checks (COMPLETE, N/A, or REFERRAL APPROVED are considered done)
         completed_count = sum(1 for ct in ALL_VETTING_CHECKS
-                            if check_statuses.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED"])
+                            if check_statuses.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
         
         all_vetting_complete = completed_count == len(ALL_VETTING_CHECKS)
         
@@ -11177,10 +11179,10 @@ def update_vetting_check(cand_id: int):
                 
                 s.commit()
                 flash(f"All vetting complete! {cand.name} has been moved to 'Contract Issued' stage.", "success")
-                return redirect(url_for("candidate_profile", cand_id=cand_id))
-    
+                return redirect(redirect_url)
+
     flash(f"Vetting check '{check_type}' updated to '{new_status}'", "success")
-    return redirect(url_for("candidate_profile", cand_id=cand_id))
+    return redirect(redirect_url)
 
 
 # -------- REQ-269: Manual Vetting Entry Fallback --------
@@ -11195,9 +11197,11 @@ def manual_vetting_entry(cand_id: int):
     completed_date = request.form.get("completed_date", "").strip()
     notes = request.form.get("notes", "").strip()
 
+    redirect_url = request.referrer or url_for("candidate_profile", cand_id=cand_id)
+
     if not check_type:
         flash("Check type is required.", "danger")
-        return redirect(url_for("candidate_profile", cand_id=cand_id))
+        return redirect(redirect_url)
 
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
@@ -11262,7 +11266,7 @@ def manual_vetting_entry(cand_id: int):
             pass
 
     flash(f"Manual vetting entry saved: {check_type} → {status}", "success")
-    return redirect(url_for("candidate_profile", cand_id=cand_id))
+    return redirect(redirect_url)
 
 
 # =========================================================================
@@ -13381,8 +13385,9 @@ def _render_applications_table(
         tpl = "applications_engagement.html" if eng_id else "applications.html"
         engagement = s.get(Engagement, eng_id) if eng_id else None
 
-    return render_template(tpl, q=q, job_id=job_id, eng_id=eng_id,
-                           items=items, pagination=pagination, engagement=engagement)
+        # Render inside session so lazy-loaded relationships work
+        return render_template(tpl, q=q, job_id=job_id, eng_id=eng_id,
+                               items=items, pagination=pagination, engagement=engagement)
 
 @login_required
 @app.route("/applications")

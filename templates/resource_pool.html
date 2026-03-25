@@ -1277,7 +1277,7 @@ function showAddAssociateModal() {
 <!-- Add Associate Modal -->
 <div class="modal fade" id="addAssociateModal" tabindex="-1" aria-labelledby="addAssociateModalLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form class="modal-content" method="POST" action="{{ url_for('add_candidate_manual') }}">
+    <form class="modal-content" method="POST" action="{{ url_for('add_candidate_manual') }}" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-header">
         <h5 class="modal-title" id="addAssociateModalLabel">
@@ -1302,6 +1302,11 @@ function showAddAssociateModal() {
         <div class="mb-3">
           <label for="add-location" class="form-label">Location</label>
           <input type="text" class="form-control" id="add-location" name="location" placeholder="London, UK">
+        </div>
+        <div class="mb-3">
+          <label for="add-cv" class="form-label">CV Upload</label>
+          <input type="file" class="form-control" id="add-cv" name="cv" accept=".pdf,.doc,.docx">
+          <div class="form-text">Accepted: PDF, DOC, DOCX</div>
         </div>
       </div>
       <div class="modal-footer">

@@ -1506,24 +1506,26 @@
                 <strong>Engagement:</strong> {{ engagement.name }}
                 {% if engagement.start_date or engagement.end_date %}
                 <br><small class="text-muted">
-                  Engagement period: {{ engagement.start_date.strftime('%d %b %Y') if engagement.start_date else 'TBD' }} 
+                  Engagement period: {{ engagement.start_date.strftime('%d %b %Y') if engagement.start_date else 'TBD' }}
                   – {{ engagement.end_date.strftime('%d %b %Y') if engagement.end_date else 'TBD' }}
                 </small>
                 {% endif %}
               </div>
-              
+
               <p class="text-muted mb-2" style="font-size: 0.75rem;">
-                <i class="fas fa-user me-1"></i>Set this associate's specific contract terms:
+                <i class="fas fa-user me-1"></i>Contract terms pre-populated from engagement role{% if not current_user.role == 'admin' %} (read-only for non-admins){% endif %}:
               </p>
-              
+
               <div class="mb-2">
                 <label class="field-label" style="font-size: 0.75rem;">Role Title <span class="text-danger">*</span></label>
-                <input type="text" name="role_title" class="form-control form-control-sm" 
-                       value="{{ job.title if job else '' }}" placeholder="e.g. Case Handler" required>
+                <input type="text" name="role_title" class="form-control form-control-sm"
+                       value="{{ job.title if job else '' }}" placeholder="e.g. Case Handler" required
+                       {% if current_user.role != 'admin' %}readonly{% endif %}>
               </div>
               <div class="mb-2">
                 <label class="field-label" style="font-size: 0.75rem;">Contract Type</label>
-                <select name="contract_type" class="form-select form-select-sm">
+                <select name="contract_type" class="form-select form-select-sm"
+                        {% if current_user.role != 'admin' %}disabled{% endif %}>
                   <option value="Fixed Term">Fixed Term</option>
                   <option value="Permanent">Permanent</option>
                   <option value="Contractor">Contractor</option>
@@ -1533,16 +1535,22 @@
               <div class="row g-2 mb-2">
                 <div class="col-6">
                   <label class="field-label" style="font-size: 0.75rem;">Contract Start <span class="text-danger">*</span></label>
-                  <input type="date" name="start_date" class="form-control form-control-sm" required>
+                  <input type="date" name="start_date" class="form-control form-control-sm" required
+                         value="{{ engagement.start_date.strftime('%Y-%m-%d') if engagement.start_date else '' }}"
+                         {% if current_user.role != 'admin' %}readonly{% endif %}>
                 </div>
                 <div class="col-6">
                   <label class="field-label" style="font-size: 0.75rem;">Contract End <span class="text-danger">*</span></label>
-                  <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                  <input type="date" name="expiry_date" class="form-control form-control-sm" required
+                         value="{{ engagement.end_date.strftime('%Y-%m-%d') if engagement.end_date else '' }}"
+                         {% if current_user.role != 'admin' %}readonly{% endif %}>
                 </div>
               </div>
               <div class="mb-2">
                 <label class="field-label" style="font-size: 0.75rem;">Daily Rate (£) <span class="text-danger">*</span></label>
-                <input type="number" name="daily_rate" class="form-control form-control-sm" placeholder="0" required>
+                <input type="number" name="daily_rate" class="form-control form-control-sm" placeholder="0" required
+                       value="{{ plan_pay_rate|default('', true) }}"
+                       {% if current_user.role != 'admin' %}readonly{% endif %}>
               </div>
               <div class="mb-2">
                 <label class="field-label" style="font-size: 0.75rem;">Notes</label>
@@ -1919,6 +1927,9 @@
           <div class="text-center py-3 text-muted" style="background: #f9fafb; border-radius: 8px;">
             <i class="fas fa-inbox mb-2" style="opacity: 0.4;"></i>
             <p class="mb-0 small">No active placements</p>
+            <p class="mb-0 small" style="font-size: 0.7rem; margin-top: 0.25rem;">
+              <i class="fas fa-info-circle me-1"></i>To create a placement: Issue Contract below, then mark it as signed.
+            </p>
           </div>
           {% endif %}
         </div>
