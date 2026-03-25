@@ -835,27 +835,22 @@
       <div class="filter-buttons">
         <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
         <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()"><i class="fas fa-times me-1"></i> Clear</button>
+        <button type="button" class="btn btn-outline-danger" id="bulkRejectToggle" onclick="toggleBulkMode()">
+          <i class="fas fa-ban me-1"></i> Bulk Reject
+        </button>
+        <button type="button" class="btn btn-danger" id="bulkRejectConfirm" onclick="openBulkRejectModal()" style="display:none;">
+          <i class="fas fa-trash me-1"></i> Reject Selected (<span id="bulkCount">0</span>)
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="bulkRejectCancel" onclick="cancelBulkMode()" style="display:none;">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-outline-secondary" onclick="refreshWorkflow()">
+          <i class="fas fa-sync-alt me-1"></i> Refresh
+        </button>
       </div>
     </div>
   </div>
 </form>
-
-<!-- Stage Summary Cards (KPI row) -->
-<!-- Action Buttons -->
-<div class="d-flex gap-2" style="margin-bottom: 0.5rem;">
-  <button class="btn btn-outline-danger btn-sm" id="bulkRejectToggle" onclick="toggleBulkMode()">
-    <i class="fas fa-ban me-1"></i> Bulk Reject
-  </button>
-  <button class="btn btn-danger btn-sm" id="bulkRejectConfirm" onclick="openBulkRejectModal()" style="display:none;">
-    <i class="fas fa-trash me-1"></i> Reject Selected (<span id="bulkCount">0</span>)
-  </button>
-  <button class="btn btn-outline-secondary btn-sm" id="bulkRejectCancel" onclick="cancelBulkMode()" style="display:none;">
-    Cancel
-  </button>
-  <button class="btn btn-outline-secondary btn-sm" onclick="refreshWorkflow()">
-    <i class="fas fa-sync-alt me-1"></i> Refresh
-  </button>
-</div>
 
 <!-- Kanban Board — wrapped for horizontal scroll starting at nav edge -->
 <div class="workflow-scroll-wrapper">
