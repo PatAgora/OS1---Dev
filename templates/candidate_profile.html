@@ -905,9 +905,15 @@
             <div class="text-center text-muted py-3">
               <i class="fas fa-file-contract mb-2" style="font-size: 2rem;"></i>
               <p class="mb-0">No contract issued</p>
+              {% if latest_app %}
+              <a href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary mt-2">
+                <i class="fas fa-file-signature me-1"></i> Issue Contract
+              </a>
+              {% else %}
               <p class="mb-0" style="font-size: 0.7rem; margin-top: 0.25rem;">
-                <i class="fas fa-info-circle me-1"></i>Issue contracts from the application detail view.
+                <i class="fas fa-info-circle me-1"></i>Add to a job pipeline first, then issue a contract.
               </p>
+              {% endif %}
             </div>
           {% endif %}
         </div>
@@ -947,6 +953,9 @@
             <div class="text-center text-muted py-3">
               <i class="fas fa-folder-open mb-2" style="font-size: 2rem;"></i>
               <p class="mb-0">No placements yet</p>
+              <p class="mb-0" style="font-size: 0.7rem; margin-top: 0.25rem;">
+                Placements are created automatically when a contract is signed.
+              </p>
             </div>
           {% endif %}
         </div>
