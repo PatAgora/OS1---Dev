@@ -6985,10 +6985,12 @@ def workflow():
             if role_filter != "all":
                 query = query.where(Job.title == role_filter)
             
-            # Owner filter - filter by job creator or engagement owner
+            # Owner filter - filter by job creator email or engagement owner name
             if owner_filter != "all":
-                query = query.outerjoin(User, User.id == Job.created_by).where(
-                    or_(User.email == owner_filter, Engagement.owner == owner_filter)
+                from sqlalchemy.orm import aliased
+                OwnerUser = aliased(User)
+                query = query.outerjoin(OwnerUser, OwnerUser.id == Job.created_by).where(
+                    or_(OwnerUser.email == owner_filter, Engagement.owner == owner_filter)
                 )
             
             # Intake filter - filter by engagement plan intake date
@@ -7138,9 +7140,7 @@ def workflow():
         if engagement_filter != "all" and engagement_filter.isdigit():
             unsigned_q = unsigned_q.where(Engagement.id == int(engagement_filter))
         if owner_filter != "all":
-            unsigned_q = unsigned_q.outerjoin(User, User.id == Engagement.owner_id).where(
-                or_(User.email == owner_filter, Engagement.owner == owner_filter)
-            )
+            unsigned_q = unsigned_q.where(Engagement.owner == owner_filter)
         unsigned_q = unsigned_q.order_by(ESigRequest.created_at.asc())
         unsigned_contracts = s.execute(unsigned_q).all()
         
@@ -10065,8 +10065,8 @@ def action_interview_not_required(app_id):
     return redirect(url_for("application_detail", app_id=app_id))
 
 
-@login_required
 @app.route("/action/skip_stage/<int:app_id>", methods=["POST"])
+@login_required
 def action_skip_stage(app_id):
     """REQ-274: General skip stage — advance application to next workflow stage."""
     # Note: Skip/unskip intentionally bypasses ALLOWED_TRANSITIONS since the purpose
@@ -10100,8 +10100,8 @@ def action_skip_stage(app_id):
     return redirect(request.referrer or url_for("workflow"))
 
 
-@login_required
 @app.route("/action/unskip_stage/<int:app_id>", methods=["POST"])
+@login_required
 def action_unskip_stage(app_id):
     """REQ-274: Unskip — move application back to a previous workflow stage."""
     # Note: Skip/unskip intentionally bypasses ALLOWED_TRANSITIONS since the purpose
