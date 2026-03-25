@@ -10757,6 +10757,21 @@ def candidate_profile(cand_id: int):
             if job and job.engagement_id:
                 engagement = s.get(Engagement, job.engagement_id)
 
+        # All active engagements with their open jobs (for contract engagement/role selector)
+        all_engagements_for_contract = s.scalars(
+            select(Engagement)
+            .where(Engagement.status == "Active")
+            .order_by(Engagement.name.asc())
+        ).all()
+        engagement_jobs_map = {}
+        for eng in all_engagements_for_contract:
+            eng_jobs = s.scalars(
+                select(Job)
+                .where(Job.engagement_id == eng.id, Job.status == "Open")
+                .order_by(Job.title.asc())
+            ).all()
+            engagement_jobs_map[eng.id] = [{"id": j.id, "title": j.title} for j in eng_jobs]
+
         # Tags data for the sidebar card
         cand_tags = s.scalars(
             select(TaxonomyTag)
@@ -11061,6 +11076,8 @@ def candidate_profile(cand_id: int):
 
         # engagement/list context for banner in template
         engagement=engagement,
+        all_engagements_for_contract=all_engagements_for_contract,
+        engagement_jobs_map=engagement_jobs_map,
         context=ctx if ctx.get("stage") else None,
 
         # === New wireframe data ===

@@ -895,8 +895,10 @@
             <i class="fas fa-file-signature"></i>
             Contract & Placement
           </div>
+          <!-- Active application context -->
           {% if latest_app and (engagement or job) %}
-          <div class="mt-2 mb-2 p-2 rounded" style="background: #f0f4ff; font-size: 0.8rem;">
+          <div class="mt-2 mb-2 p-2 rounded" style="background: #f0f4ff; font-size: 0.8rem;" id="appliedRoleInfo">
+            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Applied For</div>
             {% if engagement %}
               <div><i class="fas fa-building me-1 text-muted"></i><strong>{{ engagement.client or 'No client' }}</strong> — {{ engagement.name }}</div>
             {% endif %}
@@ -909,6 +911,42 @@
           </div>
           {% endif %}
 
+          <!-- Engagement/Role selector for contract -->
+          {% if all_engagements_for_contract and all_engagements_for_contract|length %}
+          <div class="mt-2 mb-2" style="font-size: 0.8rem;">
+            <div class="mb-1">
+              <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280;">Engagement</label>
+              <select id="contractEngSelect" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="onContractEngChange()">
+                {% for eng in all_engagements_for_contract %}
+                <option value="{{ eng.id }}"
+                        data-client="{{ eng.client or '' }}"
+                        {% if engagement and eng.id == engagement.id %}selected{% endif %}>
+                  {{ eng.client or 'No client' }} — {{ eng.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-1">
+              <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280;">Role</label>
+              <select id="contractJobSelect" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="onContractJobChange()">
+              </select>
+            </div>
+            <!-- Warning when selection differs from applied role -->
+            <div id="contractRoleMismatchWarning" class="alert alert-warning py-1 px-2 mb-0 mt-1" style="font-size: 0.75rem; display: none;">
+              <i class="fas fa-exclamation-triangle me-1"></i>
+              This is not the role the associate applied for. Are you sure you want to proceed?
+              <div class="mt-1">
+                <button type="button" class="btn btn-warning btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;" onclick="confirmMismatch()">
+                  Yes, proceed
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;" onclick="revertToApplied()">
+                  Revert
+                </button>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
           {% if contract_status %}
             <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% else %}#f59e0b{% endif %};">
               <div class="fw-semibold" style="font-size: 0.85rem;">
@@ -916,10 +954,10 @@
               </div>
             </div>
           {% else %}
-            <div class="text-center text-muted py-2">
+            <div class="text-center text-muted py-2" id="issueContractSection">
               {% if latest_app %}
               <p class="mb-1 small">No contract issued</p>
-              <a href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary">
+              <a id="issueContractBtn" href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-file-signature me-1"></i> Issue Contract
               </a>
               {% else %}
@@ -1205,6 +1243,83 @@ function filterNotes(query) {
     item.style.display = text.includes(q) ? '' : 'none';
   });
 }
+
+// === Contract Engagement/Role Selector ===
+const engJobsMap = {{ engagement_jobs_map | tojson }};
+const originalEngId = '{{ engagement.id if engagement else "" }}';
+const originalJobId = '{{ job.id if job else "" }}';
+let mismatchConfirmed = false;
+
+function populateJobDropdown(engId) {
+  const jobSelect = document.getElementById('contractJobSelect');
+  if (!jobSelect) return;
+  // Clear existing options safely
+  while (jobSelect.firstChild) jobSelect.removeChild(jobSelect.firstChild);
+  const jobs = engJobsMap[engId] || [];
+  if (jobs.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No open roles';
+    jobSelect.appendChild(opt);
+    return;
+  }
+  jobs.forEach(function(j) {
+    const opt = document.createElement('option');
+    opt.value = j.id;
+    opt.textContent = j.title;
+    if (String(j.id) === originalJobId && String(engId) === originalEngId) opt.selected = true;
+    jobSelect.appendChild(opt);
+  });
+}
+
+function onContractEngChange() {
+  mismatchConfirmed = false;
+  const engSelect = document.getElementById('contractEngSelect');
+  populateJobDropdown(engSelect.value);
+  checkMismatch();
+}
+
+function onContractJobChange() {
+  mismatchConfirmed = false;
+  checkMismatch();
+}
+
+function checkMismatch() {
+  const engSelect = document.getElementById('contractEngSelect');
+  const jobSelect = document.getElementById('contractJobSelect');
+  const warning = document.getElementById('contractRoleMismatchWarning');
+  if (!warning || !engSelect || !jobSelect) return;
+  const engChanged = originalEngId && engSelect.value !== originalEngId;
+  const jobChanged = originalJobId && jobSelect.value !== originalJobId;
+  if ((engChanged || jobChanged) && !mismatchConfirmed) {
+    warning.style.display = '';
+  } else {
+    warning.style.display = 'none';
+  }
+}
+
+function confirmMismatch() {
+  mismatchConfirmed = true;
+  document.getElementById('contractRoleMismatchWarning').style.display = 'none';
+}
+
+function revertToApplied() {
+  const engSelect = document.getElementById('contractEngSelect');
+  if (originalEngId) engSelect.value = originalEngId;
+  populateJobDropdown(originalEngId || engSelect.value);
+  const jobSelect = document.getElementById('contractJobSelect');
+  if (originalJobId) jobSelect.value = originalJobId;
+  mismatchConfirmed = false;
+  document.getElementById('contractRoleMismatchWarning').style.display = 'none';
+}
+
+// Initialise on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const engSelect = document.getElementById('contractEngSelect');
+  if (engSelect) {
+    populateJobDropdown(engSelect.value);
+  }
+});
 </script>
 </div>
 {% endblock %}
