@@ -7,23 +7,32 @@
   <h2 class="fw-bold mb-3">{{ 'Edit Job' if job else 'Create New Job' }}</h2>
 
   <form method="post" class="card p-3 shadow-sm border-0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label fw-semibold">Title</label>
         <input type="text" name="title" class="form-control" value="{{ job.title if job else '' }}" required>
       </div>
       <div class="col-md-6">
-        <label class="form-label fw-semibold">Role</label>
-        <input type="text" name="role" class="form-control" value="{{ job.role if job else '' }}">
+        <label class="form-label fw-semibold">Role Type</label>
+        <input type="text" name="role" class="form-control" value="{{ job.role_type if job else '' }}">
       </div>
       <div class="col-12">
         <label class="form-label fw-semibold">Description</label>
-        <textarea name="description" class="form-control" rows="4">{{ job.description if job else '' }}</textarea>
+        <textarea name="description" class="form-control" rows="6">{{ job.description if job else '' }}</textarea>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Location</label>
+        <input type="text" name="location" class="form-control" value="{{ job.location if job else '' }}" placeholder="e.g. London, UK">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Salary / Rate</label>
+        <input type="text" name="salary_range" class="form-control" value="{{ job.salary_range if job else '' }}" placeholder="e.g. £250/day">
+      </div>
+      <div class="col-md-4">
         <label class="form-label fw-semibold">Status</label>
         <select name="status" class="form-select">
-          {% for s in ['Open','Closed','On Hold'] %}
+          {% for s in ['Open','Closed','On Hold','Withdrawn'] %}
           <option value="{{ s }}" {{ 'selected' if job and job.status == s else '' }}>{{ s }}</option>
           {% endfor %}
         </select>

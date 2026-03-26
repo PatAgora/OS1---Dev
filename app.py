@@ -8931,12 +8931,16 @@ def job_edit(job_id):
 
         if request.method == "POST":
             job.title = request.form.get("title") or job.title
-            job.role = request.form.get("role") or job.role
+            job.role_type = request.form.get("role") or job.role_type
             job.description = request.form.get("description") or job.description
+            job.location = request.form.get("location") or job.location
+            job.salary_range = request.form.get("salary_range") or job.salary_range
             job.status = request.form.get("status") or job.status
             s.commit()
             flash("Job updated successfully.", "success")
-            return redirect(url_for("engagement_dashboard", engagement_id=job.engagement_id or 1))
+            if job.engagement_id:
+                return redirect(url_for("engagement_dashboard", eng_id=job.engagement_id))
+            return redirect(url_for("projects"))
 
         roles = s.scalars(select(RoleType).order_by(RoleType.name.asc())).all()
         return render_template("job_form.html", job=job, roles=roles, mode="edit")
