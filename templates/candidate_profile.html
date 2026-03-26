@@ -955,17 +955,18 @@
             </div>
           {% else %}
             <div class="text-center text-muted py-2" id="issueContractSection">
-              {% if latest_app %}
               <p class="mb-1 small">No contract issued</p>
+              {% if latest_app %}
               <a id="issueContractBtn" href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-file-signature me-1"></i> Issue Contract
               </a>
               {% else %}
-              <i class="fas fa-file-contract mb-2" style="font-size: 1.5rem; opacity: 0.4;"></i>
-              <p class="mb-0 small">No contract issued</p>
-              <p class="mb-0" style="font-size: 0.7rem; margin-top: 0.25rem;">
-                Add to a job pipeline first, then issue a contract.
-              </p>
+              <form method="POST" action="" id="directContractForm" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
+                  <i class="fas fa-file-signature me-1"></i> Issue Contract
+                </button>
+              </form>
               {% endif %}
             </div>
           {% endif %}
@@ -1311,6 +1312,30 @@ function revertToApplied() {
   if (originalJobId) jobSelect.value = originalJobId;
   mismatchConfirmed = false;
   document.getElementById('contractRoleMismatchWarning').style.display = 'none';
+}
+
+function issueContractDirect() {
+  const jobSelect = document.getElementById('contractJobSelect');
+  if (!jobSelect || !jobSelect.value) {
+    alert('Please select an engagement and role first.');
+    return;
+  }
+  // Add candidate to the selected job pipeline, then redirect to issue contract
+  const jobId = jobSelect.value;
+  const candidateId = '{{ cand.id }}';
+  fetch('{{ url_for("add_candidate_to_job_pipeline") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    credentials: 'same-origin',
+    body: 'csrf_token={{ csrf_token() }}&candidate_id=' + candidateId + '&job_id=' + jobId + '&next=' + encodeURIComponent(window.location.href)
+  })
+  .then(function() {
+    // Reload to pick up the new application, which will show the Issue Contract link
+    window.location.reload();
+  })
+  .catch(function(err) {
+    alert('Failed to add to pipeline: ' + err.message);
+  });
 }
 
 // Initialise on page load
