@@ -2960,6 +2960,15 @@ class Job(Base):
     engagement = relationship("Engagement", back_populates="jobs")
     applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
 
+class JobTemplate(Base):
+    """Job description templates per role category — managed in Configuration."""
+    __tablename__ = "job_templates"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_type = Column(String(100), unique=True, nullable=False)
+    description = Column(String(8000), default="")
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
 class RoleAliasForm(FlaskForm):
     canonical = SelectField("Canonical role", choices=[(r, r) for r in ROLE_TYPES], validators=[DataRequired()])
     alias = StringField("Alias (case-insensitive)", validators=[DataRequired()])
@@ -13274,24 +13283,44 @@ def engagement_auto_create_jobs(eng_id):
         created_count = 0
 
         for role in missing_roles:
-            # Get plan details for this role (use first plan entry for defaults)
-            plan = s.scalar(
+            # Get ALL plan entries for this role (may have multiple intake dates)
+            plan_rows = s.scalars(
                 select(EngagementPlan)
                 .where(EngagementPlan.engagement_id == eng_id)
                 .where(EngagementPlan.role_type == role)
-                .order_by(EngagementPlan.id.asc())
+                .order_by(EngagementPlan.intake_date.asc())
+            ).all()
+
+            plan = plan_rows[0] if plan_rows else None
+
+            # Build start date text from intake dates
+            intake_dates = [p.intake_date for p in plan_rows if p.intake_date]
+            if len(intake_dates) > 1:
+                start_text = "Multiple intakes"
+            elif len(intake_dates) == 1:
+                start_text = intake_dates[0].strftime("%d/%m/%Y")
+            else:
+                start_text = ""
+
+            # Get job description template if one exists for this role
+            template = s.scalar(
+                select(JobTemplate).where(JobTemplate.role_type == role)
             )
+            description = template.description if template and template.description else f"{role} - {engagement.name}"
+
+            # Build salary from plan pay rate
+            salary = f"\u00a3{int(plan.pay_rate or 0)}/day" if plan and plan.pay_rate else ""
 
             import secrets
             new_job = Job(
                 engagement_id=eng_id,
                 title=role,
                 role_type=role,
-                description=f"{role} - {engagement.name}",
+                description=description,
                 location=engagement.location if hasattr(engagement, 'location') else "",
                 status="Open",
                 public_token=secrets.token_urlsafe(16),
-                salary_range=f"\u00a3{int(plan.pay_rate or 0)}/day" if plan and plan.pay_rate else "",
+                salary_range=salary,
             )
             s.add(new_job)
             created_count += 1
@@ -15326,14 +15355,57 @@ def configuration():
                 )
                 cats.append({"id": c.id, "name": c.name, "type": c.type, "tags": tag_list})
                 tags_by_cat[c.id] = tag_list
+            # job templates
+            job_templates = s.scalars(
+                select(JobTemplate).order_by(JobTemplate.role_type.asc())
+            ).all()
     except Exception as e:
         current_app.logger.exception("configuration error: %s", e)
+        job_templates = []
     return render_template("configuration.html",
                            alias_form=alias_form,
                            aliases=aliases,
                            cats=cats,
                            tags_by_cat=tags_by_cat,
-                           ROLE_TYPES=ROLE_TYPES)
+                           ROLE_TYPES=ROLE_TYPES,
+                           job_templates=job_templates)
+
+@app.route("/admin/job-templates/save", methods=["POST"])
+@login_required
+def save_job_template():
+    """Save or update a job description template for a role category."""
+    role_type = (request.form.get("role_type") or "").strip()
+    description = (request.form.get("description") or "").strip()
+
+    if not role_type:
+        flash("Role type is required.", "danger")
+        return redirect(url_for("configuration"))
+
+    with Session(engine) as s:
+        existing = s.scalar(select(JobTemplate).where(JobTemplate.role_type == role_type))
+        if existing:
+            existing.description = description
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            s.add(JobTemplate(role_type=role_type, description=description))
+        s.commit()
+
+    flash(f"Job template for '{role_type}' saved.", "success")
+    return redirect(url_for("configuration") + "#job-templates")
+
+
+@app.route("/admin/job-templates/<int:tpl_id>/delete", methods=["POST"])
+@login_required
+def delete_job_template(tpl_id):
+    """Delete a job description template."""
+    with Session(engine) as s:
+        tpl = s.get(JobTemplate, tpl_id)
+        if tpl:
+            s.delete(tpl)
+            s.commit()
+            flash(f"Template for '{tpl.role_type}' deleted.", "success")
+    return redirect(url_for("configuration") + "#job-templates")
+
 
 @login_required
 @app.get("/taxonomy/export")

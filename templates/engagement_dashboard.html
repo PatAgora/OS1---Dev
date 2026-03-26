@@ -967,7 +967,7 @@
         </div>
         <div class="d-flex gap-2">
           <a class="btn btn-modern-outline btn-sm" href="{{ url_for('jobs', eng_id=engagement.id) }}">
-            <i class="fas fa-list"></i> Manage Jobs
+            <i class="fas fa-list"></i> See Job Listings
           </a>
         </div>
       </div>
@@ -984,6 +984,7 @@
                 <th class="text-center">Shortlisted</th>
                 <th class="text-center">Created</th>
                 <th class="text-center">Actions</th>
+                <th class="text-center">Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -1007,9 +1008,15 @@
                   {{ j.created_at.strftime('%Y-%m-%d') if j.created_at else '—' }}
                 </td>
                 <td class="text-center" onclick="event.stopPropagation();">
-                  <a class="btn btn-modern-primary btn-sm" 
+                  <a class="btn btn-modern-primary btn-sm"
                      href="{{ url_for('engagement_job_detail', eng_id=engagement.id, job_id=j.id) }}">
                     <i class="fas fa-arrow-right"></i> Open
+                  </a>
+                </td>
+                <td class="text-center" onclick="event.stopPropagation();">
+                  <a class="btn btn-outline-secondary btn-sm"
+                     href="{{ url_for('job_edit', job_id=j.id) }}">
+                    <i class="fas fa-edit"></i> Edit Listing
                   </a>
                 </td>
               </tr>
