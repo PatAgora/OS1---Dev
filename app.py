@@ -12375,7 +12375,10 @@ def engagement_dashboard(eng_id):
         ).all()
         planned_by_role = {r: 0 for r in ROLE_TYPES}
         for r, cnt in plans:
-            planned_by_role[r] = planned_by_role.get(r, 0) + int(cnt or 0)
+            role_key = (r or "").strip()
+            if not role_key:
+                continue
+            planned_by_role[role_key] = planned_by_role.get(role_key, 0) + int(cnt or 0)
         total_planned = sum(planned_by_role.values())
 
         # If engagement finished -> skip activity logic
@@ -12778,10 +12781,19 @@ def engagement_dashboard(eng_id):
                 'status': 'On Contract'
             })
 
+        # --- existing job roles (for auto-create button in Delivery Plan table) ---
+        existing_job_roles_set = set(s.scalars(
+            select(Job.role_type)
+            .distinct()
+            .where(Job.engagement_id == eng_id)
+            .where(Job.role_type.isnot(None), Job.role_type != "")
+        ).all())
+
         # --- render ---
         return render_template(
             "engagement_dashboard.html",
             engagement=engagement,
+            existing_job_roles=existing_job_roles_set,
             planned_by_role=planned_by_role,
             declared_rows=declared_rows,
             interview_sched=interview_sched,
@@ -13079,33 +13091,8 @@ def engagement_plan(eng_id):
 
             s.commit()
 
-            # Check if new roles need corresponding jobs (item 6)
-            plan_roles = s.scalars(
-                select(EngagementPlan.role_type)
-                .distinct()
-                .where(EngagementPlan.engagement_id == engagement.id)
-                .where(EngagementPlan.role_type.isnot(None), EngagementPlan.role_type != "")
-            ).all()
-            existing_job_roles = s.scalars(
-                select(Job.role_type)
-                .distinct()
-                .where(Job.engagement_id == engagement.id)
-                .where(Job.role_type.isnot(None), Job.role_type != "")
-            ).all()
-            missing_roles = [r for r in plan_roles if r not in existing_job_roles]
-
-            if missing_roles:
-                from markupsafe import Markup as _Markup
-                from flask_wtf.csrf import generate_csrf as _gen_csrf
-                auto_create_url = url_for('engagement_auto_create_jobs', eng_id=engagement.id)
-                flash(_Markup(f"Plan saved. Roles without jobs: {', '.join(missing_roles)}. "
-                      f"<form method='POST' action='{auto_create_url}' style='display:inline'>"
-                      f"<input type='hidden' name='csrf_token' value='{_gen_csrf()}'>"
-                      f"<button type='submit' class='btn btn-sm btn-warning ms-2'>Auto-Create Jobs</button>"
-                      f"</form>"), "warning")
-            else:
-                flash("Plan saved.", "success")
-            return redirect(url_for("engagement_plan", eng_id=engagement.id))
+            flash("Plan saved.", "success")
+            return redirect(url_for("engagement_dashboard", eng_id=engagement.id))
 
         # GET render
         rows = s.scalars(
@@ -13232,18 +13219,23 @@ def engagement_plan(eng_id):
 @app.route("/engagement/<int:eng_id>/auto-create-jobs", methods=["POST"])
 def engagement_auto_create_jobs(eng_id):
     """REQ-267: Auto-create jobs from engagement plan roles that don't have matching jobs."""
+    single_role = (request.form.get("single_role") or "").strip()
+
     with Session(engine) as s:
         engagement = s.get(Engagement, eng_id)
         if not engagement:
             abort(404)
 
-        # Get plan roles
-        plan_roles = s.scalars(
-            select(EngagementPlan.role_type)
-            .distinct()
-            .where(EngagementPlan.engagement_id == eng_id)
-            .where(EngagementPlan.role_type.isnot(None), EngagementPlan.role_type != "")
-        ).all()
+        # Get plan roles (or just the single requested role)
+        if single_role:
+            plan_roles = [single_role]
+        else:
+            plan_roles = s.scalars(
+                select(EngagementPlan.role_type)
+                .distinct()
+                .where(EngagementPlan.engagement_id == eng_id)
+                .where(EngagementPlan.role_type.isnot(None), EngagementPlan.role_type != "")
+            ).all()
 
         # Get existing job roles
         existing_job_roles = s.scalars(
@@ -13290,7 +13282,7 @@ def engagement_auto_create_jobs(eng_id):
             pass
 
     flash(f"Created {created_count} job(s): {', '.join(missing_roles)}", "success")
-    return redirect(url_for("engagement_plan", eng_id=eng_id))
+    return redirect(request.referrer or url_for("engagement_dashboard", eng_id=eng_id))
 
 # ---- Engagement-scoped Job detail ----
 @login_required

@@ -879,7 +879,18 @@
               
               <!-- Main Role Row -->
               <tr class="role-main-row" data-role="{{ role }}" data-intake-dates-iso="{{ intakes|map(attribute='date_raw')|select|map('strftime', '%Y-%m-%d')|join(',') if intakes else '' }}">
-                <td><strong>{{ role }}</strong></td>
+                <td>
+                  <strong>{{ role }}</strong>
+                  {% if existing_job_roles is defined and role not in existing_job_roles %}
+                  <form method="POST" action="{{ url_for('engagement_auto_create_jobs', eng_id=engagement.id) }}" class="d-inline ms-1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="single_role" value="{{ role }}">
+                    <button type="submit" class="btn btn-outline-warning btn-sm" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;" title="Create job post for this role">
+                      <i class="fas fa-plus me-1"></i>Create Job Post
+                    </button>
+                  </form>
+                  {% endif %}
+                </td>
                 <td class="text-center">{{ planned }}</td>
                 <td class="text-center">{{ signed }}</td>
                 <td class="text-center">{{ scheduled }}</td>
