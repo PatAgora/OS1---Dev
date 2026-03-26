@@ -810,6 +810,15 @@
           <div class="delivery-tile-value">{{ totals_row.get('left_to_fill', 0) }}</div>
           <div class="delivery-tile-label">Left to Fill</div>
         </div>
+
+        <!-- Vetting Complete -->
+        <div class="delivery-tile">
+          <div class="delivery-tile-icon" style="background: #dcfce7; color: #166534;">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <div class="delivery-tile-value">{{ tile_vetting_complete|default(0) }}</div>
+          <div class="delivery-tile-label">Vetting Complete</div>
+        </div>
       </div>
     </div>
   </div>

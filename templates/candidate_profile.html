@@ -498,22 +498,23 @@
         <h1>
           <i class="fas fa-user-circle"></i>
           {{ cand.name }}
-          {% if cand.status %}
-            {% set status = cand.status %}
-            <span class="badge ms-2 
-              {% if status == 'Available' %}bg-success
-              {% elif status == 'On Assignment' %}bg-primary
-              {% elif status == 'On Contract' %}bg-info
-              {% elif status == 'On Notice' %}bg-warning text-dark
-              {% elif status == 'Ex-Associate' %}bg-secondary
-              {% elif status == 'Unavailable' %}bg-purple
-              {% elif status == 'DNU' or status == 'Do Not Use' %}bg-danger
-              {% elif status == 'Do Not Contact' %}bg-danger
-              {% else %}bg-success{% endif %}" 
-              style="font-size: 0.5em; vertical-align: middle; {% if status == 'Unavailable' %}background-color: #a855f7 !important;{% endif %}">
-              {{ status }}
-            </span>
-          {% endif %}
+          {% set status = cand.status or (latest_app.status if latest_app else 'Available') %}
+          <span class="badge ms-2
+            {% if status == 'Available' %}bg-success
+            {% elif status in ('On Assignment', 'Placed', 'Contract Signed') %}bg-primary
+            {% elif status in ('On Contract', 'In Vetting', 'Vetting In-Flight') %}bg-info
+            {% elif status in ('On Notice',) %}bg-warning text-dark
+            {% elif status in ('Ex-Associate',) %}bg-secondary
+            {% elif status == 'Unavailable' %}bg-purple
+            {% elif status in ('DNU', 'Do Not Use', 'Do Not Contact') %}bg-danger
+            {% elif status in ('Interviewing', 'I&A', 'Client Review') %}bg-warning text-dark
+            {% elif status in ('Pipeline', 'Shortlist', 'Shortlisted') %}bg-info
+            {% elif status in ('Offered', 'Accepted') %}bg-success
+            {% elif status in ('Ready to Contract', 'Contract Sent', 'Contract Issued') %}bg-primary
+            {% else %}bg-success{% endif %}"
+            style="font-size: 0.5em; vertical-align: middle; border-radius: 999px; padding: 0.35em 0.75em; {% if status == 'Unavailable' %}background-color: #a855f7 !important;{% endif %}">
+            {{ status }}
+          </span>
         </h1>
         <div class="contact-info">
           {% if cand.email %}

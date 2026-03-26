@@ -859,6 +859,39 @@
     <p>There are currently no associates on contract.</p>
   </div>
   {% endif %}
+
+  <!-- Pagination Controls -->
+  {% if total_pages > 1 or per_page != 25 %}
+  <div class="d-flex justify-content-between align-items-center mt-3 px-2" style="font-size: 0.85rem;">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted">Showing {{ ((page - 1) * per_page) + 1 }}–{{ [page * per_page, total_count]|min }} of {{ total_count }}</span>
+      <span class="text-muted">|</span>
+      <span class="text-muted">Per page:</span>
+      {% for pp in [25, 50, 100, 150] %}
+        {% if pp == per_page %}
+          <strong>{{ pp }}</strong>
+        {% else %}
+          <a href="{{ url_for('placements', page=1, per_page=pp) }}" style="text-decoration: none;">{{ pp }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="d-flex gap-1">
+      {% if page > 1 %}
+        <a href="{{ url_for('placements', page=page-1, per_page=per_page) }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chevron-left"></i></a>
+      {% endif %}
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="btn btn-primary btn-sm">{{ p }}</span>
+        {% else %}
+          <a href="{{ url_for('placements', page=p, per_page=per_page) }}" class="btn btn-outline-secondary btn-sm">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page < total_pages %}
+        <a href="{{ url_for('placements', page=page+1, per_page=per_page) }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chevron-right"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Scheduled Joiners Table (next 14 days) -->

@@ -7530,6 +7530,23 @@ def api_workflow_move():
 
             s.commit()
 
+            # Auto-trigger vetting when moved to Accepted (if not already triggered)
+            if new_status == "Accepted" and cand:
+                try:
+                    with Session(engine) as vs:
+                        existing_checks = vs.scalars(
+                            select(VettingCheck).where(VettingCheck.candidate_id == cand.id)
+                        ).all()
+                        already_triggered = any(
+                            (vc.status or "").upper() not in ("WAITING FOR ASSOCIATE", "NOT STARTED", "")
+                            for vc in existing_checks
+                        )
+                        if not already_triggered:
+                            _auto_trigger_vetting(vs, cand.id, app_obj.job_id)
+                            vs.commit()
+                except Exception as e:
+                    current_app.logger.warning(f"Auto-vetting trigger failed for cand {cand.id}: {e}")
+
             # Audit log: workflow drag-drop move (after commit to avoid db lock)
             log_audit_event('update', 'workflow',
                            f'Workflow stage changed (drag-drop): {old_status} \u2192 {new_status}',
@@ -7537,7 +7554,7 @@ def api_workflow_move():
                            {'old_status': old_status, 'new_status': new_status,
                             'candidate_id': audit_cand_id,
                             'candidate_name': audit_cand_name})
-            
+
             return jsonify({
                 "ok": True,
                 "message": f"Moved from {old_status} to {new_status}",
@@ -7808,6 +7825,23 @@ def workflow_move():
 
         s.commit()
 
+        # Auto-trigger vetting when moved to Accepted (if not already triggered)
+        if new_status == "Accepted" and cand:
+            try:
+                with Session(engine) as vs:
+                    existing_checks = vs.scalars(
+                        select(VettingCheck).where(VettingCheck.candidate_id == cand.id)
+                    ).all()
+                    already_triggered = any(
+                        (vc.status or "").upper() not in ("WAITING FOR ASSOCIATE", "NOT STARTED", "")
+                        for vc in existing_checks
+                    )
+                    if not already_triggered:
+                        _auto_trigger_vetting(vs, cand.id, appn.job_id)
+                        vs.commit()
+            except Exception as e:
+                current_app.logger.warning(f"Auto-vetting trigger failed for cand {cand.id}: {e}")
+
         # GAP X.4: Audit log for workflow stage changes (after commit to avoid db lock)
         log_audit_event(
             'update', 'workflow',
@@ -7815,11 +7849,11 @@ def workflow_move():
             'application', app_id,
             audit_details
         )
-        
+
         # Build response with all status changes for frontend
         response_data = {
-            "ok": True, 
-            "old_status": old_status, 
+            "ok": True,
+            "old_status": old_status,
             "new_status": new_status,
             "app_id": app_id,
             "candidate_id": cand.id if cand else None,
@@ -7855,6 +7889,10 @@ def placements():
     client_filter = request.args.getlist("client") or []
     engagement_filter = request.args.getlist("engagement") or []
     role_filter = request.args.getlist("role") or []
+    page = max(1, int(request.args.get("page") or 1))
+    per_page = int(request.args.get("per_page") or 25)
+    if per_page not in (25, 50, 100, 150):
+        per_page = 25
     
     with Session(engine) as s:
         # Base subquery for active placements (signed/completed contracts)
@@ -8240,9 +8278,15 @@ def placements():
                 "placements": placements_list
             })
     
+    # Pagination
+    total_count = len(placements_data)
+    total_pages = max(1, (total_count + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    paginated_placements = placements_data[(page - 1) * per_page : page * per_page]
+
     return render_template(
         "placements.html",
-        placements=placements_data,
+        placements=paginated_placements,
         all_clients=all_clients,
         all_engagements=all_engagements,
         all_roles=all_roles,
@@ -8262,6 +8306,10 @@ def placements():
         scheduled_leavers=scheduled_leavers,
         engagement_forecast_data=engagement_forecast_data,
         now=now,
+        page=page,
+        per_page=per_page,
+        total_count=total_count,
+        total_pages=total_pages,
     )
 
 # CSV Export for Placements
@@ -11352,6 +11400,59 @@ def _auto_create_vetting_checks(session, candidate_id: int, engagement_id: int =
             created += 1
     return created
 
+
+def _auto_trigger_vetting(session, candidate_id: int, job_id: int = None):
+    """
+    Auto-trigger vetting for a candidate when they reach Accepted stage.
+    Sets all WAITING FOR ASSOCIATE / NOT STARTED checks to In Progress.
+    Updates application to Vetting In-Flight and candidate to In Vetting.
+    """
+    # Get engagement ID from job if available
+    engagement_id = None
+    if job_id:
+        job = session.get(Job, job_id)
+        if job:
+            engagement_id = job.engagement_id
+
+    # Ensure checks exist first
+    _auto_create_vetting_checks(session, candidate_id, engagement_id)
+
+    # Trigger: move all WAITING/NOT STARTED checks to In Progress
+    checks = session.scalars(
+        select(VettingCheck).where(VettingCheck.candidate_id == candidate_id)
+    ).all()
+    triggered = 0
+    for vc in checks:
+        if (vc.status or "").upper() in ("WAITING FOR ASSOCIATE", "NOT STARTED", ""):
+            vc.status = "In Progress"
+            triggered += 1
+
+    # Update application status
+    active_app = session.scalar(
+        select(Application)
+        .where(Application.candidate_id == candidate_id)
+        .where(Application.status == "Accepted")
+        .order_by(Application.created_at.desc())
+    )
+    if active_app:
+        active_app.status = "Vetting In-Flight"
+
+    # Update candidate status
+    cand = session.get(Candidate, candidate_id)
+    if cand:
+        cand.status = "In Vetting"
+
+    try:
+        log_audit_event('update', 'vetting',
+                       f'Auto-triggered vetting at Accepted stage ({triggered} checks)',
+                       'candidate', candidate_id,
+                       {'trigger': 'auto_accepted', 'checks_triggered': triggered})
+    except Exception:
+        pass
+
+    return triggered
+
+
 # =========================================================================
 # GAP PLAN: VETTING START EMAIL (Batch 2.2)
 # =========================================================================
@@ -12575,6 +12676,26 @@ def engagement_dashboard(eng_id):
         tile_contract_issued = len(issued_set)
         tile_contract_signed = len(signed_set)
 
+        # Vetting Complete count — candidates with ALL checks Complete/N/A/QC COMPLETE
+        tile_vetting_complete = 0
+        if app_id_list:
+            vc_cand_ids = list(set(s.execute(
+                select(Application.candidate_id).where(Application.id.in_(app_id_list))
+            ).scalars().all()))
+            ALL_CHECK_TYPES = [
+                "Right to Work", "Identity Verification", "Address History", "DBS Check",
+                "Employment History", "References", "Qualifications", "Professional Registration",
+                "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+            ]
+            for cid in vc_cand_ids:
+                checks = {vc.check_type: (vc.status or "").upper() for vc in s.scalars(
+                    select(VettingCheck).where(VettingCheck.candidate_id == cid)
+                ).all()}
+                done = sum(1 for ct in ALL_CHECK_TYPES
+                          if checks.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
+                if done == len(ALL_CHECK_TYPES):
+                    tile_vetting_complete += 1
+
         # --- per-role metrics ---
         def norm_role(val: str) -> str:
             r = (val or "").strip()
@@ -12857,6 +12978,7 @@ def engagement_dashboard(eng_id):
             tile_vetting=tile_vetting,
             tile_contract_issued=tile_contract_issued,
             tile_contract_signed=tile_contract_signed,
+            tile_vetting_complete=tile_vetting_complete,
             associates_on_engagement=associates_on_engagement,
             scheduled_associates=scheduled_associates,
             rate_data=rate_data,
@@ -13079,11 +13201,29 @@ def engagement_plan(eng_id):
             engagement.plan_version = new_version
 
             role_types  = request.form.getlist("role_type[]")
+            new_role_names = request.form.getlist("new_role_name[]")
             intake_dates = request.form.getlist("intake_date[]")
             counts      = request.form.getlist("planned_count[]")
             pays        = request.form.getlist("pay_rate[]")
             charges     = request.form.getlist("charge_rate[]")
             row_ids     = request.form.getlist("row_id[]")
+
+            # Handle new role creation: if role_type is "__new__", use the new_role_name
+            for i in range(len(role_types)):
+                if role_types[i].strip() == "__new__":
+                    new_name = new_role_names[i].strip() if i < len(new_role_names) else ""
+                    if new_name:
+                        # Auto-create in TaxonomyCategory if not exists
+                        existing_cat = s.scalar(
+                            select(TaxonomyCategory)
+                            .where(TaxonomyCategory.type == "role")
+                            .where(func.lower(TaxonomyCategory.name) == new_name.lower())
+                        )
+                        if not existing_cat:
+                            new_cat = TaxonomyCategory(type="role", name=new_name)
+                            s.add(new_cat)
+                            s.flush()
+                        role_types[i] = new_name
 
             # We'll do in-place update/delete/insert for now.
             for i in range(len(role_types)):

@@ -398,13 +398,15 @@
           <!-- Role -->
           <div class="field-group field-role">
             <label class="field-label">Role</label>
-            <select name="role_type[]" class="field-input role-field">
+            <select name="role_type[]" class="field-input role-field" onchange="handleRoleChange(this)">
               {% for rt in role_types %}
                 <option value="{{ rt.name }}" {% if rt.name == row.role_type %}selected{% endif %}>
                   {{ rt.name }}
                 </option>
               {% endfor %}
+              <option value="__new__">+ Create new role</option>
             </select>
+            <input type="text" name="new_role_name[]" class="field-input new-role-input" style="display:none; margin-top:0.25rem;" placeholder="Enter new role name..."">
           </div>
 
           <!-- Intake Date -->
@@ -479,12 +481,14 @@
           <!-- Role -->
           <div class="field-group field-role">
             <label class="field-label">Role</label>
-            <select name="role_type[]" class="field-input role-field">
+            <select name="role_type[]" class="field-input role-field" onchange="handleRoleChange(this)">
               <option value="">— select role —</option>
               {% for rt in role_types %}
                 <option value="{{ rt.name }}">{{ rt.name }}</option>
               {% endfor %}
+              <option value="__new__">+ Create new role</option>
             </select>
+            <input type="text" name="new_role_name[]" class="field-input new-role-input" style="display:none; margin-top:0.25rem;" placeholder="Enter new role name...">
           </div>
 
           <!-- Intake Date -->
@@ -761,6 +765,19 @@
 
   recalcAll();
 })();
+
+function handleRoleChange(sel) {
+  const newInput = sel.parentElement.querySelector('.new-role-input');
+  if (sel.value === '__new__') {
+    newInput.style.display = '';
+    newInput.required = true;
+    newInput.focus();
+  } else {
+    newInput.style.display = 'none';
+    newInput.required = false;
+    newInput.value = '';
+  }
+}
 </script>
 
 </div>
