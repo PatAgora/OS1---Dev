@@ -12667,7 +12667,8 @@ def engagement_dashboard(eng_id):
                     'bill_rate': charge_rate or 0
                 }
 
-        # --- Intake Plans (grouped by intake date) ---
+        # --- Intake Plans (grouped by intake date) — latest plan version only ---
+        latest_version = engagement.plan_version or 1
         intake_plans = s.execute(
             select(
                 EngagementPlan.id,
@@ -12678,8 +12679,23 @@ def engagement_dashboard(eng_id):
                 EngagementPlan.charge_rate
             )
             .where(EngagementPlan.engagement_id == eng_id)
+            .where(EngagementPlan.version_int == latest_version)
             .order_by(EngagementPlan.intake_date.asc(), EngagementPlan.role_type.asc())
         ).all()
+        # Fallback: if no rows match latest version (e.g. legacy data), load all
+        if not intake_plans:
+            intake_plans = s.execute(
+                select(
+                    EngagementPlan.id,
+                    EngagementPlan.role_type,
+                    EngagementPlan.planned_count,
+                    EngagementPlan.intake_date,
+                    EngagementPlan.pay_rate,
+                    EngagementPlan.charge_rate
+                )
+                .where(EngagementPlan.engagement_id == eng_id)
+                .order_by(EngagementPlan.intake_date.asc(), EngagementPlan.role_type.asc())
+            ).all()
         
         # Build intake_by_role structure for hierarchical table
         # Groups intakes under each role
@@ -12709,8 +12725,17 @@ def engagement_dashboard(eng_id):
                 key=lambda x: (x['date_raw'] is None, x['date_raw'] or datetime.datetime.max)
             )
 
+        # Plan-based display roles: all roles from the plan (not just those with activity)
+        plan_display_roles = sorted(intake_by_role.keys())
+        # Ensure all plan roles are in role_metrics with at least planned counts
+        for role in plan_display_roles:
+            if role not in role_metrics:
+                rm = blank()
+                rm["planned"] = planned_by_role.get(role, 0)
+                role_metrics[role] = rm
+
         # --- Left to Fill and Scheduled Starters per role ---
-        for role in display_roles:
+        for role in plan_display_roles:
             m = role_metrics.get(role, {})
             planned = m.get('planned', 0)
             signed = m.get('signed', 0)
@@ -12729,8 +12754,8 @@ def engagement_dashboard(eng_id):
                 m['bill_rate'] = 0
 
         # --- Update totals row ---
-        totals_row['scheduled'] = sum(role_metrics.get(r, {}).get('scheduled', 0) for r in display_roles)
-        totals_row['left_to_fill'] = sum(role_metrics.get(r, {}).get('left_to_fill', 0) for r in display_roles)
+        totals_row['scheduled'] = sum(role_metrics.get(r, {}).get('scheduled', 0) for r in plan_display_roles)
+        totals_row['left_to_fill'] = sum(role_metrics.get(r, {}).get('left_to_fill', 0) for r in plan_display_roles)
 
         # --- Scheduled starters (Offered/Accepted/Ready to Contract) ---
         scheduled_associates = []
@@ -12805,7 +12830,7 @@ def engagement_dashboard(eng_id):
             total_signed=total_signed,
             progress_pct=progress_pct,
             ROLE_TYPES=ROLE_TYPES,
-            display_roles=display_roles,
+            display_roles=plan_display_roles,
             role_metrics=role_metrics,
             totals_row=totals_row,
             shortlist_count=shortlist_count,
