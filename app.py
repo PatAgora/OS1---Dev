@@ -10239,7 +10239,16 @@ def action_skip_stage(app_id):
 
         old_status = appn.status
         appn.status = target_stage
-        appn.notes = (appn.notes or "") + f"\n[Stage skipped from {old_status} to {target_stage}: {reason or 'No reason given'}]"
+
+        # Log skip as a CandidateNote activity
+        skip_note = CandidateNote(
+            candidate_id=appn.candidate_id,
+            user_email=session.get("user_email", "system"),
+            note_type="activity",
+            content=f"Stage skipped: {old_status} \u2192 {target_stage}{(' — ' + reason) if reason else ''}",
+            created_at=datetime.datetime.utcnow()
+        )
+        s.add(skip_note)
         s.commit()
 
         try:
@@ -10273,7 +10282,15 @@ def action_unskip_stage(app_id):
 
         old_status = appn.status
         appn.status = target_stage
-        appn.notes = (appn.notes or "") + f"\n[Stage reverted from {old_status} to {target_stage}]"
+
+        skip_note = CandidateNote(
+            candidate_id=appn.candidate_id,
+            user_email=session.get("user_email", "system"),
+            note_type="activity",
+            content=f"Stage reverted: {old_status} \u2192 {target_stage}",
+            created_at=datetime.datetime.utcnow()
+        )
+        s.add(skip_note)
         s.commit()
 
         try:
