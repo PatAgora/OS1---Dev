@@ -878,7 +878,9 @@
               {% set intakes = intake_data.get('intakes', []) %}
               
               <!-- Main Role Row -->
-              <tr class="role-main-row" data-role="{{ role }}" data-intake-dates-iso="{{ intakes|map(attribute='date_raw')|select|map('strftime', '%Y-%m-%d')|join(',') if intakes else '' }}">
+              {% set iso_dates = [] %}
+              {% for i in intakes if i.date_raw %}{% if iso_dates.append(i.date_raw.strftime('%Y-%m-%d')) %}{% endif %}{% endfor %}
+              <tr class="role-main-row" data-role="{{ role }}" data-intake-dates-iso="{{ iso_dates|join(',') }}">
                 <td>
                   <strong>{{ role }}</strong>
                   {% if existing_job_roles is defined and role not in existing_job_roles %}
