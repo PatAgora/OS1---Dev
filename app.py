@@ -4132,23 +4132,6 @@ def ensure_schema():
             except Exception:
                 pass
 
-        # -- Candidates: current employer contact preference --
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN current_employer_contact_ok BOOLEAN"))
-        except Exception:
-            pass
-
-        # -- job_templates table --
-        try:
-            conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
-                id SERIAL PRIMARY KEY,
-                role_type VARCHAR(100) UNIQUE NOT NULL,
-                description TEXT DEFAULT '',
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )"""))
-        except Exception:
-            pass
-
         # -- Engagements additions --
         for coldef in ["required_documents TEXT", "reference_period_years INTEGER DEFAULT 3"]:
             try:
@@ -4264,6 +4247,30 @@ except Exception as e:
     print("⚠️  App will continue but some features may not work correctly")
     import traceback
     traceback.print_exc()
+
+# ===== Add new columns that may be missing from existing databases =====
+_new_columns = [
+    ("candidates", "current_employer_contact_ok", "BOOLEAN"),
+]
+for _tbl, _col, _type in _new_columns:
+    try:
+        with engine.begin() as _conn:
+            _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
+            print(f"  [MIGRATE] Added {_tbl}.{_col}")
+    except Exception:
+        pass  # Column already exists
+
+# ===== Create job_templates table if missing =====
+try:
+    with engine.begin() as _conn:
+        _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
+            id SERIAL PRIMARY KEY,
+            role_type VARCHAR(100) UNIQUE NOT NULL,
+            description TEXT DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""))
+except Exception:
+    pass
 
 # ===== Fix stale users table + seed admin if empty (separate connection) =====
 try:
