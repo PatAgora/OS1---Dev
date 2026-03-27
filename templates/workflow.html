@@ -101,9 +101,9 @@
   }
 
   .kanban-column {
-    flex: 0 0 200px;
-    min-width: 180px;
-    max-width: 220px;
+    flex: 0 0 240px;
+    min-width: 220px;
+    max-width: 280px;
     background: #f3f4f6;
     border-radius: 12px;
     display: flex;
@@ -175,6 +175,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    min-height: 400px;
+    overflow: visible;
   }
 
   .kanban-column-body:empty::after {
@@ -430,6 +432,7 @@
 
   .kanban-card .card-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
     margin-top: 0.5rem;
   }
@@ -1045,7 +1048,7 @@
                     style="padding:0.2rem 0.4rem;font-size:0.6rem;">
               <i class="fas fa-forward"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.75rem;min-width:180px;z-index:9999;">
+            <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.75rem;min-width:180px;z-index:9999;max-height:400px;overflow-y:auto;">
               <li class="dropdown-header">Skip to...</li>
               {% for target in stages %}
                 {% if target.id != stage.id %}
