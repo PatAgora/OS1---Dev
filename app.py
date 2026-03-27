@@ -7530,23 +7530,6 @@ def api_workflow_move():
 
             s.commit()
 
-            # Auto-trigger vetting when moved to Accepted (if not already triggered)
-            if new_status == "Accepted" and cand:
-                try:
-                    with Session(engine) as vs:
-                        existing_checks = vs.scalars(
-                            select(VettingCheck).where(VettingCheck.candidate_id == cand.id)
-                        ).all()
-                        already_triggered = any(
-                            (vc.status or "").upper() not in ("WAITING FOR ASSOCIATE", "NOT STARTED", "")
-                            for vc in existing_checks
-                        )
-                        if not already_triggered:
-                            _auto_trigger_vetting(vs, cand.id, app_obj.job_id)
-                            vs.commit()
-                except Exception as e:
-                    current_app.logger.warning(f"Auto-vetting trigger failed for cand {cand.id}: {e}")
-
             # Audit log: workflow drag-drop move (after commit to avoid db lock)
             log_audit_event('update', 'workflow',
                            f'Workflow stage changed (drag-drop): {old_status} \u2192 {new_status}',
@@ -7824,23 +7807,6 @@ def workflow_move():
             s.add(activity_note)
 
         s.commit()
-
-        # Auto-trigger vetting when moved to Accepted (if not already triggered)
-        if new_status == "Accepted" and cand:
-            try:
-                with Session(engine) as vs:
-                    existing_checks = vs.scalars(
-                        select(VettingCheck).where(VettingCheck.candidate_id == cand.id)
-                    ).all()
-                    already_triggered = any(
-                        (vc.status or "").upper() not in ("WAITING FOR ASSOCIATE", "NOT STARTED", "")
-                        for vc in existing_checks
-                    )
-                    if not already_triggered:
-                        _auto_trigger_vetting(vs, cand.id, appn.job_id)
-                        vs.commit()
-            except Exception as e:
-                current_app.logger.warning(f"Auto-vetting trigger failed for cand {cand.id}: {e}")
 
         # GAP X.4: Audit log for workflow stage changes (after commit to avoid db lock)
         log_audit_event(
