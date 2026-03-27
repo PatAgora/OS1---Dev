@@ -4132,6 +4132,23 @@ def ensure_schema():
             except Exception:
                 pass
 
+        # -- Candidates: current employer contact preference --
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN current_employer_contact_ok BOOLEAN"))
+        except Exception:
+            pass
+
+        # -- job_templates table --
+        try:
+            conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
+                id SERIAL PRIMARY KEY,
+                role_type VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""))
+        except Exception:
+            pass
+
         # -- Engagements additions --
         for coldef in ["required_documents TEXT", "reference_period_years INTEGER DEFAULT 3"]:
             try:
