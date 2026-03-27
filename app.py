@@ -10715,9 +10715,107 @@ def action_save_general_notes(cand_id):
 
 @login_required
 @app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
+@login_required
 def action_contract_issue(cand_id, eng_id):
-    """Issue contract for this candidate and engagement."""
-    flash("Contract issued.", "success")
+    """Issue contract for this candidate and engagement — sends via Signable if configured."""
+    role_title = request.form.get("role_title", "").strip()
+    contract_type = request.form.get("contract_type", "Fixed Term")
+    start_date = request.form.get("start_date", "")
+    expiry_date = request.form.get("expiry_date", "")
+    daily_rate = request.form.get("daily_rate", "")
+    notes = request.form.get("notes", "")
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        eng = s.get(Engagement, eng_id)
+        if not cand or not eng:
+            flash("Candidate or engagement not found.", "danger")
+            return redirect(request.referrer or url_for("workflow"))
+
+        # Find the candidate's application for this engagement
+        appn = s.scalar(
+            select(Application)
+            .join(Job, Job.id == Application.job_id)
+            .where(Application.candidate_id == cand_id)
+            .where(Job.engagement_id == eng_id)
+            .order_by(Application.created_at.desc())
+        )
+
+        # Parse dates
+        start_dt = None
+        end_dt = None
+        try:
+            if start_date:
+                start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+            if expiry_date:
+                end_dt = datetime.datetime.strptime(expiry_date, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+        # Create ESigRequest record
+        esig = ESigRequest(
+            application_id=appn.id if appn else None,
+            candidate_id=cand_id,
+            engagement_id=eng_id,
+            provider="signable",
+            status="pending",
+            created_at=datetime.datetime.utcnow(),
+            end_date=end_dt,
+        )
+        s.add(esig)
+        s.flush()
+
+        # Update application status
+        if appn:
+            appn.status = "Contract Issued"
+
+        # Update candidate status
+        cand.status = "In Vetting"
+
+        # Log activity
+        activity = CandidateNote(
+            candidate_id=cand_id,
+            user_email=session.get("user_email", "system"),
+            note_type="activity",
+            content=f"Contract issued: {role_title} ({contract_type}), {eng.name} — £{daily_rate}/day",
+            created_at=datetime.datetime.utcnow()
+        )
+        s.add(activity)
+
+        # Send via Signable if API key is configured
+        if SIGNABLE_API_KEY:
+            try:
+                subject = f"Contract: {role_title} - {eng.name}"
+                message = f"Please review and sign your contract for the role of {role_title} with {eng.client or eng.name}."
+                result = send_esign_signable(
+                    appn.id if appn else esig.id,
+                    cand.name, cand.email,
+                    subject, message
+                )
+                if result:
+                    esig.request_id = result
+                    esig.status = "Sent"
+                    esig.sent_at = datetime.datetime.utcnow()
+                    flash(f"Contract sent to {cand.email} via Signable.", "success")
+                else:
+                    esig.status = "Error"
+                    flash("Contract created but Signable send failed.", "warning")
+            except Exception as e:
+                current_app.logger.warning(f"Signable send failed: {e}")
+                esig.status = "Error"
+                flash(f"Contract created but Signable send failed: {e}", "warning")
+        else:
+            esig.status = "pending"
+            flash("Contract issued (Signable not configured — manual signing required).", "success")
+
+        s.commit()
+
+        log_audit_event('create', 'contract',
+                       f'Contract issued for {cand.name}: {role_title} ({contract_type})',
+                       'candidate', cand_id,
+                       {'engagement_id': eng_id, 'role': role_title, 'rate': daily_rate,
+                        'start': start_date, 'end': expiry_date, 'signable_sent': bool(SIGNABLE_API_KEY)})
+
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
 @login_required
