@@ -11008,8 +11008,12 @@ def action_esign_status(app_id):
     flash(f"E-sign status: {status}", "info")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@app.route("/webhook/esign", methods=["POST"])
+@app.route("/webhook/esign", methods=["GET", "POST"])
 def webhook_esign():
+    # GET request = Signable URL verification ping
+    if request.method == "GET":
+        return jsonify({"ok": True, "message": "Webhook endpoint active"}), 200
+
     payload = request.json or {}
     with Session(engine) as s:
         s.add(WebhookEvent(source="esign", event_type=str(payload.get('event','unknown')), payload=json.dumps(payload)[:39999]))
