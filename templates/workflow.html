@@ -1523,6 +1523,71 @@ function applyClientFilter() {
 }
 
 // Clear all filters
+// === Cascading Filters (Req-037) ===
+const _filterMap = {{ filter_map | tojson }};
+
+function cascadeFilters() {
+  const clientSel = document.getElementById('filterClient');
+  const engSel = document.getElementById('filterEngagement');
+  const roleSel = document.getElementById('filterRole');
+  const intakeSel = document.getElementById('filterIntake');
+  if (!clientSel || !engSel) return;
+
+  const selectedClient = clientSel.value;
+  const selectedEng = engSel.value;
+
+  // Filter engagements by selected client
+  Array.from(engSel.options).forEach(function(opt) {
+    if (opt.value === 'all') return;
+    const eng = _filterMap[opt.value];
+    opt.style.display = (selectedClient === 'all' || (eng && eng.client === selectedClient)) ? '' : 'none';
+  });
+
+  // Filter roles by selected engagement (or by client if no engagement selected)
+  if (roleSel) {
+    const validRoles = new Set();
+    Object.entries(_filterMap).forEach(function(entry) {
+      var eid = entry[0], eng = entry[1];
+      var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
+      var engMatch = selectedEng === 'all' || eid === selectedEng;
+      if (clientMatch && engMatch) {
+        eng.roles.forEach(function(r) { validRoles.add(r); });
+      }
+    });
+    Array.from(roleSel.options).forEach(function(opt) {
+      if (opt.value === 'all') return;
+      opt.style.display = validRoles.size === 0 || validRoles.has(opt.value) ? '' : 'none';
+    });
+  }
+
+  // Filter intakes by selected engagement (or by client)
+  if (intakeSel) {
+    var validIntakes = new Set();
+    Object.entries(_filterMap).forEach(function(entry) {
+      var eid = entry[0], eng = entry[1];
+      var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
+      var engMatch = selectedEng === 'all' || eid === selectedEng;
+      if (clientMatch && engMatch) {
+        eng.intakes.forEach(function(d) { validIntakes.add(d); });
+      }
+    });
+    Array.from(intakeSel.options).forEach(function(opt) {
+      if (opt.value === 'all') return;
+      opt.style.display = validIntakes.size === 0 || validIntakes.has(opt.value) ? '' : 'none';
+    });
+  }
+}
+
+// Attach cascade to filter change events
+document.addEventListener('DOMContentLoaded', function() {
+  var ids = ['filterClient', 'filterEngagement', 'filterRole', 'filterIntake'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', cascadeFilters);
+  });
+  cascadeFilters();
+});
+
 function clearFilters() {
   window.location.href = '{{ url_for("workflow") }}';
 }

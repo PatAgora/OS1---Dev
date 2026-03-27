@@ -5892,6 +5892,21 @@ def index():
                     "engagement": eng.name or "",
                 })
 
+    # Cascading filter map for dashboard (built from already-loaded data)
+    dash_filter_map = {}
+    with Session(engine) as fs:
+        for eng in all_engagements_list:
+            eng_roles = fs.scalars(
+                select(Job.title).distinct()
+                .where(Job.engagement_id == eng.id)
+                .where(Job.title.isnot(None), Job.title != "")
+            ).all()
+            dash_filter_map[str(eng.id)] = {
+                "client": eng.client or "",
+                "name": eng.name or "",
+                "roles": list(eng_roles),
+            }
+
     return render_template(
         "dashboard.html",
         # New wireframe KPIs
@@ -5912,6 +5927,7 @@ def index():
         engagement_filter=engagement_filter,
         role_filter=role_filter,
         intake_filter=intake_filter,
+        filter_map=dash_filter_map,
         # Legacy data
         total_candidates=total_candidates,
         total_apps=total_apps,
@@ -7425,6 +7441,29 @@ def workflow():
     except Exception:
         pass
 
+    # Build cascading filter relationship map
+    filter_map = {}
+    for eng in all_engagements:
+        eng_roles = [j.title for j in all_jobs if j.engagement_id == eng.id and j.title]
+        eng_intakes = []
+        try:
+            with Session(engine) as fs:
+                eng_intakes = [d.strftime("%Y-%m-%d") for d in fs.scalars(
+                    select(EngagementPlan.intake_date)
+                    .distinct()
+                    .where(EngagementPlan.engagement_id == eng.id)
+                    .where(EngagementPlan.intake_date.isnot(None))
+                ).all() if d]
+        except Exception:
+            pass
+        filter_map[str(eng.id)] = {
+            "client": eng.client or "",
+            "name": eng.name or "",
+            "roles": eng_roles,
+            "intakes": eng_intakes,
+            "owner": eng.owner or "",
+        }
+
     return render_template(
         "workflow.html",
         stages=stages,
@@ -7438,6 +7477,7 @@ def workflow():
         all_intakes=all_intakes,
         all_owners=all_owners,
         all_analysts=all_analysts,
+        filter_map=filter_map,
         eng_status_filter=eng_status_filter,
         owner_filter=owner_filter,
         client_filter=client_filter,
@@ -8315,6 +8355,21 @@ def placements():
     page = min(page, total_pages)
     paginated_placements = placements_data[(page - 1) * per_page : page * per_page]
 
+    # Cascading filter map for placements
+    place_filter_map = {}
+    for p in placements_data:
+        client = p.get("client", "")
+        eng_name = p.get("engagement_name", "")
+        role = p.get("role", "")
+        name = p.get("name", "")
+        if client not in place_filter_map:
+            place_filter_map[client] = {"engagements": set(), "roles": set(), "names": set()}
+        place_filter_map[client]["engagements"].add(eng_name)
+        place_filter_map[client]["roles"].add(role)
+        place_filter_map[client]["names"].add(name)
+    # Convert sets to lists for JSON
+    place_filter_map = {k: {"engagements": list(v["engagements"]), "roles": list(v["roles"]), "names": list(v["names"])} for k, v in place_filter_map.items()}
+
     return render_template(
         "placements.html",
         placements=paginated_placements,
@@ -8322,6 +8377,7 @@ def placements():
         all_engagements=all_engagements,
         all_roles=all_roles,
         all_names=all_names,
+        filter_map=place_filter_map,
         name_filter=name_filter,
         client_filter=client_filter,
         engagement_filter=engagement_filter,

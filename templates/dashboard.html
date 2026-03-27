@@ -671,7 +671,7 @@
                         </div>
                         <div class="dropdown-items">
                             {% for eng in all_engagements_list %}
-                            <div class="dropdown-item">
+                            <div class="dropdown-item" data-client="{{ eng.client or '' }}">
                                 <input type="checkbox" id="eng_{{ loop.index }}" name="engagement" value="{{ eng.id }}" {% if eng.id|string in engagement_filter %}checked{% endif %} onchange="updateDropdownText('engagementDropdown', 'All Engagements')">
                                 <label for="eng_{{ loop.index }}">{{ eng.name }}</label>
                             </div>
@@ -1223,6 +1223,56 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+});
+
+// === Cascading Filters (Req-037) ===
+var _dashFilterMap = {{ filter_map | tojson }};
+
+function cascadeDashboardFilters() {
+  // Get selected clients
+  var selectedClients = [];
+  document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked').forEach(function(cb) {
+    selectedClients.push(cb.value);
+  });
+
+  // Filter engagement items by selected clients
+  document.querySelectorAll('#engagementDropdown .dropdown-item').forEach(function(item) {
+    var client = item.dataset.client || '';
+    item.style.display = (selectedClients.length === 0 || selectedClients.includes(client)) ? '' : 'none';
+  });
+
+  // Get selected engagements
+  var selectedEngs = [];
+  document.querySelectorAll('#engagementDropdown input[type="checkbox"]:checked').forEach(function(cb) {
+    selectedEngs.push(cb.value);
+  });
+
+  // Filter role items by selected clients + engagements
+  var validRoles = new Set();
+  Object.entries(_dashFilterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var clientMatch = selectedClients.length === 0 || selectedClients.includes(eng.client);
+    var engMatch = selectedEngs.length === 0 || selectedEngs.includes(eid);
+    if (clientMatch && engMatch) {
+      eng.roles.forEach(function(r) { validRoles.add(r); });
+    }
+  });
+  var roleDropdown = document.getElementById('roleDropdown');
+  if (roleDropdown) {
+    roleDropdown.querySelectorAll('.dropdown-item').forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb) item.style.display = (validRoles.size === 0 || validRoles.has(cb.value)) ? '' : 'none';
+    });
+  }
+}
+
+// Attach cascade listeners
+document.addEventListener('DOMContentLoaded', function() {
+  ['clientDropdown', 'engagementDropdown'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', cascadeDashboardFilters);
+  });
+  cascadeDashboardFilters();
 });
 </script>
 {% endblock %}

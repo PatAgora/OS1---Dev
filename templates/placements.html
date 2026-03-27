@@ -1468,6 +1468,47 @@ document.querySelectorAll('.forecast-btn').forEach(btn => {
     renderCombinedForecastChart();
   });
 });
+
+// === Cascading Filters (Req-037) ===
+var _placeFilterMap = {{ filter_map | tojson }};
+
+function cascadePlacementFilters() {
+  var selectedClients = [];
+  document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked').forEach(function(cb) {
+    selectedClients.push(cb.value);
+  });
+
+  // Filter engagements by client
+  var validEngs = new Set();
+  var validRoles = new Set();
+  var validNames = new Set();
+  if (selectedClients.length > 0) {
+    selectedClients.forEach(function(c) {
+      var m = _placeFilterMap[c];
+      if (m) {
+        m.engagements.forEach(function(e) { validEngs.add(e); });
+        m.roles.forEach(function(r) { validRoles.add(r); });
+        m.names.forEach(function(n) { validNames.add(n); });
+      }
+    });
+  }
+
+  ['engagementDropdown', 'roleDropdown', 'nameDropdown'].forEach(function(ddId) {
+    var dd = document.getElementById(ddId);
+    if (!dd) return;
+    var validSet = ddId === 'engagementDropdown' ? validEngs : (ddId === 'roleDropdown' ? validRoles : validNames);
+    dd.querySelectorAll('.dropdown-item').forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb) item.style.display = (selectedClients.length === 0 || validSet.has(cb.value)) ? '' : 'none';
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var el = document.getElementById('clientDropdown');
+  if (el) el.addEventListener('change', cascadePlacementFilters);
+  cascadePlacementFilters();
+});
 </script>
 </div>
 {% endblock %}
