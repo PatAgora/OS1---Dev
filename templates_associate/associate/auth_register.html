@@ -51,6 +51,18 @@
             <textarea id="about" name="about" rows="3" placeholder="Tell us about your experience and what you're looking for..." style="width:100%;padding:0.75rem 0;border:none;border-bottom:2px solid #e5e7eb;font-size:15px;font-family:inherit;resize:vertical;background:transparent;"></textarea>
         </div>
 
+        <div class="os-field">
+            <label>Are you happy for us to contact your current employer for a reference?</label>
+            <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 400;">
+                <input type="radio" name="current_employer_contact_ok" value="yes"> Yes
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 400;">
+                <input type="radio" name="current_employer_contact_ok" value="no"> No
+              </label>
+            </div>
+        </div>
+
         <button type="submit" class="os-btn-primary">Create Account</button>
     </form>
 

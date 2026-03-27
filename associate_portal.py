@@ -816,6 +816,8 @@ def register():
     surname = _sanitise(request.form.get("surname", "")).strip()
     name = _sanitise(request.form.get("name", "")).strip() or f"{first_name} {surname}".strip()
     phone = _sanitise(request.form.get("phone", "")).strip()
+    contact_current_employer = request.form.get("current_employer_contact_ok", "").strip().lower()
+    contact_ok = True if contact_current_employer == "yes" else (False if contact_current_employer == "no" else None)
 
     if not email or not name:
         flash("Please provide your name and email address.", "danger")
@@ -857,6 +859,7 @@ def register():
             phone=phone,
             email_verified=False,
             source="associate-portal",
+            current_employer_contact_ok=contact_ok,
         )
         s.add(cand)
         s.commit()

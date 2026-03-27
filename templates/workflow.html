@@ -1030,9 +1030,12 @@
           {# No "Placed" advance button — signed contracts move to Placements section #}
           {% endif %}
 
-          {# Start Vetting — available at all stages #}
-          <button class="btn btn-info btn-sm" onclick="triggerVetting({{ card.candidate_id }})" title="Start Vetting">
-            <i class="fas fa-play-circle"></i>
+          {# Vetting triggers — available at all stages #}
+          <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ card.candidate_id }})" title="Start Referencing (free)">
+            <i class="fas fa-envelope"></i>
+          </button>
+          <button class="btn btn-warning btn-sm" onclick="triggerFullVetting({{ card.candidate_id }})" title="Start Full Vetting (paid)">
+            <i class="fas fa-shield-alt"></i>
           </button>
 
           {# REQ-274: General Skip/Unskip stage dropdown #}
@@ -1409,14 +1412,53 @@ function handleDrop(event) {
     const data = await response.json();
 
     if (!response.ok || data.error) {
-      throw new Error(data.error || 'Server error');
+      // Check if vetting override is available
+      if (data.allow_override) {
+        data._isOverridable = true;
+      }
+      if (!data._isOverridable) {
+        throw new Error(data.error || 'Server error');
+      }
+      return data;
     }
 
     return data;
   })
   .then(data => {
+    if (data._isOverridable) {
+      // Show override confirmation
+      const originalColumnEl = document.querySelector('[data-stage="' + originalColumn + '"]');
+      if (originalColumnEl && draggedCard) {
+        originalColumnEl.appendChild(draggedCard);
+      }
+      if (confirm(data.error + '\n\nThis will be logged in the audit trail.')) {
+        // Re-send with force flag
+        fetch('/api/workflow/move', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            card_id: cardData.id,
+            card_type: cardData.type,
+            from_stage: originalColumn,
+            to_stage: targetStage,
+            force: true
+          })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.ok) {
+            showToast('Override applied — card moved', 'warning');
+            setTimeout(function() { window.location.reload(); }, 500);
+          } else {
+            showToast(d.error || 'Override failed', 'danger');
+          }
+        });
+      }
+      return;
+    }
     showToast('Card moved successfully', 'success');
-    setTimeout(() => window.location.reload(), 500);
+    setTimeout(function() { window.location.reload(); }, 500);
   })
   .catch(error => {
     console.error('Error:', error);
@@ -1482,9 +1524,31 @@ function clearFilters() {
   window.location.href = '{{ url_for("workflow") }}';
 }
 
-// Trigger vetting for a candidate — initialises all checks to In Progress
-function triggerVetting(candidateId) {
-  if (!confirm('Start vetting for this associate? All checks will be set to In Progress.')) return;
+// Start Referencing only (free) — References + Employment History checks
+function triggerReferencing(candidateId) {
+  if (!confirm('Start referencing for this associate? References and Employment History checks will be set to In Progress. Reference requests will be sent (respecting contact preferences).')) return;
+  fetch('/api/vetting/trigger-referencing/' + candidateId, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      showToast(data.msg || 'Referencing started', 'success');
+      setTimeout(function() { location.reload(); }, 500);
+    } else {
+      alert(data.error || 'Failed to start referencing');
+    }
+  })
+  .catch(function() { alert('Network error'); });
+}
+
+// Start Full Vetting (paid) — all checks + Verifile API
+function triggerFullVetting(candidateId) {
+  if (!confirm('Start FULL vetting for this associate? This will trigger all checks including paid Verifile API checks. Continue?')) return;
   fetch('/api/vetting/trigger/' + candidateId, {
     method: 'POST',
     headers: {
@@ -1492,15 +1556,16 @@ function triggerVetting(candidateId) {
       'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
     }
   })
-  .then(r => r.json())
-  .then(data => {
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
     if (data.ok) {
-      location.reload();
+      showToast(data.msg || 'Full vetting started', 'success');
+      setTimeout(function() { location.reload(); }, 500);
     } else {
       alert(data.error || 'Failed to start vetting');
     }
   })
-  .catch(() => alert('Network error'));
+  .catch(function() { alert('Network error'); });
 }
 
 // Advance card to next stage via button click
@@ -1528,16 +1593,41 @@ function advanceStage(cardId, newStatus) {
       new_status: newStatus
     })
   })
-  .then(response => response.json())
-  .then(data => {
+  .then(function(response) { return response.json(); })
+  .then(function(data) {
     if (data.error) {
-      showToast('Error: ' + data.error, 'danger');
+      if (data.allow_override) {
+        if (confirm(data.error + '\n\nThis will be logged in the audit trail.')) {
+          fetch('/api/workflow/move', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              card_id: cardId,
+              card_type: 'application',
+              to_stage: newStatus.toLowerCase().replace(/ /g, '_').replace('&', ''),
+              new_status: newStatus,
+              force: true
+            })
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.ok) {
+              showToast('Override applied — stage updated', 'warning');
+              setTimeout(function() { window.location.reload(); }, 500);
+            } else {
+              showToast(d.error || 'Override failed', 'danger');
+            }
+          });
+        }
+      } else {
+        showToast('Error: ' + data.error, 'danger');
+      }
     } else {
       showToast('Stage updated successfully', 'success');
-      setTimeout(() => window.location.reload(), 500);
+      setTimeout(function() { window.location.reload(); }, 500);
     }
   })
-  .catch(error => {
+  .catch(function(error) {
     console.error('Error:', error);
     showToast('Failed to update stage', 'danger');
   });

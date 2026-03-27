@@ -3125,6 +3125,9 @@ class Candidate(Base):
     leaving_confirmed = Column(Boolean, default=False)  # Confirmed leaving when contract ends
     leaving_confirmed_at = Column(DateTime, nullable=True)  # When leaving was confirmed
     
+    # Reference contact preference (collected at portal signup)
+    current_employer_contact_ok = Column(Boolean, nullable=True)  # Can we contact current employer?
+
     # Portal authentication fields
     email_verified = Column(Boolean, default=False)  # Email verified via magic link
     email_verified_at = Column(DateTime, nullable=True)  # When email was verified
@@ -7475,7 +7478,7 @@ def api_workflow_move():
             old_status = app_obj.status
 
             # Vetting completeness check for drag-drop moves to Ready to Contract
-            if new_status == "Ready to Contract":
+            if new_status in ("Ready to Contract", "Contract Sent", "Placed"):
                 _ALL_CHECKS = [
                     "Right to Work", "Identity Verification", "Address History", "DBS Check",
                     "Employment History", "References", "Qualifications", "Professional Registration",
@@ -7489,9 +7492,28 @@ def api_workflow_move():
                 if _done < len(_ALL_CHECKS):
                     return jsonify({
                         "ok": False,
-                        "error": f"Cannot mark as Ready to Contract: {_done}/{len(_ALL_CHECKS)} vetting checks complete.",
-                        "vetting_incomplete": True
+                        "error": f"Vetting incomplete: {_done}/{len(_ALL_CHECKS)} checks done. Override to proceed?",
+                        "vetting_incomplete": True,
+                        "allow_override": True,
+                        "card_id": card_id,
+                        "target_stage": new_status,
                     }), 400
+
+            # If force move with incomplete vetting, log to audit
+            if payload.get("force") and new_status in ("Ready to Contract", "Contract Sent", "Placed"):
+                log_audit_event('update', 'compliance',
+                    f'VETTING OVERRIDE: Force-moved to {new_status} with incomplete vetting',
+                    'application', int(card_id),
+                    {'override_by': session.get("user_email", "unknown"),
+                     'target_stage': new_status})
+                activity_override = CandidateNote(
+                    candidate_id=app_obj.candidate_id,
+                    user_email=session.get("user_email", "system"),
+                    note_type="activity",
+                    content=f"VETTING OVERRIDE: Moved to {new_status} with incomplete vetting by {session.get('user_email', 'unknown')}",
+                    created_at=datetime.datetime.utcnow()
+                )
+                s.add(activity_override)
 
             app_obj.status = new_status
 
@@ -7681,7 +7703,7 @@ def workflow_move():
                 }), 400
 
         # Vetting completeness check: cannot move to Ready to Contract unless all checks done
-        if new_status == "Ready to Contract" and not force_move:
+        if new_status in ("Ready to Contract", "Contract Sent", "Placed") and not force_move:
             ALL_VETTING_CHECKS = [
                 "Right to Work", "Identity Verification", "Address History", "DBS Check",
                 "Employment History", "References", "Qualifications", "Professional Registration",
@@ -7696,10 +7718,29 @@ def workflow_move():
             if completed_count < len(ALL_VETTING_CHECKS):
                 return jsonify({
                     "ok": False,
-                    "error": f"Cannot mark as Ready to Contract: {completed_count}/{len(ALL_VETTING_CHECKS)} vetting checks complete. All checks must be Complete or N/A first.",
+                    "error": f"Vetting incomplete: {completed_count}/{len(ALL_VETTING_CHECKS)} checks done. Override to proceed?",
                     "validation_error": True,
-                    "vetting_incomplete": True
+                    "vetting_incomplete": True,
+                    "allow_override": True,
+                    "app_id": app_id,
+                    "target_stage": new_status,
                 }), 400
+
+        # If force move with incomplete vetting, log to audit
+        if force_move and new_status in ("Ready to Contract", "Contract Sent", "Placed"):
+            log_audit_event('update', 'compliance',
+                f'VETTING OVERRIDE: Force-moved to {new_status} with incomplete vetting',
+                'application', app_id,
+                {'override_by': session.get("user_email", "unknown"),
+                 'target_stage': new_status})
+            override_note = CandidateNote(
+                candidate_id=appn.candidate_id,
+                user_email=session.get("user_email", "system"),
+                note_type="activity",
+                content=f"VETTING OVERRIDE: Moved to {new_status} with incomplete vetting by {session.get('user_email', 'unknown')}",
+                created_at=datetime.datetime.utcnow()
+            )
+            s.add(override_note)
 
         appn.status = new_status
 
@@ -10203,6 +10244,20 @@ def action_skip_stage(app_id):
         if not appn:
             abort(404)
 
+        # Vetting gate: block skip to post-vetting stages unless all checks done
+        if target_stage in ("Ready to Contract", "Contract Sent", "Placed"):
+            _ALL_CHECKS = [
+                "Right to Work", "Identity Verification", "Address History", "DBS Check",
+                "Employment History", "References", "Qualifications", "Professional Registration",
+                "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+            ]
+            _checks = s.scalars(select(VettingCheck).where(VettingCheck.candidate_id == appn.candidate_id)).all()
+            _map = {vc.check_type: (vc.status or "").upper() for vc in _checks}
+            _done = sum(1 for ct in _ALL_CHECKS if _map.get(ct, "NOT STARTED") in ["COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"])
+            if _done < len(_ALL_CHECKS):
+                flash(f"Cannot skip to {target_stage}: {_done}/{len(_ALL_CHECKS)} vetting checks complete.", "danger")
+                return redirect(request.referrer or url_for("workflow"))
+
         old_status = appn.status
         appn.status = target_stage
 
@@ -10293,10 +10348,133 @@ def action_vetting(cand_id):
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
 @csrf.exempt
+@csrf.exempt
+@app.route("/api/vetting/trigger-referencing/<int:cand_id>", methods=["POST"])
+@login_required
+def api_vetting_trigger_referencing(cand_id):
+    """Start Referencing only: set References and Employment History checks to In Progress.
+    Sends reference requests respecting contact permission flags."""
+    REFERENCE_CHECKS = ["References", "Employment History"]
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"ok": False, "error": "Associate not found"}), 404
+
+        existing = {
+            vc.check_type: vc
+            for vc in s.scalars(
+                select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+            ).all()
+        }
+
+        now = datetime.datetime.utcnow()
+        triggered = 0
+        for ct in REFERENCE_CHECKS:
+            if ct in existing:
+                status_upper = (existing[ct].status or "").upper()
+                if status_upper in ("NOT STARTED", "WAITING FOR ASSOCIATE", ""):
+                    existing[ct].status = "In Progress"
+                    existing[ct].created_at = now
+                    triggered += 1
+            else:
+                s.add(VettingCheck(
+                    candidate_id=cand_id,
+                    check_type=ct,
+                    status="In Progress",
+                    created_at=now,
+                ))
+                triggered += 1
+
+        # Update application to Vetting In-Flight if not already
+        appn = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .where(Application.status.notin_(["Rejected", "Withdrawn", "Vetting In-Flight",
+                                               "Contract Issued", "Contract Sent", "Placed"]))
+            .order_by(Application.created_at.desc())
+        )
+        if appn:
+            appn.status = "Vetting In-Flight"
+
+        cand.status = "In Vetting"
+
+        # Auto-create reference requests from portal employment history
+        refs_created = 0
+        refs_held = 0
+        try:
+            from associate_portal import _ensure_models, _portal_model
+            _ensure_models()
+            EmpHistory = _portal_model("EmploymentHistory")
+            if EmpHistory:
+                emp_rows = s.scalars(
+                    select(EmpHistory).where(EmpHistory.candidate_id == cand_id)
+                    .order_by(EmpHistory.end_date.desc())
+                ).all()
+                for i, emp in enumerate(emp_rows):
+                    # Check if reference already exists for this employment
+                    existing_ref = s.scalar(
+                        select(ReferenceRequest)
+                        .where(ReferenceRequest.candidate_id == cand_id)
+                        .where(ReferenceRequest.employment_history_id == emp.id)
+                    )
+                    if existing_ref:
+                        continue
+
+                    # Check permission: per-entry flag, or global current employer flag
+                    perm = getattr(emp, 'permission_to_request', 'yes') or 'yes'
+                    is_current = (i == 0)  # most recent entry
+                    contact_ok = getattr(cand, 'current_employer_contact_ok', True)
+                    if contact_ok is None:
+                        contact_ok = True
+
+                    hold = False
+                    hold_reason = ""
+                    if perm.lower() == 'no':
+                        hold = True
+                        hold_reason = getattr(emp, 'no_permission_reason', '') or 'Associate declined reference contact'
+                    elif is_current and not contact_ok:
+                        hold = True
+                        hold_reason = "Associate requested: do not contact current employer"
+
+                    ref = ReferenceRequest(
+                        candidate_id=cand_id,
+                        employment_history_id=emp.id,
+                        company_name=getattr(emp, 'company_name', '') or '',
+                        referee_email=getattr(emp, 'referee_email', '') or '',
+                        referee_name=getattr(emp, 'referee_name', '') or '',
+                        status="on_hold" if hold else "not_sent",
+                        permission_status="no" if hold else "yes",
+                        notes=hold_reason if hold else "",
+                        created_at=now,
+                    )
+                    s.add(ref)
+                    if hold:
+                        refs_held += 1
+                    else:
+                        refs_created += 1
+        except Exception as e:
+            current_app.logger.warning(f"Reference auto-create failed for cand {cand_id}: {e}")
+
+        log_audit_event(
+            'update', 'vetting',
+            f'Referencing started for {cand.name}: {triggered} checks, {refs_created} refs created, {refs_held} held',
+            'candidate', cand_id,
+            {'trigger': 'start_referencing', 'checks_triggered': triggered,
+             'refs_created': refs_created, 'refs_held': refs_held}
+        )
+        s.commit()
+
+    return jsonify({
+        "ok": True,
+        "msg": f"Referencing started: {triggered} checks, {refs_created} references created, {refs_held} held"
+    })
+
+
 @app.route("/api/vetting/trigger/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_trigger(cand_id):
-    """Start vetting: initialise vetting checks to In Progress for this candidate.
+    """Start Full Vetting: initialise ALL vetting checks to In Progress for this candidate.
+    Includes Verifile API submission. Also starts referencing if not already started.
     Uses engagement-specific vetting requirements if available, otherwise defaults to all 12 checks."""
     DEFAULT_VETTING_CHECKS = [
         "Right to Work", "Identity Verification", "Address History", "DBS Check",

@@ -536,6 +536,15 @@
           {% if not cand.email and not cand.phone %}
             <span class="text-muted">No contact information available</span>
           {% endif %}
+          {% if cand.current_employer_contact_ok is not none %}
+          <span style="margin-left: 0.75rem;">
+            {% if cand.current_employer_contact_ok %}
+              <span class="badge bg-success" style="font-size: 0.65em;"><i class="fas fa-check me-1"></i>Current employer ref OK</span>
+            {% else %}
+              <span class="badge bg-danger" style="font-size: 0.65em;"><i class="fas fa-times me-1"></i>Do not contact current employer</span>
+            {% endif %}
+          </span>
+          {% endif %}
         </div>
       </div>
       <div class="d-flex gap-2">
@@ -755,8 +764,16 @@
               <i class="fas fa-shield-alt"></i>
               Vetting Checks
             </div>
-            <div class="section-subtitle">
-              {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
+            <div class="d-flex align-items-center gap-2">
+              <span class="section-subtitle mb-0">
+                {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
+              </span>
+              <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing (free)">
+                <i class="fas fa-envelope me-1"></i> Start Referencing
+              </button>
+              <button class="btn btn-warning btn-sm" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting (paid)">
+                <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
+              </button>
             </div>
           </div>
           {% if vetting_checks %}
@@ -1313,6 +1330,34 @@ function revertToApplied() {
   if (originalJobId) jobSelect.value = originalJobId;
   mismatchConfirmed = false;
   document.getElementById('contractRoleMismatchWarning').style.display = 'none';
+}
+
+function triggerReferencing(candidateId) {
+  if (!confirm('Start referencing for this associate? Reference requests will be sent (respecting contact preferences).')) return;
+  fetch('/api/vetting/trigger-referencing/' + candidateId, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'}
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) { alert(data.msg || 'Referencing started'); location.reload(); }
+    else { alert(data.error || 'Failed'); }
+  })
+  .catch(function() { alert('Network error'); });
+}
+
+function triggerFullVetting(candidateId) {
+  if (!confirm('Start FULL vetting? This triggers paid Verifile API checks. Continue?')) return;
+  fetch('/api/vetting/trigger/' + candidateId, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'}
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) { alert(data.msg || 'Full vetting started'); location.reload(); }
+    else { alert(data.error || 'Failed'); }
+  })
+  .catch(function() { alert('Network error'); });
 }
 
 function issueContractDirect() {
