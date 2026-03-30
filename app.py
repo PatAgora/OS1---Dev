@@ -126,6 +126,11 @@ SMTP_PASS = os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "Talent <noreply@example.com>")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 
+# Microsoft 365 OAuth2 email (Req-035)
+M365_TENANT_ID = os.getenv("M365_TENANT_ID", "")
+M365_CLIENT_ID = os.getenv("M365_CLIENT_ID", "")
+M365_CLIENT_SECRET = os.getenv("M365_CLIENT_SECRET", "")
+
 _client = None
 def get_gemini_model():
     """
@@ -5307,22 +5312,74 @@ def send_email(
     SMTP ports are blocked), falls back to SMTP if Brevo key not configured.
     Returns True on success, raises exception on failure.
     """
-    # --- Brevo HTTP API (preferred) ---
+    # --- Microsoft 365 OAuth2 (preferred — client's own mailbox) ---
+    if (M365_TENANT_ID or "").strip() and (M365_CLIENT_ID or "").strip() and (M365_CLIENT_SECRET or "").strip():
+        return _send_via_m365_oauth(to_email, subject, html_body, attachments)
+
+    # --- Brevo HTTP API (fallback) ---
     if (BREVO_API_KEY or "").strip():
         return _send_via_brevo(to_email, subject, html_body, attachments)
 
     # --- SMTP fallback ---
     if not (SMTP_HOST or "").strip():
-        print("[DEV] Neither Brevo API nor SMTP configured; would email:")
+        print("[DEV] No email provider configured; would email:")
         print("  To:", to_email)
         print("  Subj:", subject)
         print("  Body:", html_body[:200], "...")
         if attachments:
             for filename, _, mime in attachments:
                 print(f"  Attachment: {filename} ({mime})")
-        raise RuntimeError("Email not configured - set BREVO_API_KEY or SMTP_HOST")
+        raise RuntimeError("Email not configured - set M365 OAuth vars, BREVO_API_KEY, or SMTP_HOST")
 
     return _send_via_smtp(to_email, subject, html_body, attachments)
+
+
+def _send_via_m365_oauth(to_email, subject, html_body, attachments=None):
+    """Send email via Microsoft 365 SMTP with OAuth2 XOAUTH2 authentication."""
+    print(f"[M365] Sending to {to_email}: {subject}")
+
+    # Step 1: Get OAuth2 access token
+    token_url = f"https://login.microsoftonline.com/{M365_TENANT_ID}/oauth2/v2.0/token"
+    token_resp = requests.post(token_url, data={
+        "client_id": M365_CLIENT_ID,
+        "client_secret": M365_CLIENT_SECRET,
+        "scope": "https://outlook.office365.com/.default",
+        "grant_type": "client_credentials",
+    }, timeout=20)
+    token_resp.raise_for_status()
+    access_token = token_resp.json()["access_token"]
+
+    # Step 2: Build email message
+    msg = EmailMessage()
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content("This email contains HTML content.")
+    msg.add_alternative(html_body, subtype="html")
+
+    if attachments:
+        for filename, content, mime in attachments:
+            maintype, subtype = mime.split("/", 1)
+            msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
+
+    # Step 3: Connect to SMTP with XOAUTH2
+    auth_string = f"user={SMTP_FROM}\x01auth=Bearer {access_token}\x01\x01"
+    auth_b64 = base64.b64encode(auth_string.encode()).decode()
+
+    server = smtplib.SMTP("smtp.office365.com", 587, timeout=30)
+    server.ehlo()
+    server.starttls()
+    server.ehlo()
+
+    code, resp_msg = server.docmd("AUTH", "XOAUTH2 " + auth_b64)
+    if code != 235:
+        server.quit()
+        raise RuntimeError(f"M365 OAuth2 AUTH failed: {code} {resp_msg!r}")
+
+    server.send_message(msg)
+    server.quit()
+    print(f"[M365] Successfully sent to {to_email}: {subject}")
+    return True
 
 
 def _send_via_brevo(to_email, subject, html_body, attachments=None):
