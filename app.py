@@ -3327,6 +3327,17 @@ class Opportunity(Base):
     client_contact_phone = Column(String, default="")
     client_contact_email = Column(String, default="")
 
+# ---- Req-041: Timestamped opportunity notes ----
+class OpportunityNote(Base):
+    """Immutable timestamped notes for pipeline opportunities."""
+    __tablename__ = "opportunity_notes"
+    id = Column(Integer, primary_key=True)
+    opportunity_id = Column(Integer, ForeignKey("opportunities.id"), nullable=False)
+    user_email = Column(String, default="")
+    content = Column(Text, default="")
+    note_type = Column(String(50), default="note")  # note, stage_change, system
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 # ---- VettingCheck model (per wireframe requirements) ----
 class VettingCheck(Base):
     """
@@ -5120,6 +5131,7 @@ class OpportunityForm(FlaskForm):
     stage = SelectField(
         "Stage",
         choices=[
+            ("Lead", "Lead"),
             ("Qualified Lead", "Qualified Lead"),
             ("Proposal", "Proposal"),
             ("Procurement", "Procurement"),
@@ -6490,14 +6502,20 @@ def opportunity_convert_v2(opp_id):
         flash(f"Engagement {e.ref or e.id} created.", "success")
         return redirect(url_for("engagement_dashboard", eng_id=e.id))
 
+@csrf.exempt
 @login_required
 @app.route("/api/opportunity/<int:opp_id>/update-stage", methods=["POST"])
 def api_opportunity_update_stage(opp_id):
     """Update opportunity stage (e.g. Procurement → Closed Won/Lost)."""
     data = request.get_json(silent=True) or {}
     new_stage = (data.get("stage") or "").strip()
+    stage_note = (data.get("note") or "").strip()
     if not new_stage:
         return jsonify({"ok": False, "error": "Stage is required"}), 400
+
+    # Req-042: Require a note when changing pipeline stage
+    if not stage_note:
+        return jsonify({"ok": False, "error": "Please add a note explaining this stage change.", "note_required": True}), 400
 
     with Session(engine) as s:
         opp = s.get(Opportunity, opp_id)
@@ -6507,14 +6525,27 @@ def api_opportunity_update_stage(opp_id):
         old_stage = opp.stage
         opp.stage = new_stage
 
+        # Req-042: Save mandatory stage change note
+        s.add(OpportunityNote(
+            opportunity_id=opp.id,
+            user_email=current_user.email if current_user.is_authenticated else "",
+            content=f"[{old_stage} → {new_stage}] {stage_note}",
+            note_type="stage_change",
+        ))
+
         # If Closed Won, auto-create engagement
         if new_stage.lower() == "closed won":
             opp.probability = 100
-            e = create_engagement_for_opportunity(s, opp)
-            s.commit()
-            if e:
-                return jsonify({"ok": True, "message": f"Marked as Won. Engagement {e.ref} created.",
-                                "engagement_id": e.id, "redirect": url_for("engagement_dashboard", eng_id=e.id)})
+            try:
+                e = create_engagement_for_opportunity(s, opp)
+                s.commit()
+                if e:
+                    return jsonify({"ok": True, "message": f"Marked as Won. Engagement {e.ref} created.",
+                                    "engagement_id": e.id, "redirect": url_for("engagement_dashboard", eng_id=e.id)})
+            except Exception as exc:
+                s.rollback()
+                current_app.logger.error(f"Failed to create engagement for opportunity {opp.id}: {exc}")
+                return jsonify({"ok": False, "error": f"Stage updated to Won but engagement creation failed: {str(exc)}"}), 500
         elif new_stage.lower() == "closed lost":
             opp.probability = 0
 
@@ -6596,9 +6627,14 @@ def api_opportunity_move_stage():
     opp_id = data.get("opportunity_id")
     from_stage = data.get("from_stage")
     to_stage = data.get("to_stage")
-    
+    stage_note = (data.get("note") or "").strip()
+
     if not opp_id or not to_stage:
         return jsonify({"ok": False, "error": "Missing required fields"}), 400
+
+    # Req-042: Require a note when changing pipeline stage
+    if not stage_note:
+        return jsonify({"ok": False, "error": "Please add a note explaining this stage change.", "note_required": True}), 400
     
     with Session(engine) as s:
         opp = s.get(Opportunity, int(opp_id))
@@ -6606,7 +6642,7 @@ def api_opportunity_move_stage():
             return jsonify({"ok": False, "error": "Opportunity not found"}), 404
         
         # Valid pipeline stages
-        valid_stages = ["Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
+        valid_stages = ["Lead", "Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
         if to_stage not in valid_stages:
             return jsonify({"ok": False, "error": f"Invalid stage: {to_stage}"}), 400
         
@@ -6615,9 +6651,10 @@ def api_opportunity_move_stage():
 
         # Auto-update probability based on stage
         STAGE_PROBABILITY = {
-            "Qualified Lead": 25,
-            "Proposal": 50,
-            "Procurement": 75,
+            "Lead": 0,
+            "Qualified Lead": 10,
+            "Proposal": 30,
+            "Procurement": 50,
             "Closed Won": 100,
             "Closed Lost": 0,
         }
@@ -6630,22 +6667,35 @@ def api_opportunity_move_stage():
                        'opportunity', opp.id,
                        {'old_stage': old_stage, 'new_stage': to_stage,
                         'opportunity_name': opp.name, 'client': opp.client})
-        
+
+        # Req-042: Save mandatory stage change note
+        s.add(OpportunityNote(
+            opportunity_id=opp.id,
+            user_email=current_user.email if current_user.is_authenticated else "",
+            content=f"[{old_stage} → {to_stage}] {stage_note}",
+            note_type="stage_change",
+        ))
+
         # If moved to Closed Won, optionally create engagement
         if to_stage == "Closed Won":
             # Check if engagement already exists
             existing_eng = s.scalar(select(Engagement).where(Engagement.opportunity_id == opp.id))
             if not existing_eng:
                 # Auto-create engagement for Closed Won
-                eng = _create_engagement_from_opportunity(s, opp)
-                s.commit()
-                return jsonify({
-                    "ok": True, 
-                    "message": f"Moved to {to_stage} and created engagement {eng.ref}",
-                    "engagement_created": True,
-                    "engagement_id": eng.id,
-                    "engagement_ref": eng.ref
-                })
+                try:
+                    eng = _create_engagement_from_opportunity(s, opp)
+                    s.commit()
+                    return jsonify({
+                        "ok": True,
+                        "message": f"Moved to {to_stage} and created engagement {eng.ref}",
+                        "engagement_created": True,
+                        "engagement_id": eng.id,
+                        "engagement_ref": eng.ref
+                    })
+                except Exception as e:
+                    s.rollback()
+                    current_app.logger.error(f"Failed to create engagement for opportunity {opp.id}: {e}")
+                    return jsonify({"ok": False, "error": f"Stage updated to Won but engagement creation failed: {str(e)}"}), 500
         
         s.commit()
 
@@ -6732,7 +6782,7 @@ def opportunity_edit(opp_id):
             owner=owner_id_for_form,
             est_start=opp.est_start.strftime("%Y-%m-%d") if opp.est_start else "",
             est_value=opp.est_value or 0,
-            notes=opp.notes or "",
+            notes="",  # Req-041: notes field is now for adding new entries, not editing old
             client_contact_name = opp.client_contact_name or "",
             client_contact_role = opp.client_contact_role or "",
             client_contact_phone = opp.client_contact_phone or "",
@@ -6770,7 +6820,16 @@ def opportunity_edit(opp_id):
             # probability is now implicit; we keep writing it for downstream logic
             opp.probability = 100 if (opp.stage or "").strip().lower() == "closed won" else 0
 
-            opp.notes = form.notes.data or ""
+            # Req-041: Save notes as timestamped entries instead of overwriting
+            new_note_text = (form.notes.data or "").strip()
+            if new_note_text:
+                opp_note = OpportunityNote(
+                    opportunity_id=opp.id,
+                    user_email=current_user.email if current_user.is_authenticated else "",
+                    content=new_note_text,
+                    note_type="note",
+                )
+                s.add(opp_note)
 
             opp.client_contact_name  = form.client_contact_name.data  or ""
             opp.client_contact_role  = form.client_contact_role.data  or ""
@@ -6796,7 +6855,15 @@ def opportunity_edit(opp_id):
 
             return redirect(url_for("opportunities_"))
 
-    return render_template("opportunity_edit.html", form=form, opp=opp)
+    # Req-041: Load timestamped notes for display
+    with Session(engine) as s:
+        opp_notes = s.scalars(
+            select(OpportunityNote)
+            .where(OpportunityNote.opportunity_id == opp_id)
+            .order_by(OpportunityNote.created_at.desc())
+        ).all()
+
+    return render_template("opportunity_edit.html", form=form, opp=opp, opp_notes=opp_notes)
 
 @app.route(
     "/action/onboarding_email/<int:app_id>",
@@ -8518,9 +8585,9 @@ def projects():
         
         engagements = s.scalars(eng_query).all() if status_filter in ["all", "active", "completed"] else []
         
-        # Pipeline stages for kanban — all stages including Closed Won/Lost
+        # Pipeline stages for kanban — Lead excluded from card workflow per Req-039
         kanban_stages = ["Qualified Lead", "Proposal", "Procurement"]
-        all_stage_names = ["Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
+        all_stage_names = ["Lead", "Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
 
         # Organize opportunities by stage
         stage_data = {stage: [] for stage in all_stage_names}
@@ -8624,8 +8691,9 @@ def pipeline():
             opp_query = opp_query.where(Opportunity.client == client_filter)
         opportunities = s.scalars(opp_query).all()
 
+        # Lead excluded from card workflow per Req-039
         kanban_stages = ["Qualified Lead", "Proposal", "Procurement"]
-        all_stage_names = ["Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
+        all_stage_names = ["Lead", "Qualified Lead", "Proposal", "Procurement", "Closed Won", "Closed Lost"]
         stage_data = {stage: [] for stage in all_stage_names}
         for opp in opportunities:
             stage = opp.stage or "Qualified Lead"
@@ -11497,7 +11565,59 @@ def candidate_profile(cand_id: int):
         placements=all_placements,
         placements_active=placements_active,
         placements_historic=placements_historic,
+        # Req-027: Active engagements for manual placement creation
+        active_engagements=s.scalars(
+            select(Engagement).where(Engagement.status == "Active").order_by(Engagement.name)
+        ).all(),
     )
+
+# -------- Req-027: Manual Placement Creation --------
+@login_required
+@app.route("/candidate/<int:cand_id>/create-placement", methods=["POST"])
+def create_manual_placement(cand_id):
+    """Create a placement manually when contracts are handled offline."""
+    engagement_id = request.form.get("engagement_id", type=int)
+    role_title = request.form.get("role_title", "").strip()
+    start_date_str = request.form.get("start_date", "").strip()
+    end_date_str = request.form.get("end_date", "").strip()
+
+    if not engagement_id:
+        flash("Please select an engagement for this placement.", "error")
+        return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        eng = s.get(Engagement, engagement_id)
+        if not cand or not eng:
+            flash("Candidate or engagement not found.", "error")
+            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+        # Create an ESigRequest record to represent the manual placement
+        esig = ESigRequest(
+            candidate_id=cand_id,
+            engagement_id=engagement_id,
+            provider="manual",
+            status="completed",
+            signer_email=cand.email or "",
+            signed_at=datetime.datetime.utcnow(),
+        )
+        s.add(esig)
+
+        # Update candidate status
+        cand.status = "On Assignment"
+
+        log_audit_event(
+            'create', 'placement',
+            f'Manual placement created for {cand.name} on {eng.name}',
+            'candidate', cand_id,
+            {'engagement_id': engagement_id, 'role': role_title}
+        )
+
+        s.commit()
+        flash(f"Placement created for {cand.name} on {eng.name}.", "success")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
 
 # -------- Vetting Check Update --------
 @login_required
@@ -11514,8 +11634,13 @@ def update_vetting_check(cand_id: int):
     new_status = request.form.get("status", "NOT STARTED")
     notes = request.form.get("notes", "")
     
-    # Redirect back to referring page (application_detail or candidate_profile)
-    redirect_url = request.referrer or url_for("candidate_profile", cand_id=cand_id)
+    # Redirect back to referring page, anchored to vetting section
+    referrer = request.referrer or url_for("candidate_profile", cand_id=cand_id)
+    # Append #vetting-checks anchor so page scrolls back to the vetting section
+    if "#" not in referrer:
+        redirect_url = referrer + "#vetting-checks"
+    else:
+        redirect_url = referrer
 
     if not check_type:
         flash("Invalid vetting check type", "error")

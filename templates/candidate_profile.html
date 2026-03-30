@@ -757,7 +757,7 @@
       </div>
 
       <!-- Vetting Checks Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-4">
+      <div class="modern-card mt-4 fade-in-up stagger-4" id="vetting-checks">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -994,11 +994,50 @@
       <!-- Placements Card -->
       <div class="modern-card mb-4 fade-in-up stagger-3">
         <div class="card-body p-4">
-          <div class="context-section-title">
-            <i class="fas fa-history"></i>
-            Placements
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="context-section-title mb-0">
+              <i class="fas fa-history"></i>
+              Placements
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="document.getElementById('createPlacementForm').style.display = document.getElementById('createPlacementForm').style.display === 'none' ? '' : 'none';">
+              <i class="fas fa-plus"></i> Create Placement
+            </button>
           </div>
-          
+
+          <!-- Manual Placement Form (hidden by default) -->
+          <div id="createPlacementForm" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb;">
+            <form method="POST" action="{{ url_for('create_manual_placement', cand_id=cand.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="row g-2 mb-2">
+                <div class="col-12">
+                  <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Engagement</label>
+                  <select name="engagement_id" class="form-select form-select-sm" required>
+                    <option value="">-- Select engagement --</option>
+                    {% for eng in active_engagements %}
+                    <option value="{{ eng.id }}">{{ eng.name }} ({{ eng.client }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Role Title</label>
+                  <input type="text" name="role_title" class="form-control form-control-sm" placeholder="e.g. Case Handler">
+                </div>
+                <div class="col-3">
+                  <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Start Date</label>
+                  <input type="date" name="start_date" class="form-control form-control-sm">
+                </div>
+                <div class="col-3">
+                  <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">End Date</label>
+                  <input type="date" name="end_date" class="form-control form-control-sm">
+                </div>
+              </div>
+              <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('createPlacementForm').style.display='none'">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-check me-1"></i>Create</button>
+              </div>
+            </form>
+          </div>
+
           {% if placements and placements|length %}
             <ul class="placements-list">
               {% for p in placements %}
@@ -1026,7 +1065,7 @@
               <i class="fas fa-folder-open mb-2" style="font-size: 2rem;"></i>
               <p class="mb-0">No placements yet</p>
               <p class="mb-0" style="font-size: 0.7rem; margin-top: 0.25rem;">
-                Placements are created automatically when a contract is signed.
+                Create a placement manually or it will be created automatically when a contract is signed.
               </p>
             </div>
           {% endif %}

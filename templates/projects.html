@@ -871,9 +871,15 @@
   <div class="table-header">
     <h2>
       <i class="fas fa-chart-line"></i>
-      Pipeline / Opportunities
+      Pipeline
       <span class="subtitle">Track all opportunities in the pipeline</span>
     </h2>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <label style="font-size: 0.8rem; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 0.35rem;">
+        <input type="checkbox" id="showLeadToggle" onchange="toggleLeadRows(this.checked)" style="cursor: pointer;">
+        Show Leads
+      </label>
+    </div>
   </div>
 
   <table class="data-table" id="pipeline-table">
@@ -891,6 +897,7 @@
       {% for opp in opportunities %}
       {% if (opp.stage or '').lower() not in ('closed won', 'closed lost') %}
       <tr data-opp-id="{{ opp.id }}"
+          {% if (opp.stage or '').lower() == 'lead' %}style="display: none;" class="lead-row"{% endif %}
           data-client="{{ opp.client or '' }}"
           data-name="{{ opp.name or '' }}"
           data-stage="{{ opp.stage or 'Lead' }}"
@@ -1110,19 +1117,27 @@
 
 {% block scripts %}
 <script>
+function toggleLeadRows(show) {
+  document.querySelectorAll('#pipeline-table tbody tr.lead-row').forEach(function(row) {
+    row.style.display = show ? '' : 'none';
+  });
+}
+
 function viewOpportunity(oppId) {
   window.location.href = '{{ url_for("opportunity_edit", opp_id=0) }}'.replace('0', oppId);
 }
 
 function markOpportunity(oppId, newStage) {
   const action = newStage === 'Closed Won' ? 'mark as Won' : 'mark as Lost';
-  if (!confirm('Are you sure you want to ' + action + ' this opportunity?')) return;
+  const note = prompt('Are you sure you want to ' + action + '?\n\nPlease add a note explaining this change:');
+  if (note === null) return;  // User cancelled
+  if (!note.trim()) { alert('A note is required to change the stage.'); return; }
 
   fetch('/api/opportunity/' + oppId + '/update-stage', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     credentials: 'same-origin',
-    body: JSON.stringify({stage: newStage})
+    body: JSON.stringify({stage: newStage, note: note.trim()})
   })
   .then(r => r.json())
   .then(data => {
@@ -1448,20 +1463,25 @@ function handlePipelineDrop(event) {
   }
   
   const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
-  
+
+  // Req-042: Require a note before allowing stage move
+  const stageNote = prompt('Moving from ' + originalPipelineStage + ' to ' + targetStage + '.\n\nPlease add a note explaining this change:');
+  if (stageNote === null) return;  // User cancelled
+  if (!stageNote.trim()) { alert('A note is required to change the stage.'); return; }
+
   // Hide any empty placeholder in target
   const emptyPlaceholder = targetStageBody.querySelector('.empty-placeholder');
   if (emptyPlaceholder) {
     emptyPlaceholder.style.display = 'none';
   }
-  
+
   // Move the card visually first for better UX
   targetStageBody.appendChild(draggedPipelineCard);
   draggedPipelineCard.dataset.stage = targetStage;
-  
+
   // Update column counts
   updatePipelineCounts();
-  
+
   // Update the server
   fetch('/api/opportunity/move-stage', {
     method: 'POST',
@@ -1472,7 +1492,8 @@ function handlePipelineDrop(event) {
     body: JSON.stringify({
       opportunity_id: cardData.id,
       from_stage: originalPipelineStage,
-      to_stage: targetStage
+      to_stage: targetStage,
+      note: stageNote.trim()
     })
   })
   .then(async response => {

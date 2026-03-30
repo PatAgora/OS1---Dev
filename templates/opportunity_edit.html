@@ -274,18 +274,47 @@
         <!-- Notes Section -->
         <div class="form-section-header">
           <i class="fas fa-sticky-note"></i>
-          Additional Information
+          Notes
         </div>
-        
-        <div class="row g-3 mb-4">
+
+        <!-- Add new note -->
+        <div class="row g-3 mb-3">
           <div class="col-12">
             <label class="form-label-modern">
-              <i class="fas fa-align-left"></i>
-              {{ form.notes.label.text }}
+              <i class="fas fa-plus-circle"></i>
+              Add Note
             </label>
-            {{ form.notes(class="form-control-modern", rows="4", placeholder="Add any relevant notes or details about this opportunity...") }}
+            {{ form.notes(class="form-control-modern", rows="3", placeholder="Type a new note and click Save to add it...", value="") }}
           </div>
         </div>
+
+        <!-- Notes timeline -->
+        {% if opp_notes %}
+        <div class="mb-4" style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem;">
+          {% for note in opp_notes %}
+          <div style="padding: 0.75rem 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <span style="font-size: 0.75rem; font-weight: 600; color: #374151;">
+                <i class="fas fa-user-circle" style="color: #6b7280;"></i>
+                {{ note.user_email or 'System' }}
+              </span>
+              <span style="font-size: 0.7rem; color: #9ca3af;">
+                {{ note.created_at.strftime('%d/%m/%Y %H:%M') if note.created_at else '' }}
+              </span>
+            </div>
+            <div style="font-size: 0.85rem; color: #1f2937; white-space: pre-wrap;">{{ note.content }}</div>
+            {% if note.note_type == 'stage_change' %}
+            <span style="font-size: 0.65rem; background: #dbeafe; color: #1d4ed8; padding: 0.1rem 0.4rem; border-radius: 0.25rem; margin-top: 0.25rem; display: inline-block;">Stage Change</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mb-4" style="text-align: center; color: #9ca3af; padding: 1.5rem; font-size: 0.85rem; border: 1px dashed #e5e7eb; border-radius: 0.5rem;">
+          <i class="fas fa-sticky-note" style="font-size: 1.25rem; margin-bottom: 0.5rem; display: block;"></i>
+          No notes yet. Add the first note above.
+        </div>
+        {% endif %}
 
         <!-- Action Buttons -->
         <div class="d-flex gap-2 pt-3 border-top">
