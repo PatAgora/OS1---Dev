@@ -5312,26 +5312,27 @@ def send_email(
     SMTP ports are blocked), falls back to SMTP if Brevo key not configured.
     Returns True on success, raises exception on failure.
     """
-    # --- Microsoft 365 OAuth2 (preferred — client's own mailbox) ---
+    # --- Microsoft 365 OAuth2 (primary — client's own mailbox) ---
     if (M365_TENANT_ID or "").strip() and (M365_CLIENT_ID or "").strip() and (M365_CLIENT_SECRET or "").strip():
-        return _send_via_m365_oauth(to_email, subject, html_body, attachments)
+        try:
+            return _send_via_m365_oauth(to_email, subject, html_body, attachments)
+        except Exception as e:
+            error_msg = f"M365 email failed for {to_email}: {e}"
+            print(f"[M365] ERROR: {error_msg}")
+            try:
+                flash(f"Email to {to_email} failed via Microsoft 365: {e}. Please check M365 credentials.", "error")
+            except RuntimeError:
+                pass  # Outside request context (e.g. background task)
+            raise RuntimeError(error_msg)
 
-    # --- Brevo HTTP API (fallback) ---
-    if (BREVO_API_KEY or "").strip():
-        return _send_via_brevo(to_email, subject, html_body, attachments)
-
-    # --- SMTP fallback ---
-    if not (SMTP_HOST or "").strip():
-        print("[DEV] No email provider configured; would email:")
-        print("  To:", to_email)
-        print("  Subj:", subject)
-        print("  Body:", html_body[:200], "...")
-        if attachments:
-            for filename, _, mime in attachments:
-                print(f"  Attachment: {filename} ({mime})")
-        raise RuntimeError("Email not configured - set M365 OAuth vars, BREVO_API_KEY, or SMTP_HOST")
-
-    return _send_via_smtp(to_email, subject, html_body, attachments)
+    # --- No M365 configured — this should not happen in production ---
+    error_msg = "M365 email not configured. Set M365_TENANT_ID, M365_CLIENT_ID, and M365_CLIENT_SECRET."
+    print(f"[EMAIL] ERROR: {error_msg}")
+    try:
+        flash(error_msg, "error")
+    except RuntimeError:
+        pass
+    raise RuntimeError(error_msg)
 
 
 def _send_via_m365_oauth(to_email, subject, html_body, attachments=None):
