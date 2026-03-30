@@ -173,7 +173,7 @@
         </h1>
         <p class="subtitle mb-0">{{ opp.name }}</p>
       </div>
-      <a class="btn btn-modern-outline" href="{{ url_for('pipeline') }}">
+      <a class="btn btn-modern-outline" href="{{ request.referrer or url_for('pipeline') }}">
         <i class="fas fa-arrow-left"></i> Back to Pipeline
       </a>
     </div>
@@ -321,7 +321,7 @@
           <button class="btn btn-modern btn-modern-primary" type="submit">
             <i class="fas fa-save me-2"></i>Save Changes
           </button>
-          <a class="btn btn-modern btn-modern-outline" href="{{ url_for('pipeline') }}">
+          <a class="btn btn-modern btn-modern-outline" href="{{ request.referrer or url_for('pipeline') }}">
             <i class="fas fa-times me-2"></i>Cancel
           </a>
         </div>
