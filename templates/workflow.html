@@ -1684,9 +1684,6 @@ function toggleSLAFilter(filter) {
   // Update summary counts based on filter
   updateSummaryCounts(filter);
 
-  // Update check type chart
-  updateCheckTypeChart(filter);
-
   if (filter === 'in') {
     showToast('<i class="fas fa-check-circle me-1"></i> Showing ' + visibleCount + ' associates In SLA', 'success');
   } else if (filter === 'out') {
