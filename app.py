@@ -7493,7 +7493,8 @@ def workflow():
             check_type_all = {}
             check_type_in_sla = {}
             check_type_out_sla = {}
-            
+            check_type_with_sla = []  # initialize so the iteration ~7565 doesn't UnboundLocalError when no in-progress candidates exist
+
             if in_progress_candidate_ids:
                 # Get check data only for in-progress candidates
                 # Build a simple query with the IDs directly (safe since they're integers from our own query)
