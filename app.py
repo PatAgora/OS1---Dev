@@ -147,8 +147,29 @@ def get_gemini_model():
         print(f"Gemini init failed: {e}")
         return None
 
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:5000")
-PORTAL_BASE_URL = os.getenv("PORTAL_BASE_URL", APP_BASE_URL)
+# Public base URL used for building absolute links in outgoing emails
+# (verify-email magic links, offer notifications, password resets, etc).
+# Resolution order:
+#   1. APP_BASE_URL env var (explicit override — set this in Railway for full control)
+#   2. Railway-injected RAILWAY_PUBLIC_DOMAIN (e.g. "os1-dev-production.up.railway.app")
+#   3. Localhost fallback (dev only)
+def _resolve_app_base_url() -> str:
+    explicit = os.getenv("APP_BASE_URL", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if railway_domain:
+        # Railway injects this on every deploy and it's always served over HTTPS
+        return f"https://{railway_domain}".rstrip("/")
+    railway_static = os.getenv("RAILWAY_STATIC_URL", "").strip()
+    if railway_static:
+        if not railway_static.startswith("http"):
+            railway_static = f"https://{railway_static}"
+        return railway_static.rstrip("/")
+    return "http://127.0.0.1:5000"
+
+APP_BASE_URL = _resolve_app_base_url()
+PORTAL_BASE_URL = os.getenv("PORTAL_BASE_URL", "").strip() or APP_BASE_URL
 
 INTERVIEWER_EMAIL = os.getenv("INTERVIEWER_EMAIL", "interviewer@example.com")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/London")
