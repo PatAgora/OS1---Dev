@@ -3573,11 +3573,34 @@ def ensure_schema():
             "interview_scheduled_at DATETIME",
             "status TEXT DEFAULT 'New'",
             "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+            # Req-046: Offer detail capture (matches migrations/009_offer_capture.sql)
+            "offer_start_date DATE",
+            "offer_role_title VARCHAR(300)",
+            "offer_day_rate NUMERIC(10, 2)",
+            "offer_rate_type VARCHAR(20)",
+            "offer_location VARCHAR(300)",
+            "offer_notes TEXT",
+            "offer_made_at DATETIME",
+            "offer_made_by_id INTEGER",
+            "offer_response VARCHAR(20)",
+            "offer_responded_at DATETIME",
+            "offer_responded_ip VARCHAR(50)",
+            "offer_decline_reason TEXT",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE applications ADD COLUMN {coldef}"))
             except Exception:
                 pass
+
+        # Req-005: Signable envelope ID column on declaration_records
+        # (table is created by associate_portal.py via Base.metadata.create_all,
+        # but checkfirst=True only creates new tables — won't add new columns to
+        # an existing one. So we ALTER it inline here. Safe if the table doesn't
+        # exist yet — try/except will swallow it.)
+        try:
+            conn.execute(text("ALTER TABLE declaration_records ADD COLUMN signable_envelope_id VARCHAR(64)"))
+        except Exception:
+            pass
 
         # ===== candidates table =====
         try:
