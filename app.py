@@ -15729,6 +15729,16 @@ def taxonomy():
 def taxonomy_manage():
     cat_form = TaxCategoryForm()
     tag_form = TaxTagForm()
+    alias_form = RoleAliasForm()
+    aliases = []
+    job_templates = []
+    # Reference data (for the two sections at the bottom of this page)
+    ref_contacts = []
+    ref_contacts_total = 0
+    ref_contacts_search = (request.args.get("ref_search") or "").strip()
+    ref_contacts_page = max(1, request.args.get("ref_page", 1, type=int))
+    ref_contacts_per_page = 25
+    ref_houses = []
     with Session(engine) as s:
         cats = s.scalars(select(TaxonomyCategory).order_by(TaxonomyCategory.type.asc(), TaxonomyCategory.name.asc())).all()
         tag_form.category_id.choices = [(c.id, f"[{c.type}] {c.name}") for c in cats]
@@ -15738,10 +15748,65 @@ def taxonomy_manage():
         tags_by_cat = {}
         for c in cats:
             tags_by_cat[c.id] = s.scalars(select(TaxonomyTag).where(TaxonomyTag.category_id==c.id).order_by(TaxonomyTag.tag.asc())).all()
+
+        # Role aliases (migrated from the legacy /configuration page)
+        try:
+            aliases = s.execute(text("SELECT id, canonical, alias FROM role_aliases ORDER BY canonical, alias")).all()
+        except Exception:
+            s.rollback()
+            aliases = []
+
+        # Job description templates (migrated from the legacy /configuration page)
+        try:
+            job_templates = s.scalars(
+                select(JobTemplate).order_by(JobTemplate.role_type.asc())
+            ).all()
+        except Exception:
+            s.rollback()
+            job_templates = []
+
+        # Reference contacts (paginated, searchable) — uses associate portal model
+        try:
+            ReferenceContact = _portal_models.get("ReferenceContact") if _portal_models else None
+            if ReferenceContact:
+                rc_query = select(ReferenceContact)
+                if ref_contacts_search:
+                    rc_query = rc_query.where(ReferenceContact.company_name.ilike(f"%{ref_contacts_search}%"))
+                rc_query = rc_query.order_by(ReferenceContact.company_name)
+                ref_contacts_total = s.scalar(select(func.count()).select_from(rc_query.subquery())) or 0
+                ref_contacts = s.scalars(
+                    rc_query.offset((ref_contacts_page - 1) * ref_contacts_per_page).limit(ref_contacts_per_page)
+                ).all()
+        except Exception:
+            s.rollback()
+            ref_contacts = []
+            ref_contacts_total = 0
+
+        # Flagged reference houses (only ~23 entries, no pagination needed)
+        try:
+            FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse") if _portal_models else None
+            if FlaggedReferenceHouse:
+                ref_houses = s.scalars(
+                    select(FlaggedReferenceHouse).order_by(FlaggedReferenceHouse.name)
+                ).all()
+        except Exception:
+            s.rollback()
+            ref_houses = []
+
     return render_template("taxonomy_manage.html",
                            roles=roles, subjects=subjects,
                            tags_by_cat=tags_by_cat,
-                           cat_form=cat_form, tag_form=tag_form)
+                           cat_form=cat_form, tag_form=tag_form,
+                           alias_form=alias_form,
+                           aliases=aliases,
+                           job_templates=job_templates,
+                           ROLE_TYPES=ROLE_TYPES,
+                           ref_contacts=ref_contacts,
+                           ref_contacts_total=ref_contacts_total,
+                           ref_contacts_search=ref_contacts_search,
+                           ref_contacts_page=ref_contacts_page,
+                           ref_contacts_per_page=ref_contacts_per_page,
+                           ref_houses=ref_houses)
 
 @login_required
 @app.route("/taxonomy/category/add", methods=["POST"])
@@ -16202,89 +16267,11 @@ def action_request_updated_cv_candidate(cand_id):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 @login_required
+# Legacy /configuration page removed — all functionality migrated to /taxonomy/manage.
+# This redirect keeps any old bookmarks / links / nav references working.
 @app.route("/configuration", methods=["GET"])
 def configuration():
-    alias_form = RoleAliasForm()
-    aliases = []
-    cats = []
-    tags_by_cat = {}
-    job_templates = []
-    # Reference data (Req-046 admin extension to /configuration)
-    ref_contacts = []
-    ref_contacts_total = 0
-    ref_contacts_search = (request.args.get("ref_search") or "").strip()
-    ref_contacts_page = max(1, request.args.get("ref_page", 1, type=int))
-    ref_contacts_per_page = 25
-    ref_houses = []
-    try:
-        with Session(engine) as s:
-            # role aliases (table may not exist yet)
-            try:
-                aliases = s.execute(text("SELECT id, canonical, alias FROM role_aliases ORDER BY canonical, alias")).all()
-            except Exception:
-                s.rollback()
-                aliases = []
-            # taxonomy data
-            cat_rows = s.scalars(
-                select(TaxonomyCategory)
-                .options(selectinload(TaxonomyCategory.tags))
-                .order_by(TaxonomyCategory.type.asc(), TaxonomyCategory.name.asc())
-            ).all()
-            for c in cat_rows:
-                tag_list = sorted(
-                    [{"tag": t.tag, "id": t.id} for t in c.tags],
-                    key=lambda t: (t["tag"] or "").lower()
-                )
-                cats.append({"id": c.id, "name": c.name, "type": c.type, "tags": tag_list})
-                tags_by_cat[c.id] = tag_list
-            # job templates
-            job_templates = s.scalars(
-                select(JobTemplate).order_by(JobTemplate.role_type.asc())
-            ).all()
-
-            # Reference contacts (paginated, searchable) — uses associate portal model
-            try:
-                ReferenceContact = _portal_models.get("ReferenceContact") if _portal_models else None
-                if ReferenceContact:
-                    rc_query = select(ReferenceContact)
-                    if ref_contacts_search:
-                        rc_query = rc_query.where(ReferenceContact.company_name.ilike(f"%{ref_contacts_search}%"))
-                    rc_query = rc_query.order_by(ReferenceContact.company_name)
-                    ref_contacts_total = s.scalar(select(func.count()).select_from(rc_query.subquery())) or 0
-                    ref_contacts = s.scalars(
-                        rc_query.offset((ref_contacts_page - 1) * ref_contacts_per_page).limit(ref_contacts_per_page)
-                    ).all()
-            except Exception:
-                s.rollback()
-                ref_contacts = []
-                ref_contacts_total = 0
-
-            # Flagged reference houses (only ~23 entries, no pagination needed)
-            try:
-                FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse") if _portal_models else None
-                if FlaggedReferenceHouse:
-                    ref_houses = s.scalars(
-                        select(FlaggedReferenceHouse).order_by(FlaggedReferenceHouse.name)
-                    ).all()
-            except Exception:
-                s.rollback()
-                ref_houses = []
-    except Exception as e:
-        current_app.logger.exception("configuration error: %s", e)
-        job_templates = []
-    return render_template("configuration.html",
-                           alias_form=alias_form,
-                           aliases=aliases,
-                           cats=cats,
-                           tags_by_cat=tags_by_cat,
-                           ROLE_TYPES=ROLE_TYPES,
-                           job_templates=job_templates,
-                           ref_contacts=ref_contacts,
-                           ref_contacts_total=ref_contacts_total,
-                           ref_contacts_search=ref_contacts_search,
-                           ref_contacts_page=ref_contacts_page,
-                           ref_contacts_per_page=ref_contacts_per_page,
-                           ref_houses=ref_houses)
+    return redirect(url_for("taxonomy_manage"), code=301)
 
 @app.route("/admin/job-templates/save", methods=["POST"])
 @login_required
@@ -16295,7 +16282,7 @@ def save_job_template():
 
     if not role_type:
         flash("Role type is required.", "danger")
-        return redirect(url_for("configuration"))
+        return redirect(url_for("taxonomy_manage") + "#job-templates")
 
     with Session(engine) as s:
         existing = s.scalar(select(JobTemplate).where(JobTemplate.role_type == role_type))
@@ -16307,7 +16294,7 @@ def save_job_template():
         s.commit()
 
     flash(f"Job template for '{role_type}' saved.", "success")
-    return redirect(url_for("configuration") + "#job-templates")
+    return redirect(url_for("taxonomy_manage") + "#job-templates")
 
 
 @app.route("/admin/job-templates/<int:tpl_id>/delete", methods=["POST"])
@@ -16320,7 +16307,7 @@ def delete_job_template(tpl_id):
             s.delete(tpl)
             s.commit()
             flash(f"Template for '{tpl.role_type}' deleted.", "success")
-    return redirect(url_for("configuration") + "#job-templates")
+    return redirect(url_for("taxonomy_manage") + "#job-templates")
 
 
 @login_required
@@ -16395,13 +16382,13 @@ def config_role_alias_add():
     form = RoleAliasForm()
     if not form.validate_on_submit():
         flash("Pick a canonical role and enter an alias.", "warning")
-        return redirect(url_for("configuration"))
+        return redirect(url_for("taxonomy_manage") + "#role-aliases")
     canonical = form.canonical.data.strip()
     alias = form.alias.data.strip()
     with Session(engine) as s:
         # prevent dup (case-insensitive)
         exists = s.execute(
-            text("""SELECT 1 FROM role_aliases 
+            text("""SELECT 1 FROM role_aliases
                     WHERE lower(canonical)=:c AND lower(alias)=:a LIMIT 1"""),
             {"c": canonical.lower(), "a": alias.lower()}
         ).first()
@@ -16412,19 +16399,19 @@ def config_role_alias_add():
                       {"c": canonical, "a": alias})
             s.commit()
             flash("Alias added.", "success")
-    return redirect(url_for("configuration"))
+    return redirect(url_for("taxonomy_manage") + "#role-aliases")
 
 @app.post("/config/role-alias/delete")
 def config_role_alias_delete():
     alias_id = int((request.form.get("id") or 0))
     if not alias_id:
         flash("Missing alias id.", "warning")
-        return redirect(url_for("configuration"))
+        return redirect(url_for("taxonomy_manage") + "#role-aliases")
     with Session(engine) as s:
         s.execute(text("DELETE FROM role_aliases WHERE id=:i"), {"i": alias_id})
         s.commit()
     flash("Alias removed.", "success")
-    return redirect(url_for("configuration"))
+    return redirect(url_for("taxonomy_manage") + "#role-aliases")
 
 @login_required
 @app.get("/job/<int:job_id>/public-link")

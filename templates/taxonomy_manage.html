@@ -539,4 +539,393 @@
     </div>
   </div>
 </div>
+
+<!-- ==================================================================== -->
+<!-- Role Aliases (migrated from legacy /configuration page)                -->
+<!-- ==================================================================== -->
+<div id="role-aliases" class="modern-card mb-4 mt-4 p-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fas fa-users-cog me-2 text-primary"></i>Role Normalisation (Aliases)</h5>
+      <small class="text-muted">Map alternative role titles (e.g. "Senior Software Engineer") to a normalised canonical name (e.g. "Software Engineer"). Used by candidate scoring and search.</small>
+    </div>
+    <span class="badge bg-secondary">{{ aliases|length }} {{ 'alias' if aliases|length == 1 else 'aliases' }}</span>
+  </div>
+
+  <!-- Add new alias -->
+  <form method="POST" action="{{ url_for('config_role_alias_add') }}" class="mb-3 p-3 border rounded bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Alias Text</label>
+        <input type="text" name="alias" class="form-control form-control-sm" placeholder="e.g. Senior Software Engineer" required>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Normalised Role</label>
+        <input type="text" name="canonical" class="form-control form-control-sm" placeholder="e.g. Software Engineer" required>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success btn-sm w-100">
+          <i class="fas fa-plus me-1"></i> Add Alias
+        </button>
+      </div>
+    </div>
+  </form>
+
+  {% if aliases %}
+  <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th>Alias Text</th>
+          <th>Normalised Role</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for alias in aliases %}
+        <tr>
+          <td>{{ alias.alias }}</td>
+          <td><strong>{{ alias.canonical }}</strong></td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('config_role_alias_delete') }}" class="d-inline" onsubmit="return confirm('Delete this alias?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="id" value="{{ alias.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-3 text-muted">
+    <i class="fas fa-inbox mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
+    <p class="mb-0">No role aliases defined yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ==================================================================== -->
+<!-- Job Description Templates (migrated from legacy /configuration page)   -->
+<!-- ==================================================================== -->
+<div id="job-templates" class="modern-card mb-4 p-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fas fa-file-alt me-2 text-primary"></i>Job Description Templates</h5>
+      <small class="text-muted">Default job descriptions for each role category. Used when auto-creating job posts from engagement plans.</small>
+    </div>
+    <span class="badge bg-secondary">{{ job_templates|length }} {{ 'template' if job_templates|length == 1 else 'templates' }}</span>
+  </div>
+
+  <!-- Add / Edit template form -->
+  <form method="POST" action="{{ url_for('save_job_template') }}" class="mb-3 p-3 border rounded bg-light" id="jobTemplateForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Role Category</label>
+        <select name="role_type" id="tplRoleType" class="form-select form-select-sm" required>
+          <option value="">Select role...</option>
+          {% for r in ROLE_TYPES %}
+          <option value="{{ r }}">{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-7">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Job Description</label>
+        <textarea name="description" id="tplDescription" class="form-control form-control-sm" rows="4" placeholder="Default job description for this role category..." required></textarea>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success btn-sm w-100">
+          <i class="fas fa-save me-1"></i> Save Template
+        </button>
+      </div>
+    </div>
+  </form>
+
+  {% if job_templates %}
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Role</th>
+          <th>Description Preview</th>
+          <th>Last Updated</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tpl in job_templates %}
+        <tr>
+          <td><strong>{{ tpl.role_type }}</strong></td>
+          <td style="font-size: 0.8rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ tpl.description[:100] }}{{ '...' if tpl.description|length > 100 else '' }}</td>
+          <td style="font-size: 0.8rem;">{{ tpl.updated_at.strftime('%d/%m/%Y') if tpl.updated_at else '—' }}</td>
+          <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editJobTemplate('{{ tpl.role_type }}', this)" data-desc="{{ tpl.description|e }}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <form method="POST" action="{{ url_for('delete_job_template', tpl_id=tpl.id) }}" class="d-inline" onsubmit="return confirm('Delete template for {{ tpl.role_type }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-3 text-muted">
+    <i class="fas fa-file-alt mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
+    <p class="mb-0">No job description templates yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ==================================================================== -->
+<!-- Reference Request - Contact Details (migrated from legacy)             -->
+<!-- ==================================================================== -->
+<div id="reference-contacts" class="modern-card mb-4 p-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fas fa-address-book me-2 text-primary"></i>Reference Request &mdash; Contact Details</h5>
+      <small class="text-muted">Approved company &rarr; referee email mappings used by the associate portal autocomplete. <strong>{{ ref_contacts_total }}</strong> entries.</small>
+    </div>
+    <form method="GET" action="/taxonomy/manage#reference-contacts" class="d-flex gap-2">
+      <input type="search" name="ref_search" class="form-control form-control-sm" placeholder="Search by company name..." value="{{ ref_contacts_search }}" style="min-width: 220px;">
+      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-search"></i></button>
+      {% if ref_contacts_search %}
+      <a href="/taxonomy/manage#reference-contacts" class="btn btn-outline-secondary btn-sm" title="Clear search"><i class="fas fa-times"></i></a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Add new contact -->
+  <form method="POST" action="{{ url_for('admin_reference_contact_add') }}" class="mb-3 p-3 border rounded bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="/taxonomy/manage#reference-contacts">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Company Name</label>
+        <input type="text" name="company_name" class="form-control form-control-sm" placeholder="e.g. Barclays Bank Plc" required>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Referee Email</label>
+        <input type="email" name="referee_email" class="form-control form-control-sm" placeholder="references@company.com" required>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success btn-sm w-100">
+          <i class="fas fa-plus me-1"></i> Add
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Bulk import (XLSX or CSV) -->
+  <form method="POST" action="{{ url_for('admin_reference_contacts_import') }}" enctype="multipart/form-data" class="mb-3 p-3 border rounded" style="background:#eff6ff;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="/taxonomy/manage#reference-contacts">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-9">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
+          <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
+        </label>
+        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+        <small class="text-muted">XLSX format: Company Name | Referee Email | Last Amended Date. Duplicates by company+email are skipped automatically.</small>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="fas fa-upload me-1"></i> Upload &amp; Import
+        </button>
+      </div>
+    </div>
+  </form>
+
+  {% if ref_contacts %}
+  <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th>Company Name</th>
+          <th>Referee Email</th>
+          <th>Last Amended</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in ref_contacts %}
+        <tr>
+          <td><strong>{{ c.company_name }}</strong></td>
+          <td><a href="mailto:{{ c.referee_email }}">{{ c.referee_email }}</a></td>
+          <td><small class="text-muted">{{ c.last_amended.strftime('%d %b %Y') if c.last_amended else '—' }}</small></td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('admin_reference_contact_delete', contact_id=c.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="/taxonomy/manage?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page }}#reference-contacts">
+              <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete reference contact for {{ c.company_name|e }}?')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set total_pages = (ref_contacts_total + ref_contacts_per_page - 1) // ref_contacts_per_page %}
+  {% if total_pages > 1 %}
+  <nav class="mt-3" aria-label="Reference contacts pagination">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+      {% if ref_contacts_page > 1 %}
+      <li class="page-item">
+        <a class="page-link" href="/taxonomy/manage?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page - 1 }}#reference-contacts">&laquo; Prev</a>
+      </li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ ref_contacts_page }} of {{ total_pages }}</span></li>
+      {% if ref_contacts_page < total_pages %}
+      <li class="page-item">
+        <a class="page-link" href="/taxonomy/manage?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page + 1 }}#reference-contacts">Next &raquo;</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-3 text-muted">
+    <i class="fas fa-address-book mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
+    <p class="mb-0">{% if ref_contacts_search %}No matches for "{{ ref_contacts_search }}".{% else %}No reference contacts loaded yet — use the bulk import above.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ==================================================================== -->
+<!-- Reference Houses Intel (migrated from legacy)                          -->
+<!-- ==================================================================== -->
+<div id="reference-houses" class="modern-card mb-5 p-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Reference Houses &mdash; Intel</h5>
+      <small class="text-muted">Known fake or suspicious reference houses. Companies on this list trigger a warning banner in the associate portal.</small>
+    </div>
+    <span class="badge bg-secondary">{{ ref_houses|length }} {{ 'entry' if ref_houses|length == 1 else 'entries' }}</span>
+  </div>
+
+  <!-- Add new reference house -->
+  <form method="POST" action="{{ url_for('admin_reference_house_add') }}" class="mb-3 p-3 border rounded bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="/taxonomy/manage#reference-houses">
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Name <span class="text-danger">*</span></label>
+        <input type="text" name="name" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Candidate Count</label>
+        <input type="text" name="candidate_count" class="form-control form-control-sm" placeholder="e.g. 12">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">End Clients</label>
+        <input type="text" name="end_clients" class="form-control form-control-sm" placeholder="Where they tried to place">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Website</label>
+        <input type="url" name="website" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="col-md-5 mt-2">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Companies House URL</label>
+        <input type="url" name="companies_house_url" class="form-control form-control-sm" placeholder="https://find-and-update.company-information.service.gov.uk/...">
+      </div>
+      <div class="col-md-5 mt-2">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Notes</label>
+        <input type="text" name="notes" class="form-control form-control-sm" placeholder="Why they're flagged">
+      </div>
+      <div class="col-md-2 mt-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-warning btn-sm w-100 text-dark">
+          <i class="fas fa-plus me-1"></i> Add
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Bulk import (XLSX or CSV) -->
+  <form method="POST" action="{{ url_for('admin_reference_houses_import') }}" enctype="multipart/form-data" class="mb-3 p-3 border rounded" style="background:#fef3c7;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="/taxonomy/manage#reference-houses">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-9">
+        <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
+          <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
+        </label>
+        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+        <small class="text-muted">XLSX format: Col A (skipped) | Name | Candidate Count | End Clients | Website | Companies House URL | Notes. Duplicates by name are skipped automatically.</small>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="fas fa-upload me-1"></i> Upload &amp; Import
+        </button>
+      </div>
+    </div>
+  </form>
+
+  {% if ref_houses %}
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Cand. Count</th>
+          <th>End Clients</th>
+          <th>Website</th>
+          <th>Companies House</th>
+          <th>Notes</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in ref_houses %}
+        <tr>
+          <td><strong>{{ h.name }}</strong></td>
+          <td><span class="badge bg-secondary">{{ h.candidate_count or '—' }}</span></td>
+          <td><small>{{ h.end_clients or '—' }}</small></td>
+          <td>
+            {% if h.website %}<a href="{{ h.website }}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i></a>{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if h.companies_house_url %}<a href="{{ h.companies_house_url }}" target="_blank" rel="noopener"><i class="fas fa-building"></i></a>{% else %}—{% endif %}
+          </td>
+          <td><small class="text-muted">{{ h.notes or '—' }}</small></td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('admin_reference_house_delete', house_id=h.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="/taxonomy/manage#reference-houses">
+              <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete flagged reference house: {{ h.name|e }}?')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-3 text-muted">
+    <i class="fas fa-exclamation-triangle mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
+    <p class="mb-0">No flagged reference houses recorded.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function editJobTemplate(roleType, btn) {
+  document.getElementById('tplRoleType').value = roleType;
+  document.getElementById('tplDescription').value = btn.dataset.desc || '';
+  document.getElementById('tplDescription').focus();
+}
+</script>
 {% endblock %}
