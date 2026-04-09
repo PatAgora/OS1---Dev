@@ -3527,7 +3527,14 @@ def _get_ts_config_model():
 
 # ---- Lightweight schema patches for existing SQLite DBs ----
 def ensure_schema():
-    with engine.begin() as conn:
+    # Use AUTOCOMMIT isolation so each DDL statement is independent. On Postgres,
+    # if any single ALTER fails inside a regular transaction, the entire transaction
+    # is poisoned and every subsequent statement fails with "current transaction is
+    # aborted, commands ignored until end of transaction block". The per-statement
+    # try/except below catches each individual failure, but the outer commit at the
+    # end of `engine.begin()` would itself fail on a poisoned transaction and crash
+    # the boot. AUTOCOMMIT sidesteps this by making every statement its own unit.
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         # ===== jobs table =====
         try:
             conn.execute(text("ALTER TABLE jobs ADD COLUMN role_type TEXT DEFAULT ''"))
