@@ -33,6 +33,9 @@ APScheduler==3.10.4
 # PDF generation (invoices)
 fpdf2==2.8.1
 
+# Excel reading (reference contact bulk import on the configuration page)
+openpyxl==3.1.5
+
 # CV parsing (PDF + DOCX)
 pdfplumber==0.11.4
 python-docx==1.1.2

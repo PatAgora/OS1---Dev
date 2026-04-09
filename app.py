@@ -17760,44 +17760,190 @@ def admin_reference_contact_delete(contact_id):
 @login_required
 @app.route("/admin/reference-contacts/import", methods=["POST"])
 def admin_reference_contacts_import():
-    """Batch 11.1: Bulk import reference contacts from CSV."""
+    """Batch 11.1: Bulk import reference contacts from CSV or XLSX."""
     ReferenceContact = None
     try:
         ReferenceContact = _portal_models.get("ReferenceContact")
     except Exception:
         pass
+    next_url = request.form.get("next") or url_for("admin_reference_contacts")
     if not ReferenceContact:
         flash("Model not available.", "danger")
-        return redirect(url_for("admin_reference_contacts"))
+        return redirect(next_url)
 
-    file = request.files.get("csv_file")
-    if not file or not file.filename.endswith(".csv"):
-        flash("Please upload a CSV file.", "danger")
-        return redirect(url_for("admin_reference_contacts"))
+    file = request.files.get("csv_file") or request.files.get("import_file")
+    if not file or not file.filename:
+        flash("Please choose a file to upload.", "danger")
+        return redirect(next_url)
 
-    import csv as csv_mod
+    fname = (file.filename or "").lower()
+    is_xlsx = fname.endswith(".xlsx") or fname.endswith(".xlsm")
+    is_csv = fname.endswith(".csv")
+    if not (is_xlsx or is_csv):
+        flash("Please upload a CSV or XLSX file.", "danger")
+        return redirect(next_url)
+
     import io as io_mod
     try:
-        content = file.read().decode("utf-8-sig")
-        reader = csv_mod.DictReader(io_mod.StringIO(content))
         count = 0
+        skipped = 0
         with Session(engine) as s:
-            for row in reader:
-                company = (row.get("Company Name") or row.get("company_name") or "").strip()
-                email = (row.get("Referee Email") or row.get("referee_email") or "").strip()
-                if company and email:
+            # Build a set of existing (company_name lowercased, referee_email lowercased)
+            # so re-uploading the same file doesn't create duplicates
+            existing_pairs = set()
+            for row in s.execute(select(ReferenceContact.company_name, ReferenceContact.referee_email)).all():
+                cn = (row[0] or "").strip().lower()
+                em = (row[1] or "").strip().lower()
+                if cn and em:
+                    existing_pairs.add((cn, em))
+
+            if is_xlsx:
+                from openpyxl import load_workbook
+                wb = load_workbook(io_mod.BytesIO(file.read()), read_only=True, data_only=True)
+                ws = wb.active
+                # Skip header row, expect: Company Name | Referee Email | Last Amended Date
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0]:
+                        continue
+                    company = str(row[0]).strip()
+                    email = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+                    if not company or not email:
+                        continue
+                    if (company.lower(), email.lower()) in existing_pairs:
+                        skipped += 1
+                        continue
+                    last_amended = row[2] if len(row) > 2 and isinstance(row[2], datetime.datetime) else datetime.datetime.utcnow()
                     s.add(ReferenceContact(
                         company_name=company,
                         referee_email=email,
-                        last_amended=datetime.datetime.utcnow()
+                        last_amended=last_amended,
                     ))
+                    existing_pairs.add((company.lower(), email.lower()))
+                    count += 1
+                wb.close()
+            else:
+                import csv as csv_mod
+                content = file.read().decode("utf-8-sig")
+                reader = csv_mod.DictReader(io_mod.StringIO(content))
+                for row in reader:
+                    company = (row.get("Company Name") or row.get("company_name") or "").strip()
+                    email = (row.get("Referee Email") or row.get("referee_email") or "").strip()
+                    if not company or not email:
+                        continue
+                    if (company.lower(), email.lower()) in existing_pairs:
+                        skipped += 1
+                        continue
+                    s.add(ReferenceContact(
+                        company_name=company,
+                        referee_email=email,
+                        last_amended=datetime.datetime.utcnow(),
+                    ))
+                    existing_pairs.add((company.lower(), email.lower()))
                     count += 1
             s.commit()
-        flash(f"Imported {count} reference contacts.", "success")
+        msg = f"Imported {count} reference contacts."
+        if skipped:
+            msg += f" Skipped {skipped} duplicates."
+        flash(msg, "success")
     except Exception as e:
         flash(f"Import failed: {str(e)}", "danger")
 
-    return redirect(url_for("admin_reference_contacts"))
+    return redirect(next_url)
+
+
+@login_required
+@app.route("/admin/reference-houses/import", methods=["POST"])
+def admin_reference_houses_import():
+    """Bulk import flagged reference houses from CSV or XLSX."""
+    FlaggedReferenceHouse = None
+    try:
+        FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse")
+    except Exception:
+        pass
+    next_url = request.form.get("next") or url_for("admin_reference_houses")
+    if not FlaggedReferenceHouse:
+        flash("Model not available.", "danger")
+        return redirect(next_url)
+
+    file = request.files.get("import_file") or request.files.get("csv_file")
+    if not file or not file.filename:
+        flash("Please choose a file to upload.", "danger")
+        return redirect(next_url)
+
+    fname = (file.filename or "").lower()
+    is_xlsx = fname.endswith(".xlsx") or fname.endswith(".xlsm")
+    is_csv = fname.endswith(".csv")
+    if not (is_xlsx or is_csv):
+        flash("Please upload a CSV or XLSX file.", "danger")
+        return redirect(next_url)
+
+    import io as io_mod
+    try:
+        count = 0
+        skipped = 0
+        with Session(engine) as s:
+            existing_names = set()
+            for row in s.execute(select(FlaggedReferenceHouse.name)).all():
+                nm = (row[0] or "").strip().lower()
+                if nm:
+                    existing_names.add(nm)
+
+            if is_xlsx:
+                from openpyxl import load_workbook
+                wb = load_workbook(io_mod.BytesIO(file.read()), read_only=True, data_only=True)
+                ws = wb.active
+                # Reference Houses Intel xlsx structure:
+                # Col A: (unused), Col B: name, Col C: candidate_count, Col D: end_clients,
+                # Col E: website, Col F: companies_house_url, Col G: notes
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or len(row) < 2 or not row[1]:
+                        continue
+                    name = str(row[1]).strip()
+                    if not name:
+                        continue
+                    if name.lower() in existing_names:
+                        skipped += 1
+                        continue
+                    s.add(FlaggedReferenceHouse(
+                        name=name,
+                        candidate_count=str(row[2]).strip() if len(row) > 2 and row[2] is not None else "",
+                        end_clients=str(row[3]).strip() if len(row) > 3 and row[3] else "",
+                        website=str(row[4]).strip() if len(row) > 4 and row[4] else "",
+                        companies_house_url=str(row[5]).strip() if len(row) > 5 and row[5] else "",
+                        notes=str(row[6]).strip() if len(row) > 6 and row[6] else "",
+                    ))
+                    existing_names.add(name.lower())
+                    count += 1
+                wb.close()
+            else:
+                import csv as csv_mod
+                content = file.read().decode("utf-8-sig")
+                reader = csv_mod.DictReader(io_mod.StringIO(content))
+                for row in reader:
+                    name = (row.get("Name") or row.get("name") or row.get("Name of Reference House") or "").strip()
+                    if not name or name.lower() in existing_names:
+                        if name:
+                            skipped += 1
+                        continue
+                    s.add(FlaggedReferenceHouse(
+                        name=name,
+                        candidate_count=(row.get("candidate_count") or row.get("Candidate Count") or "").strip(),
+                        end_clients=(row.get("end_clients") or row.get("End Clients") or "").strip(),
+                        website=(row.get("website") or row.get("Website") or "").strip(),
+                        companies_house_url=(row.get("companies_house_url") or row.get("Companies House URL") or "").strip(),
+                        notes=(row.get("notes") or row.get("Notes") or "").strip(),
+                    ))
+                    existing_names.add(name.lower())
+                    count += 1
+            s.commit()
+        msg = f"Imported {count} flagged reference houses."
+        if skipped:
+            msg += f" Skipped {skipped} duplicates."
+        flash(msg, "success")
+    except Exception as e:
+        flash(f"Import failed: {str(e)}", "danger")
+
+    return redirect(next_url)
 
 
 # ---- Contradiction Fix 6: Admin — Approved Umbrella Companies ----

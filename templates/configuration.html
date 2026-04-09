@@ -709,6 +709,26 @@ function editJobTemplate(roleType, btn) {
       </div>
     </form>
 
+    <!-- Bulk import (XLSX or CSV) -->
+    <form method="POST" action="{{ url_for('admin_reference_contacts_import') }}" enctype="multipart/form-data" class="mb-3 p-3 border rounded" style="background:#eff6ff;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="/configuration#reference-contacts">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
+            <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
+          </label>
+          <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+          <small class="text-muted">XLSX format: Company Name | Referee Email | Last Amended Date. Duplicates by company+email are skipped automatically.</small>
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="fas fa-upload me-1"></i> Upload &amp; Import
+          </button>
+        </div>
+      </div>
+    </form>
+
     {% if ref_contacts %}
     <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
       <table class="table table-hover table-sm align-middle mb-0">
@@ -813,6 +833,26 @@ function editJobTemplate(roleType, btn) {
         <div class="col-md-2 mt-2 d-flex align-items-end">
           <button type="submit" class="btn btn-warning btn-sm w-100 text-dark">
             <i class="fas fa-plus me-1"></i> Add
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Bulk import (XLSX or CSV) -->
+    <form method="POST" action="{{ url_for('admin_reference_houses_import') }}" enctype="multipart/form-data" class="mb-3 p-3 border rounded" style="background:#fef3c7;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="/configuration#reference-houses">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
+            <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
+          </label>
+          <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+          <small class="text-muted">XLSX format: Col A (skipped) | Name | Candidate Count | End Clients | Website | Companies House URL | Notes. Duplicates by name are skipped automatically.</small>
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="fas fa-upload me-1"></i> Upload &amp; Import
           </button>
         </div>
       </div>
