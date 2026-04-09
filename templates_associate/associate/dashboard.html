@@ -1,14 +1,32 @@
 {% extends "associate/base.html" %}
 {% set active_page = 'dashboard' %}
 
-{% block page_title %}Dashboard{% endblock %}
-{% block header_title %}Dashboard{% endblock %}
+{% block page_title %}Summary{% endblock %}
+{% block header_title %}Summary{% endblock %}
 
 {% block breadcrumb_items %}
-<li class="breadcrumb-item active">Dashboard</li>
+<li class="breadcrumb-item active">Summary</li>
 {% endblock %}
 
 {% block content %}
+{% if pending_offers and pending_offers|length > 0 %}
+<!-- Req-046: Pending offer notification banner — visible whenever the candidate has an offer awaiting response -->
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert" style="border-left: 4px solid #f59e0b;">
+    <i class="fas fa-bell me-3 fs-4 text-warning"></i>
+    <div class="flex-grow-1">
+        <strong>You have {{ pending_offers|length }} pending offer{% if pending_offers|length != 1 %}s{% endif %}</strong>
+        {% for offer in pending_offers %}
+        <div class="mt-1" style="font-size: 0.9rem;">
+            <i class="fas fa-handshake me-1"></i><strong>{{ offer.offer_role_title }}</strong> &mdash; please review and respond.
+        </div>
+        {% endfor %}
+    </div>
+    <a href="/portal/my-applications" class="btn btn-warning ms-3 text-dark">
+        <i class="fas fa-arrow-right me-1"></i>Review Offers
+    </a>
+</div>
+{% endif %}
+
 <!-- Welcome Section -->
 <div class="welcome-banner">
     <div class="welcome-text">

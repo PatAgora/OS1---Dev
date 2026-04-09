@@ -33,7 +33,7 @@ import requests
 from dateutil import parser as dtparser
 from sqlalchemy import literal_column
 from sqlalchemy import delete
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, ForeignKey, Numeric
 from sqlalchemy.orm import relationship, backref
 from wtforms import Form
 from wtforms.validators import DataRequired
@@ -1780,7 +1780,7 @@ def _generate_invoice_pdf(invoice, line_items):
     pdf.cell(0, 12, invoice.invoice_number or "", align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(107, 114, 128)
-    pdf.cell(100, 6, "Optimus Solutions", new_x="RIGHT")
+    pdf.cell(100, 6, "Optimus", new_x="RIGHT")
     date_str = invoice.invoice_date.strftime("%d %B %Y") if invoice.invoice_date else "N/A"
     pdf.cell(0, 6, f"Date: {date_str}", align="R", new_x="LMARGIN", new_y="NEXT")
     if invoice.due_date:
@@ -1878,7 +1878,7 @@ def _generate_invoice_pdf(invoice, line_items):
     pdf.ln(16)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(156, 163, 175)
-    pdf.cell(0, 5, "Optimus Solutions - Financial Services Resourcing Specialists", align="C")
+    pdf.cell(0, 5, "Optimus - Financial Services Resourcing Specialists", align="C")
 
     return pdf.output()
 
@@ -1927,7 +1927,7 @@ def admin_send_invoice(invoice_id):
         email_html = f"""
         <div style="font-family:'Inter',Arial,sans-serif;max-width:600px;margin:0 auto;">
             <div style="background:#0a1628;padding:24px;text-align:center;border-radius:8px 8px 0 0;">
-                <h1 style="color:#00d4ff;margin:0;font-size:20px;">Optimus Solutions</h1>
+                <h1 style="color:#00d4ff;margin:0;font-size:20px;">Optimus</h1>
             </div>
             <div style="background:#fff;padding:30px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px;">
                 <h2 style="color:#1f2937;margin:0 0 16px;">Invoice {invoice.invoice_number}</h2>
@@ -1952,7 +1952,7 @@ def admin_send_invoice(invoice_id):
         try:
             send_email(
                 to_email=to_addr,
-                subject=f"Invoice {invoice.invoice_number} — Optimus Solutions",
+                subject=f"Invoice {invoice.invoice_number} — Optimus",
                 html_body=email_html,
                 attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")]
             )
@@ -2299,13 +2299,13 @@ def admin_portal_user_send_magic_link(cand_id: int):
         html_body = f"""
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: #0a1628; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="color: #00d4ff; margin: 0; font-size: 24px;">Optimus Solutions</h1>
+                <h1 style="color: #00d4ff; margin: 0; font-size: 24px;">Optimus</h1>
                 <p style="color: #94a3b8; margin: 10px 0 0; font-size: 14px;">Careers Portal</p>
             </div>
             <div style="background: #ffffff; padding: 40px 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
                 <h2 style="color: #0a1628; margin: 0 0 20px; font-size: 20px;">Sign In Request</h2>
                 <p style="color: #334155; margin: 0 0 20px; line-height: 1.6;">
-                    An admin has sent you a sign-in link for the Optimus Solutions Careers Portal.
+                    An admin has sent you a sign-in link for the Optimus Careers Portal.
                 </p>
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{verify_url}" style="background: #0066cc; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
@@ -2322,7 +2322,7 @@ def admin_portal_user_send_magic_link(cand_id: int):
         try:
             send_email(
                 to_email=cand.email,
-                subject="Sign in to Optimus Solutions Careers",
+                subject="Sign in to Optimus Careers",
                 html_body=html_body
             )
             flash(f"Magic link sent to {cand.email}", "success")
@@ -3247,6 +3247,21 @@ class Application(Base):
 
     onboarding_email_sent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Req-046: Offer detail capture (set when staff submits the Make Offer modal,
+    # populated until the candidate accepts/declines via the associate portal)
+    offer_start_date = Column(Date, nullable=True)
+    offer_role_title = Column(String(300), nullable=True)
+    offer_day_rate = Column(Numeric(10, 2), nullable=True)
+    offer_rate_type = Column(String(20), nullable=True)  # 'day' or 'salary'
+    offer_location = Column(String(300), nullable=True)
+    offer_notes = Column(Text, nullable=True)
+    offer_made_at = Column(DateTime, nullable=True)
+    offer_made_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    offer_response = Column(String(20), nullable=True)  # 'accepted', 'declined', or NULL
+    offer_responded_at = Column(DateTime, nullable=True)
+    offer_responded_ip = Column(String(50), nullable=True)
+    offer_decline_reason = Column(Text, nullable=True)
 
     job = relationship("Job", back_populates="applications")
     candidate = relationship("Candidate")
@@ -7792,7 +7807,7 @@ def api_workflow_bulk_reject():
                                     + "<p>" + rej_reason + "</p>"
                                     + "<p>Role: <strong>" + jt + "</strong></p>"
                                     + "<p>We wish you all the best.</p>"
-                                    + "<p>Kind regards,<br>Optimus Solutions Talent Team</p>")
+                                    + "<p>Kind regards,<br>Optimus Talent Team</p>")
                             except Exception:
                                 pass
                     rejected.append(int(cid))
@@ -9852,6 +9867,164 @@ def action_summarise(app_id):
         s.commit()
     flash("AI summary generated", "success")
     return redirect(url_for("application_detail", app_id=app_id))
+
+# =============================================================================
+# Req-046: Make Offer (staff side) — captures offer details, transitions the
+# application to "Offered", emails the candidate. Candidate then accepts or
+# declines via the associate portal (see associate_portal.offer_accept and
+# associate_portal.offer_decline).
+# =============================================================================
+@login_required
+@app.route("/api/offer/make/<int:app_id>", methods=["POST"])
+def api_offer_make(app_id):
+    """Staff captures offer details and sends an offer to a candidate.
+
+    Required form fields: start_date, role_title, day_rate, rate_type
+    Optional form fields: location, notes
+    """
+    # --- Validate required fields ---
+    start_date_raw = (request.form.get("start_date") or "").strip()
+    role_title = (request.form.get("role_title") or "").strip()
+    day_rate_raw = (request.form.get("day_rate") or "").strip()
+    rate_type = (request.form.get("rate_type") or "").strip()
+
+    missing = []
+    if not start_date_raw:
+        missing.append("Start date")
+    if not role_title:
+        missing.append("Role title")
+    if not day_rate_raw:
+        missing.append("Rate amount")
+    if rate_type not in ("day", "salary"):
+        missing.append("Rate type")
+    if missing:
+        flash("Please complete: " + ", ".join(missing), "danger")
+        return redirect(url_for("application_detail", app_id=app_id))
+
+    try:
+        start_date_val = datetime.datetime.strptime(start_date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Start date must be in YYYY-MM-DD format.", "danger")
+        return redirect(url_for("application_detail", app_id=app_id))
+
+    try:
+        day_rate_val = float(day_rate_raw.replace(",", ""))
+        if day_rate_val < 0:
+            raise ValueError("negative rate")
+    except ValueError:
+        flash("Rate amount must be a positive number.", "danger")
+        return redirect(url_for("application_detail", app_id=app_id))
+
+    location = (request.form.get("location") or "").strip() or None
+    notes = (request.form.get("notes") or "").strip() or None
+
+    with Session(engine) as s:
+        appn = s.scalar(select(Application).where(Application.id == app_id))
+        if not appn:
+            abort(404)
+        cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
+        job = s.scalar(select(Job).where(Job.id == appn.job_id))
+        if not cand or not job:
+            abort(404)
+
+        # Block re-issuing an offer that's already pending response
+        if (appn.status or "").strip() == "Offered" and appn.offer_response is None:
+            flash("This application already has a pending offer awaiting candidate response.", "warning")
+            return redirect(url_for("application_detail", app_id=app_id))
+
+        old_status = (appn.status or "").strip() or "New"
+
+        # Resolve the staff user id for offer_made_by_id
+        staff_user_id = None
+        try:
+            staff_user_email = session.get("user_email") or (current_user.email if current_user and current_user.is_authenticated else None)
+            if staff_user_email:
+                staff_user = s.scalar(select(User).where(User.email == staff_user_email))
+                if staff_user:
+                    staff_user_id = staff_user.id
+        except Exception:
+            staff_user_id = None
+
+        # Persist the offer detail + transition the application
+        appn.offer_start_date = start_date_val
+        appn.offer_role_title = role_title
+        appn.offer_day_rate = day_rate_val
+        appn.offer_rate_type = rate_type
+        appn.offer_location = location
+        appn.offer_notes = notes
+        appn.offer_made_at = datetime.datetime.utcnow()
+        appn.offer_made_by_id = staff_user_id
+        appn.offer_response = None  # explicit reset in case of re-issue
+        appn.offer_responded_at = None
+        appn.offer_responded_ip = None
+        appn.offer_decline_reason = None
+        appn.status = "Offered"
+
+        # Activity note (matches the kanban-side pattern at app.py:8025-8037)
+        actor_email = session.get("user_email", "system")
+        rate_label = f"£{day_rate_val:,.2f}/{('day' if rate_type == 'day' else 'year')}"
+        note_content = (
+            f"Offer made: {role_title} starting {start_date_val.strftime('%d %b %Y')} at {rate_label}"
+            + (f" ({location})" if location else "")
+            + f"\nWorkflow stage changed: {old_status} \u2192 Offered (Job: {job.title})"
+        )
+        s.add(CandidateNote(
+            candidate_id=cand.id,
+            user_email=actor_email,
+            note_type="activity",
+            content=note_content,
+            created_at=datetime.datetime.utcnow(),
+        ))
+
+        s.commit()
+
+        # Audit log (after commit, matches existing pattern)
+        log_audit_event(
+            'update', 'workflow',
+            f'Offer made for application {app_id}: {role_title}',
+            'application', app_id,
+            {
+                'candidate_id': cand.id,
+                'candidate_name': cand.name,
+                'old_workflow_status': old_status,
+                'new_workflow_status': 'Offered',
+                'offer_role_title': role_title,
+                'offer_start_date': start_date_val.isoformat(),
+                'offer_day_rate': day_rate_val,
+                'offer_rate_type': rate_type,
+            }
+        )
+
+        # Send the offer email (best effort — failure does not roll back the offer)
+        try:
+            portal_link = f"{APP_BASE_URL.rstrip('/')}/portal/my-applications"
+            html_body = render_template(
+                "offer_made_email.html",
+                candidate_name=cand.name or "there",
+                role_title=role_title,
+                start_date=start_date_val.strftime("%d %b %Y"),
+                rate_label=rate_label,
+                location=location,
+                notes=notes,
+                portal_link=portal_link,
+                job_title=job.title,
+            )
+            send_email(
+                to_email=cand.email,
+                subject=f"Offer for {role_title} — please confirm via the Optimus Portal",
+                html_body=html_body,
+            )
+        except Exception as email_err:
+            try:
+                app.logger.warning(f"Offer email failed for application {app_id}: {email_err}")
+            except Exception:
+                pass
+            flash("Offer saved, but the candidate notification email could not be sent. Please follow up manually.", "warning")
+            return redirect(url_for("application_detail", app_id=app_id))
+
+    flash(f"Offer sent to {cand.name or cand.email}. Candidate has been notified.", "success")
+    return redirect(url_for("application_detail", app_id=app_id))
+
 
 # -------- Verifile vetting (application-level) --------
 @login_required
@@ -12029,7 +12202,7 @@ def start_vetting(cand_id: int):
                 </ul>
                 <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
                 <p>If you have any questions, please contact your Compliance Analyst.</p>
-                <p>Regards,<br>Optimus Solutions Compliance Team</p>
+                <p>Regards,<br>Optimus Compliance Team</p>
                 """
                 send_email(cand.email, "Vetting Process Started — Action Required", html_body)
                 flash(f"Vetting started and email sent to {cand.email}.", "success")
@@ -12338,7 +12511,7 @@ def send_reference(cand_id: int):
             <p>Please reply directly to this email with the reference details.</p>
             <p>The candidate's signed consent form is attached for your records.</p>
             <p>Thank you for your assistance.</p>
-            <p>Regards,<br>Optimus Solutions Compliance Team</p>
+            <p>Regards,<br>Optimus Compliance Team</p>
             """
             # Auto-attach signed consent form
             attachments = []
@@ -12403,7 +12576,7 @@ def chase_reference(cand_id: int):
             (previously employed at <strong>{ref_req.company_name}</strong>).</p>
             <p>We would be grateful if you could provide the requested information
             at your earliest convenience.</p>
-            <p>Regards,<br>Optimus Solutions Compliance Team</p>
+            <p>Regards,<br>Optimus Compliance Team</p>
             """
             send_email(ref_req.referee_email,
                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
@@ -17222,7 +17395,7 @@ def _setup_scheduler():
                             <strong>{cand.name if cand else 'a candidate'}</strong>
                             (previously at <strong>{ref.company_name}</strong>).</p>
                             <p>Please reply at your earliest convenience.</p>
-                            <p>Regards,<br>Optimus Solutions Compliance Team</p>
+                            <p>Regards,<br>Optimus Compliance Team</p>
                             """
                             send_email(ref.referee_email,
                                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
@@ -17300,7 +17473,7 @@ def _setup_scheduler():
                             <p>This is a reminder that your vetting profile has outstanding items.
                             Please log in to the portal to complete your required documents and information.</p>
                             <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
-                            <p>Regards,<br>Optimus Solutions Compliance Team</p>
+                            <p>Regards,<br>Optimus Compliance Team</p>
                             """
                             send_email(cand.email, "Reminder: Complete Your Vetting Profile", html_body)
                             chased += 1

@@ -9,9 +9,93 @@
 {% endblock %}
 
 {% block content %}
+
+{# Req-046: Pending offer cards rendered FIRST so they're the most prominent thing on the page #}
+{% set pending = applications | selectattr('status', 'equalto', 'Offer Received') | list %}
+{% if pending %}
+<div class="mb-4">
+    {% for app in pending %}
+    <div class="portal-card mb-3" style="border-left: 4px solid #f59e0b;">
+        <div class="portal-card-header" style="background:#fffbeb;">
+            <h3><i class="fas fa-handshake me-2 text-warning"></i>Offer Received: {{ app.offer_role_title or app.job_title }}</h3>
+            <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Pending Response</span>
+        </div>
+        <div class="portal-card-body">
+            <p class="text-muted mb-3">Please review the offer details below and let us know whether you'd like to accept or decline.</p>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <small class="text-muted d-block">Role</small>
+                    <strong>{{ app.offer_role_title or app.job_title }}</strong>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted d-block">Client / Engagement</small>
+                    <strong>{{ app.client or '—' }}</strong>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted d-block">Start Date</small>
+                    <strong>{{ app.offer_start_date or '—' }}</strong>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted d-block">{{ 'Day Rate' if app.offer_rate_type == 'day' else 'Annual Salary' }}</small>
+                    <strong>
+                        {% if app.offer_day_rate is not none %}
+                            &pound;{{ '{:,.2f}'.format(app.offer_day_rate) }}{% if app.offer_rate_type == 'day' %}/day{% else %}/year{% endif %}
+                        {% else %}—{% endif %}
+                    </strong>
+                </div>
+                {% if app.offer_location %}
+                <div class="col-md-12">
+                    <small class="text-muted d-block">Location</small>
+                    <strong>{{ app.offer_location }}</strong>
+                </div>
+                {% endif %}
+                {% if app.offer_notes %}
+                <div class="col-md-12">
+                    <small class="text-muted d-block">Notes from your Optimus contact</small>
+                    <div style="padding: 10px 14px; background: var(--color-gray-50, #f9fafb); border-radius: 6px; font-size: 14px; line-height: 1.5;">{{ app.offer_notes }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <p class="text-muted text-sm mb-3">
+                <i class="fas fa-info-circle me-1"></i>By accepting, you confirm you can start on the proposed date and agree to proceed to vetting.
+            </p>
+
+            <div class="d-flex gap-2 flex-wrap">
+                <form method="POST" action="/portal/offer/{{ app.id }}/accept" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-1"></i>Accept Offer
+                    </button>
+                </form>
+                <button type="button" class="btn btn-outline-danger" onclick="document.getElementById('declineForm{{ app.id }}').style.display='block'; this.style.display='none';">
+                    <i class="fas fa-times me-1"></i>Decline Offer
+                </button>
+            </div>
+
+            <form method="POST" action="/portal/offer/{{ app.id }}/decline" id="declineForm{{ app.id }}" style="display:none; margin-top: 16px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="alert alert-light border" style="background:#fff;">
+                    <label class="form-label" for="decline_reason{{ app.id }}"><strong>Reason for declining</strong> <span class="text-muted">(optional, but helpful)</span></label>
+                    <textarea name="decline_reason" id="decline_reason{{ app.id }}" class="form-control mb-3" rows="3" placeholder="e.g. Accepted another role, dates don't work, location etc..."></textarea>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to decline this offer? This action cannot be undone.');">
+                            <i class="fas fa-times me-1"></i>Confirm Decline
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('declineForm{{ app.id }}').style.display='none';">Cancel</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="portal-card">
     <div class="portal-card-header">
-        <h2><i class="fas fa-file-alt me-2"></i> My Applications</h2>
+        <h2><i class="fas fa-file-alt me-2"></i> All Applications</h2>
         {% if applications %}
         <span class="badge badge-in-progress">{{ applications|length }} Total</span>
         {% endif %}
@@ -36,10 +120,19 @@
                     <td>{{ app.client or 'N/A' }}</td>
                     <td>{{ app.applied_date }}</td>
                     <td>
-                        {% if app.status == 'Unsuccessful' %}
+                        {% if app.status == 'Offer Received' %}
+                        <span class="badge bg-warning text-dark"><i class="fas fa-bell me-1"></i>Offer Received</span>
+                        {% elif app.status == 'Offer Accepted' %}
+                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Accepted ✓</span>
+                        {% elif app.status == 'Offer Declined' %}
+                        <span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Declined</span>
+                        {% elif app.status == 'Unsuccessful' %}
                         <span class="badge badge-not-started"><i class="fas fa-circle" style="font-size: 6px;"></i> Unsuccessful</span>
                         {% else %}
                         <span class="badge badge-complete"><i class="fas fa-circle" style="font-size: 6px;"></i> Applied</span>
+                        {% endif %}
+                        {% if app.offer_responded_at and app.status in ('Offer Accepted', 'Offer Declined') %}
+                        <small class="text-muted d-block mt-1">{{ app.offer_responded_at }}</small>
                         {% endif %}
                     </td>
                 </tr>

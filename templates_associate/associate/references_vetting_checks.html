@@ -1,0 +1,159 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'references' %}
+
+{% block page_title %}Vetting Checks{% endblock %}
+{% block header_title %}Vetting Checks{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Summary</a></li>
+<li class="breadcrumb-item"><a href="/portal/references">References</a></li>
+<li class="breadcrumb-item active">Vetting Checks</li>
+{% endblock %}
+
+{% block content %}
+<!-- Qualifications -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-graduation-cap me-2"></i>Qualifications</h3>
+    </div>
+    <div class="portal-card-body">
+        {% if qualifications and qualifications|length > 0 %}
+        <div class="table-responsive mb-4">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Qualification</th>
+                        <th>Type</th>
+                        <th>Grade</th>
+                        <th>Institution</th>
+                        <th>Dates</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for qual in qualifications %}
+                    <tr>
+                        <td>{{ qual.qualification_name }}</td>
+                        <td>{{ qual.qualification_type if qual.qualification_type else '-' }}</td>
+                        <td>{{ qual.grade if qual.grade else '-' }}</td>
+                        <td>{{ qual.institution if qual.institution else '-' }}</td>
+                        <td>
+                            {{ qual.start_date.strftime('%b %Y') if qual.start_date else '' }} -
+                            {{ qual.end_date.strftime('%b %Y') if qual.end_date else 'Present' }}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-qual-btn" data-qual-id="{{ qual.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state mb-4">
+            <i class="fas fa-graduation-cap"></i>
+            <p>No qualifications added yet. Add your qualifications below.</p>
+        </div>
+        {% endif %}
+
+        <h6 class="mb-3">Add Qualification</h6>
+        <form method="POST" action="/portal/references/add-qualification" id="addQualForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_name">Qualification Name <span class="text-danger">*</span></label>
+                    <input type="text" id="qual_name" name="name" class="form-control" placeholder="e.g. Computer Science" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_type">Type</label>
+                    <select id="qual_type" name="qual_type" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="GCSE">GCSE</option>
+                        <option value="A-Level">A-Level</option>
+                        <option value="HND">HND</option>
+                        <option value="BSc">BSc</option>
+                        <option value="BA">BA</option>
+                        <option value="MSc">MSc</option>
+                        <option value="MA">MA</option>
+                        <option value="MBA">MBA</option>
+                        <option value="PhD">PhD</option>
+                        <option value="Professional">Professional Certification</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_grade">Grade</label>
+                    <input type="text" id="qual_grade" name="grade" class="form-control" placeholder="e.g. First Class, 2:1, Distinction">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_institution">Institution <span class="text-danger">*</span></label>
+                    <input type="text" id="qual_institution" name="institution" class="form-control" placeholder="University or institution name" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="qual_start_date">Start Date</label>
+                    <input type="date" id="qual_start_date" name="start_date" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="qual_end_date">End Date</label>
+                    <input type="date" id="qual_end_date" name="end_date" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Permission to verify?</label>
+                    <div>
+                        <div class="form-check form-check-inline mt-2">
+                            <input class="form-check-input" type="radio" name="qual_permission" id="qual_perm_yes" value="yes" checked>
+                            <label class="form-check-label" for="qual_perm_yes">Yes</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="qual_permission" id="qual_perm_no" value="no">
+                            <label class="form-check-label" for="qual_perm_no">No</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i> Add Qualification
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var csrfToken = getCsrfToken();
+
+    // Delete qualification handler
+    document.querySelectorAll('.delete-qual-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var qualId = this.getAttribute('data-qual-id');
+            if (!confirm('Are you sure you want to delete this qualification?')) return;
+
+            fetch('/portal/references/delete-qualification/' + qualId, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function() { alert('Failed to delete. Please try again.'); });
+        });
+    });
+});
+</script>
+{% endblock %}

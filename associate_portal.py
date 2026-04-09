@@ -206,6 +206,9 @@ def _ensure_models():
         signed_date = Column(DateTime, nullable=True)
         ip_address = Column(String(50), default="")
         created_at = Column(DateTime, default=datetime.utcnow)
+        # Req-005: Signable envelope ID returned when the declaration is sent for e-signature.
+        # Holds "stub-<uuid>" while SIGNABLE_LIVE_CALLS is disabled.
+        signable_envelope_id = Column(String(64), nullable=True, default=None)
 
     class EmploymentHistory(Base):
         __tablename__ = "employment_history"
@@ -401,15 +404,15 @@ def _send_magic_link(email: str, name: str, is_signup: bool = True, next_url: st
     verify_url = f"{PORTAL_BASE_URL}/portal/verify-email?token={token}"
 
     subject = (
-        "Complete Your Registration - Optimus Solutions"
+        "Complete Your Registration - Optimus"
         if is_signup
-        else "Password Reset - Optimus Solutions"
+        else "Password Reset - Optimus"
     )
 
     html_body = f"""
     <div style="font-family:'Inter',Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
         <div style="background:#0a1628;padding:30px;border-radius:12px 12px 0 0;text-align:center;">
-            <h1 style="color:#00d4ff;margin:0;font-size:24px;">Optimus Solutions</h1>
+            <h1 style="color:#00d4ff;margin:0;font-size:24px;">Optimus</h1>
             <p style="color:#94a3b8;margin:10px 0 0;font-size:14px;">Associate Portal</p>
         </div>
         <div style="background:#fff;padding:40px 30px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
@@ -427,7 +430,7 @@ def _send_magic_link(email: str, name: str, is_signup: bool = True, next_url: st
             </p>
         </div>
         <div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px;">
-            <p>&copy; 2026 Optimus Solutions. All rights reserved.</p>
+            <p>&copy; 2026 Optimus. All rights reserved.</p>
         </div>
     </div>
     """
@@ -703,12 +706,32 @@ def _create_portal_tables():
         current_app._associate_tables_created = True  # Don't retry every request
 
 
+def _pending_offers_for(session_obj, candidate_id):
+    """Req-046: return list of Application rows where this candidate has a pending offer.
+
+    A "pending offer" is one where status='Offered' and offer_response IS NULL.
+    Used by the context processor below so every portal page can render the
+    notification badge / banner without each route having to compute it.
+    """
+    Application = _model("Application")
+    if not Application or not candidate_id:
+        return []
+    try:
+        return session_obj.query(Application).filter(
+            Application.candidate_id == candidate_id,
+            Application.status == "Offered",
+            Application.offer_response.is_(None),
+        ).all()
+    except Exception:
+        return []
+
+
 @associate_bp.context_processor
 def _inject_associate():
-    """Inject the associate (Candidate) object into all portal templates."""
+    """Inject the associate (Candidate) object and pending-offer list into all portal templates."""
     cand_id = session.get("associate_user_id")
     if not cand_id:
-        return {"associate": None}
+        return {"associate": None, "pending_offers": []}
     try:
         Candidate = _model("Candidate")
         engine = _engine()
@@ -716,17 +739,34 @@ def _inject_associate():
             with SASession(engine) as s:
                 cand = s.get(Candidate, cand_id)
                 if cand:
-                    # Return a simple namespace so it's session-safe
+                    pending = _pending_offers_for(s, cand_id)
+                    # Return simple namespaces so they're session-safe (the SQLA
+                    # session closes after this with-block exits)
                     from types import SimpleNamespace
-                    return {"associate": SimpleNamespace(
-                        id=cand.id,
-                        name=cand.name or "",
-                        email=cand.email or "",
-                        phone=cand.phone or "",
-                    )}
-        return {"associate": None}
+                    pending_safe = [
+                        SimpleNamespace(
+                            id=app.id,
+                            offer_role_title=app.offer_role_title or "",
+                            offer_start_date=app.offer_start_date,
+                            offer_day_rate=float(app.offer_day_rate) if app.offer_day_rate is not None else None,
+                            offer_rate_type=app.offer_rate_type or "day",
+                            offer_location=app.offer_location or "",
+                            offer_notes=app.offer_notes or "",
+                        )
+                        for app in pending
+                    ]
+                    return {
+                        "associate": SimpleNamespace(
+                            id=cand.id,
+                            name=cand.name or "",
+                            email=cand.email or "",
+                            phone=cand.phone or "",
+                        ),
+                        "pending_offers": pending_safe,
+                    }
+        return {"associate": None, "pending_offers": []}
     except Exception:
-        return {"associate": None}
+        return {"associate": None, "pending_offers": []}
 
 
 # =========================================================================
@@ -1004,7 +1044,7 @@ def setup_2fa():
             email = cand.email
 
         totp = pyotp.TOTP(secret)
-        prov_uri = totp.provisioning_uri(name=email, issuer_name="Optimus Solutions Portal")
+        prov_uri = totp.provisioning_uri(name=email, issuer_name="Optimus Portal")
 
         # Generate QR code
         qr_data_uri = ""
@@ -1557,6 +1597,102 @@ def declaration_redirect():
     return redirect(url_for("associate.declaration_form"))
 
 
+# =============================================================================
+# Req-005: Signable integration for the associate declaration form.
+#
+# COST GUARDRAIL — IMPORTANT.
+# This integration is GATED by the SIGNABLE_LIVE_CALLS env var (default false).
+# While the flag is false (or unset), _signable_send_declaration_envelope() never
+# touches the network — it logs what it WOULD have sent and returns a stub envelope
+# ID. Real Signable API calls (which incur per-envelope cost on the client's
+# Signable account) only fire when an operator explicitly sets
+# SIGNABLE_LIVE_CALLS=true in .env after the user has approved going live.
+#
+# Placeholders below marked "TODO: confirm with user" must be filled in before
+# the live flag is flipped on.
+# =============================================================================
+SIGNABLE_LIVE_CALLS = os.getenv("SIGNABLE_LIVE_CALLS", "false").lower() == "true"
+
+
+def _signable_send_declaration_envelope(candidate_name, candidate_email, declaration_id, legal_name):
+    """
+    Send the associate declaration as a Signable envelope.
+
+    Returns dict with keys:
+        envelope_id  — Signable envelope fingerprint, or "stub-<uuid>" in stub mode
+        status       — "stub_sent" in stub mode, otherwise the Signable status string
+        signing_url  — URL for the signer (may be None depending on Signable response/mode)
+
+    Raises on live-call failure (caller catches and handles gracefully).
+    """
+    # Placeholders — TODO: confirm with user before going live
+    template_id = os.getenv("SIGNABLE_DECLARATION_TEMPLATE_ID", "")  # TODO: confirm with user
+    signer_role = os.getenv("SIGNABLE_DECLARATION_SIGNER_ROLE", "Associate")  # TODO: confirm with user
+    subject = "Optimus Associate Declaration"
+    message = (
+        f"Hi {legal_name or candidate_name},\n\n"
+        "Please countersign your Optimus associate declaration. "
+        "Your responses have been recorded — this envelope is the formal e-signature step."
+    )
+
+    # ---------- STUB MODE (default) — never touches the network ----------
+    if not SIGNABLE_LIVE_CALLS:
+        stub_id = "stub-" + uuid4().hex
+        try:
+            current_app.logger.info(
+                "[stub] Signable.envelope.create suppressed (SIGNABLE_LIVE_CALLS=false). "
+                f"Would have sent: template_id={template_id!r}, signer_role={signer_role!r}, "
+                f"signer_name={(legal_name or candidate_name)!r}, signer_email={candidate_email!r}, "
+                f"subject={subject!r}, declaration_id={declaration_id!r}, stub_id={stub_id!r}"
+            )
+        except Exception:
+            pass
+        return {
+            "envelope_id": stub_id,
+            "status": "stub_sent",
+            "signing_url": None,
+        }
+
+    # ---------- LIVE MODE — only reached when SIGNABLE_LIVE_CALLS=true ----------
+    # Lazy import so the requests library is never even loaded in stub mode.
+    import requests as _requests  # noqa: E402
+
+    api_key = os.getenv("SIGNABLE_API_KEY", "")
+    base_url = os.getenv("SIGNABLE_BASE_URL", "https://api.signable.co.uk/v1").rstrip("/")
+    if not api_key:
+        raise RuntimeError(
+            "SIGNABLE_LIVE_CALLS is enabled but SIGNABLE_API_KEY is not set — refusing to send."
+        )
+
+    headers = {
+        "Authorization": f"Basic {base64.b64encode((api_key + ':').encode()).decode()}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    payload = {
+        "envelope_title": subject,
+        "envelope_signing_message": message,
+        "envelope_parties": [
+            {
+                "party_name": legal_name or candidate_name,
+                "party_email": candidate_email,
+                "party_role": signer_role,
+            }
+        ],
+    }
+    if template_id:
+        payload["envelope_documents"] = [{"document_template_fingerprint": template_id}]
+
+    resp = _requests.post(f"{base_url}/envelopes", json=payload, headers=headers, timeout=30)
+    resp.raise_for_status()
+    data = resp.json() or {}
+    return {
+        "envelope_id": data.get("envelope_fingerprint") or data.get("id") or "",
+        "status": (data.get("envelope_status") or "sent").lower(),
+        "signing_url": data.get("signing_url"),
+    }
+
+
 @associate_bp.route("/declaration-form", methods=["GET", "POST"])
 @_require_login
 def declaration_form():
@@ -1654,8 +1790,45 @@ def declaration_form():
         else:
             _add_note(s, cand_id, f"Declaration form signed by '{legal_name}'. No flags raised.")
 
+        # Flush so decl.id is populated for the Signable wrapper without committing yet.
+        s.flush()
+
+        # Req-005: Signable e-signature envelope (kill-switched — see _signable_send_declaration_envelope).
+        Candidate = _model("Candidate")
+        cand = s.get(Candidate, cand_id) if Candidate else None
+        cand_name = (cand.name if cand and getattr(cand, "name", None) else legal_name) or legal_name
+        cand_email = (getattr(cand, "email", "") if cand else "") or ""
+        signable_warning = None
+        try:
+            sig_result = _signable_send_declaration_envelope(
+                candidate_name=cand_name,
+                candidate_email=cand_email,
+                declaration_id=decl.id,
+                legal_name=legal_name,
+            )
+            if hasattr(decl, "signable_envelope_id"):
+                decl.signable_envelope_id = sig_result.get("envelope_id", "") or ""
+            try:
+                current_app.logger.info(
+                    f"Declaration {decl.id}: Signable wrapper returned status="
+                    f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
+                )
+            except Exception:
+                pass
+        except Exception as sig_err:
+            try:
+                current_app.logger.warning(f"Declaration {decl.id}: Signable wrapper failed: {sig_err}")
+            except Exception:
+                pass
+            signable_warning = (
+                "Your declaration was saved, but the e-sign envelope could not be sent right now. "
+                "Our compliance team will re-send it shortly."
+            )
+
         s.commit()
 
+    if signable_warning:
+        flash(signable_warning, "warning")
     flash("Declaration form submitted successfully.", "success")
     return redirect(url_for("associate.dashboard"))
 
@@ -1709,37 +1882,134 @@ def vetting_progress():
         )
 
 
-@associate_bp.route("/references", methods=["GET", "POST"])
+@associate_bp.route("/references", methods=["GET"])
 @_require_login
 def references():
-    """Employment history timeline with gap detection, qualifications."""
+    """References landing page — two clickable cards: Employment History and Vetting Checks."""
     EmploymentHistory = _portal_model("EmploymentHistory")
     QualificationRecord = _portal_model("QualificationRecord")
     engine = _engine()
     cand_id = _get_associate_id()
 
-    with SASession(engine) as s:
-        entries = []
-        qualifications = []
-        gaps = []
+    employment_count = 0
+    gap_count = 0
+    qualification_count = 0
+    years_covered = None
 
+    with SASession(engine) as s:
+        if EmploymentHistory:
+            entries = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).all()
+            employment_count = sum(1 for e in entries if not getattr(e, "is_gap", False))
+            gap_count = sum(1 for e in entries if getattr(e, "is_gap", False))
+            # Years covered: span from earliest start to latest end (or today)
+            starts = [e.start_date for e in entries if e.start_date]
+            if starts:
+                ends = [e.end_date or date.today() for e in entries if e.start_date]
+                span_days = (max(ends) - min(starts)).days
+                years_covered = round(span_days / 365.25, 1)
+
+        if QualificationRecord:
+            qualification_count = s.query(QualificationRecord).filter_by(candidate_id=cand_id).count()
+
+    return render_template(
+        "associate/references.html",
+        employment_count=employment_count,
+        gap_count=gap_count,
+        qualification_count=qualification_count,
+        years_covered=years_covered,
+    )
+
+
+@associate_bp.route("/references/employment", methods=["GET"])
+@_require_login
+def references_employment():
+    """Employment history sub-page: timeline + add employment + add gap forms."""
+    EmploymentHistory = _portal_model("EmploymentHistory")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    entries = []
+    gaps = []
+    with SASession(engine) as s:
         if EmploymentHistory:
             entries = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).order_by(
                 EmploymentHistory.start_date.desc().nullslast()
             ).all()
             gaps = _detect_gaps(entries)
 
+    return render_template(
+        "associate/references_employment.html",
+        employment_entries=entries,
+        gaps_detected=gaps,
+    )
+
+
+@associate_bp.route("/references/vetting-checks", methods=["GET"])
+@_require_login
+def references_vetting_checks():
+    """Vetting checks sub-page: qualifications and other vetting items."""
+    QualificationRecord = _portal_model("QualificationRecord")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    qualifications = []
+    with SASession(engine) as s:
         if QualificationRecord:
             qualifications = s.query(QualificationRecord).filter_by(candidate_id=cand_id).order_by(
                 QualificationRecord.start_date.desc().nullslast()
             ).all()
 
-        return render_template(
-            "associate/references.html",
-            employment_entries=entries,
-            qualifications=qualifications,
-            gaps_detected=gaps,
-        )
+    return render_template(
+        "associate/references_vetting_checks.html",
+        qualifications=qualifications,
+    )
+
+
+def _detect_overlaps(session, candidate_id, new_start, new_end, new_is_gap):
+    """
+    Req-009: detect overlaps between a new employment/gap entry and existing ones.
+
+    Returns (blocking, soft):
+      - blocking: gap+gap, gap+employment, employment+gap → must reject (user must update dates)
+      - soft: employment+employment → require explicit user confirmation (held two roles concurrently)
+    """
+    EmploymentHistory = _portal_model("EmploymentHistory")
+    if not EmploymentHistory or not new_start:
+        return [], []
+    effective_end = new_end or date.today()
+    blocking = []
+    soft = []
+    rows = session.query(EmploymentHistory).filter_by(candidate_id=candidate_id).all()
+
+    def _fmt(d):
+        return d.strftime("%b %Y") if d else "present"
+
+    for row in rows:
+        if not row.start_date:
+            continue
+        row_end = row.end_date or date.today()
+        # No overlap if new range is entirely before or after the row range
+        if new_start > row_end or effective_end < row.start_date:
+            continue
+        rng = f"{_fmt(row.start_date)} to {_fmt(row.end_date)}"
+        row_is_gap = bool(getattr(row, "is_gap", False))
+        if new_is_gap and row_is_gap:
+            blocking.append({
+                "message": f"This gap overlaps with another gap ({rng}). Two gaps cannot overlap — please update your dates."
+            })
+        elif new_is_gap and not row_is_gap:
+            blocking.append({
+                "message": f"This gap overlaps with your employment at {row.company_name or 'an employer'} ({rng}). You cannot be both employed and in a gap at the same time — please update your dates."
+            })
+        elif not new_is_gap and row_is_gap:
+            blocking.append({
+                "message": f"This employment overlaps with a recorded gap ({rng}). You cannot be both employed and in a gap at the same time — please update your dates."
+            })
+        else:
+            soft.append({
+                "message": f"This overlaps with your employment at {row.company_name or 'another employer'} ({rng})."
+            })
+    return blocking, soft
 
 
 @associate_bp.route("/references/add-employment", methods=["POST"])
@@ -1752,24 +2022,41 @@ def references_add_employment():
 
     if not EmploymentHistory:
         flash("Employment history not available.", "danger")
-        return redirect(url_for("associate.references"))
+        return redirect(url_for("associate.references_employment"))
 
     company_name = _sanitise(request.form.get("company_name", "")).strip()
     if not company_name:
         flash("Company name is required.", "danger")
-        return redirect(url_for("associate.references"))
+        return redirect(url_for("associate.references_employment"))
 
     perm = request.form.get("permission_to_request", "yes") == "yes"
+    new_start = _parse_date(request.form.get("start_date", ""))
+    new_end = _parse_date(request.form.get("end_date", ""))
+    confirm_overlap = request.form.get("confirm_overlap") == "yes"
 
     with SASession(engine) as s:
+        # Req-009: server-side overlap validation
+        blocking, soft = _detect_overlaps(s, cand_id, new_start, new_end, new_is_gap=False)
+        if blocking:
+            for b in blocking:
+                flash(b["message"], "danger")
+            return redirect(url_for("associate.references_employment"))
+        if soft and not confirm_overlap:
+            for so in soft:
+                flash(
+                    so["message"] + " If you held two roles at the same time, please confirm the overlap on the form and re-submit.",
+                    "warning",
+                )
+            return redirect(url_for("associate.references_employment"))
+
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
             agency_name=_sanitise(request.form.get("agency_name", "")),
             referee_email=_sanitise(request.form.get("referee_email", "")),
             company_address=_sanitise(request.form.get("company_address", "")),
-            start_date=_parse_date(request.form.get("start_date", "")),
-            end_date=_parse_date(request.form.get("end_date", "")),
+            start_date=new_start,
+            end_date=new_end,
             job_title=_sanitise(request.form.get("job_title", "")),
             reason_for_leaving=_sanitise(request.form.get("reason_for_leaving", "")),
             is_gap=False,
@@ -1783,7 +2070,7 @@ def references_add_employment():
         s.commit()
 
     flash("Employment entry added successfully.", "success")
-    return redirect(url_for("associate.references"))
+    return redirect(url_for("associate.references_employment"))
 
 
 @associate_bp.route("/references/add-gap", methods=["POST"])
@@ -1796,11 +2083,22 @@ def references_add_gap():
 
     if not EmploymentHistory:
         flash("Employment history not available.", "danger")
-        return redirect(url_for("associate.references"))
+        return redirect(url_for("associate.references_employment"))
 
     reason = _sanitise(request.form.get("reason", "")).strip()
     other_reason = _sanitise(request.form.get("other_reason", "")).strip()
     gap_reason = other_reason if reason == "Other" and other_reason else reason
+
+    new_start = _parse_date(request.form.get("start_date", ""))
+    new_end = _parse_date(request.form.get("end_date", ""))
+
+    # Req-009: server-side overlap validation. For gaps, all overlaps are blocking.
+    with SASession(engine) as s_check:
+        blocking, _soft = _detect_overlaps(s_check, cand_id, new_start, new_end, new_is_gap=True)
+        if blocking:
+            for b in blocking:
+                flash(b["message"], "danger")
+            return redirect(url_for("associate.references_employment"))
 
     evidence_doc_id = None
     evidence_file = request.files.get("evidence")
@@ -1825,8 +2123,8 @@ def references_add_gap():
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name="",
-            start_date=_parse_date(request.form.get("start_date", "")),
-            end_date=_parse_date(request.form.get("end_date", "")),
+            start_date=new_start,
+            end_date=new_end,
             is_gap=True,
             gap_reason=gap_reason,
             gap_evidence_doc_id=evidence_doc_id,
@@ -1837,7 +2135,7 @@ def references_add_gap():
         s.commit()
 
     flash("Gap entry added successfully.", "success")
-    return redirect(url_for("associate.references"))
+    return redirect(url_for("associate.references_employment"))
 
 
 @associate_bp.route("/references/add-qualification", methods=["POST"])
@@ -1850,12 +2148,12 @@ def references_add_qualification():
 
     if not QualificationRecord:
         flash("Qualifications not available.", "danger")
-        return redirect(url_for("associate.references"))
+        return redirect(url_for("associate.references_vetting_checks"))
 
     qual_name = _sanitise(request.form.get("name", "")).strip()
     if not qual_name:
         flash("Qualification name is required.", "danger")
-        return redirect(url_for("associate.references"))
+        return redirect(url_for("associate.references_vetting_checks"))
 
     perm = request.form.get("qual_permission", "yes") == "yes"
 
@@ -1876,7 +2174,7 @@ def references_add_qualification():
         s.commit()
 
     flash("Qualification added successfully.", "success")
-    return redirect(url_for("associate.references"))
+    return redirect(url_for("associate.references_vetting_checks"))
 
 
 @associate_bp.route("/references/delete-entry/<int:entry_id>", methods=["DELETE"])
@@ -2001,7 +2299,7 @@ def documents():
 @associate_bp.route("/my-applications")
 @_require_login
 def my_applications():
-    """View all submitted applications with simplified status (Applied / Unsuccessful)."""
+    """View all submitted applications, grouped by status (Pending Offer / Applied / Accepted / Declined / Unsuccessful)."""
     Application = _model("Application")
     Job = _model("Job")
     Engagement = _model("Engagement")
@@ -2033,16 +2331,213 @@ def my_applications():
                     if eng:
                         client_name = getattr(eng, "client", "") or getattr(eng, "name", "") or ""
 
+                # Req-046: classify by offer response state
+                # Order matters — check offer states FIRST so "Offered" doesn't fall through to UNSUCCESSFUL_STATUSES check
+                if raw_status == "offered" and app.offer_response is None and app.offer_made_at:
+                    display_status = "Offer Received"
+                elif app.offer_response == "accepted":
+                    display_status = "Offer Accepted"
+                elif app.offer_response == "declined":
+                    display_status = "Offer Declined"
+                elif raw_status in UNSUCCESSFUL_STATUSES:
+                    display_status = "Unsuccessful"
+                else:
+                    display_status = "Applied"
+
                 applications.append({
+                    "id": app.id,
                     "job_title": job.title if job else "Untitled Role",
                     "client": client_name,
                     "applied_date": app.created_at.strftime("%d %b %Y") if app.created_at else "N/A",
-                    "status": "Unsuccessful" if raw_status in UNSUCCESSFUL_STATUSES else "Applied",
+                    "status": display_status,
+                    # Offer detail (only populated for offer-state rows; templates check display_status)
+                    "offer_role_title": app.offer_role_title or "",
+                    "offer_start_date": app.offer_start_date.strftime("%d %b %Y") if app.offer_start_date else "",
+                    "offer_day_rate": float(app.offer_day_rate) if app.offer_day_rate is not None else None,
+                    "offer_rate_type": app.offer_rate_type or "day",
+                    "offer_location": app.offer_location or "",
+                    "offer_notes": app.offer_notes or "",
+                    "offer_responded_at": app.offer_responded_at.strftime("%d %b %Y") if app.offer_responded_at else "",
                 })
 
     return render_template("associate/my_applications.html",
                            applications=applications,
                            active_page="my_applications")
+
+
+# =============================================================================
+# Req-046: Candidate-side offer accept / decline routes (the feedback loop)
+# =============================================================================
+@associate_bp.route("/offer/<int:application_id>/accept", methods=["POST"])
+@_require_login
+def offer_accept(application_id):
+    """Candidate accepts an offer via the portal — updates the application directly.
+
+    No Signable involvement at this stage. The accept action immediately
+    transitions Application.status to 'Accepted' and runs the same
+    Candidate.status update that the kanban drag-drop would (Candidate.status =
+    'In Vetting'). The staff side sees the change on next page load.
+    """
+    Application = _model("Application")
+    Candidate = _model("Candidate")
+    CandidateNote = _model("CandidateNote")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not Application or not Candidate:
+        flash("Sorry, the portal can't process your response right now. Please try again later.", "danger")
+        return redirect(url_for("associate.my_applications"))
+
+    with SASession(engine) as s:
+        appn = s.get(Application, application_id)
+        if not appn:
+            flash("Offer not found.", "danger")
+            return redirect(url_for("associate.my_applications"))
+
+        # Authorisation: candidate can only act on their own application
+        if appn.candidate_id != cand_id:
+            abort(403)
+
+        # State check: only allow accept if the offer is genuinely pending
+        if (appn.status or "").strip() != "Offered" or appn.offer_response is not None:
+            flash("This offer is no longer pending — it may have already been responded to or withdrawn.", "warning")
+            return redirect(url_for("associate.my_applications"))
+
+        cand = s.get(Candidate, cand_id)
+        ip = (request.remote_addr or "")[:50]
+        now = datetime.utcnow()
+
+        # Record the response
+        appn.offer_response = "accepted"
+        appn.offer_responded_at = now
+        appn.offer_responded_ip = ip
+
+        # Transition the application + run the same downstream automation
+        # the kanban does (cand.status = 'In Vetting' for the Accepted stage)
+        old_status = appn.status
+        appn.status = "Accepted"
+        if cand:
+            cand.status = "In Vetting"
+
+        # Activity log entry on the candidate's feed (matches existing pattern)
+        if CandidateNote:
+            note_content = (
+                f"Offer accepted by candidate via portal from IP {ip}\n"
+                f"Workflow stage changed: {old_status} \u2192 Accepted"
+            )
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=cand.email if cand else "candidate",
+                note_type="activity",
+                content=note_content,
+                created_at=now,
+            ))
+
+        s.commit()
+
+        # Audit log (best-effort; failure should not block the candidate response)
+        try:
+            from app import log_audit_event
+            log_audit_event(
+                'update', 'workflow',
+                f'Offer accepted by candidate (application {application_id})',
+                'application', application_id,
+                {
+                    'candidate_id': cand_id,
+                    'candidate_name': cand.name if cand else None,
+                    'old_workflow_status': old_status,
+                    'new_workflow_status': 'Accepted',
+                    'actor': cand.email if cand else 'candidate',
+                    'source': 'portal_offer_accept',
+                    'ip': ip,
+                }
+            )
+        except Exception:
+            pass
+
+    flash("Thanks — your offer has been accepted. Our vetting team will be in touch shortly.", "success")
+    return redirect(url_for("associate.my_applications"))
+
+
+@associate_bp.route("/offer/<int:application_id>/decline", methods=["POST"])
+@_require_login
+def offer_decline(application_id):
+    """Candidate declines an offer via the portal."""
+    Application = _model("Application")
+    Candidate = _model("Candidate")
+    CandidateNote = _model("CandidateNote")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not Application or not Candidate:
+        flash("Sorry, the portal can't process your response right now. Please try again later.", "danger")
+        return redirect(url_for("associate.my_applications"))
+
+    decline_reason = _sanitise(request.form.get("decline_reason", "")).strip() or None
+
+    with SASession(engine) as s:
+        appn = s.get(Application, application_id)
+        if not appn:
+            flash("Offer not found.", "danger")
+            return redirect(url_for("associate.my_applications"))
+
+        if appn.candidate_id != cand_id:
+            abort(403)
+
+        if (appn.status or "").strip() != "Offered" or appn.offer_response is not None:
+            flash("This offer is no longer pending — it may have already been responded to or withdrawn.", "warning")
+            return redirect(url_for("associate.my_applications"))
+
+        cand = s.get(Candidate, cand_id)
+        ip = (request.remote_addr or "")[:50]
+        now = datetime.utcnow()
+
+        appn.offer_response = "declined"
+        appn.offer_responded_at = now
+        appn.offer_responded_ip = ip
+        appn.offer_decline_reason = decline_reason
+
+        old_status = appn.status
+        appn.status = "Withdrawn"
+
+        if CandidateNote:
+            reason_text = f": {decline_reason}" if decline_reason else ""
+            note_content = (
+                f"Offer declined by candidate via portal from IP {ip}{reason_text}\n"
+                f"Workflow stage changed: {old_status} \u2192 Withdrawn"
+            )
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=cand.email if cand else "candidate",
+                note_type="activity",
+                content=note_content,
+                created_at=now,
+            ))
+
+        s.commit()
+
+        try:
+            from app import log_audit_event
+            log_audit_event(
+                'update', 'workflow',
+                f'Offer declined by candidate (application {application_id})',
+                'application', application_id,
+                {
+                    'candidate_id': cand_id,
+                    'candidate_name': cand.name if cand else None,
+                    'old_workflow_status': old_status,
+                    'new_workflow_status': 'Withdrawn',
+                    'decline_reason': decline_reason,
+                    'actor': cand.email if cand else 'candidate',
+                    'source': 'portal_offer_decline',
+                    'ip': ip,
+                }
+            )
+        except Exception:
+            pass
+
+    flash("Your offer has been declined. We'll be in touch about other opportunities.", "info")
+    return redirect(url_for("associate.my_applications"))
 
 
 @associate_bp.route("/assignments")
