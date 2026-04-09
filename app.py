@@ -16208,6 +16208,14 @@ def configuration():
     aliases = []
     cats = []
     tags_by_cat = {}
+    job_templates = []
+    # Reference data (Req-046 admin extension to /configuration)
+    ref_contacts = []
+    ref_contacts_total = 0
+    ref_contacts_search = (request.args.get("ref_search") or "").strip()
+    ref_contacts_page = max(1, request.args.get("ref_page", 1, type=int))
+    ref_contacts_per_page = 25
+    ref_houses = []
     try:
         with Session(engine) as s:
             # role aliases (table may not exist yet)
@@ -16233,6 +16241,34 @@ def configuration():
             job_templates = s.scalars(
                 select(JobTemplate).order_by(JobTemplate.role_type.asc())
             ).all()
+
+            # Reference contacts (paginated, searchable) — uses associate portal model
+            try:
+                ReferenceContact = _portal_models.get("ReferenceContact") if _portal_models else None
+                if ReferenceContact:
+                    rc_query = select(ReferenceContact)
+                    if ref_contacts_search:
+                        rc_query = rc_query.where(ReferenceContact.company_name.ilike(f"%{ref_contacts_search}%"))
+                    rc_query = rc_query.order_by(ReferenceContact.company_name)
+                    ref_contacts_total = s.scalar(select(func.count()).select_from(rc_query.subquery())) or 0
+                    ref_contacts = s.scalars(
+                        rc_query.offset((ref_contacts_page - 1) * ref_contacts_per_page).limit(ref_contacts_per_page)
+                    ).all()
+            except Exception:
+                s.rollback()
+                ref_contacts = []
+                ref_contacts_total = 0
+
+            # Flagged reference houses (only ~23 entries, no pagination needed)
+            try:
+                FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse") if _portal_models else None
+                if FlaggedReferenceHouse:
+                    ref_houses = s.scalars(
+                        select(FlaggedReferenceHouse).order_by(FlaggedReferenceHouse.name)
+                    ).all()
+            except Exception:
+                s.rollback()
+                ref_houses = []
     except Exception as e:
         current_app.logger.exception("configuration error: %s", e)
         job_templates = []
@@ -16242,7 +16278,13 @@ def configuration():
                            cats=cats,
                            tags_by_cat=tags_by_cat,
                            ROLE_TYPES=ROLE_TYPES,
-                           job_templates=job_templates)
+                           job_templates=job_templates,
+                           ref_contacts=ref_contacts,
+                           ref_contacts_total=ref_contacts_total,
+                           ref_contacts_search=ref_contacts_search,
+                           ref_contacts_page=ref_contacts_page,
+                           ref_contacts_per_page=ref_contacts_per_page,
+                           ref_houses=ref_houses)
 
 @app.route("/admin/job-templates/save", methods=["POST"])
 @login_required
@@ -17641,9 +17683,10 @@ def admin_reference_contact_add():
 
     company = request.form.get("company_name", "").strip()
     email = request.form.get("referee_email", "").strip()
+    next_url = request.form.get("next") or url_for("admin_reference_contacts")
     if not company or not email:
         flash("Company name and email are required.", "danger")
-        return redirect(url_for("admin_reference_contacts"))
+        return redirect(next_url)
 
     with Session(engine) as s:
         s.add(ReferenceContact(
@@ -17656,7 +17699,7 @@ def admin_reference_contact_add():
                         'reference_contact', None)
         s.commit()
     flash(f"Reference contact added: {company}.", "success")
-    return redirect(url_for("admin_reference_contacts"))
+    return redirect(next_url)
 
 
 @login_required
@@ -17701,6 +17744,7 @@ def admin_reference_contact_delete(contact_id):
         flash("Model not available.", "danger")
         return redirect(url_for("admin_reference_contacts"))
 
+    next_url = request.form.get("next") or url_for("admin_reference_contacts")
     with Session(engine) as s:
         contact = s.get(ReferenceContact, contact_id)
         if contact:
@@ -17710,7 +17754,7 @@ def admin_reference_contact_delete(contact_id):
             s.delete(contact)
             s.commit()
     flash("Reference contact deleted.", "success")
-    return redirect(url_for("admin_reference_contacts"))
+    return redirect(next_url)
 
 
 @login_required
@@ -17879,6 +17923,7 @@ def admin_reference_house_add():
         flash("Model not available.", "danger")
         return redirect(url_for("admin_reference_houses"))
 
+    next_url = request.form.get("next") or url_for("admin_reference_houses")
     with Session(engine) as s:
         s.add(FlaggedReferenceHouse(
             name=request.form.get("name", "").strip(),
@@ -17893,7 +17938,7 @@ def admin_reference_house_add():
                         'reference_house', None)
         s.commit()
     flash("Flagged reference house added.", "success")
-    return redirect(url_for("admin_reference_houses"))
+    return redirect(next_url)
 
 
 @login_required
@@ -17939,6 +17984,7 @@ def admin_reference_house_delete(house_id):
         flash("Model not available.", "danger")
         return redirect(url_for("admin_reference_houses"))
 
+    next_url = request.form.get("next") or url_for("admin_reference_houses")
     with Session(engine) as s:
         house = s.get(FlaggedReferenceHouse, house_id)
         if house:
@@ -17948,7 +17994,7 @@ def admin_reference_house_delete(house_id):
             s.delete(house)
             s.commit()
     flash("Reference house deleted.", "success")
-    return redirect(url_for("admin_reference_houses"))
+    return redirect(next_url)
 
 
 # =========================================================================

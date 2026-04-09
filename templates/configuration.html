@@ -668,4 +668,204 @@ function editJobTemplate(roleType, btn) {
   document.getElementById('tplDescription').focus();
 }
 </script>
+
+<!-- ==================================================================== -->
+<!-- Reference Request - Contact Details                                   -->
+<!-- ==================================================================== -->
+<div id="reference-contacts" class="card mt-4 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <h5 class="mb-0"><i class="fas fa-address-book me-2 text-primary"></i>Reference Request &mdash; Contact Details</h5>
+      <small class="text-muted">Approved company &rarr; referee email mappings used by the associate portal autocomplete. <strong>{{ ref_contacts_total }}</strong> entries.</small>
+    </div>
+    <form method="GET" action="/configuration#reference-contacts" class="d-flex gap-2">
+      <input type="search" name="ref_search" class="form-control form-control-sm" placeholder="Search by company name..." value="{{ ref_contacts_search }}" style="min-width: 220px;">
+      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-search"></i></button>
+      {% if ref_contacts_search %}
+      <a href="/configuration#reference-contacts" class="btn btn-outline-secondary btn-sm" title="Clear search"><i class="fas fa-times"></i></a>
+      {% endif %}
+    </form>
+  </div>
+  <div class="card-body">
+
+    <!-- Add new contact -->
+    <form method="POST" action="{{ url_for('admin_reference_contact_add') }}" class="mb-3 p-3 border rounded bg-light">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="/configuration#reference-contacts">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Company Name</label>
+          <input type="text" name="company_name" class="form-control form-control-sm" placeholder="e.g. Barclays Bank Plc" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Referee Email</label>
+          <input type="email" name="referee_email" class="form-control form-control-sm" placeholder="references@company.com" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-success btn-sm w-100">
+            <i class="fas fa-plus me-1"></i> Add
+          </button>
+        </div>
+      </div>
+    </form>
+
+    {% if ref_contacts %}
+    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Company Name</th>
+            <th>Referee Email</th>
+            <th>Last Amended</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in ref_contacts %}
+          <tr>
+            <td><strong>{{ c.company_name }}</strong></td>
+            <td><a href="mailto:{{ c.referee_email }}">{{ c.referee_email }}</a></td>
+            <td><small class="text-muted">{{ c.last_amended.strftime('%d %b %Y') if c.last_amended else '—' }}</small></td>
+            <td class="text-end">
+              <form method="POST" action="{{ url_for('admin_reference_contact_delete', contact_id=c.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="/configuration?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page }}#reference-contacts">
+                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete reference contact for {{ c.company_name|e }}?')">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% set total_pages = (ref_contacts_total + ref_contacts_per_page - 1) // ref_contacts_per_page %}
+    {% if total_pages > 1 %}
+    <nav class="mt-3" aria-label="Reference contacts pagination">
+      <ul class="pagination pagination-sm justify-content-center mb-0">
+        {% if ref_contacts_page > 1 %}
+        <li class="page-item">
+          <a class="page-link" href="/configuration?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page - 1 }}#reference-contacts">&laquo; Prev</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">Page {{ ref_contacts_page }} of {{ total_pages }}</span></li>
+        {% if ref_contacts_page < total_pages %}
+        <li class="page-item">
+          <a class="page-link" href="/configuration?ref_search={{ ref_contacts_search }}&ref_page={{ ref_contacts_page + 1 }}#reference-contacts">Next &raquo;</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="fas fa-address-book mb-2" style="font-size: 2rem; opacity: 0.3;"></i>
+      <p class="mb-0">{% if ref_contacts_search %}No matches for "{{ ref_contacts_search }}".{% else %}No reference contacts loaded yet.{% endif %}</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- Reference Houses Intel                                                -->
+<!-- ==================================================================== -->
+<div id="reference-houses" class="card mt-4 mb-5 shadow-sm">
+  <div class="card-header bg-white">
+    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Reference Houses &mdash; Intel</h5>
+    <small class="text-muted">Known fake or suspicious reference houses. Companies on this list trigger a warning banner in the associate portal. <strong>{{ ref_houses|length }}</strong> entries.</small>
+  </div>
+  <div class="card-body">
+
+    <!-- Add new reference house -->
+    <form method="POST" action="{{ url_for('admin_reference_house_add') }}" class="mb-3 p-3 border rounded bg-light">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="/configuration#reference-houses">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Name <span class="text-danger">*</span></label>
+          <input type="text" name="name" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Candidate Count</label>
+          <input type="text" name="candidate_count" class="form-control form-control-sm" placeholder="e.g. 12">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">End Clients</label>
+          <input type="text" name="end_clients" class="form-control form-control-sm" placeholder="Where they tried to place candidates">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Website</label>
+          <input type="url" name="website" class="form-control form-control-sm" placeholder="https://...">
+        </div>
+        <div class="col-md-5 mt-2">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Companies House URL</label>
+          <input type="url" name="companies_house_url" class="form-control form-control-sm" placeholder="https://find-and-update.company-information.service.gov.uk/...">
+        </div>
+        <div class="col-md-5 mt-2">
+          <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Notes</label>
+          <input type="text" name="notes" class="form-control form-control-sm" placeholder="Why they're flagged">
+        </div>
+        <div class="col-md-2 mt-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-warning btn-sm w-100 text-dark">
+            <i class="fas fa-plus me-1"></i> Add
+          </button>
+        </div>
+      </div>
+    </form>
+
+    {% if ref_houses %}
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Cand. Count</th>
+            <th>End Clients</th>
+            <th>Website</th>
+            <th>Companies House</th>
+            <th>Notes</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in ref_houses %}
+          <tr>
+            <td><strong>{{ h.name }}</strong></td>
+            <td><span class="badge bg-secondary">{{ h.candidate_count or '—' }}</span></td>
+            <td><small>{{ h.end_clients or '—' }}</small></td>
+            <td>
+              {% if h.website %}<a href="{{ h.website }}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i></a>{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if h.companies_house_url %}<a href="{{ h.companies_house_url }}" target="_blank" rel="noopener"><i class="fas fa-building"></i></a>{% else %}—{% endif %}
+            </td>
+            <td><small class="text-muted">{{ h.notes or '—' }}</small></td>
+            <td class="text-end">
+              <form method="POST" action="{{ url_for('admin_reference_house_delete', house_id=h.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="/configuration#reference-houses">
+                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete flagged reference house: {{ h.name|e }}?')">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem; opacity: 0.3;"></i>
+      <p class="mb-0">No flagged reference houses recorded.</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
 {% endblock %}
