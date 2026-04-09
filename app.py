@@ -3581,16 +3581,18 @@ def ensure_schema():
             "status TEXT DEFAULT 'New'",
             "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
             # Req-046: Offer detail capture (matches migrations/009_offer_capture.sql)
+            # IMPORTANT: use TIMESTAMP, not DATETIME — Postgres rejects DATETIME with
+            # `type "datetime" does not exist`. SQLite accepts both.
             "offer_start_date DATE",
             "offer_role_title VARCHAR(300)",
             "offer_day_rate NUMERIC(10, 2)",
             "offer_rate_type VARCHAR(20)",
             "offer_location VARCHAR(300)",
             "offer_notes TEXT",
-            "offer_made_at DATETIME",
+            "offer_made_at TIMESTAMP",
             "offer_made_by_id INTEGER",
             "offer_response VARCHAR(20)",
-            "offer_responded_at DATETIME",
+            "offer_responded_at TIMESTAMP",
             "offer_responded_ip VARCHAR(50)",
             "offer_decline_reason TEXT",
         ]:
