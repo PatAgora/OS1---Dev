@@ -3557,7 +3557,7 @@ def ensure_schema():
         except Exception:
             pass
         try:
-            conn.execute(text("ALTER TABLE jobs ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
         except Exception:
             pass
         try:
@@ -3571,17 +3571,17 @@ def ensure_schema():
 
         # ===== applications table =====
         for coldef in [
-            "interview_completed_at DATETIME",
+            "interview_completed_at TIMESTAMP",
             "interview_notes TEXT DEFAULT ''",
             "ai_explanation TEXT DEFAULT ''",
             "ai_score INTEGER DEFAULT 0",
             "ai_summary TEXT DEFAULT ''",
             "onboarding_email_sent BOOLEAN DEFAULT 0",
-            "interview_scheduled_at DATETIME",
+            "interview_scheduled_at TIMESTAMP",
             "status TEXT DEFAULT 'New'",
-            "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             # Req-046: Offer detail capture (matches migrations/009_offer_capture.sql)
-            # IMPORTANT: use TIMESTAMP, not DATETIME — Postgres rejects DATETIME with
+            # IMPORTANT: use TIMESTAMP, not TIMESTAMP — Postgres rejects TIMESTAMP with
             # `type "datetime" does not exist`. SQLite accepts both.
             "offer_start_date DATE",
             "offer_role_title VARCHAR(300)",
@@ -3617,12 +3617,12 @@ def ensure_schema():
         except Exception:
             pass
         for coldef in [
-            "onboarded_at DATETIME",
+            "onboarded_at TIMESTAMP",
             "esign_status TEXT",
-            "trustid_rtw_date DATETIME",
-            "trustid_idv_date DATETIME",
-            "trustid_dbs_date DATETIME",
-            "updated_cv_requested_at DATETIME",
+            "trustid_rtw_date TIMESTAMP",
+            "trustid_idv_date TIMESTAMP",
+            "trustid_dbs_date TIMESTAMP",
+            "updated_cv_requested_at TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE candidates ADD COLUMN {coldef}"))
@@ -3637,15 +3637,15 @@ def ensure_schema():
         except Exception:
             pass
         try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
         except Exception:
             pass
         
         # Resource Pool enhancement columns
         for coldef in [
             "postcode TEXT",
-            "last_login_at DATETIME",
-            "last_activity_at DATETIME",
+            "last_login_at TIMESTAMP",
+            "last_activity_at TIMESTAMP",
             "optimus_interview_result TEXT",
             "optimus_assessment_result TEXT",
             "previously_vetted BOOLEAN DEFAULT 0",
@@ -3684,7 +3684,7 @@ def ensure_schema():
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               job_id INTEGER NOT NULL,
               candidate_id INTEGER NOT NULL,
-              created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """))
         except Exception:
@@ -3725,7 +3725,7 @@ def ensure_schema():
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               candidate_id INTEGER NOT NULL,
               tag_id INTEGER NOT NULL,
-              created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """))
         except Exception:
@@ -3775,12 +3775,12 @@ def ensure_schema():
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               user_id INTEGER NOT NULL,
               engagement_id INTEGER NOT NULL,
-              period_start DATETIME NOT NULL,
-              period_end DATETIME NOT NULL,
+              period_start TIMESTAMP NOT NULL,
+              period_end TIMESTAMP NOT NULL,
               hours INTEGER DEFAULT 0,
               notes TEXT,
               status TEXT DEFAULT 'Draft',
-              submitted_at DATETIME
+              submitted_at TIMESTAMP
             )
             """))
         except Exception:
@@ -3805,10 +3805,10 @@ def ensure_schema():
             pass
 
         for coldef in [
-            "sow_signed_at DATETIME",
+            "sow_signed_at TIMESTAMP",
             "description TEXT DEFAULT ''",
-            "start_date DATETIME",
-            "end_date DATETIME",
+            "start_date TIMESTAMP",
+            "end_date TIMESTAMP",
             "opportunity_id INTEGER UNIQUE",
             "plan_version INTEGER DEFAULT 1",
             "ir35_status TEXT DEFAULT 'inside'",
@@ -3827,7 +3827,7 @@ def ensure_schema():
         for coldef in [
             "_engagement_id INTEGER",
             "_engagement_ref TEXT",
-            "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "probability INTEGER DEFAULT 0",
             "notes TEXT DEFAULT ''",
             "client_contact_name TEXT",
@@ -3903,7 +3903,7 @@ def ensure_schema():
               source TEXT,
               event_type TEXT,
               payload TEXT,
-              received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+              received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """))
         except Exception:
@@ -4091,7 +4091,7 @@ def ensure_schema():
             "expense_total REAL DEFAULT 0",
             "grand_total REAL DEFAULT 0",
             "approved_by INTEGER",
-            "approved_at DATETIME",
+            "approved_at TIMESTAMP",
             "rejected_reason TEXT",
         ]:
             try:
@@ -4113,8 +4113,8 @@ def ensure_schema():
                 expense_limits TEXT DEFAULT '{}',
                 day_rate REAL DEFAULT 0,
                 overtime_rate REAL DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4126,7 +4126,7 @@ def ensure_schema():
                 time_type TEXT,
                 value REAL DEFAULT 0,
                 value_unit TEXT DEFAULT 'days',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4138,7 +4138,7 @@ def ensure_schema():
                 description TEXT,
                 amount REAL DEFAULT 0,
                 receipt_doc_id INTEGER,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4161,10 +4161,10 @@ def ensure_schema():
             "prompt_only BOOLEAN DEFAULT 0",
             "id_verified BOOLEAN DEFAULT 0",
             "id_verification_method VARCHAR(50)",
-            "id_verified_at DATETIME",
+            "id_verified_at TIMESTAMP",
             "qc_status VARCHAR(30) DEFAULT ''",
             "qc_reviewed_by INTEGER REFERENCES users(id)",
-            "qc_reviewed_at DATETIME",
+            "qc_reviewed_at TIMESTAMP",
             "qc_notes TEXT DEFAULT ''",
         ]:
             try:
@@ -4213,15 +4213,15 @@ def ensure_schema():
                 referee_name VARCHAR(300) DEFAULT '',
                 status VARCHAR(50) DEFAULT 'not_sent',
                 permission_status VARCHAR(50) DEFAULT 'yes',
-                sent_at DATETIME,
-                received_at DATETIME,
+                sent_at TIMESTAMP,
+                received_at TIMESTAMP,
                 chase_count INTEGER DEFAULT 0,
-                last_chased_at DATETIME,
+                last_chased_at TIMESTAMP,
                 colour VARCHAR(20) DEFAULT 'white',
                 notes TEXT DEFAULT '',
                 attachment_path VARCHAR(500),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4235,7 +4235,7 @@ def ensure_schema():
                 phone VARCHAR(50) DEFAULT '',
                 email VARCHAR(300) DEFAULT '',
                 is_active BOOLEAN DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4253,7 +4253,7 @@ def ensure_schema():
                 from_date DATE,
                 to_date DATE,
                 is_current BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"""))
         except Exception:
             pass
@@ -4268,7 +4268,7 @@ def ensure_schema():
                 pass
         for coldef in [
             "referral_approved_by INTEGER REFERENCES users(id)",  # Fix 3: two-step referral
-            "referral_approved_at DATETIME",
+            "referral_approved_at TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE vetting_check ADD COLUMN {coldef}"))
@@ -6607,7 +6607,6 @@ def opportunity_convert_v2(opp_id):
         flash(f"Engagement {e.ref or e.id} created.", "success")
         return redirect(url_for("engagement_dashboard", eng_id=e.id))
 
-@csrf.exempt
 @login_required
 @app.route("/api/opportunity/<int:opp_id>/update-stage", methods=["POST"])
 def api_opportunity_update_stage(opp_id):
@@ -6717,7 +6716,6 @@ def api_opportunity_convert(opp_id):
         })
 
 # API endpoint for moving opportunity between pipeline stages (drag-and-drop)
-@csrf.exempt
 @login_required
 @app.route("/api/opportunity/move-stage", methods=["POST"])
 def api_opportunity_move_stage():
@@ -7663,7 +7661,6 @@ def workflow():
         focus_stage=focus_stage,
     )
 
-@csrf.exempt
 @app.route("/api/workflow/move", methods=["POST"])
 @login_required
 def api_workflow_move():
@@ -7806,7 +7803,6 @@ def api_workflow_move():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@csrf.exempt
 @app.route("/api/workflow/bulk-reject", methods=["POST"])
 @login_required
 def api_workflow_bulk_reject():
@@ -8880,7 +8876,10 @@ def create_engagement():
             s.commit()
             flash(f"Engagement {e.ref} created", "success")
         return redirect(url_for("engagements"))
-    return render_template("create_engagement.html", form=form)
+    # Pre-parse vetting_requirements JSON server-side so the template doesn't
+    # need a custom Jinja filter (avoids standalone-parse errors).
+    selected_checks = from_json_safe(form.vetting_requirements.data or "")
+    return render_template("create_engagement.html", form=form, selected_checks=selected_checks)
 
 # --- Edit engagement (name, ref, dates, vetting requirements) ---
 @login_required
@@ -8926,7 +8925,9 @@ def engagement_edit(eng_id):
             form.vetting_requirements.data = engagement.vetting_requirements or ""
             form.reference_period_years.data = str(getattr(engagement, 'reference_period_years', 3) or 3)
 
-    return render_template("edit_engagement.html", form=form, engagement=engagement)
+    # Pre-parse vetting_requirements JSON server-side (see comment in create_engagement)
+    selected_checks = from_json_safe(form.vetting_requirements.data or "")
+    return render_template("edit_engagement.html", form=form, engagement=engagement, selected_checks=selected_checks)
 
 @login_required
 @app.route("/engagements", methods=["GET"])
@@ -10352,6 +10353,7 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     return submitted
 
 
+@csrf.exempt  # External Verifile service can't provide a CSRF token
 @app.route("/webhook/verifile", methods=["POST"])
 def webhook_verifile():
     """Receive Verifile webhook callbacks when screening results are ready.
@@ -10459,7 +10461,6 @@ def webhook_verifile():
     return jsonify({"ok": True})
 
 
-@csrf.exempt
 @app.route("/api/vetting/poll-verifile/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_poll_verifile(cand_id):
@@ -10759,8 +10760,6 @@ def action_vetting(cand_id):
     flash("Vetting process started - associate moved to Accepted stage.", "success")
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@csrf.exempt
-@csrf.exempt
 @app.route("/api/vetting/trigger-referencing/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_trigger_referencing(cand_id):
@@ -11009,7 +11008,6 @@ def api_vetting_trigger(cand_id):
 
     return jsonify({"ok": True, "message": result_msg})
 
-@csrf.exempt
 @app.route("/api/vetting/toggle-automation/<int:check_id>", methods=["POST"])
 @login_required
 def api_vetting_toggle_automation(check_id):
@@ -11340,6 +11338,7 @@ def action_esign_status(app_id):
     flash(f"E-sign status: {status}", "info")
     return redirect(url_for("application_detail", app_id=app_id))
 
+@csrf.exempt  # External Signable service can't provide a CSRF token
 @app.route("/webhook/esign", methods=["GET", "POST"])
 def webhook_esign():
     # GET request = Signable URL verification ping
@@ -12972,7 +12971,6 @@ def extend_contract(esig_id: int):
             "message": f"Contract extended to {new_end_date_str}"
         })
 
-@csrf.exempt
 @app.route("/api/contracts/bulk-extend", methods=["POST"])
 @login_required
 def bulk_extend_contracts():

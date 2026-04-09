@@ -1135,7 +1135,10 @@ function markOpportunity(oppId, newStage) {
 
   fetch('/api/opportunity/' + oppId + '/update-stage', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    },
     credentials: 'same-origin',
     body: JSON.stringify({stage: newStage, note: note.trim()})
   })
@@ -1487,6 +1490,7 @@ function handlePipelineDrop(event) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
     },
     credentials: 'same-origin',
     body: JSON.stringify({

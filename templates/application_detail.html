@@ -2109,7 +2109,10 @@ document.querySelectorAll('.vetting-check-header').forEach(header => {
 
 // Toggle automation on/off for a specific vetting check
 function toggleVettingAutomation(checkId, el) {
-  fetch('/api/vetting/toggle-automation/' + checkId, {method: 'POST'})
+  fetch('/api/vetting/toggle-automation/' + checkId, {
+    method: 'POST',
+    headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''}
+  })
     .then(r => r.json())
     .then(data => {
       if (data.ok) {

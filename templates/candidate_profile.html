@@ -1375,7 +1375,10 @@ function triggerReferencing(candidateId) {
   if (!confirm('Start referencing for this associate? Reference requests will be sent (respecting contact preferences).')) return;
   fetch('/api/vetting/trigger-referencing/' + candidateId, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'}
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    }
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {

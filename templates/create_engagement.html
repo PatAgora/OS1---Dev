@@ -68,7 +68,7 @@
           "Employment History", "References", "Qualifications", "Professional Registration",
           "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
         ] %}
-        {% set selected_checks = (form.vetting_requirements.data or "")|from_json_safe %}
+        {# selected_checks is now passed in by the route handler (Python-side JSON parse) #}
         {% for check in all_checks %}
         <div class="col-md-4 col-sm-6 mb-2">
           <div class="form-check">

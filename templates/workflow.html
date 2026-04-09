@@ -1192,6 +1192,7 @@ function handleDrop(event) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
     },
     credentials: 'same-origin',
     body: JSON.stringify({
@@ -1234,7 +1235,10 @@ function handleDrop(event) {
         // Re-send with force flag
         fetch('/api/workflow/move', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+          },
           credentials: 'same-origin',
           body: JSON.stringify({
             card_id: cardData.id,
@@ -1449,6 +1453,7 @@ function advanceStage(cardId, newStatus) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
     },
     body: JSON.stringify({
       card_id: cardId,
@@ -1464,7 +1469,10 @@ function advanceStage(cardId, newStatus) {
         if (confirm(data.error + '\n\nThis will be logged in the audit trail.')) {
           fetch('/api/workflow/move', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
             body: JSON.stringify({
               card_id: cardId,
               card_type: 'application',
@@ -1622,7 +1630,10 @@ function executeBulkReject() {
 
   fetch('/api/workflow/bulk-reject', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    },
     credentials: 'same-origin',
     body: JSON.stringify({ card_ids: cardIds, reason: reason })
   })
