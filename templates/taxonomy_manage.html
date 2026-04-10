@@ -735,7 +735,7 @@
         <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
           <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
         </label>
-        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required aria-label="Import file (XLSX or CSV)">
         <small class="text-muted">XLSX format: Company Name | Referee Email | Last Amended Date. Duplicates by company+email are skipped automatically.</small>
       </div>
       <div class="col-md-3">
@@ -824,7 +824,7 @@
     <div class="row g-2">
       <div class="col-md-4">
         <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Name <span class="text-danger">*</span></label>
-        <input type="text" name="name" class="form-control form-control-sm" required>
+        <input type="text" name="name" class="form-control form-control-sm" required aria-label="Reference house name">
       </div>
       <div class="col-md-2">
         <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Candidate Count</label>
@@ -863,7 +863,7 @@
         <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">
           <i class="fas fa-file-excel me-1 text-success"></i>Bulk import (XLSX or CSV)
         </label>
-        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required>
+        <input type="file" name="import_file" class="form-control form-control-sm" accept=".xlsx,.xlsm,.csv" required aria-label="Import file (XLSX or CSV)">
         <small class="text-muted">XLSX format: Col A (skipped) | Name | Candidate Count | End Clients | Website | Companies House URL | Notes. Duplicates by name are skipped automatically.</small>
       </div>
       <div class="col-md-3">

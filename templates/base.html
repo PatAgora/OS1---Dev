@@ -385,7 +385,7 @@
         <div class="side-nav-container">
         <div class="side-nav">
 
-          <div class="nav-section">Main</div>
+          <div class="nav-section" style="color:#cbd5e1">Main</div>
           <a href="{{ url_for('index') }}"
              class="{% if request.endpoint=='index' %}active{% endif %}">
             <i class="fas fa-chart-line"></i><span>Dashboard</span>
@@ -429,7 +429,7 @@
           </a>
           {% endif %}
 
-          <div class="nav-section">Admin</div>
+          <div class="nav-section" style="color:#cbd5e1">Admin</div>
           {% if view_exists('admin_users') %}
           <a href="{{ url_for('admin_users') }}"
              class="{% if request.endpoint in ['admin_users', 'admin_user_create', 'admin_user_edit'] %}active{% endif %}">

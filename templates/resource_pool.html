@@ -830,7 +830,7 @@
         <div class="row g-3 mt-2">
           <div class="col-6 col-md-2">
             <label class="field-label">Per Page</label>
-            <select name="per_page" class="field-input form-select">
+            <select name="per_page" class="field-input form-select" aria-label="Results per page">
               {% for n in [10,25,50,100] %}
                 <option value="{{ n }}" {{ 'selected' if (pagination and pagination.per_page==n) else '' }}>{{ n }}</option>
               {% endfor %}
@@ -839,7 +839,7 @@
 
           <div class="col-6 col-md-2">
             <label class="field-label">AI Rank</label>
-            <select name="rank" class="field-input form-select">
+            <select name="rank" class="field-input form-select" aria-label="Rank by match score">
               <option value="0" {{ 'selected' if not rank else '' }}>Off</option>
               <option value="1" {{ 'selected' if rank else '' }}>On (Top 20)</option>
             </select>
