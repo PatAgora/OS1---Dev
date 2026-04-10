@@ -15770,49 +15770,47 @@ def taxonomy_manage():
         for c in cats:
             tags_by_cat[c.id] = s.scalars(select(TaxonomyTag).where(TaxonomyTag.category_id==c.id).order_by(TaxonomyTag.tag.asc())).all()
 
-        # Role aliases (migrated from the legacy /configuration page)
-        try:
-            aliases = s.execute(text("SELECT id, canonical, alias FROM role_aliases ORDER BY canonical, alias")).all()
-        except Exception:
-            s.rollback()
-            aliases = []
+    # Load additional data in SEPARATE session blocks so a missing table
+    # (role_aliases, job_templates) doesn't poison the main taxonomy session.
+    try:
+        with Session(engine) as s2:
+            aliases = s2.execute(text("SELECT id, canonical, alias FROM role_aliases ORDER BY canonical, alias")).all()
+    except Exception:
+        aliases = []
 
-        # Job description templates (migrated from the legacy /configuration page)
-        try:
-            job_templates = s.scalars(
+    try:
+        with Session(engine) as s3:
+            job_templates = s3.scalars(
                 select(JobTemplate).order_by(JobTemplate.role_type.asc())
             ).all()
-        except Exception:
-            s.rollback()
-            job_templates = []
+    except Exception:
+        job_templates = []
 
-        # Reference contacts (paginated, searchable) — uses associate portal model
-        try:
+    try:
+        with Session(engine) as s4:
             ReferenceContact = _portal_models.get("ReferenceContact") if _portal_models else None
             if ReferenceContact:
                 rc_query = select(ReferenceContact)
                 if ref_contacts_search:
                     rc_query = rc_query.where(ReferenceContact.company_name.ilike(f"%{ref_contacts_search}%"))
                 rc_query = rc_query.order_by(ReferenceContact.company_name)
-                ref_contacts_total = s.scalar(select(func.count()).select_from(rc_query.subquery())) or 0
-                ref_contacts = s.scalars(
+                ref_contacts_total = s4.scalar(select(func.count()).select_from(rc_query.subquery())) or 0
+                ref_contacts = s4.scalars(
                     rc_query.offset((ref_contacts_page - 1) * ref_contacts_per_page).limit(ref_contacts_per_page)
                 ).all()
-        except Exception:
-            s.rollback()
-            ref_contacts = []
-            ref_contacts_total = 0
+    except Exception:
+        ref_contacts = []
+        ref_contacts_total = 0
 
-        # Flagged reference houses (only ~23 entries, no pagination needed)
-        try:
+    try:
+        with Session(engine) as s5:
             FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse") if _portal_models else None
             if FlaggedReferenceHouse:
-                ref_houses = s.scalars(
+                ref_houses = s5.scalars(
                     select(FlaggedReferenceHouse).order_by(FlaggedReferenceHouse.name)
                 ).all()
-        except Exception:
-            s.rollback()
-            ref_houses = []
+    except Exception:
+        ref_houses = []
 
     return render_template("taxonomy_manage.html",
                            roles=roles, subjects=subjects,
