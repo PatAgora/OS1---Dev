@@ -290,22 +290,22 @@
 
 <!-- Filter Bar -->
 <div class="filter-bar">
-    <input type="text" placeholder="Search invoices..." id="invoice-search">
-    <select id="status-filter">
+    <input type="text" placeholder="Search invoices..." id="invoice-search" aria-label="Search invoices">
+    <select id="status-filter" aria-label="Filter by status">
         <option value="">All Status</option>
         <option value="draft">Draft</option>
         <option value="pending">Pending</option>
         <option value="paid">Paid</option>
         <option value="overdue">Overdue</option>
     </select>
-    <select id="client-filter">
+    <select id="client-filter" aria-label="Filter by client">
         <option value="">All Clients</option>
         {% for client in clients|default([]) %}
         <option value="{{ client.id }}">{{ client.name }}</option>
         {% endfor %}
     </select>
-    <input type="date" id="date-from" placeholder="From">
-    <input type="date" id="date-to" placeholder="To">
+    <input type="date" id="date-from" placeholder="From" aria-label="Filter from date">
+    <input type="date" id="date-to" placeholder="To" aria-label="Filter to date">
 </div>
 
 <!-- Invoices Table -->

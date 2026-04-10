@@ -73,6 +73,13 @@ Thumbs.db
 htmlcov/
 .tox/
 
+# Playwright
+node_modules/
+playwright/.auth/
+test-results/
+playwright-report/
+blob-report/
+
 # Railway
 .railway/
 

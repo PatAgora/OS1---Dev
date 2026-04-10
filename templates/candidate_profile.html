@@ -373,7 +373,7 @@
   
   .activity-time {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: #64748b;
   }
   
   /* Global Status Selector */
@@ -780,7 +780,7 @@
             <div class="row g-2">
               {% for check in vetting_checks %}
               <div class="col-md-6">
-                <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background: #f9fafb; border-left: 3px solid {% if check.status|upper == 'COMPLETE' or check.status|upper == 'QC COMPLETE' %}#10b981{% elif check.status|upper == 'IN PROGRESS' %}#f59e0b{% elif check.status|upper == 'N/A' %}#9ca3af{% else %}#e5e7eb{% endif %};">
+                <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background: #f9fafb; border-left: 3px solid {% if check.status|upper == 'COMPLETE' or check.status|upper == 'QC COMPLETE' %}#10b981{% elif check.status|upper == 'IN PROGRESS' %}#f59e0b{% elif check.status|upper == 'N/A' %}#64748b{% else %}#e5e7eb{% endif %};">
                   <div>
                     <div style="font-size: 0.8rem; font-weight: 600;">{{ check.type }}</div>
                     <div style="font-size: 0.7rem; color: #6b7280;">{{ check.status }}</div>
@@ -827,7 +827,7 @@
           {% if score is not none %}
             <div class="text-center mb-3">
               <div style="font-size: 2.5rem; font-weight: 700; color: {{ '#22c55e' if score >= 75 else '#f59e0b' if score >= 50 else '#ef4444' }};">
-                {{ score }}<span style="font-size: 1rem; color: #94a3b8;">/100</span>
+                {{ score }}<span style="font-size: 1rem; color: #64748b;">/100</span>
               </div>
               <div class="progress mt-2" style="height: 8px; border-radius: 4px;">
                 <div class="progress-bar" role="progressbar" style="width: {{ score }}%; background: {{ '#22c55e' if score >= 75 else '#f59e0b' if score >= 50 else '#ef4444' }}; border-radius: 4px;" aria-valuenow="{{ score }}" aria-valuemin="0" aria-valuemax="100"></div>
@@ -839,7 +839,7 @@
               </div>
             {% endif %}
           {% else %}
-            <div class="text-center mb-3" style="color: #94a3b8;">
+            <div class="text-center mb-3" style="color: #64748b;">
               <i class="fas fa-robot" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
               <div style="font-size: 0.85rem;">No score yet. Click below to generate.</div>
             </div>

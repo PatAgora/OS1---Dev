@@ -213,7 +213,7 @@
   
   .action-btn:hover {
     background: #f3f4f6;
-    border-color: #9ca3af;
+    border-color: #64748b;
   }
   
   .action-btn.primary {
@@ -319,7 +319,7 @@
   .filter-btn-clear:hover {
     background: #f9fafb;
     color: #374151;
-    border-color: #9ca3af;
+    border-color: #64748b;
   }
   
   .filter-group {
@@ -359,7 +359,7 @@
   }
   
   .dropdown-multiselect .dropdown-toggle:hover {
-      border-color: #9ca3af;
+      border-color: #64748b;
   }
   
   .dropdown-multiselect .dropdown-toggle .selected-text {
@@ -371,7 +371,7 @@
   }
   
   .dropdown-multiselect .dropdown-toggle .selected-text.placeholder {
-      color: #9ca3af;
+      color: #64748b;
   }
   
   .dropdown-multiselect .dropdown-toggle i {
@@ -770,7 +770,7 @@
     </div>
     {% if not engagement_forecast_data %}
     <div class="empty-state" style="padding: 1rem; text-align: center;">
-      <p style="color: #9ca3af; margin: 0;">No signed contracts found to generate forecast.</p>
+      <p style="color: #64748b; margin: 0;">No signed contracts found to generate forecast.</p>
     </div>
     {% endif %}
   </div>
@@ -1442,13 +1442,13 @@ function renderCombinedForecastChart() {
         x: {
           display: true,
           grid: { display: false },
-          ticks: { font: { size: 9 }, color: '#9ca3af', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }
+          ticks: { font: { size: 9 }, color: '#64748b', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }
         },
         y: {
           display: true,
           grid: { color: '#f3f4f6' },
           beginAtZero: true,
-          ticks: { font: { size: 9 }, color: '#9ca3af', stepSize: 1, maxTicksLimit: 5 }
+          ticks: { font: { size: 9 }, color: '#64748b', stepSize: 1, maxTicksLimit: 5 }
         }
       },
       interaction: { intersect: false, mode: 'index' }

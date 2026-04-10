@@ -181,7 +181,7 @@
 
   .kanban-column-body:empty::after {
     content: "No items";
-    color: #9ca3af;
+    color: #64748b;
     font-size: 0.75rem;
     text-align: center;
     padding: 1.5rem 0.5rem;
@@ -266,7 +266,7 @@
 
   .kanban-card .contact-item i {
     width: 12px;
-    color: #9ca3af;
+    color: #64748b;
   }
 
   .kanban-card .contact-item span {
@@ -290,7 +290,7 @@
   }
 
   .kanban-card .detail-label {
-    color: #9ca3af;
+    color: #64748b;
     font-weight: 500;
     min-width: 65px;
   }
@@ -354,7 +354,7 @@
   }
 
   .kanban-card .rag-indicator.rag-grey {
-    background: #9ca3af;
+    background: #64748b;
   }
 
   .kanban-card .vetting-bar {
@@ -383,7 +383,7 @@
   }
 
   .kanban-card .vetting-fill.rag-grey {
-    background: #9ca3af;
+    background: #64748b;
   }
 
   /* Warning style for placed cards with incomplete vetting */
@@ -831,7 +831,7 @@
     {% endif %}
     <div class="filter-group">
       <label for="searchName">Search</label>
-      <input type="text" id="searchName" placeholder="Search by name..." oninput="applyClientFilter()">
+      <input type="text" id="searchName" placeholder="Search by name..." aria-label="Search by name" oninput="applyClientFilter()">
     </div>
     <div class="filter-group filter-buttons-group">
       <label>&nbsp;</label>
@@ -862,7 +862,7 @@
   <div class="kanban-column" data-stage="{{ stage.id }}">
     <div class="kanban-column-header">
       <h3>
-        <input type="checkbox" class="focus-cb" data-stage="{{ stage.id }}" onchange="onFocusCbChange()">
+        <input type="checkbox" class="focus-cb" data-stage="{{ stage.id }}" aria-label="Focus on {{ stage.name }} column" onchange="onFocusCbChange()">
         <i class="fas {{ stage.icon }}" style="color: {{ stage.color }}; flex-shrink: 0;"></i>
         <span class="stage-title" title="{{ stage.name }}">{{ stage.name }}</span>
         <span class="column-count">{{ stage.count }}</span>
@@ -890,7 +890,7 @@
            style="--card-accent: {{ stage.color }}">
 
         <!-- Bulk select checkbox (hidden until bulk mode) -->
-        <input type="checkbox" class="bulk-select-cb" data-card-id="{{ card.id }}" onchange="updateBulkCount()">
+        <input type="checkbox" class="bulk-select-cb" data-card-id="{{ card.id }}" aria-label="Select {{ card.name }} for bulk action" onchange="updateBulkCount()">
 
         <!-- Associate Name -->
         <div class="card-header">
@@ -1103,7 +1103,7 @@
       <label style="font-size: 0.8rem; font-weight: 500; color: #374151; display: block; margin-bottom: 0.25rem;">
         Rejection Message
       </label>
-      <textarea id="bulkRejectReason">Unfortunately, your application has not been successful at this time. We appreciate your interest and wish you all the best in your future endeavours.</textarea>
+      <textarea id="bulkRejectReason" aria-label="Rejection message">Unfortunately, your application has not been successful at this time. We appreciate your interest and wish you all the best in your future endeavours.</textarea>
     </div>
     <div class="d-flex gap-2 justify-content-end">
       <button class="btn btn-outline-secondary btn-sm" onclick="closeBulkRejectModal()">Cancel</button>

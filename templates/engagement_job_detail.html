@@ -78,7 +78,7 @@
   .status-badge.status-withdrawn {
     background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
     color: #475569;
-    border-color: #94a3b8;
+    border-color: #64748b;
   }
   
   .status-badge.status-closed {
@@ -249,7 +249,7 @@
   .shortlist-badge.no {
     background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
     color: #475569;
-    border-color: #94a3b8;
+    border-color: #64748b;
   }
   
   /* Email Link */
@@ -436,7 +436,7 @@
               {% if r.ai_score %}
                 <span class="ai-score">{{ r.ai_score }}</span>
               {% else %}
-                <span style="color: #94a3b8;">—</span>
+                <span style="color: #64748b;">—</span>
               {% endif %}
             </td>
             <td>
@@ -456,14 +456,14 @@
                   <i class="fas fa-calendar-check me-1"></i>{{ r.interview_at }}
                 </div>
               {% else %}
-                <span style="color: #94a3b8;">—</span>
+                <span style="color: #64748b;">—</span>
               {% endif %}
             </td>
             <td>
               {% if r.status %}
                 <span style="color: #475569; font-weight: 500;">{{ r.status }}</span>
               {% else %}
-                <span style="color: #94a3b8;">—</span>
+                <span style="color: #64748b;">—</span>
               {% endif %}
             </td>
             <td>

@@ -292,7 +292,7 @@
   .empty-state {
     text-align: center;
     padding: 4rem 2rem;
-    color: #9ca3af;
+    color: #64748b;
   }
   
   .empty-state i {
@@ -310,7 +310,7 @@
   
   .empty-state .subtitle {
     font-size: 0.95rem;
-    color: #9ca3af;
+    color: #64748b;
   }
   
   /* Pagination */
@@ -408,16 +408,17 @@
       <div class="row g-3">
         <div class="col-12 col-md-4">
           <label class="field-label">Search</label>
-          <input type="text" 
-                 name="q" 
-                 value="{{ q }}" 
-                 class="form-control field-input" 
+          <input type="text"
+                 name="q"
+                 value="{{ q }}"
+                 class="form-control field-input"
+                 aria-label="Search applications"
                  placeholder="Name, skills, job…">
         </div>
 
         <div class="col-12 col-md-4">
           <label class="field-label">Job</label>
-          <select name="job_id" class="form-select field-input">
+          <select name="job_id" class="form-select field-input" aria-label="Filter by job">
             <option value="">All jobs</option>
             {% for j in jobs %}
               <option value="{{ j.id }}" {{ 'selected' if job_sel and j.id==job_sel.id else '' }}>
@@ -429,7 +430,7 @@
 
         <div class="col-6 col-md-2">
           <label class="field-label">Per Page</label>
-          <select name="per_page" class="form-select field-input">
+          <select name="per_page" class="form-select field-input" aria-label="Results per page">
             {% for n in [10,25,50,100] %}
               <option value="{{ n }}" {{ 'selected' if (pagination and pagination.per_page==n) else '' }}>{{ n }}</option>
             {% endfor %}

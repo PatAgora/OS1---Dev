@@ -27,7 +27,7 @@
   --color-gray-100: #f3f4f6;
   --color-gray-200: #e5e7eb;
   --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
+  --color-gray-400: #64748b;
   --color-gray-500: #6b7280;
   --color-gray-600: #4b5563;
   --color-gray-700: #374151;
@@ -1154,7 +1154,7 @@ img {
   position: absolute;
   top: 1.5rem;
   left: 2rem;
-  color: #94a3b8;
+  color: #64748b;
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -1259,7 +1259,7 @@ img {
 }
 
 .os-field input::placeholder {
-  color: #9ca3af;
+  color: #64748b;
 }
 
 /* Forgot password link */
@@ -1447,7 +1447,7 @@ img {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #9ca3af;
+  color: #64748b;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1470,7 +1470,7 @@ img {
   font-size: 14px;
   font-weight: 600;
   background: #f3f4f6;
-  color: #9ca3af;
+  color: #64748b;
   border: 2px solid #e5e7eb;
 }
 
@@ -1533,7 +1533,7 @@ img {
 .os-portal-nav a {
   font-size: 14px;
   font-weight: 500;
-  color: #94a3b8;
+  color: #64748b;
   text-decoration: none;
   transition: color 0.2s;
   white-space: nowrap;
@@ -1574,7 +1574,7 @@ img {
 .os-portal-home-link {
   font-size: 14px;
   font-weight: 500;
-  color: #94a3b8;
+  color: #64748b;
   text-decoration: none;
   transition: color 0.2s;
 }
@@ -1588,7 +1588,7 @@ img {
   background: none;
   border: none;
   font-size: 1.25rem;
-  color: #94a3b8;
+  color: #64748b;
   cursor: pointer;
 }
 

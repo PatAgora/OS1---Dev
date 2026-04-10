@@ -435,7 +435,7 @@
   .pagination .page-item.disabled .page-link {
     background: #f3f4f6;
     border-color: #e5e7eb;
-    color: #9ca3af;
+    color: #64748b;
   }
   
   /* Modal */
@@ -955,13 +955,13 @@
           <thead>
             <tr>
               <th class="text-center" style="width: 40px;">
-                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()">
+                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox" aria-label="Select all associates" onclick="toggleSelectAll()">
               </th>
               <th class="text-center" style="width: 50px;">#</th>
               <th style="min-width: 180px;">Associate</th>
               <th style="min-width: 140px;">
                 Status
-                <select id="colFilterStatus" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" onchange="applyColumnFilter()">
+                <select id="colFilterStatus" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" aria-label="Filter by status" onchange="applyColumnFilter()">
                   <option value="">All</option>
                   <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
                   <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
@@ -976,7 +976,7 @@
               </th>
               <th style="min-width: 140px;">
                 Location
-                <select id="colFilterLocation" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" onchange="applyColumnFilter()">
+                <select id="colFilterLocation" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" aria-label="Filter by location" onchange="applyColumnFilter()">
                   <option value="all" {{ 'selected' if location_filter == 'all' else '' }}>All</option>
                   {% for loc in all_locations %}
                     <option value="{{ loc }}" {{ 'selected' if location_filter == loc else '' }}>{{ loc }}</option>
@@ -994,10 +994,11 @@
               {% for r in rows %}
               <tr data-candidate-id="{{ r.cand.id }}" data-associate-name="{{ r.cand.name }}" data-associate-email="{{ r.cand.email }}" data-candidate-skills="{{ r.cand.skills or '' }}">
                 <td class="text-center">
-                  <input type="checkbox" class="select-checkbox" 
-                         data-id="{{ r.cand.id }}" 
+                  <input type="checkbox" class="select-checkbox"
+                         data-id="{{ r.cand.id }}"
                          data-name="{{ r.cand.name }}"
                          data-email="{{ r.cand.email }}"
+                         aria-label="Select {{ r.cand.name }}"
                          onclick="updateBulkSelection()">
                 </td>
                 <td class="text-center">
@@ -1369,11 +1370,11 @@ function showAddAssociateModal() {
           </div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Subject</label>
+          <label class="form-label" for="bulkEmailSubject">Subject</label>
           <input type="text" class="form-control" id="bulkEmailSubject" placeholder="Enter email subject">
         </div>
         <div class="mb-3">
-          <label class="form-label">Message</label>
+          <label class="form-label" for="bulkEmailBody">Message</label>
           <textarea class="form-control" id="bulkEmailBody" rows="6" placeholder="Enter your message..."></textarea>
         </div>
       </div>

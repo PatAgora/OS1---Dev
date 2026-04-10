@@ -1,0 +1,40 @@
+{
+  "name": "webapp",
+  "version": "1.0.0",
+  "description": "![Status](https://img.shields.io/badge/status-demo-blue) ![Python](https://img.shields.io/badge/python-3.11+-blue.svg) ![Flask](https://img.shields.io/badge/flask-3.0.3-green.svg) ![License](https://img.shields.io/badge/license-proprietary-red.svg)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:smoke": "npx playwright test --grep @smoke",
+    "test:staff": "npx playwright test tests/staff/",
+    "test:public": "npx playwright test tests/public/",
+    "test:associate": "npx playwright test tests/associate/",
+    "test:ai": "npx playwright test --grep @ai",
+    "test:perf": "npx playwright test --grep @perf",
+    "test:a11y": "npx playwright test --grep @a11y",
+    "test:deep": "npx playwright test tests/staff/deep/",
+    "test:firefox": "npx playwright test --project=firefox --no-deps",
+    "test:webkit": "npx playwright test --project=webkit --no-deps",
+    "test:cross-browser": "npx playwright test --project=firefox --project=webkit --no-deps",
+    "test:report": "npx playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PatAgora/OS1---Dev.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/PatAgora/OS1---Dev/issues"
+  },
+  "homepage": "https://github.com/PatAgora/OS1---Dev#readme",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@playwright/test": "^1.59.1"
+  }
+}
