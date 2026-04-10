@@ -7653,7 +7653,7 @@ def workflow():
             "name": eng.name or "",
             "roles": eng_roles,
             "intakes": eng_intakes,
-            "owner": eng.owner or "",
+            "owner": getattr(eng, "owner", "") or "",
         }
 
     return render_template(
