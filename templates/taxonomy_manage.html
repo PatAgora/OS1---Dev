@@ -392,7 +392,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="field-label">Import CSV</label>
-            <input type="file" name="csv_file" accept=".csv" class="form-control field-input" required>
+            <input type="file" name="csv_file" accept=".csv" class="form-control field-input" aria-label="Import taxonomy CSV" required>
             <small class="text-muted">
               Columns: category_type, category_name, category_description, category_sort_order, category_active,
               tag_name, tag_description, tag_aliases, tag_active
@@ -627,7 +627,7 @@
     <div class="row g-2 align-items-end">
       <div class="col-md-3">
         <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Role Category</label>
-        <select name="role_type" id="tplRoleType" class="form-select form-select-sm" required>
+        <select name="role_type" id="tplRoleType" class="form-select form-select-sm" aria-label="Select role category" required>
           <option value="">Select role...</option>
           {% for r in ROLE_TYPES %}
           <option value="{{ r }}">{{ r }}</option>

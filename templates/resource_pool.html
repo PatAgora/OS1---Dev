@@ -566,7 +566,7 @@
           <!-- Job Filter -->
           <div class="col-12 col-md-6">
             <label class="field-label">Target Job</label>
-            <select name="job_id" class="field-input form-select">
+            <select name="job_id" class="field-input form-select" aria-label="Filter by job">
               <option value="">All jobs (no targeting)</option>
               {% for j in jobs %}
                 <option value="{{ j.id }}" {{ 'selected' if job and j.id==job.id else '' }}>
@@ -579,7 +579,7 @@
           <!-- Basic Filters Row -->
           <div class="col-6 col-md-2">
             <label class="field-label">Has CV</label>
-            <select name="has_cv" class="field-input form-select">
+            <select name="has_cv" class="field-input form-select" aria-label="Filter by CV status">
               <option value="0" {{ 'selected' if not has_cv else '' }}>Any</option>
               <option value="1" {{ 'selected' if has_cv else '' }}>Yes</option>
             </select>
@@ -587,7 +587,7 @@
 
           <div class="col-6 col-md-2">
             <label class="field-label">Last Updated</label>
-            <select name="last_updated" class="field-input form-select">
+            <select name="last_updated" class="field-input form-select" aria-label="Filter by last updated">
               <option value=""  {{ 'selected' if not last_updated else '' }}>Any time</option>
               <option value="7"   {{ 'selected' if last_updated=='7'   else '' }}>7 days</option>
               <option value="30"  {{ 'selected' if last_updated=='30'  else '' }}>30 days</option>
@@ -598,7 +598,7 @@
           
           <div class="col-6 col-md-2">
             <label class="field-label">Exclude Shortlisted</label>
-            <select name="exclude_shortlisted" class="field-input form-select" {{ 'disabled' if not job else '' }}>
+            <select name="exclude_shortlisted" class="field-input form-select" aria-label="Exclude shortlisted" {{ 'disabled' if not job else '' }}>
               <option value="0" {{ 'selected' if not exclude_shortlisted else '' }}>No</option>
               <option value="1" {{ 'selected' if exclude_shortlisted else '' }}>Yes</option>
             </select>
@@ -629,7 +629,7 @@
               
               <div class="col-12 col-md-4">
                 <label class="field-label">Status</label>
-                <select name="associate_status" class="field-input form-select">
+                <select name="associate_status" class="field-input form-select" aria-label="Filter by associate status">
                   <option value="all" {{ 'selected' if request.args.get('associate_status', 'all') == 'all' else '' }}>All Statuses</option>
                   <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
                   <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
@@ -660,7 +660,7 @@
               {% for td in taxonomy_data %}
               <div class="col-12 col-md-3">
                 <label class="field-label">{{ td.category.name }}</label>
-                <select name="taxonomy_tags" class="field-input form-select" multiple size="3">
+                <select name="taxonomy_tags" class="field-input form-select" aria-label="Filter by tags" multiple size="3">
                   {% for tag in td.tags %}
                     <option value="{{ tag.id }}" {{ 'selected' if request.args.get('taxonomy_tags') and (tag.id|string) in request.args.getlist('taxonomy_tags') else '' }}>
                       {{ tag.tag }}
@@ -687,7 +687,7 @@
               
               <div class="col-12 col-md-4">
                 <label class="field-label">Radius (miles)</label>
-                <select name="radius" class="field-input form-select">
+                <select name="radius" class="field-input form-select" aria-label="Search radius">
                   <option value="" {{ 'selected' if not request.args.get('radius') else '' }}>Any distance</option>
                   <option value="5" {{ 'selected' if request.args.get('radius') == '5' else '' }}>5 miles</option>
                   <option value="10" {{ 'selected' if request.args.get('radius') == '10' else '' }}>10 miles</option>
@@ -706,7 +706,7 @@
               
               <div class="col-12 col-md-4">
                 <label class="field-label">Previous Optimus Assignment</label>
-                <select name="prev_assignment" class="field-input form-select">
+                <select name="prev_assignment" class="field-input form-select" aria-label="Filter by previous assignment">
                   <option value="all" {{ 'selected' if request.args.get('prev_assignment', 'all') == 'all' else '' }}>Any</option>
                   <option value="yes" {{ 'selected' if request.args.get('prev_assignment') == 'yes' else '' }}>Yes - Has worked with Optimus</option>
                   <option value="no" {{ 'selected' if request.args.get('prev_assignment') == 'no' else '' }}>No - New to Optimus</option>
@@ -716,7 +716,7 @@
               
               <div class="col-12 col-md-4">
                 <label class="field-label">Previous Optimus Application</label>
-                <select name="prev_application" class="field-input form-select">
+                <select name="prev_application" class="field-input form-select" aria-label="Filter by previous application">
                   <option value="all" {{ 'selected' if request.args.get('prev_application', 'all') == 'all' else '' }}>Any</option>
                   <option value="yes" {{ 'selected' if request.args.get('prev_application') == 'yes' else '' }}>Yes - Has applied before</option>
                   <option value="no" {{ 'selected' if request.args.get('prev_application') == 'no' else '' }}>No - First time applicant</option>
@@ -764,7 +764,7 @@
               
               <div class="col-12 col-md-3">
                 <label class="field-label">Last Login Within</label>
-                <select name="last_login" class="field-input form-select">
+                <select name="last_login" class="field-input form-select" aria-label="Filter by last login">
                   <option value="" {{ 'selected' if not request.args.get('last_login') else '' }}>Any time</option>
                   <option value="7" {{ 'selected' if request.args.get('last_login') == '7' else '' }}>Last 7 days</option>
                   <option value="30" {{ 'selected' if request.args.get('last_login') == '30' else '' }}>Last 30 days</option>
