@@ -16336,7 +16336,7 @@ def taxonomy_export():
     import io, csv
     with Session(engine) as s:
         cats = s.scalars(select(TaxonomyCategory).order_by(TaxonomyCategory.type.asc(), TaxonomyCategory.name.asc())).all()
-        tags = s.scalars(select(TaxonomyTag).order_by(TaxonomyTag.category_id.asc(), TaxonomyTag.name.asc())).all()
+        tags = s.scalars(select(TaxonomyTag).order_by(TaxonomyTag.category_id.asc(), TaxonomyTag.tag.asc())).all()
         cat_map = {c.id: c for c in cats}
 
     output = io.StringIO()
@@ -16345,7 +16345,7 @@ def taxonomy_export():
     writer.writerow(["Type", "Category", "Tag"])
     for tag in tags:
         cat = cat_map.get(tag.category_id)
-        writer.writerow([cat.type if cat else "", cat.name if cat else "", tag.name])
+        writer.writerow([cat.type if cat else "", cat.name if cat else "", tag.tag])
 
     from flask import Response
     return Response(
