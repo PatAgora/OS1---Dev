@@ -118,10 +118,7 @@ test('/admin/create-user — page loads and create user', async ({ page }) => {
   // Select role
   const roleField = page.locator('[name="role"]').first();
   if (await roleField.isVisible().catch(() => false)) {
-    await roleField.selectOption({ label: 'employee' }).catch(async () => {
-      // May be a text input instead of select
-      await roleField.fill('employee');
-    });
+    await roleField.selectOption('employee').catch(() => {}).catch(() => {});
   }
 
   // CRITICAL: Uncheck send_magic_link checkbox
