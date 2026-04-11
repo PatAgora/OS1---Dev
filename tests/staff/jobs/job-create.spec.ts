@@ -29,24 +29,19 @@ test.describe('Job Create', () => {
     }
     await titleField.fill('[PW-TEST] Test Job');
 
-    // Select first option in engagement dropdown (if present)
+    // Select first non-empty option in engagement dropdown
     const engagementSelect = page.locator('[name="engagement_id"]');
-    if (await engagementSelect.count() > 0 && await engagementSelect.isVisible().catch(() => false)) {
-      const options = engagementSelect.locator('option');
-      const optionCount = await options.count();
-      // Select the first non-empty option
-      for (let i = 0; i < optionCount; i++) {
-        const value = await options.nth(i).getAttribute('value');
-        if (value && value !== '' && value !== '0') {
-          await engagementSelect.selectOption(value);
-          break;
-        }
+    if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
+      const firstValue = await firstOption.getAttribute('value').catch(() => null);
+      if (firstValue) {
+        await engagementSelect.selectOption(firstValue);
       }
     }
 
     // Fill description
     const descField = page.locator('[name="description"]');
-    if (await descField.count() > 0 && await descField.first().isVisible().catch(() => false)) {
+    if (await descField.first().isVisible().catch(() => false)) {
       await descField.first().fill('Playwright test job');
     }
 

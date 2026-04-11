@@ -58,10 +58,7 @@ test.describe('File Uploads', () => {
       await submitBtn.click();
       await page.waitForLoadState('domcontentloaded');
       const body = await page.textContent('body');
-      if (body?.includes('Internal Server Error')) {
-        console.log('  ⚠ Add Associate form returned 500 — known modal interaction issue');
-        return;
-      }
+      expect(body).not.toContain('Internal Server Error');
       console.log('  ✓ Add Associate with CV submitted successfully');
     }
   });

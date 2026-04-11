@@ -55,7 +55,7 @@ test.describe('XSS Prevention', () => {
     await page.goto('/job/new', { waitUntil: 'domcontentloaded', timeout: 10000 });
     await guardSessionExpired(page);
 
-    const titleInput = page.locator('input[name="title"], input[name="job_title"], input[id="title"]').first();
+    const titleInput = page.locator('[name="title"]').first();
     const titleVisible = await titleInput.isVisible().catch(() => false);
     if (!titleVisible) {
       test.skip(true, 'Job title input not found or not visible on /job/new — other XSS tests provide coverage');
@@ -64,35 +64,32 @@ test.describe('XSS Prevention', () => {
 
     await titleInput.fill(`[PW-TEST] ${XSS_IMG}`);
 
-    // Fill any required fields with minimal data
-    const descField = page.locator('textarea[name="description"], textarea[id="description"]').first();
-    if (await descField.isVisible().catch(() => false)) {
-      await descField.fill('Test job description');
-    }
-
-    // Fill any required select fields
-    const selectFields = page.locator('select[required]');
-    const selectCount = await selectFields.count();
-    for (let i = 0; i < selectCount; i++) {
-      const sel = selectFields.nth(i);
-      const options = await sel.locator('option').allTextContents();
-      if (options.length > 1) {
-        await sel.selectOption({ index: 1 });
+    // Select first non-empty engagement option
+    const engagementSelect = page.locator('[name="engagement_id"]');
+    if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
+      const firstValue = await firstOption.getAttribute('value').catch(() => null);
+      if (firstValue) {
+        await engagementSelect.selectOption(firstValue);
       }
     }
 
-    // Submit the form with a timeout fallback
-    const submitBtn = page.locator('button[type="submit"], input[type="submit"]').first();
+    // Fill description
+    const descField = page.locator('[name="description"]').first();
+    if (await descField.isVisible().catch(() => false)) {
+      await descField.fill('Test job description for XSS test');
+    }
+
+    // Submit the form
+    const submitBtn = page.locator('[type="submit"]').first();
     const submitVisible = await submitBtn.isVisible().catch(() => false);
     if (!submitVisible) {
       test.skip(true, 'Submit button not found on job form — other XSS tests provide coverage');
       return;
     }
 
-    await Promise.race([
-      submitBtn.click().then(() => page.waitForLoadState('domcontentloaded')),
-      page.waitForTimeout(10000),
-    ]);
+    await submitBtn.click();
+    await page.waitForLoadState('domcontentloaded');
 
     // Navigate to jobs list and check the title is escaped
     await page.goto('/jobs', { waitUntil: 'domcontentloaded' });

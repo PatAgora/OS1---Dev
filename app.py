@@ -1915,12 +1915,25 @@ def admin_invoice_pdf(invoice_id):
             flash("Invoice not found", "error")
             return redirect(url_for('admin_invoices'))
         line_items = json.loads(invoice.line_items) if invoice.line_items else []
-        pdf_bytes = _generate_invoice_pdf(invoice, line_items)
+        # Sanitise line item values — ensure rate/amount are numeric
+        for item in line_items:
+            for key in ('rate', 'amount', 'quantity'):
+                val = item.get(key)
+                if val is not None and not isinstance(val, (int, float)):
+                    try:
+                        item[key] = float(str(val).replace(',', '').replace('£', ''))
+                    except (ValueError, TypeError):
+                        item[key] = 0
+        try:
+            pdf_bytes = _generate_invoice_pdf(invoice, line_items)
+        except Exception as e:
+            flash(f"PDF generation failed: {e}", "danger")
+            return redirect(url_for('admin_invoices'))
 
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number or 'invoice'}.pdf"}
     )
 
 
@@ -9546,10 +9559,19 @@ def add_candidate_manual():
             if filename:
                 ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
                 if ext in {'pdf', 'doc', 'docx'}:
+                    cv_dir = os.path.join(UPLOAD_FOLDER, "cvs")
+                    os.makedirs(cv_dir, exist_ok=True)
                     unique_filename = f"{cand.id}_{int(datetime.datetime.utcnow().timestamp())}_{filename}"
-                    cv_path = os.path.join(CV_UPLOAD_FOLDER, unique_filename)
+                    cv_path = os.path.join(cv_dir, unique_filename)
                     cv_file.save(cv_path)
-                    cand.cv_filename = unique_filename
+                    # Save as a Document record (Candidate model has no cv_filename column)
+                    doc = Document(
+                        candidate_id=cand.id,
+                        filename=unique_filename,
+                        doc_type="cv",
+                        uploaded_at=datetime.datetime.utcnow(),
+                    )
+                    s.add(doc)
         
         # Add initial note if provided
         if notes:

@@ -16,24 +16,38 @@ test.beforeEach(async ({ page }) => {
 test.describe('Concurrent Edits', () => {
 
   test('two contexts adding notes to same candidate preserves both', async ({ page, browser }) => {
-    // First, find a candidate to test with
-    await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
+    // Find the first candidate ID from the resource pool page
+    const rpResponse = await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    const candidateLink = page.locator('table tbody tr a[href*="/candidate/"], a[href*="/candidate/"]').first();
-    if (await candidateLink.count() === 0) {
-      test.skip(true, 'No candidates found in resource pool');
+    if (rpResponse?.status() && rpResponse.status() >= 400) {
+      test.skip(true, 'Resource pool not accessible');
       return;
     }
 
-    const candidateHref = await candidateLink.getAttribute('href') || '';
-    const candidateUrl = candidateHref.startsWith('http')
-      ? candidateHref
-      : `https://os1-dev-production.up.railway.app${candidateHref}`;
+    // Extract candidate href from the page
+    const candidateLink = page.locator('a[href*="/candidate/"]').first();
+    const candidateLinkExists = await candidateLink.isVisible({ timeout: 5000 }).catch(() => false);
 
-    // Navigate to candidate to verify notes form exists
-    await page.goto(candidateUrl, { waitUntil: 'domcontentloaded' });
+    let candidatePath: string;
+
+    if (candidateLinkExists) {
+      const href = await candidateLink.getAttribute('href') || '';
+      // Extract just the path portion
+      candidatePath = href.startsWith('http') ? new URL(href).pathname : href;
+    } else {
+      // Fallback: try /candidate/1 directly
+      candidatePath = '/candidate/1';
+    }
+
+    // Navigate to candidate to verify the page and notes form exist
+    const candidateResponse = await page.goto(candidatePath, { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
+
+    if (candidateResponse?.status() && candidateResponse.status() >= 400) {
+      test.skip(true, 'No accessible candidate found');
+      return;
+    }
 
     const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
     if (await notesTextarea.count() === 0) {
@@ -43,6 +57,10 @@ test.describe('Concurrent Edits', () => {
 
     // Get the storage state from the current context
     const storageState = await page.context().storageState();
+
+    // Build absolute URL for the candidate
+    const baseUrl = new URL(page.url()).origin;
+    const candidateUrl = `${baseUrl}${candidatePath}`;
 
     // Create Context A
     const contextA = await browser.newContext({ storageState });

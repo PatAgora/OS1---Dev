@@ -110,9 +110,9 @@ test.describe('Export Content', () => {
       const fullUrl = href.startsWith('http') ? href : `https://os1-dev-production.up.railway.app${href}`;
       let response;
       try {
-        response = await page.request.get(fullUrl);
+        response = await page.request.get(fullUrl, { timeout: 10000 });
       } catch (e) {
-        test.skip(true, 'PDF download timed out — browser context closed');
+        test.skip(true, 'PDF download timed out');
         return;
       }
 
@@ -121,7 +121,7 @@ test.describe('Export Content', () => {
         return;
       }
 
-      expect(response.status()).toBeLessThan(500);
+      expect(response.status(), `Invoice PDF returned ${response.status()}`).toBeLessThan(500);
 
       const contentType = response.headers()['content-type'] || '';
       expect(

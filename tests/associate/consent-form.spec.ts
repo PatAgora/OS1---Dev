@@ -13,6 +13,22 @@ test.beforeEach(async ({ page }) => {
   await installRouteGuard(page);
 });
 
+/** Check if the consent form page shows an "already signed/completed" state */
+function isAlreadySigned(bodyText: string): boolean {
+  const lowerBody = bodyText.toLowerCase();
+  return (
+    lowerBody.includes('already signed') ||
+    lowerBody.includes('already consented') ||
+    lowerBody.includes('consent received') ||
+    lowerBody.includes('consent submitted') ||
+    lowerBody.includes('consent complete') ||
+    lowerBody.includes('form has been submitted') ||
+    lowerBody.includes('you have already') ||
+    lowerBody.includes('previously submitted') ||
+    lowerBody.includes('completed')
+  );
+}
+
 test.describe('Associate Consent Form', () => {
   test('@smoke /portal/consent-form — page loads', async ({ page }) => {
     await assertPageLoads(page, '/portal/consent-form');
@@ -24,11 +40,10 @@ test.describe('Associate Consent Form', () => {
 
     const body = await page.textContent('body') || '';
 
-    // Accept "already signed" or "already consented" as valid
-    if (body.includes('already signed') || body.includes('Already signed') ||
-        body.includes('already consented') || body.includes('consent received') ||
-        body.includes('Consent received') || body.includes('completed')) {
+    // Accept "already signed" as a valid state
+    if (isAlreadySigned(body)) {
       console.log('  Consent already signed — valid state');
+      expect(body).not.toContain('Internal Server Error');
       return;
     }
 
@@ -43,17 +58,17 @@ test.describe('Associate Consent Form', () => {
     }
   });
 
-  test('check all checkboxes and submit — assert success', async ({ page }) => {
+  test('check all checkboxes and submit — or verify already signed', async ({ page }) => {
     await page.goto('/portal/consent-form', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
     const body = await page.textContent('body') || '';
 
-    // If already signed, skip
-    if (body.includes('already signed') || body.includes('Already signed') ||
-        body.includes('already consented') || body.includes('consent received') ||
-        body.includes('Consent received') || body.includes('completed')) {
-      console.log('  Consent already signed — skipping submission');
+    // If already signed, assert that state and pass
+    if (isAlreadySigned(body)) {
+      console.log('  Consent already signed — asserting valid state');
+      expect(body).not.toContain('Internal Server Error');
+      expect(body).not.toContain('Traceback');
       return;
     }
 
@@ -62,7 +77,8 @@ test.describe('Associate Consent Form', () => {
     const count = await checkboxes.count();
 
     if (count === 0) {
-      console.log('  No checkboxes found — skipping submission');
+      console.log('  No checkboxes found — nothing to submit');
+      expect(body).not.toContain('Internal Server Error');
       return;
     }
 

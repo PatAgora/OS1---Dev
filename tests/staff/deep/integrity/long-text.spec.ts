@@ -66,8 +66,7 @@ test.describe('Long Text & Edge Cases', () => {
     await page.goto('/job/new', { waitUntil: 'domcontentloaded', timeout: 10000 });
     await guardSessionExpired(page);
 
-    // Use broad selectors — the form may use different field names
-    const titleInput = page.locator('input[name="title"], input[name="job_title"], input[id="title"]').first();
+    const titleInput = page.locator('[name="title"]').first();
     const titleVisible = await titleInput.isVisible().catch(() => false);
     if (!titleVisible) {
       test.skip(true, 'Job title input not found or not visible on /job/new');
@@ -77,34 +76,31 @@ test.describe('Long Text & Edge Cases', () => {
     const longTitle = `[PW-TEST] ${'A'.repeat(190)}`;
     await titleInput.fill(longTitle);
 
-    // Fill description if required
-    const descField = page.locator('textarea[name="description"], textarea[id="description"]').first();
+    // Select first non-empty engagement option
+    const engagementSelect = page.locator('[name="engagement_id"]');
+    if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
+      const firstValue = await firstOption.getAttribute('value').catch(() => null);
+      if (firstValue) {
+        await engagementSelect.selectOption(firstValue);
+      }
+    }
+
+    // Fill description
+    const descField = page.locator('[name="description"]').first();
     if (await descField.isVisible().catch(() => false)) {
       await descField.fill('Test description for long title test');
     }
 
-    // Fill any other required fields that might block submission
-    const selectFields = page.locator('select[required]');
-    const selectCount = await selectFields.count();
-    for (let i = 0; i < selectCount; i++) {
-      const sel = selectFields.nth(i);
-      const options = await sel.locator('option').allTextContents();
-      if (options.length > 1) {
-        await sel.selectOption({ index: 1 });
-      }
-    }
-
-    const submitBtn = page.locator('button[type="submit"], input[type="submit"]').first();
+    const submitBtn = page.locator('[type="submit"]').first();
     const submitVisible = await submitBtn.isVisible().catch(() => false);
     if (!submitVisible) {
       test.skip(true, 'Submit button not found on job form');
       return;
     }
 
-    await Promise.race([
-      submitBtn.click().then(() => page.waitForLoadState('domcontentloaded')),
-      page.waitForTimeout(10000),
-    ]);
+    await submitBtn.click();
+    await page.waitForLoadState('domcontentloaded');
 
     const body = await page.textContent('body') || '';
     expect(body).not.toContain('Internal Server Error');
@@ -150,14 +146,14 @@ test.describe('Long Text & Edge Cases', () => {
     await guardSessionExpired(page);
 
     const searchInput = page.locator('input[name="search"], input[name="q"], input[type="search"], input[placeholder*="Search"]').first();
-    if (await searchInput.count() === 0) {
-      // Try URL parameter approach
-      const response = await page.goto('/resource-pool?search=%F0%9F%94%8D+test', { waitUntil: 'domcontentloaded' });
-      expect(response?.status()).toBeLessThan(500);
-    } else {
+    if (await searchInput.count() > 0) {
       await searchInput.fill('test');
       await searchInput.press('Enter');
       await page.waitForLoadState('domcontentloaded');
+    } else {
+      // Try URL parameter approach
+      const response = await page.goto('/resource-pool?search=%F0%9F%94%8D+test', { waitUntil: 'domcontentloaded' });
+      expect(response?.status()).toBeLessThan(500);
     }
 
     const body = await page.textContent('body') || '';
