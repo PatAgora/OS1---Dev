@@ -27,11 +27,20 @@ export default defineConfig({
       name: 'portal-auth-setup',
       testMatch: /portal-auth\.setup\.ts/,
     },
+    // Seed test data (runs after auth, before tests)
+    {
+      name: 'seed-data',
+      testMatch: /seed-test-data\.setup\.ts/,
+      dependencies: ['staff-auth-setup'],
+      use: {
+        storageState: 'playwright/.auth/admin.json',
+      },
+    },
     // Staff portal tests — Chromium (primary)
     {
       name: 'staff',
       testDir: './tests/staff',
-      dependencies: ['staff-auth-setup'],
+      dependencies: ['staff-auth-setup', 'seed-data'],
       use: {
         storageState: 'playwright/.auth/admin.json',
       },

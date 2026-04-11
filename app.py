@@ -9255,7 +9255,9 @@ def job_new():
             s.add(job)
             s.commit()
             flash("Job created successfully.", "success")
-            return redirect(url_for("engagement_dashboard", engagement_id=engagement_id or 1))
+            if engagement_id:
+                return redirect(url_for("engagement_dashboard", eng_id=int(engagement_id)))
+            return redirect(url_for("jobs"))
 
         # GET request
         roles = s.scalars(select(RoleType).order_by(RoleType.name.asc())).all()
