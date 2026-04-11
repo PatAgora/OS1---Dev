@@ -9239,16 +9239,20 @@ def job_new():
     with Session(engine) as s:
         if request.method == "POST":
             title = request.form.get("title") or "Untitled Job"
-            role = request.form.get("role") or ""
+            role_type = request.form.get("role") or request.form.get("role_type") or ""
             description = request.form.get("description") or ""
             status = request.form.get("status") or "Open"
+            location = request.form.get("location") or ""
+            salary_range = request.form.get("salary_range") or ""
             engagement_id = request.form.get("engagement_id") or None
 
             job = Job(
                 title=title,
-                role=role,
+                role_type=role_type,
                 description=description,
                 status=status,
+                location=location,
+                salary_range=salary_range,
                 engagement_id=engagement_id,
                 created_at=datetime.datetime.utcnow(),
             )
