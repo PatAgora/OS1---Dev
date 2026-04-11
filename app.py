@@ -9568,6 +9568,7 @@ def add_candidate_manual():
                     doc = Document(
                         candidate_id=cand.id,
                         filename=unique_filename,
+                        original_name=filename,
                         doc_type="cv",
                         uploaded_at=datetime.datetime.utcnow(),
                     )
