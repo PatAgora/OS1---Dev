@@ -202,7 +202,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Session timeout configuration (30 minutes for regular sessions)
 from datetime import timedelta
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=60)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True  # Refresh timeout on each request
 
 # Initialize CSRF protection
