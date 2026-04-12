@@ -2304,6 +2304,31 @@ def admin_portal_user_verify(cand_id: int):
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
 @login_required
+@app.route("/admin/portal-users/<int:cand_id>/set-password", methods=["POST"])
+def admin_portal_user_set_password(cand_id: int):
+    """Admin: set a password for a portal user (used for testing / manual onboarding)."""
+    password = request.form.get("password", "").strip()
+    if not password or len(password) < 8:
+        flash("Password must be at least 8 characters.", "danger")
+        return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            flash("Associate not found", "danger")
+            return redirect(url_for("admin_portal_users"))
+
+        cand.set_password(password)
+        cand.email_verified = True
+        cand.email_verified_at = cand.email_verified_at or datetime.datetime.utcnow()
+        cand.password_set_at = datetime.datetime.utcnow()
+        s.commit()
+
+        flash(f"Password set for {cand.name or cand.email}. They can now log in to the portal.", "success")
+
+    return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
+
+@login_required
 @app.route("/admin/portal-users/<int:cand_id>/send-magic-link", methods=["POST"])
 def admin_portal_user_send_magic_link(cand_id: int):
     """Send a magic link to a portal user."""

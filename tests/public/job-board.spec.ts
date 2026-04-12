@@ -15,8 +15,8 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('Public Job Board', () => {
   test('@smoke public jobs page loads', async ({ page }) => {
-    // Try common public job board routes
-    const routes = ['/public/jobs', '/jobs', '/public/vacancies'];
+    // Try common public job board routes — /jobs is the actual public route
+    const routes = ['/jobs', '/public/jobs', '/public/vacancies'];
     let loaded = false;
 
     for (const route of routes) {
@@ -37,16 +37,16 @@ test.describe('Public Job Board', () => {
 
   test('job cards render', async ({ page }) => {
     // Navigate to the public jobs page
-    const routes = ['/public/jobs', '/jobs'];
+    const routes = ['/jobs', '/public/jobs'];
     for (const route of routes) {
       const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
       if ((response?.status() ?? 0) === 200) break;
     }
 
-    // Look for job cards, links, or list items
+    // Look for job cards — the public template uses <a class="job-card"> elements
+    // with href like /jobs/<id>
     const jobItems = page.locator(
-      '.job-card, .vacancy-card, .card, [data-job-id], ' +
-      'a[href*="/job/"], a[href*="/public/job/"], .job-listing, .vacancy-listing'
+      'a.job-card, .job-card, a[href*="/jobs/"], .vacancy-card, [data-job-id]'
     );
 
     const count = await jobItems.count();
@@ -63,16 +63,15 @@ test.describe('Public Job Board', () => {
   });
 
   test('click first job — detail page loads', async ({ page }) => {
-    const routes = ['/public/jobs', '/jobs'];
+    const routes = ['/jobs', '/public/jobs'];
     for (const route of routes) {
       const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
       if ((response?.status() ?? 0) === 200) break;
     }
 
-    // Find clickable job link
+    // Find clickable job link — the public template uses <a class="job-card" href="/jobs/<id>">
     const jobLink = page.locator(
-      'a[href*="/job/"], a[href*="/public/job/"], .job-card a, .vacancy-card a, ' +
-      '.card a[href*="job"], a:has-text("View"), a:has-text("Details"), a:has-text("Apply")'
+      'a.job-card, a[href*="/jobs/"]'
     ).first();
 
     if (await jobLink.isVisible({ timeout: 5000 }).catch(() => false)) {

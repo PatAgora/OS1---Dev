@@ -48,31 +48,37 @@ test('/admin/reference-contacts — add and delete contact', async ({ page }) =>
     return;
   }
 
-  // Fill company name
-  const companyField = page.locator('[name="company"], [name="company_name"], [name="organisation"]').first();
-  if (await companyField.isVisible().catch(() => false)) {
+  // The add form is inside a Bootstrap modal (#addModal)
+  // First click the "Add Contact" button to open the modal
+  const addBtn = page.locator('button[data-bs-target="#addModal"], button:has-text("Add Contact")').first();
+  if (!(await addBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
+    console.log('  Add Contact button not found — skipping add contact');
+    return;
+  }
+  await addBtn.click();
+  await page.waitForTimeout(500); // Wait for modal animation
+
+  // Now fill the form inside the modal
+  const modal = page.locator('#addModal');
+
+  // Real field names from admin_reference_contacts.html: company_name, referee_email
+  const companyField = modal.locator('[name="company_name"]').first();
+  if (await companyField.isVisible({ timeout: 3000 }).catch(() => false)) {
     await companyField.fill('[PW-TEST] Company');
   } else {
-    console.log('  Company field not found — skipping add contact');
+    console.log('  Company field not found in modal — skipping add contact');
     return;
   }
 
-  // Fill email
-  const emailField = page.locator('[name="email"], [name="contact_email"]').first();
+  const emailField = modal.locator('[name="referee_email"]').first();
   if (await emailField.isVisible().catch(() => false)) {
     await emailField.fill('pw-test@example.com');
   }
 
-  // Fill name if present
-  const nameField = page.locator('[name="name"], [name="contact_name"]').first();
-  if (await nameField.isVisible().catch(() => false)) {
-    await nameField.fill('[PW-TEST] Contact');
-  }
-
-  // Submit
-  const submitBtn = page.locator('[type="submit"]').first();
+  // Submit the modal form
+  const submitBtn = modal.locator('[type="submit"], button.btn-primary').first();
   if (!(await submitBtn.isVisible().catch(() => false))) {
-    console.log('  Submit button not found — skipping');
+    console.log('  Submit button not found in modal — skipping');
     return;
   }
   await submitBtn.click();
@@ -90,14 +96,14 @@ test('/admin/reference-contacts — add and delete contact', async ({ page }) =>
   }
 
   // Delete the one we just added
-  const deleteBtn = page.locator('tr, .card, .contact-row, .list-group-item')
+  // The delete button is a form submit inside the table row
+  const deleteBtn = page.locator('tr')
     .filter({ hasText: /PW-TEST/ })
-    .locator('button, a')
-    .filter({ hasText: /delete|remove/i })
+    .locator('button.btn-outline-danger, form[action*="delete"] button')
     .first();
 
   if (await deleteBtn.isVisible().catch(() => false)) {
-    // Handle confirmation dialog
+    // Handle confirmation dialog (form uses onsubmit="return confirm(...)")
     page.on('dialog', async (dialog) => {
       await dialog.accept();
     });

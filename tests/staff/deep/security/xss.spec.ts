@@ -64,24 +64,14 @@ test.describe('XSS Prevention', () => {
 
     await titleInput.fill(`[PW-TEST] ${XSS_IMG}`);
 
-    // Select first non-empty engagement option
-    const engagementSelect = page.locator('[name="engagement_id"]');
-    if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
-      const firstValue = await firstOption.getAttribute('value').catch(() => null);
-      if (firstValue) {
-        await engagementSelect.selectOption(firstValue);
-      }
-    }
-
     // Fill description
     const descField = page.locator('[name="description"]').first();
     if (await descField.isVisible().catch(() => false)) {
       await descField.fill('Test job description for XSS test');
     }
 
-    // Submit the form
-    const submitBtn = page.locator('[type="submit"]').first();
+    // Submit the form — button in job_form.html has no explicit type="submit"
+    const submitBtn = page.locator('form button.btn-primary, form button:has-text("Create"), form [type="submit"]').first();
     const submitVisible = await submitBtn.isVisible().catch(() => false);
     if (!submitVisible) {
       test.skip(true, 'Submit button not found on job form — other XSS tests provide coverage');

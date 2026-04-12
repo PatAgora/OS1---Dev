@@ -23,8 +23,8 @@ test.describe('File Uploads', () => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    // Open Add Associate modal
-    const addBtn = page.locator('button, a').filter({ hasText: /Add Associate/i }).first();
+    // Open Add Associate modal — the button is an <a> with onclick
+    const addBtn = page.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
     if (!await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       test.skip(true, 'Add Associate button not found');
       return;
@@ -32,19 +32,20 @@ test.describe('File Uploads', () => {
     await addBtn.click();
     await page.waitForTimeout(500);
 
-    // Fill required fields
-    const nameField = page.locator('#add-name, [name="name"]').first();
+    // Fill required fields inside the modal
+    const modal = page.locator('#addAssociateModal');
+    const nameField = modal.locator('#add-name, [name="name"]').first();
     if (await nameField.isVisible({ timeout: 3000 }).catch(() => false)) {
       await nameField.fill(`[PW-TEST] Upload CV ${Date.now()}`);
     }
 
-    const emailField = page.locator('#add-email, [name="email"]').first();
+    const emailField = modal.locator('#add-email, [name="email"]').first();
     if (await emailField.isVisible({ timeout: 2000 }).catch(() => false)) {
       await emailField.fill(`pw-upload-${Date.now()}@example.com`);
     }
 
-    // Upload CV via file input
-    const fileInput = page.locator('#add-cv, input[type="file"][accept*=".pdf"], input[type="file"]').first();
+    // Upload CV via file input in the modal
+    const fileInput = modal.locator('#add-cv, input[type="file"][accept*=".pdf"], input[type="file"]').first();
     if (await fileInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await fileInput.setInputFiles(TEST_PDF);
       console.log('  ✓ Test PDF attached to Add Associate form');

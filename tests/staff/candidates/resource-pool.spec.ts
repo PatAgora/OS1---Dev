@@ -46,8 +46,8 @@ test('/resource-pool — Add Associate modal opens', async ({ page }) => {
   await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
   await guardSessionExpired(page);
 
-  // Click the "Add Associate" button — broad selector
-  const addBtn = page.locator('button, a').filter({ hasText: /Add Associate|Add Candidate|New Associate|New Candidate|Add/i }).first();
+  // The "Add Associate" button is an <a> with onclick="showAddAssociateModal()"
+  const addBtn = page.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
   const addBtnVisible = await addBtn.isVisible({ timeout: 5000 }).catch(() => false);
 
   if (!addBtnVisible) {
@@ -55,9 +55,10 @@ test('/resource-pool — Add Associate modal opens', async ({ page }) => {
     return;
   }
   await addBtn.click();
+  await page.waitForTimeout(500); // Wait for modal animation
 
-  // Assert modal opens — broad selector
-  const modal = page.locator('#addAssociateModal, [class*="modal"][class*="show"], .modal.show, [role="dialog"]');
+  // Assert modal opens — the modal ID is #addAssociateModal
+  const modal = page.locator('#addAssociateModal.show, #addAssociateModal .modal-content');
   const modalVisible = await modal.first().isVisible({ timeout: 5000 }).catch(() => false);
 
   if (modalVisible) {
@@ -75,38 +76,40 @@ test('/resource-pool — Add Associate via modal', async ({ page }) => {
   await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
   await guardSessionExpired(page);
 
-  // Open modal
-  const addBtn = page.locator('button, a').filter({ hasText: /Add Associate|Add Candidate|New Associate|Add/i }).first();
+  // Open modal — the button is an <a> with onclick
+  const addBtn = page.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
   if (!(await addBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
     console.log('  Add Associate button not found — skipping');
     return;
   }
   await addBtn.click();
+  await page.waitForTimeout(500); // Wait for modal animation
 
-  const modal = page.locator('#addAssociateModal, [class*="modal"][class*="show"], .modal.show, [role="dialog"]');
-  if (!(await modal.first().isVisible({ timeout: 5000 }).catch(() => false))) {
+  const modal = page.locator('#addAssociateModal');
+  const modalContent = modal.locator('.modal-content');
+  if (!(await modalContent.isVisible({ timeout: 5000 }).catch(() => false))) {
     console.log('  Modal did not open — skipping');
     return;
   }
 
-  // Fill form fields with resilient selectors
-  const nameField = page.locator('#add-name, [name="name"]').first();
+  // Fill form fields — real IDs from resource_pool.html: add-name, add-email, add-phone
+  const nameField = modal.locator('#add-name');
   if (await nameField.isVisible().catch(() => false)) {
     await nameField.fill('[PW-TEST] Test Associate');
   }
 
-  const emailField = page.locator('#add-email, [name="email"]').first();
+  const emailField = modal.locator('#add-email');
   if (await emailField.isVisible().catch(() => false)) {
     await emailField.fill(`pw-test-${Date.now()}@example.com`);
   }
 
-  const phoneField = page.locator('#add-phone, [name="phone"]').first();
+  const phoneField = modal.locator('#add-phone');
   if (await phoneField.isVisible().catch(() => false)) {
     await phoneField.fill('07000000000');
   }
 
-  // Submit the modal form
-  const submitBtn = modal.first().locator('[type="submit"], button').filter({ hasText: /save|add|submit|create/i }).first();
+  // Submit the modal form — button text is "Add Associate" with type="submit"
+  const submitBtn = modal.locator('button[type="submit"], button:has-text("Add Associate")').first();
   if (await submitBtn.isVisible().catch(() => false)) {
     await submitBtn.click();
     await page.waitForLoadState('domcontentloaded');

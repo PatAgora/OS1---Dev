@@ -29,24 +29,14 @@ test.describe('Job Create', () => {
     }
     await titleField.fill('[PW-TEST] Test Job');
 
-    // Select first non-empty option in engagement dropdown
-    const engagementSelect = page.locator('[name="engagement_id"]');
-    if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
-      const firstValue = await firstOption.getAttribute('value').catch(() => null);
-      if (firstValue) {
-        await engagementSelect.selectOption(firstValue);
-      }
-    }
-
     // Fill description
     const descField = page.locator('[name="description"]');
     if (await descField.first().isVisible().catch(() => false)) {
       await descField.first().fill('Playwright test job');
     }
 
-    // Submit the form
-    const submitBtn = page.locator('[type="submit"]').first();
+    // Submit the form — button in job_form.html has no explicit type="submit"
+    const submitBtn = page.locator('form button.btn-primary, form button:has-text("Create"), form [type="submit"]').first();
     if (!(await submitBtn.isVisible().catch(() => false))) {
       console.log('  Submit button not found — skipping');
       return;

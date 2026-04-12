@@ -20,52 +20,30 @@ test.describe('Associate References — Vetting Checks', () => {
   test('add qualification', async ({ page }) => {
     await page.goto('/portal/references/vetting-checks', { waitUntil: 'domcontentloaded' });
 
-    // Look for add button
-    const addBtn = page.locator(
-      'button:has-text("Add"), a:has-text("Add"), button:has-text("New")'
-    ).first();
+    // The qualification form is inline on the page (under "Add Qualification" heading)
+    // Real field names from references_vetting_checks.html: name, qual_type, grade, institution, start_date, end_date
+    const nameField = page.locator('#qual_name, [name="name"]').first();
 
-    if (await addBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await addBtn.click();
-      await page.waitForLoadState('domcontentloaded');
-    }
-
-    // Fill qualification form
-    const nameField = page.locator(
-      '[name="name"], [name="qualification_name"], [name="qual_name"], [name="title"]'
-    ).first();
-
-    if (!(await nameField.isVisible({ timeout: 3000 }).catch(() => false))) {
+    if (!(await nameField.isVisible({ timeout: 5000 }).catch(() => false))) {
       console.log('  Qualification form not found — skipping add test');
       return;
     }
 
     await nameField.fill('[PW-TEST] Qual');
 
-    const institutionField = page.locator(
-      '[name="institution"], [name="awarding_body"], [name="provider"]'
-    ).first();
+    const institutionField = page.locator('#qual_institution, [name="institution"]').first();
     if (await institutionField.isVisible({ timeout: 2000 }).catch(() => false)) {
       await institutionField.fill('Test University');
     }
 
-    const typeField = page.locator('[name="type"], [name="qualification_type"], [name="qual_type"]').first();
+    // qual_type is a <select> element
+    const typeField = page.locator('#qual_type, [name="qual_type"]').first();
     if (await typeField.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const tagName = await typeField.evaluate(el => el.tagName.toLowerCase());
-      if (tagName === 'select') {
-        // Select the first non-empty option
-        const options = typeField.locator('option:not([value=""])');
-        if (await options.count() > 0) {
-          const value = await options.first().getAttribute('value');
-          if (value) await typeField.selectOption(value);
-        }
-      } else {
-        await typeField.fill('Degree');
-      }
+      await typeField.selectOption('BSc');
     }
 
-    // Submit
-    const submitBtn = page.locator('[type="submit"]').first();
+    // Submit — the qualification form has a specific submit button
+    const submitBtn = page.locator('#addQualForm [type="submit"], #addQualForm button.btn-success').first();
     if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await submitBtn.click();
       await page.waitForLoadState('domcontentloaded');
@@ -79,22 +57,23 @@ test.describe('Associate References — Vetting Checks', () => {
   test('delete qualification', async ({ page }) => {
     await page.goto('/portal/references/vetting-checks', { waitUntil: 'domcontentloaded' });
 
-    // Find a PW-TEST entry to delete
-    const testEntry = page.locator('text=[PW-TEST]').first();
-    if (!(await testEntry.isVisible({ timeout: 3000 }).catch(() => false))) {
+    // Find a PW-TEST entry to delete in the qualifications table
+    const testRow = page.locator('table tbody tr:has-text("[PW-TEST]")').first();
+    if (!(await testRow.isVisible({ timeout: 3000 }).catch(() => false))) {
       console.log('  No [PW-TEST] qualification to delete — skipping');
       return;
     }
 
-    const deleteBtn = testEntry.locator('xpath=ancestor::*[position() <= 5]').locator(
-      'button:has-text("Delete"), a:has-text("Delete"), button:has-text("Remove"), ' +
-      '.delete-btn, .btn-danger, button[title="Delete"]'
-    ).first();
+    // The delete button uses class="delete-qual-btn" with data-qual-id attribute
+    // It triggers a JS confirm dialog and then a fetch DELETE
+    const deleteBtn = testRow.locator('.delete-qual-btn, button.btn-outline-danger').first();
 
     if (await deleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       page.on('dialog', dialog => dialog.accept());
       await deleteBtn.click();
+      // The delete is AJAX — wait for page reload triggered by JS
       await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(1000);
 
       const body = await page.textContent('body');
       expect(body).not.toContain('Internal Server Error');

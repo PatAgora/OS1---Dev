@@ -26,16 +26,26 @@ test('/admin/reference-houses — add reference house', async ({ page }) => {
     return;
   }
 
-  // Fill name
-  const nameField = page.locator('[name="name"], [name="house_name"]').first();
-  if (!(await nameField.isVisible().catch(() => false))) {
-    console.log('  Name field not found — skipping add test');
+  // The add form is inside a modal (#addHouseModal) — click "Add House" button first
+  const addBtn = page.locator('button[data-bs-target="#addHouseModal"], button:has-text("Add House")').first();
+  if (!(await addBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
+    console.log('  Add House button not found — skipping add test');
+    return;
+  }
+  await addBtn.click();
+  await page.waitForTimeout(500); // Wait for modal animation
+
+  // Fill name inside the modal
+  const modal = page.locator('#addHouseModal');
+  const nameField = modal.locator('[name="name"]').first();
+  if (!(await nameField.isVisible({ timeout: 3000 }).catch(() => false))) {
+    console.log('  Name field not found in modal — skipping add test');
     return;
   }
   await nameField.fill('[PW-TEST] House');
 
-  // Submit
-  const submitBtn = page.locator('[type="submit"]').first();
+  // Submit the modal form — button text is "Add House" without explicit type="submit"
+  const submitBtn = modal.locator('button.btn-primary, button:has-text("Add House")').first();
   if (!(await submitBtn.isVisible().catch(() => false))) {
     console.log('  Submit button not found — skipping');
     return;

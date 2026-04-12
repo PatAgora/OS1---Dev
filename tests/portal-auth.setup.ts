@@ -16,7 +16,11 @@ const TEST_FIRST_NAME = 'PW-Test';
 const TEST_LAST_NAME = 'Associate';
 
 setup('authenticate as associate', async ({ page }) => {
-  // Try logging in first (in case the account already exists)
+  // The associate portal requires email verification to register, which doesn't
+  // work with SMTP blank. Instead, we create the associate account via the STAFF
+  // admin portal users page (which bypasses email verification), then log in.
+
+  // Step 1: Try logging in first (account may already exist from a previous run)
   await page.goto('/portal/login');
   await page.fill('[name="email"]', TEST_EMAIL);
   await page.fill('[name="password"]', TEST_PASSWORD);
@@ -25,72 +29,99 @@ setup('authenticate as associate', async ({ page }) => {
 
   const afterLoginUrl = page.url();
 
-  // If login succeeded (dashboard or 2FA page), save and return
-  if (afterLoginUrl.includes('/portal/dashboard') || afterLoginUrl.includes('/portal/')) {
-    // Handle 2FA if required
-    if (afterLoginUrl.includes('2fa') || afterLoginUrl.includes('verify')) {
-      console.log('  Associate login requires 2FA — skipping (session may be limited)');
-    }
-
-    if (!afterLoginUrl.includes('/portal/login')) {
-      await page.context().storageState({ path: authFile });
-      console.log('✓ Associate auth state saved (existing account) to', authFile);
-      return;
-    }
-  }
-
-  // Login failed — register a new account
-  console.log('  Associate login failed, registering new account...');
-  await page.goto('/portal/register');
-  await page.waitForLoadState('domcontentloaded');
-
-  // Fill registration form (field names vary — try common patterns)
-  const firstNameField = page.locator('[name="first_name"], [name="firstName"], [name="name"]').first();
-  if (await firstNameField.isVisible()) {
-    await firstNameField.fill(TEST_FIRST_NAME);
-  }
-
-  const lastNameField = page.locator('[name="last_name"], [name="lastName"], [name="surname"]').first();
-  if (await lastNameField.isVisible()) {
-    await lastNameField.fill(TEST_LAST_NAME);
-  }
-
-  await page.fill('[name="email"]', TEST_EMAIL);
-
-  const passwordField = page.locator('[name="password"]').first();
-  if (await passwordField.isVisible()) {
-    await passwordField.fill(TEST_PASSWORD);
-  }
-
-  const confirmField = page.locator('[name="confirm_password"], [name="password_confirm"], [name="confirmPassword"]').first();
-  if (await confirmField.isVisible()) {
-    await confirmField.fill(TEST_PASSWORD);
-  }
-
-  // Submit
-  await page.click('[type="submit"]');
-  await page.waitForLoadState('domcontentloaded');
-
-  // After registration, the app may redirect to check-email, dashboard, or login
-  // Since SMTP is not configured, the user may be auto-verified or stuck at check-email
-  const afterRegUrl = page.url();
-  console.log(`  After registration, landed on: ${afterRegUrl}`);
-
-  // If we're on the portal dashboard, we're authenticated
-  if (afterRegUrl.includes('/portal/dashboard') || afterRegUrl.includes('/portal/personal')) {
+  // Check if login succeeded — must be on a portal page that isn't login/register
+  if (
+    afterLoginUrl.includes('/portal/') &&
+    !afterLoginUrl.includes('/portal/login') &&
+    !afterLoginUrl.includes('/portal/register')
+  ) {
     await page.context().storageState({ path: authFile });
-    console.log('✓ Associate auth state saved (new account) to', authFile);
+    console.log('✓ Associate auth state saved (existing account) to', authFile);
     return;
   }
 
-  // If stuck at check-email or login, try logging in with the new credentials
+  // Step 2: Account doesn't exist or password is wrong.
+  // Create it via the staff admin panel.
+  console.log('  Associate login failed — creating account via staff admin...');
+
+  // Load staff admin auth
+  const adminAuthFile = path.join(__dirname, '../playwright/.auth/admin.json');
+  const fs = await import('fs');
+  if (!fs.existsSync(adminAuthFile)) {
+    console.log('  ⚠ No admin auth state — cannot create associate account');
+    await page.context().storageState({ path: authFile });
+    return;
+  }
+
+  // Use staff admin session to create the associate via the admin portal users
+  // or via the resource pool add associate
+  const adminContext = await page.context().browser()!.newContext({
+    storageState: adminAuthFile,
+  });
+  const adminPage = await adminContext.newPage();
+
+  // Navigate to admin portal users and create a user with a password
+  await adminPage.goto('https://os1-dev-production.up.railway.app/admin/portal-users');
+  await adminPage.waitForLoadState('domcontentloaded');
+
+  // Check if the user already exists in the portal users list
+  const pageBody = await adminPage.textContent('body') || '';
+  if (pageBody.includes(TEST_EMAIL)) {
+    console.log('  Associate already exists in admin portal users — trying to set password');
+  } else {
+    // Create via resource pool
+    await adminPage.goto('https://os1-dev-production.up.railway.app/resource-pool');
+    await adminPage.waitForLoadState('domcontentloaded');
+
+    const addBtn = adminPage.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
+    if (await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await addBtn.click();
+      await adminPage.waitForTimeout(500);
+
+      const modal = adminPage.locator('#addAssociateModal');
+      const nameField = modal.locator('#add-name, [name="name"]').first();
+      if (await nameField.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await nameField.fill(`${TEST_FIRST_NAME} ${TEST_LAST_NAME}`);
+      }
+      const emailField = modal.locator('#add-email, [name="email"]').first();
+      if (await emailField.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await emailField.fill(TEST_EMAIL);
+      }
+      const submitBtn = modal.locator('[type="submit"], button:has-text("Add")').first();
+      if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await submitBtn.click();
+        await adminPage.waitForLoadState('domcontentloaded');
+        console.log('  ✓ Associate created via resource pool');
+      }
+    }
+  }
+
+  await adminContext.close();
+
+  // Step 3: The account exists as a Candidate but may not have a password.
+  // Try to register via the portal with this email — if the candidate exists
+  // but has no password, the portal may allow setting one via magic link.
+  // Since that requires SMTP, we'll try the set-password flow if available.
+
+  // For now, try logging in again — if the Candidate was created without a
+  // password, the portal login won't work. In that case, we save an
+  // unauthenticated state and the associate tests will skip.
   await page.goto('/portal/login');
   await page.fill('[name="email"]', TEST_EMAIL);
   await page.fill('[name="password"]', TEST_PASSWORD);
   await page.click('[type="submit"]');
   await page.waitForLoadState('domcontentloaded');
 
-  // Save whatever state we have
-  await page.context().storageState({ path: authFile });
-  console.log('✓ Associate auth state saved to', authFile);
+  const finalUrl = page.url();
+  if (finalUrl.includes('/portal/') && !finalUrl.includes('/portal/login') && !finalUrl.includes('/portal/register')) {
+    await page.context().storageState({ path: authFile });
+    console.log('✓ Associate auth state saved to', authFile);
+  } else {
+    console.log('  ⚠ Could not authenticate as associate — portal tests will skip');
+    console.log('  To fix: manually register at /portal/register with:');
+    console.log(`    Email: ${TEST_EMAIL}`);
+    console.log(`    Password: ${TEST_PASSWORD}`);
+    console.log('  Or create the account via the admin panel and set a password.');
+    await page.context().storageState({ path: authFile });
+  }
 });

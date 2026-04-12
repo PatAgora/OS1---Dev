@@ -130,8 +130,8 @@ setup('seed test data for full coverage', async ({ browser }) => {
         if (val) await engSelect.selectOption(val);
       }
 
-      // Submit
-      await page.locator('button:has-text("Create"), [type="submit"]').first().click();
+      // Submit — button in job_form.html has no explicit type="submit"
+      await page.locator('form button.btn-primary, form button:has-text("Create"), form [type="submit"]').first().click();
       await page.waitForLoadState('domcontentloaded');
       const afterBody = await page.textContent('body') || '';
       if (!afterBody.includes('Internal Server Error')) {
@@ -246,17 +246,91 @@ setup('seed test data for full coverage', async ({ browser }) => {
   const taxBody = await page.textContent('body') || '';
 
   if (!taxBody.includes('[PW-TEST] Category')) {
-    // Add a test category
-    const catInput = page.locator('[name="cat_name"], [name="name"]').first();
-    if (await catInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await catInput.fill('[PW-TEST] Category');
-      const addCatBtn = catInput.locator('..').locator('[type="submit"], button').first();
-      if (await addCatBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await addCatBtn.click();
-        await page.waitForLoadState('domcontentloaded');
-        console.log('  ✓ Taxonomy category created');
+    // Add a test category — target the add form specifically (not rename forms)
+    const addCatForm = page.locator('form[action*="category/add"], form[action*="taxonomy_category_add"]').first();
+    if (await addCatForm.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const catInput = addCatForm.locator('[name="name"]');
+      if (await catInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await catInput.fill('[PW-TEST] Category');
+        const addCatBtn = addCatForm.locator('[type="submit"], button:has-text("Add Category")').first();
+        if (await addCatBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await addCatBtn.click();
+          await page.waitForLoadState('domcontentloaded');
+          console.log('  ✓ Taxonomy category created');
+        }
       }
     }
+  }
+
+  // ============================================================
+  // 7. Set up the associate portal test account
+  //    Create a candidate with a known email, verify them, and set
+  //    a password so the portal-auth.setup.ts can log in.
+  // ============================================================
+  const ASSOC_EMAIL = 'pw-test-associate@example.com';
+  const ASSOC_PASSWORD = 'PlaywrightAssociate2024!';
+
+  await page.goto('/admin/portal-users', { waitUntil: 'domcontentloaded' });
+  const portalBody = await page.textContent('body') || '';
+
+  if (!portalBody.includes(ASSOC_EMAIL)) {
+    // Create the candidate via resource pool first
+    await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
+    const addBtn = page.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
+    if (await addBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await addBtn.click();
+      await page.waitForTimeout(500);
+      const modal = page.locator('#addAssociateModal');
+      const nameF = modal.locator('#add-name, [name="name"]').first();
+      if (await nameF.isVisible({ timeout: 2000 }).catch(() => false)) await nameF.fill('PW-Test Associate');
+      const emailF = modal.locator('#add-email, [name="email"]').first();
+      if (await emailF.isVisible({ timeout: 2000 }).catch(() => false)) await emailF.fill(ASSOC_EMAIL);
+      const sub = modal.locator('[type="submit"], button:has-text("Add")').first();
+      if (await sub.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await sub.click();
+        await page.waitForLoadState('domcontentloaded');
+        console.log('  ✓ Associate candidate created');
+      }
+    }
+  }
+
+  // Find the candidate's ID from portal users and set their password
+  await page.goto('/admin/portal-users', { waitUntil: 'domcontentloaded' });
+  const assocLink = page.locator(`a[href*="/admin/portal-users/"]`).filter({ hasText: /PW-Test|pw-test-associate/i }).first();
+  if (await assocLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await assocLink.click();
+    await page.waitForLoadState('domcontentloaded');
+
+    // Verify their email
+    const verifyBtn = page.locator('button:has-text("Verify"), form[action*="verify"] button').first();
+    if (await verifyBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await verifyBtn.click();
+      await page.waitForLoadState('domcontentloaded');
+      console.log('  ✓ Associate email verified');
+    }
+
+    // Set their password via the new /set-password endpoint
+    const setPasswordForm = page.locator('form[action*="set-password"]').first();
+    if (await setPasswordForm.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await setPasswordForm.locator('[name="password"]').fill(ASSOC_PASSWORD);
+      await setPasswordForm.locator('[type="submit"]').click();
+      await page.waitForLoadState('domcontentloaded');
+      console.log('  ✓ Associate password set');
+    } else {
+      // The set-password form might not be in the admin template yet — use the API directly
+      const currentUrl = page.url();
+      const candIdMatch = currentUrl.match(/portal-users\/(\d+)/);
+      if (candIdMatch) {
+        const candId = candIdMatch[1];
+        const csrfMeta = await page.locator('meta[name="csrf-token"]').getAttribute('content') || '';
+        await page.request.post(`/admin/portal-users/${candId}/set-password`, {
+          form: { password: ASSOC_PASSWORD, csrf_token: csrfMeta },
+        });
+        console.log('  ✓ Associate password set via API');
+      }
+    }
+  } else {
+    console.log('  ⚠ Could not find associate in portal users list');
   }
 
   console.log('  ✓ Test data seeding complete');

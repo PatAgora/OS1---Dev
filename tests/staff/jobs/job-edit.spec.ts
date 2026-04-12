@@ -27,22 +27,13 @@ async function createJobIfNeeded(page: import('@playwright/test').Page): Promise
   }
   await titleField.fill('[PW-TEST] Editable Job');
 
-  // Select first non-empty engagement option
-  const engagementSelect = page.locator('[name="engagement_id"]');
-  if (await engagementSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-    const firstOption = engagementSelect.locator('option:not([value=""]):not([value="0"])').first();
-    const firstValue = await firstOption.getAttribute('value').catch(() => null);
-    if (firstValue) {
-      await engagementSelect.selectOption(firstValue);
-    }
-  }
-
   const descField = page.locator('[name="description"]');
   if (await descField.first().isVisible().catch(() => false)) {
     await descField.first().fill('Created by Playwright for edit test');
   }
 
-  const submitBtn = page.locator('[type="submit"]').first();
+  // Submit — button in job_form.html has no explicit type="submit"
+  const submitBtn = page.locator('form button.btn-primary, form button:has-text("Create"), form [type="submit"]').first();
   if (!(await submitBtn.isVisible().catch(() => false))) {
     return false;
   }
@@ -54,32 +45,55 @@ async function createJobIfNeeded(page: import('@playwright/test').Page): Promise
 }
 
 test.describe('Job Edit', () => {
-  test('navigate to first job edit page — page loads', async ({ page }) => {
-    // First try to find an edit link from the jobs list
+
+  /**
+   * Helper: find a job edit URL by checking multiple sources.
+   * The /jobs page has no edit links — they are on the dashboard and engagement pages.
+   * We look for edit links on /dashboard, or construct the URL from a known job ID.
+   */
+  async function findEditUrl(page: import('@playwright/test').Page): Promise<string | null> {
+    // Try dashboard — it has direct edit links like /job/<id>/edit
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await guardSessionExpired(page);
+
+    const dashboardEditLink = page.locator('a[href*="/job/"][href*="/edit"]').first();
+    if (await dashboardEditLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+      return await dashboardEditLink.getAttribute('href');
+    }
+
+    // Fallback: go to /jobs, find the "Open" link to engagement job detail, then edit from there
     await page.goto('/jobs', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    // Look for edit links
-    const editLink = page.locator('a[href*="/edit"]').first();
-    let editLinkExists = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
+    // Extract a job's engagement link to get the job ID
+    const openLink = page.locator('a[href*="/engagement/"][href*="/job/"]').first();
+    if (await openLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const href = await openLink.getAttribute('href') || '';
+      // Extract job_id from /engagement/<eng_id>/job/<job_id>
+      const match = href.match(/\/job\/(\d+)/);
+      if (match) {
+        return `/job/${match[1]}/edit`;
+      }
+    }
 
-    // If no edit links, create a job first then go back to /jobs
-    if (!editLinkExists) {
+    return null;
+  }
+
+  test('navigate to first job edit page — page loads', async ({ page }) => {
+    let editUrl = await findEditUrl(page);
+
+    // If no edit links, create a job first
+    if (!editUrl) {
       console.log('  No edit links found — creating a job first');
       const created = await createJobIfNeeded(page);
       if (!created) {
         console.log('  Could not create a job — skipping');
         return;
       }
-      await page.goto('/jobs', { waitUntil: 'domcontentloaded' });
-      await guardSessionExpired(page);
-      editLinkExists = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
+      editUrl = await findEditUrl(page);
     }
 
-    let editUrl: string;
-    if (editLinkExists) {
-      editUrl = await editLink.getAttribute('href') || '/job/1/edit';
-    } else {
+    if (!editUrl) {
       editUrl = '/job/1/edit';
     }
 
@@ -92,30 +106,20 @@ test.describe('Job Edit', () => {
   });
 
   test('change title and submit — assert success', async ({ page }) => {
-    // Navigate to jobs list to find an editable job
-    await page.goto('/jobs', { waitUntil: 'domcontentloaded' });
-    await guardSessionExpired(page);
-
-    const editLink = page.locator('a[href*="/edit"]').first();
-    let editLinkExists = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
+    let editUrl = await findEditUrl(page);
 
     // If no edit links, create a job first
-    if (!editLinkExists) {
+    if (!editUrl) {
       console.log('  No edit links found — creating a job first');
       const created = await createJobIfNeeded(page);
       if (!created) {
         console.log('  Could not create a job — skipping');
         return;
       }
-      await page.goto('/jobs', { waitUntil: 'domcontentloaded' });
-      await guardSessionExpired(page);
-      editLinkExists = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
+      editUrl = await findEditUrl(page);
     }
 
-    let editUrl: string;
-    if (editLinkExists) {
-      editUrl = await editLink.getAttribute('href') || '/job/1/edit';
-    } else {
+    if (!editUrl) {
       editUrl = '/job/1/edit';
     }
 
@@ -147,8 +151,8 @@ test.describe('Job Edit', () => {
 
     await titleField.fill(newTitle);
 
-    // Submit
-    const submitBtn = page.locator('[type="submit"]').first();
+    // Submit — button in job_form.html has no explicit type="submit"
+    const submitBtn = page.locator('form button.btn-primary, form button:has-text("Update"), form [type="submit"]').first();
     if (!(await submitBtn.isVisible().catch(() => false))) {
       console.log('  Submit button not found — skipping');
       return;

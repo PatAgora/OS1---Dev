@@ -36,9 +36,17 @@ test.describe('Taxonomy Manage', () => {
     await guardSessionExpired(page);
 
     // --- Add Category ---
-    const categoryInput = page.locator(
-      '[name="category_name"], [name="name"], input[placeholder*="ategory"], input[placeholder*="name"]'
-    ).first();
+    // The add category form posts to taxonomy_category_add and has name="name" plus name="type" (select)
+    // Target the form by its action URL to avoid matching rename forms which also have name="name"
+    const addCatForm = page.locator('form[action*="category/add"], form[action*="taxonomy_category_add"]').first();
+    let categoryInput: ReturnType<typeof page.locator>;
+
+    if (await addCatForm.isVisible({ timeout: 3000 }).catch(() => false)) {
+      categoryInput = addCatForm.locator('[name="name"]');
+    } else {
+      // Fallback: find the input with placeholder containing "category"
+      categoryInput = page.locator('input[placeholder*="ategory"], input[placeholder*="Financial Crime"]').first();
+    }
 
     if (!(await categoryInput.isVisible({ timeout: 3000 }).catch(() => false))) {
       console.log('  Category form not found — skipping CRUD tests');
@@ -47,9 +55,9 @@ test.describe('Taxonomy Manage', () => {
 
     await categoryInput.fill('[PW-TEST] Category');
 
-    // Find the submit button for the category form
-    const categoryForm = categoryInput.locator('xpath=ancestor::form');
-    const catSubmit = categoryForm.locator('[type="submit"], button').first();
+    // Find the submit button for the add category form
+    const catForm = categoryInput.locator('xpath=ancestor::form');
+    const catSubmit = catForm.locator('[type="submit"], button:has-text("Add Category")').first();
     if (!(await catSubmit.isVisible({ timeout: 2000 }).catch(() => false))) {
       console.log('  Category submit button not found — skipping CRUD');
       return;
@@ -63,16 +71,32 @@ test.describe('Taxonomy Manage', () => {
     console.log('  Category created: [PW-TEST] Category');
 
     // --- Add Tag ---
-    // Look for a tag input near or under the new category
-    const tagInput = page.locator(
-      '[name="tag_name"], [name="tag"], input[placeholder*="ag"], input[placeholder*="Tag"]'
-    ).first();
+    // The add tag form posts to taxonomy_tag_add and has name="tag" plus name="category_id" (select)
+    const addTagForm = page.locator('form[action*="tag/add"], form[action*="taxonomy_tag_add"]').first();
+    let tagInput: ReturnType<typeof page.locator>;
+
+    if (await addTagForm.isVisible({ timeout: 3000 }).catch(() => false)) {
+      tagInput = addTagForm.locator('[name="tag"]');
+
+      // Select the newly created [PW-TEST] category in the category_id dropdown
+      const catSelect = addTagForm.locator('[name="category_id"]');
+      if (await catSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
+        // Find the option that contains [PW-TEST]
+        const pwTestOption = catSelect.locator('option:has-text("[PW-TEST]")').first();
+        const optVal = await pwTestOption.getAttribute('value').catch(() => null);
+        if (optVal) {
+          await catSelect.selectOption(optVal);
+        }
+      }
+    } else {
+      tagInput = page.locator('[name="tag"]').first();
+    }
 
     if (await tagInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await tagInput.fill('[PW-TEST] Tag');
 
       const tagForm = tagInput.locator('xpath=ancestor::form');
-      const tagSubmit = tagForm.locator('[type="submit"], button').first();
+      const tagSubmit = tagForm.locator('[type="submit"], button:has-text("Add Tag")').first();
       if (await tagSubmit.isVisible({ timeout: 2000 }).catch(() => false)) {
         await tagSubmit.click();
         await page.waitForLoadState('domcontentloaded');
@@ -82,22 +106,23 @@ test.describe('Taxonomy Manage', () => {
         console.log('  Tag created: [PW-TEST] Tag');
 
         // --- Delete Tag ---
-        const tagElement = page.locator('text=[PW-TEST] Tag').first();
-        const tagDeleteBtn = tagElement.locator('xpath=ancestor::*[position() <= 5]').locator(
-          'button:has-text("Delete"), a:has-text("Delete"), button:has-text("Remove"), ' +
-          'a:has-text("Remove"), .delete-btn, .btn-danger, button[title="Delete"], [class*="delete"], [class*="remove"]'
-        ).first();
+        // Tags are displayed as .tag-chip spans with a .btn-remove button inside a form
+        const tagChip = page.locator('.tag-chip:has-text("[PW-TEST] Tag")').first();
 
-        if (await tagDeleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-          page.on('dialog', dialog => dialog.accept());
-          await tagDeleteBtn.click();
-          await page.waitForLoadState('domcontentloaded');
+        if (await tagChip.isVisible({ timeout: 3000 }).catch(() => false)) {
+          const tagDeleteBtn = tagChip.locator('.btn-remove, button[type="submit"]').first();
+          if (await tagDeleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await tagDeleteBtn.click();
+            await page.waitForLoadState('domcontentloaded');
 
-          body = await page.textContent('body') || '';
-          expect(body).not.toContain('[PW-TEST] Tag');
-          console.log('  Tag deleted: [PW-TEST] Tag');
+            body = await page.textContent('body') || '';
+            expect(body).not.toContain('[PW-TEST] Tag');
+            console.log('  Tag deleted: [PW-TEST] Tag');
+          } else {
+            console.log('  Tag delete button not found — skipping tag deletion');
+          }
         } else {
-          console.log('  Tag delete button not found — skipping tag deletion');
+          console.log('  Tag chip not found — skipping tag deletion');
         }
       }
     } else {
@@ -105,22 +130,25 @@ test.describe('Taxonomy Manage', () => {
     }
 
     // --- Delete Category ---
-    const catElement = page.locator('text=[PW-TEST] Category').first();
-    const catDeleteBtn = catElement.locator('xpath=ancestor::*[position() <= 5]').locator(
-      'button:has-text("Delete"), a:has-text("Delete"), button:has-text("Remove"), ' +
-      'a:has-text("Remove"), .delete-btn, .btn-danger, button[title="Delete"], [class*="delete"], [class*="remove"]'
-    ).first();
+    // Categories have a rename form and a separate delete form with btn-modern-danger
+    const catItem = page.locator('.category-item:has-text("[PW-TEST] Category")').first();
 
-    if (await catDeleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      page.on('dialog', dialog => dialog.accept());
-      await catDeleteBtn.click();
-      await page.waitForLoadState('domcontentloaded');
+    if (await catItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const catDeleteBtn = catItem.locator('form[action*="category/delete"] button, button.btn-modern-danger').first();
 
-      body = await page.textContent('body') || '';
-      expect(body).not.toContain('[PW-TEST] Category');
-      console.log('  Category deleted: [PW-TEST] Category');
+      if (await catDeleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        page.on('dialog', dialog => dialog.accept());
+        await catDeleteBtn.click();
+        await page.waitForLoadState('domcontentloaded');
+
+        body = await page.textContent('body') || '';
+        expect(body).not.toContain('[PW-TEST] Category');
+        console.log('  Category deleted: [PW-TEST] Category');
+      } else {
+        console.log('  Category delete button not found — skipping category deletion');
+      }
     } else {
-      console.log('  Category delete button not found — skipping category deletion');
+      console.log('  Category item not found — skipping category deletion');
     }
   });
 

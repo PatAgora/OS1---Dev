@@ -20,18 +20,10 @@ test.describe('Associate Address History', () => {
   test('add address form — fill and submit', async ({ page }) => {
     await page.goto('/portal/address-history', { waitUntil: 'domcontentloaded' });
 
-    // Look for add button or inline form
-    const addBtn = page.locator(
-      'button:has-text("Add"), a:has-text("Add"), button:has-text("New")'
-    ).first();
+    // The address form is inline on the page (no button to open it)
 
-    if (await addBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await addBtn.click();
-      await page.waitForLoadState('domcontentloaded');
-    }
-
-    // Fill address fields
-    const addressLine1 = page.locator('[name="address_line_1"], [name="address1"], [name="line1"]').first();
+    // Fill address fields — real field names from address_history.html
+    const addressLine1 = page.locator('[name="address_line1"]').first();
     if (!(await addressLine1.isVisible({ timeout: 3000 }).catch(() => false))) {
       console.log('  Address form not found — skipping add test');
       return;
@@ -39,22 +31,22 @@ test.describe('Associate Address History', () => {
 
     await addressLine1.fill('[PW-TEST] 1 Test Street');
 
-    const city = page.locator('[name="city"], [name="town"]').first();
+    const city = page.locator('[name="city"]').first();
     if (await city.isVisible({ timeout: 2000 }).catch(() => false)) {
       await city.fill('London');
     }
 
-    const postcode = page.locator('[name="postcode"], [name="post_code"], [name="zip"]').first();
+    const postcode = page.locator('[name="postcode"]').first();
     if (await postcode.isVisible({ timeout: 2000 }).catch(() => false)) {
       await postcode.fill('SW1A 1AA');
     }
 
-    const fromDate = page.locator('[name="from_date"], [name="start_date"], [name="date_from"]').first();
+    const fromDate = page.locator('[name="from_date"]').first();
     if (await fromDate.isVisible({ timeout: 2000 }).catch(() => false)) {
       await fromDate.fill('2020-01-01');
     }
 
-    const toDate = page.locator('[name="to_date"], [name="end_date"], [name="date_to"]').first();
+    const toDate = page.locator('[name="to_date"]').first();
     if (await toDate.isVisible({ timeout: 2000 }).catch(() => false)) {
       await toDate.fill('2024-01-01');
     }

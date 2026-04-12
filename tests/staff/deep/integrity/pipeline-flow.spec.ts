@@ -18,12 +18,8 @@ test.describe('Pipeline Flow', () => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    // Look for an "Add" button to create a new candidate
-    const addBtn = page.locator(
-      'a:has-text("Add Associate"), button:has-text("Add Associate"), ' +
-      'a:has-text("Add Candidate"), button:has-text("Add Candidate"), ' +
-      'a:has-text("Add"), button:has-text("Add")'
-    ).first();
+    // The "Add Associate" button is an <a> with onclick="showAddAssociateModal()"
+    const addBtn = page.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
 
     const addBtnVisible = await addBtn.isVisible().catch(() => false);
     if (!addBtnVisible) {
@@ -32,21 +28,19 @@ test.describe('Pipeline Flow', () => {
     }
 
     await addBtn.click();
+    await page.waitForTimeout(500); // Wait for modal animation
 
-    // Wait briefly for either a new page load or a modal to appear
-    await page.waitForTimeout(2000);
-
-    // Fill candidate form (may be a modal or a new page)
-    const nameField = page.locator('input[name="name"], input[name="full_name"], input[name="candidate_name"]').first();
-    const nameVisible = await nameField.isVisible().catch(() => false);
+    // Fill candidate form in the modal — real IDs: add-name, add-email
+    const modal = page.locator('#addAssociateModal');
+    const nameField = modal.locator('#add-name, [name="name"]').first();
+    const nameVisible = await nameField.isVisible({ timeout: 3000 }).catch(() => false);
 
     if (!nameVisible) {
-      // Modal may not have appeared or form loaded differently
       test.skip(true, 'Candidate form fields not found (modal may not have appeared)');
       return;
     }
 
-    const emailField = page.locator('input[name="email"]').first();
+    const emailField = modal.locator('#add-email, [name="email"]').first();
 
     const testName = `[PW-TEST] Pipeline Candidate ${Date.now()}`;
     await nameField.fill(testName);
@@ -54,8 +48,8 @@ test.describe('Pipeline Flow', () => {
       await emailField.fill(`pw-test-${Date.now()}@example.com`);
     }
 
-    // Submit form
-    const submitBtn = page.locator('button[type="submit"], input[type="submit"]').first();
+    // Submit form — the modal has a submit button
+    const submitBtn = modal.locator('button[type="submit"], button:has-text("Add Associate")').first();
     const submitVisible = await submitBtn.isVisible().catch(() => false);
     if (!submitVisible) {
       test.skip(true, 'Submit button not found in candidate form');
