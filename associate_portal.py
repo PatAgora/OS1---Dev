@@ -39,6 +39,7 @@ from sqlalchemy import (
     ForeignKey,
     select,
     Float,
+    text,
 )
 
 # ---------------------------------------------------------------------------
@@ -178,6 +179,7 @@ def _ensure_models():
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         consent_given = Column(Boolean, default=False)
+        reference_consent = Column(Boolean, default=False)
         secondary_employment = Column(Boolean, default=False)
         secondary_employment_details = Column(Text, default="")
         legal_name = Column(String(300), default="")
@@ -700,6 +702,12 @@ def _create_portal_tables():
         engine = _engine()
         # Only create tables that don't yet exist (checkfirst=True is default)
         Base.metadata.create_all(engine, checkfirst=True)
+        # Ensure new columns exist on tables that may pre-date this code
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            try:
+                conn.execute(text("ALTER TABLE consent_records ADD COLUMN reference_consent BOOLEAN DEFAULT FALSE"))
+            except Exception:
+                pass  # Column already exists
         current_app._associate_tables_created = True
     except Exception as exc:
         current_app.logger.warning("Could not create associate portal tables: %s", exc)
@@ -1277,10 +1285,16 @@ def personal_details():
             profile = AssociateProfile(candidate_id=cand_id)
             s.add(profile)
 
-        # Update candidate base fields
-        cand.name = _sanitise(request.form.get("name", cand.name or ""))
+        # Update candidate base fields — form sends first_name + surname, not "name"
+        first_name = _sanitise(request.form.get("first_name", "")).strip()
+        surname = _sanitise(request.form.get("surname", "")).strip()
+        if first_name or surname:
+            cand.name = f"{first_name} {surname}".strip()
         cand.email = _sanitise(request.form.get("email", cand.email or "")).strip().lower()
-        cand.phone = _sanitise(request.form.get("phone", cand.phone or ""))
+        # Form sends contact_number, not phone
+        contact_number = _sanitise(request.form.get("contact_number", "")).strip()
+        if contact_number:
+            cand.phone = contact_number
 
         # Update profile fields
         if profile:
@@ -1310,7 +1324,12 @@ def personal_details():
             profile.unsubscribed = request.form.get("unsubscribed") == "1"
 
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")
-        s.commit()
+        try:
+            s.commit()
+        except Exception:
+            s.rollback()
+            flash("Failed to save personal details. Please try again.", "danger")
+            return redirect(url_for("associate.personal_details"))
 
     flash("Personal details saved.", "success")
     return redirect(url_for("associate.personal_details"))
@@ -1319,40 +1338,8 @@ def personal_details():
 @associate_bp.route("/profile-picture", methods=["POST"])
 @_require_login
 def upload_profile_picture():
-    """Upload a profile picture."""
-    AssociateProfile = _portal_model("AssociateProfile")
-    engine = _engine()
-    cand_id = _get_associate_id()
-
-    file = request.files.get("profile_picture")
-    if not file or not file.filename:
-        flash("No file selected.", "danger")
-        return redirect(url_for("associate.personal_details"))
-
-    # Validate file type
-    allowed = {"jpg", "jpeg", "png", "gif", "webp"}
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if ext not in allowed:
-        flash("Please upload an image file (JPG, PNG, GIF, or WebP).", "danger")
-        return redirect(url_for("associate.personal_details"))
-
-    # Save file
-    import uuid
-    upload_dir = os.path.join("uploads", "profile_pictures")
-    os.makedirs(upload_dir, exist_ok=True)
-    filename = f"{cand_id}_{uuid.uuid4().hex[:8]}.{ext}"
-    filepath = os.path.join(upload_dir, filename)
-    file.save(filepath)
-
-    with SASession(engine) as s:
-        profile = s.query(AssociateProfile).filter_by(candidate_id=cand_id).first()
-        if not profile:
-            profile = AssociateProfile(candidate_id=cand_id)
-            s.add(profile)
-        profile.profile_picture = filepath
-        s.commit()
-
-    flash("Profile picture updated.", "success")
+    """Profile picture upload has been removed."""
+    flash("Profile picture upload is no longer available.", "info")
     return redirect(url_for("associate.personal_details"))
 
 
@@ -1511,86 +1498,122 @@ def company_details():
 @_require_login
 def consent_form():
     """Digital consent form with e-signature."""
+    _ensure_models()
     ConsentRecord = _portal_model("ConsentRecord")
-    engine = _engine()
     cand_id = _get_associate_id()
 
-    if request.method == "GET":
-        with SASession(engine) as s:
-            consent = s.query(ConsentRecord).filter_by(candidate_id=cand_id).order_by(
-                ConsentRecord.created_at.desc()
-            ).first() if ConsentRecord else None
-            return render_template("associate/consent_form.html", consent=consent, already_signed=consent is not None)
+    if ConsentRecord is None:
+        current_app.logger.error("ConsentRecord model not available — cannot render consent form.")
+        flash("Consent form is temporarily unavailable. Please try again later.", "danger")
+        return redirect(url_for("associate.dashboard"))
 
-    with SASession(engine) as s:
-        # Contradiction Fix 4: Manual consent PDF upload fallback
-        manual_file = request.files.get("manual_consent")
-        if manual_file and manual_file.filename:
-            import uuid as _uuid
-            ext = manual_file.filename.rsplit(".", 1)[-1].lower() if "." in manual_file.filename else "pdf"
-            if ext not in {"pdf", "doc", "docx", "jpg", "jpeg", "png"}:
-                flash("Invalid file type for consent form. Allowed: PDF, DOC, DOCX, JPG, PNG.", "danger")
+    if not cand_id:
+        flash("Session expired. Please log in again.", "warning")
+        return redirect(url_for("associate.login"))
+
+    try:
+        engine = _engine()
+    except Exception:
+        current_app.logger.exception("Failed to obtain database engine for consent form.")
+        flash("A system error occurred. Please try again later.", "danger")
+        return redirect(url_for("associate.dashboard"))
+
+    if request.method == "GET":
+        try:
+            with SASession(engine) as s:
+                consent = s.query(ConsentRecord).filter_by(candidate_id=cand_id).order_by(
+                    ConsentRecord.created_at.desc()
+                ).first()
+                reference_consent = getattr(consent, "reference_consent", False) if consent else False
+                return render_template(
+                    "associate/consent_form.html",
+                    consent=consent,
+                    already_signed=consent is not None,
+                    reference_consent=reference_consent,
+                )
+        except Exception:
+            current_app.logger.exception("Error loading consent form for candidate %s.", cand_id)
+            flash("Could not load consent form. Please try again.", "danger")
+            return redirect(url_for("associate.dashboard"))
+
+    # --- POST handling ---
+    try:
+        with SASession(engine) as s:
+            # Contradiction Fix 4: Manual consent PDF upload fallback
+            manual_file = request.files.get("manual_consent")
+            if manual_file and manual_file.filename:
+                import uuid as _uuid
+                ext = manual_file.filename.rsplit(".", 1)[-1].lower() if "." in manual_file.filename else "pdf"
+                if ext not in {"pdf", "doc", "docx", "jpg", "jpeg", "png"}:
+                    flash("Invalid file type for consent form. Allowed: PDF, DOC, DOCX, JPG, PNG.", "danger")
+                    return redirect(url_for("associate.consent_form"))
+
+                upload_dir = os.path.join("uploads", "consent_forms")
+                os.makedirs(upload_dir, exist_ok=True)
+                safe_name = f"{cand_id}_consent_{_uuid.uuid4().hex[:8]}.{ext}"
+                filepath = os.path.join(upload_dir, safe_name)
+                manual_file.save(filepath)
+
+                # Save as Document record
+                Document = _model("Document")
+                if Document:
+                    # Remove old consent doc if exists
+                    old_doc = s.query(Document).filter_by(candidate_id=cand_id, doc_type="consent_signed").first()
+                    if old_doc:
+                        s.delete(old_doc)
+                    new_doc = Document(
+                        candidate_id=cand_id,
+                        doc_type="consent_signed",
+                        filename=safe_name,
+                        original_name=manual_file.filename
+                    )
+                    s.add(new_doc)
+
+                # Create ConsentRecord for the manual upload
+                consent = ConsentRecord(
+                    candidate_id=cand_id,
+                    consent_given=True,
+                    reference_consent=request.form.get("reference_consent") == "yes",
+                    secondary_employment=request.form.get("has_secondary_employment") == "yes",
+                    secondary_employment_details=_sanitise(request.form.get("secondary_employment_details", "")),
+                    legal_name=_sanitise(request.form.get("legal_name", "Manual Upload")).strip() or "Manual Upload",
+                    signed_date=datetime.utcnow(),
+                    ip_address=request.remote_addr or "",
+                )
+                s.add(consent)
+                _add_note(s, cand_id, f"Consent form uploaded manually (file: {manual_file.filename}).")
+                s.commit()
+
+                flash("Signed consent form uploaded successfully.", "success")
+                return redirect(url_for("associate.dashboard"))
+
+            # Original digital consent flow
+            legal_name = _sanitise(request.form.get("legal_name", "")).strip()
+            if not legal_name:
+                flash("You must provide your legal name to sign.", "danger")
                 return redirect(url_for("associate.consent_form"))
 
-            upload_dir = os.path.join("uploads", "consent_forms")
-            os.makedirs(upload_dir, exist_ok=True)
-            safe_name = f"{cand_id}_consent_{_uuid.uuid4().hex[:8]}.{ext}"
-            filepath = os.path.join(upload_dir, safe_name)
-            manual_file.save(filepath)
-
-            # Save as Document record
-            Document = _model("Document")
-            if Document:
-                # Remove old consent doc if exists
-                old_doc = s.query(Document).filter_by(candidate_id=cand_id, doc_type="consent_signed").first()
-                if old_doc:
-                    s.delete(old_doc)
-                new_doc = Document(
-                    candidate_id=cand_id,
-                    doc_type="consent_signed",
-                    filename=safe_name,
-                    original_name=manual_file.filename
-                )
-                s.add(new_doc)
-
-            # Create ConsentRecord for the manual upload
             consent = ConsentRecord(
                 candidate_id=cand_id,
-                consent_given=True,
+                consent_given=True,  # signing the form implies consent
+                reference_consent=request.form.get("reference_consent") == "yes",
                 secondary_employment=request.form.get("has_secondary_employment") == "yes",
                 secondary_employment_details=_sanitise(request.form.get("secondary_employment_details", "")),
-                legal_name=_sanitise(request.form.get("legal_name", "Manual Upload")).strip() or "Manual Upload",
+                legal_name=legal_name,
                 signed_date=datetime.utcnow(),
                 ip_address=request.remote_addr or "",
             )
             s.add(consent)
-            _add_note(s, cand_id, f"Consent form uploaded manually (file: {manual_file.filename}).")
+            _add_note(s, cand_id, f"Consent form signed by '{legal_name}' from IP {request.remote_addr}.")
             s.commit()
 
-            flash("Signed consent form uploaded successfully.", "success")
-            return redirect(url_for("associate.dashboard"))
+        flash("Consent form submitted successfully.", "success")
+        return redirect(url_for("associate.dashboard"))
 
-        # Original digital consent flow
-        legal_name = _sanitise(request.form.get("legal_name", "")).strip()
-        if not legal_name:
-            flash("You must provide your legal name to sign.", "danger")
-            return redirect(url_for("associate.consent_form"))
-
-        consent = ConsentRecord(
-            candidate_id=cand_id,
-            consent_given=True,  # signing the form implies consent
-            secondary_employment=request.form.get("has_secondary_employment") == "yes",
-            secondary_employment_details=_sanitise(request.form.get("secondary_employment_details", "")),
-            legal_name=legal_name,
-            signed_date=datetime.utcnow(),
-            ip_address=request.remote_addr or "",
-        )
-        s.add(consent)
-        _add_note(s, cand_id, f"Consent form signed by '{legal_name}' from IP {request.remote_addr}.")
-        s.commit()
-
-    flash("Consent form submitted successfully.", "success")
-    return redirect(url_for("associate.dashboard"))
+    except Exception:
+        current_app.logger.exception("Error saving consent form for candidate %s.", cand_id)
+        flash("An error occurred while saving your consent form. Please try again.", "danger")
+        return redirect(url_for("associate.consent_form"))
 
 
 @associate_bp.route("/declaration")
@@ -2032,7 +2055,6 @@ def references_add_employment():
         flash("Company name is required.", "danger")
         return redirect(url_for("associate.references_employment"))
 
-    perm = request.form.get("permission_to_request", "yes") == "yes"
     new_start = _parse_date(request.form.get("start_date", ""))
     new_end = _parse_date(request.form.get("end_date", ""))
     confirm_overlap = request.form.get("confirm_overlap") == "yes"
@@ -2052,6 +2074,8 @@ def references_add_employment():
                 )
             return redirect(url_for("associate.references_employment"))
 
+        # NOTE: permission_to_request is no longer set per-entry.
+        # Global reference consent is stored on ConsentRecord.reference_consent instead.
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
@@ -2063,9 +2087,6 @@ def references_add_employment():
             job_title=_sanitise(request.form.get("job_title", "")),
             reason_for_leaving=_sanitise(request.form.get("reason_for_leaving", "")),
             is_gap=False,
-            permission_to_request=perm,
-            permission_delay_reason=_sanitise(request.form.get("no_permission_reason", "")),
-            permission_future_date=_parse_date(request.form.get("future_permission_date", "")),
             reference_status="not_sent",
         )
         s.add(entry)
@@ -2972,6 +2993,8 @@ def api_add_reference():
         return jsonify({"error": "Company name is required"}), 400
 
     with SASession(engine) as s:
+        # NOTE: permission_to_request no longer set per-entry.
+        # Global reference consent is on ConsentRecord.reference_consent.
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
@@ -2984,9 +3007,6 @@ def api_add_reference():
             reason_for_leaving=_sanitise(data.get("reason_for_leaving", "")),
             is_gap=_parse_bool(data.get("is_gap", False)),
             gap_reason=_sanitise(data.get("gap_reason", "")),
-            permission_to_request=_parse_bool(data.get("permission_to_request", True)),
-            permission_delay_reason=_sanitise(data.get("permission_delay_reason", "")),
-            permission_future_date=_parse_date(data.get("permission_future_date", "")),
             reference_status="not_sent",
         )
         s.add(entry)
@@ -3601,10 +3621,8 @@ def references_edit_entry(entry_id):
             entry.end_date = _parse_date(request.form.get("end_date", ""))
             entry.job_title = _sanitise(request.form.get("job_title", ""))
             entry.reason_for_leaving = _sanitise(request.form.get("reason_for_leaving", ""))
-            perm = request.form.get("permission_to_request", "yes") == "yes"
-            entry.permission_to_request = perm
-            entry.permission_delay_reason = _sanitise(request.form.get("no_permission_reason", ""))
-            entry.permission_future_date = _parse_date(request.form.get("future_permission_date", ""))
+            # NOTE: permission_to_request no longer set per-entry.
+            # Global reference consent is on ConsentRecord.reference_consent.
 
         _add_note(s, cand_id, f"Employment entry updated: {entry.company_name or 'Gap'}.")
         s.commit()
@@ -3632,15 +3650,14 @@ def api_edit_entry(entry_id):
             return jsonify({"error": "Not found"}), 404
 
         for field in ["company_name", "agency_name", "referee_email", "company_address",
-                       "job_title", "reason_for_leaving", "gap_reason",
-                       "permission_delay_reason"]:
+                       "job_title", "reason_for_leaving", "gap_reason"]:
             if field in data:
                 setattr(entry, field, _sanitise(data[field]))
-        for date_field in ["start_date", "end_date", "permission_future_date"]:
+        for date_field in ["start_date", "end_date"]:
             if date_field in data:
                 setattr(entry, date_field, _parse_date(data[date_field]))
-        if "permission_to_request" in data:
-            entry.permission_to_request = _parse_bool(data["permission_to_request"])
+        # NOTE: permission_to_request no longer set per-entry.
+        # Global reference consent is on ConsentRecord.reference_consent.
 
         _add_note(s, cand_id, f"Employment entry edited: {entry.company_name or 'Gap'}.")
         s.commit()

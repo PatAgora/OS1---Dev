@@ -758,15 +758,15 @@
                             </div>
                             <div class="dropdown-items">
                                 {% for c in all_clients %}
-                                <div class="dropdown-item">
-                                    <input type="checkbox" id="client_{{ loop.index }}" name="clients" value="{{ c }}" {% if c in selected_clients %}checked{% endif %} onchange="updateDropdownText('clientDropdown'); cascadeClientToEngagement()">
+                                <div class="dropdown-item" data-client="{{ c }}">
+                                    <input type="checkbox" id="client_{{ loop.index }}" name="clients" value="{{ c }}" {% if c in selected_clients %}checked{% endif %} onchange="updateDropdownText('clientDropdown'); cascadeRevenueFilters('client')">
                                     <label for="client_{{ loop.index }}">{{ c }}</label>
                                 </div>
                                 {% endfor %}
                             </div>
                             <div class="select-actions">
-                                <button type="button" class="btn-select-all" onclick="selectAll('clientDropdown'); cascadeClientToEngagement()">Select All</button>
-                                <button type="button" class="btn-clear-all" onclick="clearAll('clientDropdown'); cascadeClientToEngagement()">Clear All</button>
+                                <button type="button" class="btn-select-all" onclick="selectAll('clientDropdown'); cascadeRevenueFilters('client')">Select All</button>
+                                <button type="button" class="btn-clear-all" onclick="clearAll('clientDropdown'); cascadeRevenueFilters('client')">Clear All</button>
                             </div>
                         </div>
                     </div>
@@ -786,15 +786,43 @@
                             </div>
                             <div class="dropdown-items">
                                 {% for e in all_engagements %}
-                                <div class="dropdown-item" data-client="{{ e.client }}">
-                                    <input type="checkbox" id="eng_{{ loop.index }}" name="engagements" value="{{ e.id }}" {% if e.id|string in selected_engagements %}checked{% endif %} onchange="updateDropdownText('engagementDropdown')">
+                                <div class="dropdown-item" data-client="{{ e.client }}" data-engagement-id="{{ e.id }}">
+                                    <input type="checkbox" id="eng_{{ loop.index }}" name="engagements" value="{{ e.id }}" {% if e.id|string in selected_engagements %}checked{% endif %} onchange="updateDropdownText('engagementDropdown'); cascadeRevenueFilters('engagement')">
                                     <label for="eng_{{ loop.index }}">{{ e.name }} ({{ e.client }})</label>
                                 </div>
                                 {% endfor %}
                             </div>
                             <div class="select-actions">
-                                <button type="button" class="btn-select-all" onclick="selectAll('engagementDropdown')">Select All</button>
-                                <button type="button" class="btn-clear-all" onclick="clearAll('engagementDropdown')">Clear All</button>
+                                <button type="button" class="btn-select-all" onclick="selectAll('engagementDropdown'); cascadeRevenueFilters('engagement')">Select All</button>
+                                <button type="button" class="btn-clear-all" onclick="clearAll('engagementDropdown'); cascadeRevenueFilters('engagement')">Clear All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-group" style="min-width: 180px;">
+                    <label>Role</label>
+                    <div class="dropdown-multiselect" id="roleDropdown">
+                        <button type="button" class="dropdown-toggle" onclick="toggleDropdown('roleDropdown')">
+                            <span class="selected-text">
+                                {% if selected_roles %}{{ selected_roles|length }} selected{% else %}All Roles{% endif %}
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <div class="dropdown-search">
+                                <input type="text" placeholder="Search roles..." onkeyup="filterDropdownItems(this, 'roleDropdown')">
+                            </div>
+                            <div class="dropdown-items">
+                                {% for r in all_roles %}
+                                <div class="dropdown-item" data-role="{{ r }}" data-engagement-ids="{{ role_engagement_map.get(r, [])|join(',') }}">
+                                    <input type="checkbox" id="role_{{ loop.index }}" name="roles" value="{{ r }}" {% if r in selected_roles %}checked{% endif %} onchange="updateDropdownText('roleDropdown'); cascadeRevenueFilters('role')">
+                                    <label for="role_{{ loop.index }}">{{ r }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="select-actions">
+                                <button type="button" class="btn-select-all" onclick="selectAll('roleDropdown'); cascadeRevenueFilters('role')">Select All</button>
+                                <button type="button" class="btn-clear-all" onclick="clearAll('roleDropdown'); cascadeRevenueFilters('role')">Clear All</button>
                             </div>
                         </div>
                     </div>
@@ -882,6 +910,14 @@
                 <span class="filter-badge">
                     <i class="fas fa-building"></i> {{ c }}
                     <i class="fas fa-times-circle remove-filter" onclick="removeFilter('clients', '{{ c }}')"></i>
+                </span>
+                {% endfor %}
+            {% endif %}
+            {% if selected_roles %}
+                {% for r in selected_roles %}
+                <span class="filter-badge">
+                    <i class="fas fa-user-tag"></i> {{ r }}
+                    <i class="fas fa-times-circle remove-filter" onclick="removeFilter('roles', '{{ r }}')"></i>
                 </span>
                 {% endfor %}
             {% endif %}
@@ -1508,7 +1544,8 @@ function updateDropdownText(dropdownId) {
     const textSpan = dropdown.querySelector('.selected-text');
     
     if (checkboxes.length === 0) {
-        textSpan.textContent = dropdownId === 'clientDropdown' ? 'All Clients' : 'All Engagements';
+        var defaults = { clientDropdown: 'All Clients', engagementDropdown: 'All Engagements', roleDropdown: 'All Roles' };
+        textSpan.textContent = defaults[dropdownId] || 'All';
     } else {
         textSpan.textContent = checkboxes.length + ' selected';
     }
@@ -1548,32 +1585,205 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Cascade: when client selection changes, show only matching engagements
-function cascadeClientToEngagement() {
-    const selectedClients = Array.from(
-        document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked')
-    ).map(cb => cb.value);
+// ===== Bidirectional Cascading Filter Logic =====
+// Relationship data rendered from server
+var _revenueFilterMap = {
+    // role_type -> [engagement_id, ...]
+    roleToEngagements: {{ role_engagement_map | tojson }},
+    // engagement_id -> client_name
+    engToClient: {{ eng_client_map | tojson }}
+};
 
-    const engItems = document.querySelectorAll('#engagementDropdown .dropdown-item[data-client]');
-    engItems.forEach(item => {
-        if (selectedClients.length === 0) {
-            // No client filter — show all engagements
-            item.style.display = '';
-        } else {
-            const client = item.getAttribute('data-client');
-            item.style.display = selectedClients.includes(client) ? '' : 'none';
-            // Uncheck hidden items
-            if (!selectedClients.includes(client)) {
-                const cb = item.querySelector('input[type="checkbox"]');
-                if (cb) cb.checked = false;
-            }
+// Guard against infinite cascade loops
+var _cascading = false;
+
+/**
+ * cascadeRevenueFilters(source)
+ *
+ * Bidirectional filter cascade for Client / Engagement / Role dropdowns.
+ * - source='client'      => filters Engagement downward, then Role downward
+ * - source='engagement'  => filters Client upward, Role downward
+ * - source='role'        => filters Engagement upward, then Client upward
+ * - source='init'        => applies all constraints on page load without unchecking
+ *
+ * Hidden options are also unchecked so they don't submit with the form.
+ */
+function cascadeRevenueFilters(source) {
+    if (_cascading) return;
+    _cascading = true;
+
+    try {
+        var map = _revenueFilterMap;
+
+        // Helper: get checked values from a dropdown
+        function getChecked(dropdownId) {
+            return Array.from(
+                document.querySelectorAll('#' + dropdownId + ' input[type="checkbox"]:checked')
+            ).map(function(cb) { return cb.value; });
         }
-    });
-    updateDropdownText('engagementDropdown');
+
+        // Helper: show/hide items in a dropdown, uncheck hidden ones
+        function filterItems(dropdownId, attrName, allowedValues) {
+            var items = document.querySelectorAll('#' + dropdownId + ' .dropdown-item');
+            items.forEach(function(item) {
+                var val = item.getAttribute(attrName);
+                if (val === null) return; // skip items without the attribute
+                if (allowedValues === null) {
+                    // null means "show all"
+                    item.style.display = '';
+                } else if (allowedValues.includes(val)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                    var cb = item.querySelector('input[type="checkbox"]');
+                    if (cb) cb.checked = false;
+                }
+            });
+            updateDropdownText(dropdownId);
+        }
+
+        // Build reverse map: engagement_id -> [role_type, ...]
+        var engToRoles = {};
+        Object.keys(map.roleToEngagements).forEach(function(role) {
+            map.roleToEngagements[role].forEach(function(eid) {
+                var key = String(eid);
+                if (!engToRoles[key]) engToRoles[key] = [];
+                engToRoles[key].push(role);
+            });
+        });
+
+        // Build reverse map: client -> [engagement_id, ...]
+        var clientToEngs = {};
+        Object.keys(map.engToClient).forEach(function(eid) {
+            var client = map.engToClient[eid];
+            if (!clientToEngs[client]) clientToEngs[client] = [];
+            clientToEngs[client].push(String(eid));
+        });
+
+        var selClients = getChecked('clientDropdown');
+        var selEngagements = getChecked('engagementDropdown');
+        var selRoles = getChecked('roleDropdown');
+
+        if (source === 'client') {
+            // Client changed => filter Engagements downward
+            if (selClients.length === 0) {
+                filterItems('engagementDropdown', 'data-client', null);
+            } else {
+                filterItems('engagementDropdown', 'data-client', selClients);
+            }
+            // Then filter Roles based on now-visible engagements
+            selEngagements = getChecked('engagementDropdown');
+            if (selClients.length === 0 && selEngagements.length === 0) {
+                filterItems('roleDropdown', 'data-role', null);
+            } else {
+                // Collect engagement IDs that are compatible with client selection
+                var compatEngIds = [];
+                if (selEngagements.length > 0) {
+                    compatEngIds = selEngagements;
+                } else {
+                    // All visible engagements for selected clients
+                    selClients.forEach(function(c) {
+                        (clientToEngs[c] || []).forEach(function(eid) {
+                            if (compatEngIds.indexOf(eid) === -1) compatEngIds.push(eid);
+                        });
+                    });
+                }
+                var allowedRoles = [];
+                compatEngIds.forEach(function(eid) {
+                    (engToRoles[eid] || []).forEach(function(r) {
+                        if (allowedRoles.indexOf(r) === -1) allowedRoles.push(r);
+                    });
+                });
+                filterItems('roleDropdown', 'data-role', allowedRoles);
+            }
+
+        } else if (source === 'engagement') {
+            // Engagement changed => filter Client upward, Role downward
+            if (selEngagements.length === 0) {
+                // No engagement selected — restore client and role to full lists
+                filterItems('clientDropdown', 'data-client', null);
+                // But re-apply client selection to role if clients are selected
+                selClients = getChecked('clientDropdown');
+                if (selClients.length === 0) {
+                    filterItems('roleDropdown', 'data-role', null);
+                } else {
+                    // Re-cascade from client
+                    _cascading = false;
+                    cascadeRevenueFilters('client');
+                    return;
+                }
+            } else {
+                // Filter clients upward: only show clients that own a selected engagement
+                var compatClients = [];
+                selEngagements.forEach(function(eid) {
+                    var c = map.engToClient[eid];
+                    if (c && compatClients.indexOf(c) === -1) compatClients.push(c);
+                });
+                filterItems('clientDropdown', 'data-client', compatClients);
+
+                // Filter roles downward: only show roles present in selected engagements
+                var allowedRoles = [];
+                selEngagements.forEach(function(eid) {
+                    (engToRoles[eid] || []).forEach(function(r) {
+                        if (allowedRoles.indexOf(r) === -1) allowedRoles.push(r);
+                    });
+                });
+                filterItems('roleDropdown', 'data-role', allowedRoles);
+            }
+
+        } else if (source === 'role') {
+            // Role changed => filter Engagement upward, then Client upward
+            if (selRoles.length === 0) {
+                // No role selected — restore engagements and clients to full lists
+                filterItems('engagementDropdown', 'data-engagement-id', null);
+                filterItems('clientDropdown', 'data-client', null);
+            } else {
+                // Filter engagements: only those that have a selected role
+                var compatEngIds = [];
+                selRoles.forEach(function(r) {
+                    (map.roleToEngagements[r] || []).forEach(function(eid) {
+                        var eidStr = String(eid);
+                        if (compatEngIds.indexOf(eidStr) === -1) compatEngIds.push(eidStr);
+                    });
+                });
+                filterItems('engagementDropdown', 'data-engagement-id', compatEngIds);
+
+                // Filter clients upward: only clients that own a compatible engagement
+                var compatClients = [];
+                compatEngIds.forEach(function(eid) {
+                    var c = map.engToClient[eid];
+                    if (c && compatClients.indexOf(c) === -1) compatClients.push(c);
+                });
+                filterItems('clientDropdown', 'data-client', compatClients);
+            }
+
+        } else {
+            // 'init' — apply constraints based on whatever is pre-selected
+            // Run client cascade first if clients are selected
+            if (selClients.length > 0) {
+                _cascading = false;
+                cascadeRevenueFilters('client');
+                return;
+            } else if (selEngagements.length > 0) {
+                _cascading = false;
+                cascadeRevenueFilters('engagement');
+                return;
+            } else if (selRoles.length > 0) {
+                _cascading = false;
+                cascadeRevenueFilters('role');
+                return;
+            }
+            // Nothing selected — all dropdowns show everything (default)
+        }
+    } finally {
+        _cascading = false;
+    }
 }
 
-// Run cascade on page load (if clients are pre-selected)
-document.addEventListener('DOMContentLoaded', cascadeClientToEngagement);
+// Run cascade on page load to apply pre-selected filter state
+document.addEventListener('DOMContentLoaded', function() {
+    cascadeRevenueFilters('init');
+});
 
 function clearFilters() {
     document.getElementById('filterForm').reset();
@@ -1585,6 +1795,11 @@ function clearFilters() {
     });
     updateDropdownText('clientDropdown');
     updateDropdownText('engagementDropdown');
+    updateDropdownText('roleDropdown');
+    // Reset all dropdown items to visible
+    document.querySelectorAll('.dropdown-multiselect .dropdown-item').forEach(function(item) {
+        item.style.display = '';
+    });
     // Submit to clear
     window.location.href = '{{ url_for("revenue") }}';
 }
@@ -1592,7 +1807,7 @@ function clearFilters() {
 function removeFilter(filterName, value) {
     const url = new URL(window.location.href);
     if (value) {
-        // For multi-value filters like clients
+        // For multi-value filters like clients, engagements, roles
         const values = url.searchParams.getAll(filterName);
         url.searchParams.delete(filterName);
         values.filter(v => v !== value).forEach(v => url.searchParams.append(filterName, v));
@@ -1615,19 +1830,18 @@ function scrollToClient(clientName) {
     }
 }
 
-// Auto-expand first client
+// Auto-expand first client and sync period filters
 document.addEventListener('DOMContentLoaded', function() {
     const firstClient = document.querySelector('.client-section');
     if (firstClient) {
         firstClient.classList.add('expanded');
     }
-    
+
     // Sync filter form with period filters
     const fySelect = document.getElementById('fyFilter');
-    const quarterInput = document.getElementById('quarterFilter');
     const monthSelect = document.getElementById('monthFilter');
     const weekSelect = document.getElementById('weekFilter');
-    
+
     [fySelect, monthSelect, weekSelect].forEach(el => {
         if (el) {
             el.addEventListener('change', function() {
@@ -1635,46 +1849,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-
-    // Cascading Client -> Engagement filter
-    // When client checkboxes change, show/hide engagement items accordingly
-    const clientDropdown = document.getElementById('clientDropdown');
-    const engDropdown = document.getElementById('engagementDropdown');
-
-    function getSelectedClients() {
-        const checked = clientDropdown.querySelectorAll('input[type="checkbox"]:checked');
-        return Array.from(checked).map(cb => cb.value);
-    }
-
-    function filterEngagementsByClient() {
-        const selectedClients = getSelectedClients();
-        const engItems = engDropdown.querySelectorAll('.dropdown-item[data-client]');
-
-        engItems.forEach(item => {
-            const engClient = item.getAttribute('data-client');
-            if (selectedClients.length === 0) {
-                // No client filter — show all engagements
-                item.style.display = '';
-            } else if (selectedClients.includes(engClient)) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-                // Uncheck hidden engagement items
-                const cb = item.querySelector('input[type="checkbox"]');
-                if (cb) cb.checked = false;
-            }
-        });
-        updateDropdownText('engagementDropdown');
-    }
-
-    // Attach change listeners to all client checkboxes
-    if (clientDropdown) {
-        clientDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', filterEngagementsByClient);
-        });
-        // Run once on load to apply initial state
-        filterEngagementsByClient();
-    }
 });
 </script>
 </div>

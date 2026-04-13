@@ -5,7 +5,7 @@
 {% block hero_subtitle %}We've sent you a verification link{% endblock %}
 
 {% block auth_content %}
-<div class="os-form-card" style="max-width:540px;margin:0 auto;">
+<div class="os-form-card" style="max-width:540px;margin:0 auto;text-align:center;">
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -26,7 +26,7 @@
 
         <h2 class="os-form-heading" style="text-align:center;">Check Your Email</h2>
 
-        <p style="font-size:15px;color:#64748b;line-height:1.6;margin-bottom:24px;">
+        <p style="font-size:15px;color:#64748b;line-height:1.6;margin-bottom:24px;text-align:center;">
             We've sent a verification link to
             {% if email %}
             <strong style="color:#0a1628;">{{ email }}</strong>.

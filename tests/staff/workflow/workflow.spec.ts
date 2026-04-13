@@ -92,6 +92,7 @@ test.describe('Workflow', () => {
   });
 
   test('filter form — submit without error', async ({ page }) => {
+    test.setTimeout(60000); // workflow filter reload can be slow on Firefox
     const response = await page.goto('/workflow', { waitUntil: 'domcontentloaded' });
     if (response?.status() && response.status() >= 500) {
       test.skip(true, 'Workflow page returns 500 — skipping');

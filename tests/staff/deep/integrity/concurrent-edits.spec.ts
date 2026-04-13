@@ -43,7 +43,7 @@ test.describe('Concurrent Edits', () => {
 
     expect(candidateResponse?.status(), 'Candidate page must load').toBeLessThan(500);
 
-    const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
+    const notesTextarea = page.locator('textarea[name="note_content"], textarea[name="content"], textarea[name="note"], textarea[name="notes"]').first();
     expect(await notesTextarea.count(), 'Notes form must exist on candidate profile').toBeGreaterThan(0);
 
     // Get the storage state from the current context
@@ -73,7 +73,7 @@ test.describe('Concurrent Edits', () => {
       const noteB = `[PW-TEST] Context B note ${timestamp}`;
 
       // Context A: add a note
-      const textareaA = pageA.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
+      const textareaA = pageA.locator('textarea[name="note_content"], textarea[name="content"], textarea[name="note"], textarea[name="notes"]').first();
       if (await textareaA.count() > 0) {
         await textareaA.fill(noteA);
         const submitA = pageA.locator('form:has(textarea) button[type="submit"], form:has(textarea) input[type="submit"]').first();
@@ -84,7 +84,7 @@ test.describe('Concurrent Edits', () => {
       }
 
       // Context B: add a different note (while A's is already saved)
-      const textareaB = pageB.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
+      const textareaB = pageB.locator('textarea[name="note_content"], textarea[name="content"], textarea[name="note"], textarea[name="notes"]').first();
       if (await textareaB.count() > 0) {
         await textareaB.fill(noteB);
         const submitB = pageB.locator('form:has(textarea) button[type="submit"], form:has(textarea) input[type="submit"]').first();

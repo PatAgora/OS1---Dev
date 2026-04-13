@@ -899,7 +899,6 @@
         </div>
         {% endif %}
     </div>
-</div>
 
 <!-- Custom Metrics Widgets (REQ-266) -->
 <div class="metrics-grid">
@@ -956,6 +955,7 @@
         </div>
         {% endif %}
     </div>
+</div>
 </div>
 
 <script>
@@ -1225,50 +1225,117 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// === Cascading Filters (Req-037) ===
+// === Cascading Filters (Req-037) — Bidirectional ===
 var _dashFilterMap = {{ filter_map | tojson }};
 
-function cascadeDashboardFilters() {
-  // Get selected clients
-  var selectedClients = [];
-  document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked').forEach(function(cb) {
-    selectedClients.push(cb.value);
+function _getCheckedValues(dropdownId) {
+  var vals = [];
+  document.querySelectorAll('#' + dropdownId + ' input[type="checkbox"]:checked').forEach(function(cb) {
+    vals.push(cb.value);
   });
+  return vals;
+}
 
-  // Filter engagement items by selected clients
-  document.querySelectorAll('#engagementDropdown .dropdown-item').forEach(function(item) {
-    var client = item.dataset.client || '';
-    item.style.display = (selectedClients.length === 0 || selectedClients.includes(client)) ? '' : 'none';
-  });
+var _cascading = false;
 
-  // Get selected engagements
-  var selectedEngs = [];
-  document.querySelectorAll('#engagementDropdown input[type="checkbox"]:checked').forEach(function(cb) {
-    selectedEngs.push(cb.value);
-  });
-
-  // Filter role items by selected clients + engagements
-  var validRoles = new Set();
-  Object.entries(_dashFilterMap).forEach(function(entry) {
-    var eid = entry[0], eng = entry[1];
-    var clientMatch = selectedClients.length === 0 || selectedClients.includes(eng.client);
-    var engMatch = selectedEngs.length === 0 || selectedEngs.includes(eid);
-    if (clientMatch && engMatch) {
-      eng.roles.forEach(function(r) { validRoles.add(r); });
+function _setDropdownVisibility(dropdownId, allowedSet, placeholder) {
+  var dropdown = document.getElementById(dropdownId);
+  if (!dropdown) return;
+  var anyUnchecked = false;
+  dropdown.querySelectorAll('.dropdown-item').forEach(function(item) {
+    var cb = item.querySelector('input[type="checkbox"]');
+    if (!cb) return;
+    var visible = allowedSet === null || allowedSet.has(cb.value);
+    item.style.display = visible ? '' : 'none';
+    if (!visible && cb.checked) {
+      cb.checked = false;
+      anyUnchecked = true;
     }
   });
-  var roleDropdown = document.getElementById('roleDropdown');
-  if (roleDropdown) {
-    roleDropdown.querySelectorAll('.dropdown-item').forEach(function(item) {
-      var cb = item.querySelector('input[type="checkbox"]');
-      if (cb) item.style.display = (validRoles.size === 0 || validRoles.has(cb.value)) ? '' : 'none';
-    });
+  // Update the dropdown display text if any items were unchecked
+  if (anyUnchecked && placeholder) {
+    updateDropdownText(dropdownId, placeholder);
   }
 }
 
-// Attach cascade listeners
+function cascadeDashboardFilters() {
+  if (_cascading) return;
+  _cascading = true;
+  try {
+  // Collect current selections (before any resetting)
+  var selectedClients = _getCheckedValues('clientDropdown');
+  var selectedEngs = _getCheckedValues('engagementDropdown');
+  var selectedRoles = _getCheckedValues('roleDropdown');
+  var selectedIntakes = _getCheckedValues('intakeDropdown');
+
+  // Determine which engagements match ALL active filters
+  // An engagement matches if it is compatible with every non-empty filter
+  var compatibleEngIds = new Set();
+  Object.entries(_dashFilterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var clientOk = selectedClients.length === 0 || selectedClients.includes(eng.client);
+    var engOk = selectedEngs.length === 0 || selectedEngs.includes(eid);
+    var roleOk = selectedRoles.length === 0 || selectedRoles.some(function(r) { return eng.roles.indexOf(r) !== -1; });
+    var intakeOk = selectedIntakes.length === 0 || (eng.intakes || []).some(function(d) { return selectedIntakes.indexOf(d) !== -1; });
+    if (clientOk && engOk && roleOk && intakeOk) {
+      compatibleEngIds.add(eid);
+    }
+  });
+
+  // Build allowed sets for each dropdown based on compatible engagements
+  // For CLIENT: show clients that have at least one compatible engagement
+  var allowedClients = new Set();
+  var allowedEngagements = new Set();
+  var allowedRoles = new Set();
+  var allowedIntakes = new Set();
+
+  Object.entries(_dashFilterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+
+    // For clients: engagement must match engagement, role, and intake filters (not client filter itself)
+    var engOk = selectedEngs.length === 0 || selectedEngs.includes(eid);
+    var roleOk = selectedRoles.length === 0 || selectedRoles.some(function(r) { return eng.roles.indexOf(r) !== -1; });
+    var intakeOk = selectedIntakes.length === 0 || (eng.intakes || []).some(function(d) { return selectedIntakes.indexOf(d) !== -1; });
+    if (engOk && roleOk && intakeOk) {
+      allowedClients.add(eng.client);
+    }
+
+    // For engagements: must match client, role, and intake filters (not engagement filter itself)
+    var clientOk = selectedClients.length === 0 || selectedClients.includes(eng.client);
+    if (clientOk && roleOk && intakeOk) {
+      allowedEngagements.add(eid);
+    }
+
+    // For roles: must match client, engagement, and intake filters (not role filter itself)
+    if (clientOk && engOk && intakeOk) {
+      eng.roles.forEach(function(r) { allowedRoles.add(r); });
+    }
+
+    // For intakes: must match client, engagement, and role filters (not intake filter itself)
+    if (clientOk && engOk && roleOk) {
+      (eng.intakes || []).forEach(function(d) { allowedIntakes.add(d); });
+    }
+  });
+
+  // Apply visibility — pass null for "show all" when the allowed set covers everything
+  _setDropdownVisibility('clientDropdown',
+    (selectedEngs.length || selectedRoles.length || selectedIntakes.length) ? allowedClients : null,
+    'All Clients');
+  _setDropdownVisibility('engagementDropdown',
+    (selectedClients.length || selectedRoles.length || selectedIntakes.length) ? allowedEngagements : null,
+    'All Engagements');
+  _setDropdownVisibility('roleDropdown',
+    (selectedClients.length || selectedEngs.length || selectedIntakes.length) ? allowedRoles : null,
+    'All Roles');
+  _setDropdownVisibility('intakeDropdown',
+    (selectedClients.length || selectedEngs.length || selectedRoles.length) ? allowedIntakes : null,
+    'All Intakes');
+  } finally { _cascading = false; }
+}
+
+// Attach cascade listeners to ALL filter dropdowns
 document.addEventListener('DOMContentLoaded', function() {
-  ['clientDropdown', 'engagementDropdown'].forEach(function(id) {
+  ['clientDropdown', 'engagementDropdown', 'roleDropdown', 'intakeDropdown'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('change', cascadeDashboardFilters);
   });

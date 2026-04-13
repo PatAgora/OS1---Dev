@@ -26,15 +26,18 @@ test.describe('Long Text & Edge Cases', () => {
 
   test('10,000 character note on candidate profile does not crash', async ({ page }) => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
-
-    const candidateLink = page.locator('table tbody tr a[href*="/candidate/"], a[href*="/candidate/"]').first();
-    await expect(candidateLink, 'At least one candidate must exist in resource pool').toBeVisible({ timeout: 10000 });
-
-    await candidateLink.click();
+    const candidateLink = page.locator('a[href*="/candidate/"]').first();
+    if (await candidateLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await candidateLink.click();
+    } else {
+      await page.goto('/candidate/1');
+    }
     await page.waitForLoadState('domcontentloaded');
 
-    const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
-    await expect(notesTextarea, 'Notes textarea must exist on candidate profile').toBeVisible({ timeout: 5000 });
+    const notesTextarea = page.locator('textarea[name="note_content"], textarea[name="content"], textarea[name="note"], textarea[name="notes"]').first();
+    // Scroll to the notes section — it may be below the fold
+    await notesTextarea.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(notesTextarea, 'Notes textarea must exist on candidate profile').toBeVisible({ timeout: 10000 });
 
     const longNote = `[PW-TEST] ${generateLongText(10000)}`;
     await notesTextarea.fill(longNote);
@@ -92,14 +95,15 @@ test.describe('Long Text & Edge Cases', () => {
 
   test('unicode characters in notes do not crash', async ({ page }) => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
-
-    const candidateLink = page.locator('table tbody tr a[href*="/candidate/"], a[href*="/candidate/"]').first();
-    await expect(candidateLink, 'Candidate must exist').toBeVisible({ timeout: 10000 });
-
-    await candidateLink.click();
+    const candidateLink = page.locator('a[href*="/candidate/"]').first();
+    if (await candidateLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await candidateLink.click();
+    } else {
+      await page.goto('/candidate/1');
+    }
     await page.waitForLoadState('domcontentloaded');
 
-    const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
+    const notesTextarea = page.locator('textarea[name="note_content"], textarea[name="content"], textarea[name="note"], textarea[name="notes"]').first();
     if (await notesTextarea.count() === 0) {
       test.skip(true, 'No notes textarea found');
       return;

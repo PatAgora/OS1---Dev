@@ -1588,7 +1588,7 @@ function updatePipelineTableRow(opportunityId, newStage) {
     row.style.transition = 'background-color 0.3s ease';
     row.style.backgroundColor = '#fef3c7';
     setTimeout(() => {
-      row.style.backgroundColor = '';
+      if (row && row.parentElement) row.style.backgroundColor = '';
     }, 1500);
   }
 }

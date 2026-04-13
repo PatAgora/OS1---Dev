@@ -907,13 +907,13 @@
           {% if card.email %}
           <div class="contact-item" title="{{ card.email }}">
             <i class="fas fa-envelope"></i>
-            <a href="mailto:{{ card.email }}" style="color:inherit;text-decoration:none;" onclick="event.stopPropagation();">{{ card.email[:20] }}{{ '...' if card.email|length > 20 else '' }}</a>
+            <a href="mailto:{{ card.email }}" style="color:inherit;text-decoration:none;" draggable="false" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="event.preventDefault();">{{ card.email[:20] }}{{ '...' if card.email|length > 20 else '' }}</a>
           </div>
           {% endif %}
           {% if card.phone %}
           <div class="contact-item">
             <i class="fas fa-phone"></i>
-            <a href="tel:{{ card.phone }}" style="color:inherit;text-decoration:none;" onclick="event.stopPropagation();">{{ card.phone }}</a>
+            <a href="tel:{{ card.phone }}" style="color:inherit;text-decoration:none;" draggable="false" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="event.preventDefault();">{{ card.phone }}</a>
           </div>
           {% endif %}
         </div>
@@ -1326,56 +1326,117 @@ function applyClientFilter() {
 // === Cascading Filters (Req-037) ===
 const _filterMap = {{ filter_map | tojson }};
 
+var _cascadeGuard = false;
 function cascadeFilters() {
-  const clientSel = document.getElementById('filterClient');
-  const engSel = document.getElementById('filterEngagement');
-  const roleSel = document.getElementById('filterRole');
-  const intakeSel = document.getElementById('filterIntake');
-  if (!clientSel || !engSel) return;
+  if (_cascadeGuard) return;
+  _cascadeGuard = true;
 
-  const selectedClient = clientSel.value;
-  const selectedEng = engSel.value;
+  var clientSel = document.getElementById('filterClient');
+  var engSel = document.getElementById('filterEngagement');
+  var roleSel = document.getElementById('filterRole');
+  var intakeSel = document.getElementById('filterIntake');
+  if (!clientSel || !engSel) { _cascadeGuard = false; return; }
 
-  // Filter engagements by selected client
-  Array.from(engSel.options).forEach(function(opt) {
-    if (opt.value === 'all') return;
-    const eng = _filterMap[opt.value];
-    opt.style.display = (selectedClient === 'all' || (eng && eng.client === selectedClient)) ? '' : 'none';
+  var selectedClient = clientSel.value;
+  var selectedEng = engSel.value;
+  var selectedRole = roleSel ? roleSel.value : 'all';
+  var selectedIntake = intakeSel ? intakeSel.value : 'all';
+
+  // For each filter, compute valid options based on ALL OTHER filters (excluding itself).
+  // This makes the cascade fully bidirectional: selecting a Role narrows Client/Engagement,
+  // selecting an Intake narrows Client/Engagement, etc.
+
+  // Valid clients: engagements matching engagement + role + intake selections
+  var validClients = new Set();
+  Object.entries(_filterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var engMatch = selectedEng === 'all' || eid === selectedEng;
+    var roleMatch = selectedRole === 'all' || eng.roles.indexOf(selectedRole) !== -1;
+    var intakeMatch = selectedIntake === 'all' || eng.intakes.indexOf(selectedIntake) !== -1;
+    if (engMatch && roleMatch && intakeMatch) {
+      validClients.add(eng.client);
+    }
   });
 
-  // Filter roles by selected engagement (or by client if no engagement selected)
+  // Valid engagements: matching client + role + intake selections
+  var validEngIds = new Set();
+  Object.entries(_filterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
+    var roleMatch = selectedRole === 'all' || eng.roles.indexOf(selectedRole) !== -1;
+    var intakeMatch = selectedIntake === 'all' || eng.intakes.indexOf(selectedIntake) !== -1;
+    if (clientMatch && roleMatch && intakeMatch) {
+      validEngIds.add(eid);
+    }
+  });
+
+  // Valid roles: engagements matching client + engagement + intake selections
+  var validRoles = new Set();
+  Object.entries(_filterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
+    var engMatch = selectedEng === 'all' || eid === selectedEng;
+    var intakeMatch = selectedIntake === 'all' || eng.intakes.indexOf(selectedIntake) !== -1;
+    if (clientMatch && engMatch && intakeMatch) {
+      eng.roles.forEach(function(r) { validRoles.add(r); });
+    }
+  });
+
+  // Valid intakes: engagements matching client + engagement + role selections
+  var validIntakes = new Set();
+  Object.entries(_filterMap).forEach(function(entry) {
+    var eid = entry[0], eng = entry[1];
+    var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
+    var engMatch = selectedEng === 'all' || eid === selectedEng;
+    var roleMatch = selectedRole === 'all' || eng.roles.indexOf(selectedRole) !== -1;
+    if (clientMatch && engMatch && roleMatch) {
+      eng.intakes.forEach(function(d) { validIntakes.add(d); });
+    }
+  });
+
+  // Apply visibility and reset any selected option that is now hidden
+
+  // Clients
+  Array.from(clientSel.options).forEach(function(opt) {
+    if (opt.value === 'all') return;
+    opt.style.display = validClients.has(opt.value) ? '' : 'none';
+  });
+  if (selectedClient !== 'all' && !validClients.has(selectedClient)) {
+    clientSel.value = 'all';
+  }
+
+  // Engagements
+  Array.from(engSel.options).forEach(function(opt) {
+    if (opt.value === 'all') return;
+    opt.style.display = validEngIds.has(opt.value) ? '' : 'none';
+  });
+  if (selectedEng !== 'all' && !validEngIds.has(selectedEng)) {
+    engSel.value = 'all';
+  }
+
+  // Roles
   if (roleSel) {
-    const validRoles = new Set();
-    Object.entries(_filterMap).forEach(function(entry) {
-      var eid = entry[0], eng = entry[1];
-      var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
-      var engMatch = selectedEng === 'all' || eid === selectedEng;
-      if (clientMatch && engMatch) {
-        eng.roles.forEach(function(r) { validRoles.add(r); });
-      }
-    });
     Array.from(roleSel.options).forEach(function(opt) {
       if (opt.value === 'all') return;
       opt.style.display = validRoles.size === 0 || validRoles.has(opt.value) ? '' : 'none';
     });
+    if (selectedRole !== 'all' && validRoles.size > 0 && !validRoles.has(selectedRole)) {
+      roleSel.value = 'all';
+    }
   }
 
-  // Filter intakes by selected engagement (or by client)
+  // Intakes
   if (intakeSel) {
-    var validIntakes = new Set();
-    Object.entries(_filterMap).forEach(function(entry) {
-      var eid = entry[0], eng = entry[1];
-      var clientMatch = selectedClient === 'all' || eng.client === selectedClient;
-      var engMatch = selectedEng === 'all' || eid === selectedEng;
-      if (clientMatch && engMatch) {
-        eng.intakes.forEach(function(d) { validIntakes.add(d); });
-      }
-    });
     Array.from(intakeSel.options).forEach(function(opt) {
       if (opt.value === 'all') return;
       opt.style.display = validIntakes.size === 0 || validIntakes.has(opt.value) ? '' : 'none';
     });
+    if (selectedIntake !== 'all' && validIntakes.size > 0 && !validIntakes.has(selectedIntake)) {
+      intakeSel.value = 'all';
+    }
   }
+
+  _cascadeGuard = false;
 }
 
 // Attach cascade to filter change events

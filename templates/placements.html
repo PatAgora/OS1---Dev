@@ -584,9 +584,9 @@
       <p>Active on-contract associates across all engagements</p>
     </div>
     <div class="d-flex gap-2">
-      <button class="btn btn-light btn-sm" onclick="exportToCSV()">
+      <a href="/placements/export" class="btn btn-light btn-sm">
         <i class="fas fa-download me-1"></i> Export CSV
-      </button>
+      </a>
     </div>
   </div>
 </div>
@@ -814,7 +814,7 @@
     </thead>
     <tbody>
       {% for p in placements %}
-      <tr data-client="{{ p.client }}" data-name="{{ p.associate_name }}" data-engagement="{{ p.engagement_name }}" data-role="{{ p.role }}" data-esig-id="{{ p.esig_id }}">
+      <tr data-client="{{ p.client }}" data-name="{{ p.associate_name }}" data-engagement="{{ p.engagement_name }}" data-engagement-id="{{ p.engagement_id or '' }}" data-role="{{ p.role }}" data-esig-id="{{ p.esig_id }}">
         <td class="bulk-col" style="display:none;"><input type="checkbox" class="placement-check" value="{{ p.esig_id }}"></td>
         <td>
           <div class="associate-cell">
@@ -1469,44 +1469,108 @@ document.querySelectorAll('.forecast-btn').forEach(btn => {
   });
 });
 
-// === Cascading Filters (Req-037) ===
-var _placeFilterMap = {{ filter_map | tojson }};
+// === Bidirectional Cascading Filters (Req-037) ===
+// Build relationship tuples from table rows for bidirectional lookups
+var _placementRecords = [];
+(function() {
+  var rows = document.querySelectorAll('#placementsTable tbody tr[data-client]');
+  rows.forEach(function(row) {
+    _placementRecords.push({
+      client: row.getAttribute('data-client') || '',
+      engagement: row.getAttribute('data-engagement-id') || '',
+      role: row.getAttribute('data-role') || '',
+      name: row.getAttribute('data-name') || ''
+    });
+  });
+})();
+
+var _cascading = false;
 
 function cascadePlacementFilters() {
-  var selectedClients = [];
-  document.querySelectorAll('#clientDropdown input[type="checkbox"]:checked').forEach(function(cb) {
-    selectedClients.push(cb.value);
-  });
+  if (_cascading) return;
+  _cascading = true;
 
-  // Filter engagements by client
-  var validEngs = new Set();
-  var validRoles = new Set();
-  var validNames = new Set();
-  if (selectedClients.length > 0) {
-    selectedClients.forEach(function(c) {
-      var m = _placeFilterMap[c];
-      if (m) {
-        m.engagements.forEach(function(e) { validEngs.add(e); });
-        m.roles.forEach(function(r) { validRoles.add(r); });
-        m.names.forEach(function(n) { validNames.add(n); });
-      }
+  // Gather current selections from each dropdown
+  function getSelected(ddId) {
+    var vals = [];
+    var dd = document.getElementById(ddId);
+    if (!dd) return vals;
+    dd.querySelectorAll('input[type="checkbox"]:checked').forEach(function(cb) {
+      vals.push(cb.value);
     });
+    return vals;
   }
 
-  ['engagementDropdown', 'roleDropdown', 'nameDropdown'].forEach(function(ddId) {
-    var dd = document.getElementById(ddId);
+  var selClients = getSelected('clientDropdown');
+  var selEngagements = getSelected('engagementDropdown');
+  var selRoles = getSelected('roleDropdown');
+  var selNames = getSelected('nameDropdown');
+
+  // For each dropdown, compute valid values based on the OTHER filters
+  // A record is compatible if it matches ALL other active filters
+  function matchesOthers(rec, excludeField) {
+    if (excludeField !== 'client' && selClients.length > 0 && selClients.indexOf(rec.client) === -1) return false;
+    if (excludeField !== 'engagement' && selEngagements.length > 0 && selEngagements.indexOf(rec.engagement) === -1) return false;
+    if (excludeField !== 'role' && selRoles.length > 0 && selRoles.indexOf(rec.role) === -1) return false;
+    if (excludeField !== 'name' && selNames.length > 0 && selNames.indexOf(rec.name) === -1) return false;
+    return true;
+  }
+
+  function computeValid(field) {
+    var valid = new Set();
+    _placementRecords.forEach(function(rec) {
+      if (matchesOthers(rec, field)) {
+        valid.add(rec[field]);
+      }
+    });
+    return valid;
+  }
+
+  var validClients = computeValid('client');
+  var validEngagements = computeValid('engagement');
+  var validRoles = computeValid('role');
+  var validNames = computeValid('name');
+
+  var dropdownConfig = [
+    { id: 'clientDropdown', validSet: validClients, sel: selClients, allLabel: 'All Clients' },
+    { id: 'engagementDropdown', validSet: validEngagements, sel: selEngagements, allLabel: 'All Engagements' },
+    { id: 'roleDropdown', validSet: validRoles, sel: selRoles, allLabel: 'All Roles' },
+    { id: 'nameDropdown', validSet: validNames, sel: selNames, allLabel: 'All Names' }
+  ];
+
+  // Check if ANY other filter is active (to decide whether to restrict options)
+  var anyFilterActive = selClients.length > 0 || selEngagements.length > 0 || selRoles.length > 0 || selNames.length > 0;
+
+  dropdownConfig.forEach(function(cfg) {
+    var dd = document.getElementById(cfg.id);
     if (!dd) return;
-    var validSet = ddId === 'engagementDropdown' ? validEngs : (ddId === 'roleDropdown' ? validRoles : validNames);
+
+    var needsTextUpdate = false;
     dd.querySelectorAll('.dropdown-item').forEach(function(item) {
       var cb = item.querySelector('input[type="checkbox"]');
-      if (cb) item.style.display = (selectedClients.length === 0 || validSet.has(cb.value)) ? '' : 'none';
+      if (!cb) return;
+      var isValid = !anyFilterActive || cfg.validSet.has(cb.value);
+      item.style.display = isValid ? '' : 'none';
+      // If a checked value is no longer valid, uncheck it
+      if (!isValid && cb.checked) {
+        cb.checked = false;
+        needsTextUpdate = true;
+      }
     });
+
+    if (needsTextUpdate && typeof updateDropdownText === 'function') {
+      updateDropdownText(cfg.id, cfg.allLabel);
+    }
   });
+
+  _cascading = false;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  var el = document.getElementById('clientDropdown');
-  if (el) el.addEventListener('change', cascadePlacementFilters);
+  ['clientDropdown', 'engagementDropdown', 'roleDropdown', 'nameDropdown'].forEach(function(ddId) {
+    var el = document.getElementById(ddId);
+    if (el) el.addEventListener('change', cascadePlacementFilters);
+  });
   cascadePlacementFilters();
 });
 </script>

@@ -6077,10 +6077,21 @@ def index():
                 .where(Job.engagement_id == eng.id)
                 .where(Job.title.isnot(None), Job.title != "")
             ).all()
+            eng_intakes = []
+            try:
+                eng_intake_dates = fs.scalars(
+                    select(EngagementPlan.intake_date).distinct()
+                    .where(EngagementPlan.engagement_id == eng.id)
+                    .where(EngagementPlan.intake_date.isnot(None))
+                ).all()
+                eng_intakes = [d.strftime("%Y-%m-%d") for d in eng_intake_dates if d]
+            except Exception:
+                pass
             dash_filter_map[str(eng.id)] = {
                 "client": eng.client or "",
                 "name": eng.name or "",
                 "roles": list(eng_roles),
+                "intakes": eng_intakes,
             }
 
     return render_template(
@@ -6150,6 +6161,11 @@ def candidate_regenerate_summary():
     if not cand_id:
         flash("Missing associate id.", "warning")
         return redirect(request.referrer or url_for("resource_pool"))
+
+    # --- Check Gemini API key is configured
+    if not GEMINI_API_KEY or GEMINI_API_KEY in ("your_gemini_api_key_here", ""):
+        flash("AI summarisation requires GEMINI_API_KEY to be configured.", "danger")
+        return redirect(request.referrer or url_for("candidate_profile", id=cand_id))
 
     # --- Imports kept inside to avoid circulars
     from sqlalchemy import select
@@ -10907,6 +10923,10 @@ def api_vetting_trigger_referencing(cand_id):
                         continue
 
                     # Check permission: per-entry flag, or global current employer flag
+                    # TODO: Reference consent is now a global toggle on ConsentRecord.reference_consent
+                    # (set via the associate portal consent form). The per-entry permission_to_request
+                    # column is retained but no longer written to by the associate portal.
+                    # Staff-side logic should be updated to check ConsentRecord.reference_consent instead.
                     perm = getattr(emp, 'permission_to_request', 'yes') or 'yes'
                     is_current = (i == 0)  # most recent entry
                     contact_ok = getattr(cand, 'current_employer_contact_ok', True)
@@ -14626,9 +14646,10 @@ def revenue():
     """
     import calendar
     
-    # ===== FILTER SECTION 1: Client, Engagement, Date Range =====
+    # ===== FILTER SECTION 1: Client, Engagement, Role, Date Range =====
     selected_clients = request.args.getlist("clients")  # Multi-select
     selected_engagements = request.args.getlist("engagements")  # Multi-select
+    selected_roles = request.args.getlist("roles")  # Multi-select
     date_from = request.args.get("date_from") or ""
     date_to = request.args.get("date_to") or ""
     
@@ -14659,7 +14680,29 @@ def revenue():
             .where(Engagement.client.isnot(None))
             .order_by(Engagement.name)
         ).all()
-        
+
+        # Get distinct roles from engagement plans for filter dropdown
+        all_roles = s.scalars(
+            select(EngagementPlan.role_type)
+            .distinct()
+            .where(EngagementPlan.role_type.isnot(None), EngagementPlan.role_type != "")
+            .order_by(EngagementPlan.role_type)
+        ).all()
+
+        # Build role-to-engagement relationship map for cascading filters
+        role_eng_rows = s.execute(
+            select(EngagementPlan.role_type, EngagementPlan.engagement_id)
+            .where(EngagementPlan.role_type.isnot(None), EngagementPlan.role_type != "")
+            .distinct()
+        ).all()
+        # role_engagement_map: {role_type: [eng_id, ...]}
+        role_engagement_map = {}
+        for role, eng_id in role_eng_rows:
+            role_engagement_map.setdefault(role, []).append(eng_id)
+
+        # Build engagement_id -> client map for cascade
+        eng_client_map = {e.id: e.client for e in all_engagements}
+
         # Build engagement query with filters
         eng_query = (
             select(Engagement)
@@ -14675,6 +14718,14 @@ def revenue():
             eng_ids = [int(e) for e in selected_engagements if e.isdigit()]
             if eng_ids:
                 eng_query = eng_query.where(Engagement.id.in_(eng_ids))
+
+        # Multi-select Role filter — restrict to engagements that have matching roles
+        if selected_roles:
+            role_eng_ids = set()
+            for r in selected_roles:
+                role_eng_ids.update(role_engagement_map.get(r, []))
+            if role_eng_ids:
+                eng_query = eng_query.where(Engagement.id.in_(role_eng_ids))
         
         # Calculate date range from period filters
         filter_start = None
@@ -14981,8 +15032,12 @@ def revenue():
         trend_data=trend_data,
         all_clients=all_clients,
         all_engagements=all_engagements,
+        all_roles=all_roles,
+        role_engagement_map=role_engagement_map,
+        eng_client_map=eng_client_map,
         selected_clients=selected_clients,
         selected_engagements=selected_engagements,
+        selected_roles=selected_roles,
         date_from=date_from,
         date_to=date_to,
         financial_years=financial_years,

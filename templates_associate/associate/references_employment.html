@@ -167,30 +167,7 @@
                     <input type="text" id="reason_for_leaving" name="reason_for_leaving" class="form-control" placeholder="e.g. End of contract, career progression, redundancy...">
                 </div>
 
-                <!-- Permission to request reference -->
-                <div class="col-md-12">
-                    <label class="form-label">Permission to request reference now?</label>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="permission_to_request" id="permission_yes" value="yes" checked>
-                        <label class="form-check-label" for="permission_yes">Yes</label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="permission_to_request" id="permission_no" value="no">
-                        <label class="form-check-label" for="permission_no">No</label>
-                    </div>
-                </div>
-                <div class="col-md-12" id="noPermissionSection" style="display: none;">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="no_permission_reason">Reason</label>
-                            <input type="text" id="no_permission_reason" name="no_permission_reason" class="form-control" placeholder="Why can't we request now?">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="future_permission_date">When can we request?</label>
-                            <input type="date" id="future_permission_date" name="future_permission_date" class="form-control">
-                        </div>
-                    </div>
-                </div>
+                <!-- Reference consent is now managed globally via the Consent Form -->
             </div>
 
             <div class="mt-4">
@@ -271,16 +248,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var csrfToken = getCsrfToken();
-
-    // ---------- Permission toggle for employment ----------
-    var permYes = document.getElementById('permission_yes');
-    var permNo = document.getElementById('permission_no');
-    var noPermSection = document.getElementById('noPermissionSection');
-
-    if (permYes && permNo && noPermSection) {
-        permNo.addEventListener('change', function() { noPermSection.style.display = 'block'; });
-        permYes.addEventListener('change', function() { noPermSection.style.display = 'none'; });
-    }
 
     // ---------- Gap reason "Other" toggle ----------
     var gapReason = document.getElementById('gap_reason');

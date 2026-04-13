@@ -26,7 +26,8 @@ setup('authenticate as associate', async ({ page }) => {
     await testPage.goto('https://os1-dev-production.up.railway.app/portal/dashboard', { waitUntil: 'domcontentloaded' });
     const url = testPage.url();
     await ctx.close();
-    if (url.includes('/portal/dashboard') || (url.includes('/portal/') && !url.includes('/login'))) {
+    const urlPath = new URL(url).pathname;
+    if (urlPath === '/portal/dashboard' || urlPath.startsWith('/portal/personal') || urlPath.startsWith('/portal/intro')) {
       console.log('✓ Associate session still valid — reusing saved state');
       return;
     }
@@ -62,8 +63,8 @@ setup('authenticate as associate', async ({ page }) => {
       if (await totpField.isVisible({ timeout: 1000 }).catch(() => false)) {
         await totpField.fill('');
       }
-      // Backup codes are single-use. Use index 2+ (0 and 1 already consumed).
-      const codeIndex = 2;
+      // Backup codes are single-use. Use index 5+ (0-4 already consumed).
+      const codeIndex = 5;
       await backupInput.fill(TEST_BACKUP_CODES[codeIndex]);
       console.log(`  Submitting backup code [${codeIndex}]: ${TEST_BACKUP_CODES[codeIndex]}`);
       // Click the submit button inside the backup section (not the hidden TOTP section)
@@ -80,8 +81,8 @@ setup('authenticate as associate', async ({ page }) => {
           if (await totpField2.isVisible({ timeout: 1000 }).catch(() => false)) {
             await totpField2.fill('');
           }
-          await backupInput2.fill(TEST_BACKUP_CODES[1]);
-          console.log(`  Submitting backup code: ${TEST_BACKUP_CODES[1]}`);
+          await backupInput2.fill(TEST_BACKUP_CODES[codeIndex + 1]);
+          console.log(`  Submitting backup code [${codeIndex + 1}]: ${TEST_BACKUP_CODES[codeIndex + 1]}`);
           await page.locator('#backupSection button[type="submit"], #backupSection .os-btn-primary').first().click();
           await page.waitForLoadState('domcontentloaded');
           console.log(`  After second backup code: ${page.url()}`);
