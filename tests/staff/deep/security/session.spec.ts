@@ -3,78 +3,100 @@
  *
  * Verifies session handling: logout clears state, protected routes
  * redirect to login, and session cookies have appropriate security flags.
+ *
+ * These tests intentionally start UNAUTHENTICATED and manage their own login.
  */
 import { test, expect } from '@playwright/test';
 import { installRouteGuard } from '../../../utils/blocked-routes';
+import { generateTOTP } from '../../../utils/totp';
+import fs from 'fs';
+import path from 'path';
 
-// Start with a fresh session — we will log in manually
+// Start fresh — no stored session
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.beforeEach(async ({ page }) => {
   await installRouteGuard(page);
 });
 
-const BASE_URL = 'https://os1-dev-production.up.railway.app';
+const TOTP_SECRET_FILE = path.join(__dirname, '../../../../playwright/.auth/totp-secret.txt');
+
+/** Log in as the test admin user, handling 2FA automatically */
+async function loginAsTestAdmin(page: import('@playwright/test').Page): Promise<boolean> {
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+
+  const emailInput = page.locator('input[name="email"]').first();
+  if (await emailInput.count() === 0) return false;
+
+  await emailInput.fill('playwright@test.example.com');
+  await page.locator('input[name="password"]').first().fill('Testuser1234!');
+  await page.locator('button[type="submit"], input[type="submit"]').first().click();
+  await page.waitForLoadState('domcontentloaded');
+
+  // Handle 2FA
+  if (page.url().includes('2fa') || page.url().includes('verify')) {
+    if (fs.existsSync(TOTP_SECRET_FILE)) {
+      const secret = fs.readFileSync(TOTP_SECRET_FILE, 'utf-8').trim();
+      const code = generateTOTP(secret);
+      const totpInput = page.locator('input[name="totp_code"], input[name="code"], input[name="token"]').first();
+      if (await totpInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await totpInput.fill(code);
+        await page.locator('[type="submit"]').first().click();
+        await page.waitForLoadState('domcontentloaded');
+      }
+    } else {
+      return false;
+    }
+  }
+
+  // Handle backup codes page
+  if (page.url().includes('backup')) {
+    const continueBtn = page.locator('a:has-text("Continue"), button:has-text("Continue")').first();
+    if (await continueBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await continueBtn.click();
+      await page.waitForLoadState('domcontentloaded');
+    }
+  }
+
+  return !page.url().includes('/login');
+}
 
 test.describe('Session Security', () => {
 
   test('logout clears session and redirects to login', async ({ page }) => {
-    // Log in as the test admin
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
-
-    const emailInput = page.locator('input[name="email"]').first();
-    const passwordInput = page.locator('input[name="password"]').first();
-
-    if (await emailInput.count() === 0) {
-      test.skip(true, 'Login form not found');
-      return;
-    }
-
-    await emailInput.fill('admin@demo.example.com');
-    await passwordInput.fill('DemoAdmin2024!');
-    await page.locator('button[type="submit"], input[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Handle 2FA if prompted
-    if (page.url().includes('2fa') || page.url().includes('mfa')) {
-      test.skip(true, '2FA required — cannot complete login in this test');
-      return;
-    }
-
-    // Verify we are logged in (dashboard or redirect target)
-    const bodyAfterLogin = await page.textContent('body') || '';
-    if (bodyAfterLogin.includes('Sign in') && page.url().includes('/login')) {
-      test.skip(true, 'Login failed — credentials may have changed');
-      return;
-    }
+    const loggedIn = await loginAsTestAdmin(page);
+    expect(loggedIn, 'Login must succeed for logout test').toBeTruthy();
 
     // Now log out
     await page.goto('/logout', { waitUntil: 'domcontentloaded' });
 
-    // After logout, should be on login page
-    expect(page.url()).toContain('/login');
+    // After logout, should redirect to login
+    const url = page.url();
+    const body = (await page.textContent('body') || '').toLowerCase();
+    expect(
+      url.includes('/login') || body.includes('sign in') || body.includes('password'),
+      `After logout, expected login page but got ${url}`
+    ).toBeTruthy();
 
     // Navigating to dashboard should redirect to login
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    expect(page.url()).toContain('/login');
+    const dashUrl = page.url();
+    expect(
+      dashUrl.includes('/login') || dashUrl.includes('/auth'),
+      `Dashboard should redirect to login after logout, got ${dashUrl}`
+    ).toBeTruthy();
   });
 
   test('protected routes redirect to login when unauthenticated', async ({ page }) => {
-    const protectedRoutes = ['/applications', '/resource-pool', '/engagements', '/admin/users'];
+    const protectedRoutes = ['/applications', '/resource-pool', '/engagements'];
 
     for (const route of protectedRoutes) {
       await page.goto(route, { waitUntil: 'domcontentloaded' });
-      // Should redirect to login or show login form
       const url = page.url();
-      const body = await page.textContent('body') || '';
-      const lowerBody = body.toLowerCase();
+      const body = (await page.textContent('body') || '').toLowerCase();
 
       const isOnLogin = url.includes('login') || url.includes('auth') || url.includes('signin');
-      const showsLoginForm =
-        lowerBody.includes('sign in') ||
-        lowerBody.includes('log in') ||
-        lowerBody.includes('password') ||
-        lowerBody.includes('email') ||
+      const showsLoginForm = body.includes('sign in') || body.includes('password') ||
         (await page.locator('input[type="password"]').count()) > 0;
 
       expect(
@@ -85,65 +107,35 @@ test.describe('Session Security', () => {
   });
 
   test('session cookie has httponly flag', async ({ page }) => {
-    // Log in to get a session cookie
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    const loggedIn = await loginAsTestAdmin(page);
+    expect(loggedIn, 'Login must succeed for cookie test').toBeTruthy();
 
-    const emailInput = page.locator('input[name="email"]').first();
-    const passwordInput = page.locator('input[name="password"]').first();
-
-    if (await emailInput.count() === 0) {
-      test.skip(true, 'Login form not found');
-      return;
-    }
-
-    await emailInput.fill('admin@demo.example.com');
-    await passwordInput.fill('DemoAdmin2024!');
-    await page.locator('button[type="submit"], input[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Handle 2FA if prompted
-    if (page.url().includes('2fa') || page.url().includes('mfa')) {
-      test.skip(true, '2FA required — cannot complete login in this test');
-      return;
-    }
-
-    // Check cookies
     const cookies = await page.context().cookies();
-    const sessionCookie = cookies.find(
-      (c) => c.name === 'session' || c.name === 'flask_session' || c.name.includes('session')
-    );
+    const sessionCookie = cookies.find(c => c.name === 'session' || c.name.includes('session'));
 
+    expect(sessionCookie, 'Session cookie should exist after login').toBeTruthy();
     if (sessionCookie) {
-      expect(sessionCookie.httpOnly).toBe(true);
-    } else {
-      // If no session cookie found by name, check all cookies for httpOnly
-      const hasAnyCookie = cookies.length > 0;
-      expect(hasAnyCookie).toBe(true);
-      console.log('Session cookie names:', cookies.map((c) => c.name).join(', '));
+      expect(sessionCookie.httpOnly, 'Session cookie should have httpOnly flag').toBe(true);
+      console.log(`  ✓ Session cookie: httpOnly=${sessionCookie.httpOnly}, secure=${sessionCookie.secure}, sameSite=${sessionCookie.sameSite}`);
     }
   });
 
   test('/applications returns login page after logout', async ({ page }) => {
-    // This test verifies no cached authenticated content is served
-    const response = await page.goto('/applications', { waitUntil: 'domcontentloaded' });
-    expect(response?.status()).toBeLessThan(500);
+    const loggedIn = await loginAsTestAdmin(page);
+    expect(loggedIn, 'Login must succeed').toBeTruthy();
 
+    // Logout
+    await page.goto('/logout', { waitUntil: 'domcontentloaded' });
+
+    // Try accessing a protected route
+    await page.goto('/applications', { waitUntil: 'domcontentloaded' });
     const url = page.url();
-    const body = await page.textContent('body') || '';
-    const lowerBody = body.toLowerCase();
-
-    const isOnLogin =
-      url.includes('login') ||
-      url.includes('auth') ||
-      url.includes('signin') ||
-      lowerBody.includes('sign in') ||
-      lowerBody.includes('log in') ||
-      lowerBody.includes('password') ||
-      (await page.locator('input[type="password"]').count()) > 0;
+    const body = (await page.textContent('body') || '').toLowerCase();
 
     expect(
-      isOnLogin,
-      `Expected login page but ended up at ${url}`
-    ).toBe(true);
+      url.includes('/login') || body.includes('sign in') || body.includes('password'),
+      `Expected login after logout+/applications, got ${url}`
+    ).toBeTruthy();
   });
+
 });

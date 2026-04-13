@@ -19,17 +19,12 @@ test.describe('XSS Prevention', () => {
 
   test('candidate notes are sanitised', async ({ page }) => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
-    await guardSessionExpired(page);
 
     // Click first candidate link
     const candidateLink = page.locator('table tbody tr a, .candidate-link, [href*="/candidate/"]').first();
-    if (await candidateLink.count() === 0) {
-      test.skip(true, 'No candidates in resource pool to test');
-      return;
-    }
+    await expect(candidateLink, 'At least one candidate must exist').toBeVisible({ timeout: 10000 });
     await candidateLink.click();
     await page.waitForLoadState('domcontentloaded');
-    await guardSessionExpired(page);
 
     // Find notes form and submit XSS payload
     const notesInput = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();

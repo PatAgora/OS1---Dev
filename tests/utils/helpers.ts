@@ -21,11 +21,13 @@ export async function guardSessionExpired(page: Page): Promise<void> {
  * Assert a page loaded successfully (HTTP < 500, no server error, no error flash).
  * Accepts redirects (302/303) and skips gracefully on session expiry.
  */
-export async function assertPageLoads(page: Page, url: string): Promise<void> {
+export async function assertPageLoads(page: Page, url: string, opts?: { skipSessionGuard?: boolean }): Promise<void> {
   const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
   expect(response?.status()).toBeLessThan(500);
 
-  await guardSessionExpired(page);
+  if (!opts?.skipSessionGuard) {
+    await guardSessionExpired(page);
+  }
 
   // No "Internal Server Error" in the body
   const body = await page.textContent('body');

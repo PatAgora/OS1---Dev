@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 // ============================================================
 
 test('@smoke /login — page loads', async ({ page }) => {
-  await assertPageLoads(page, '/login');
+  await assertPageLoads(page, '/login', { skipSessionGuard: true });
   await expect(page.locator('[name="email"]')).toBeVisible();
   await expect(page.locator('[name="password"]')).toBeVisible();
   await expect(page.locator('[type="submit"]')).toBeVisible();

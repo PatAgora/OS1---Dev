@@ -130,9 +130,9 @@ test.describe('Export Content', () => {
 
       const contentType = response.headers()['content-type'] || '';
       if (contentType.includes('text/html')) {
-        // PDF generation failed gracefully — redirected to invoices page with flash error
-        // This is acceptable (no 500), the invoice data may be too sparse for PDF generation
-        console.log('  ⚠ PDF route returned HTML (likely flash redirect) — no 500, passing');
+        // PDF generation redirected (flash error) — the invoice data may be too sparse.
+        // This is a SOFT failure — log it but don't skip.
+        console.log('  ⚠ PDF route returned HTML instead of PDF — invoice may lack line items');
       } else {
         expect(
           contentType.includes('pdf') || contentType.includes('application') || contentType.includes('octet-stream'),

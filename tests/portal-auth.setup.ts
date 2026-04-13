@@ -10,17 +10,30 @@ import path from 'path';
 
 const authFile = path.join(__dirname, '../playwright/.auth/associate.json');
 
-const TEST_EMAIL = 'pw-test-associate@example.com';
-const TEST_PASSWORD = 'PlaywrightAssociate2024!';
+const TEST_EMAIL = 'patrickstones@hotmail.co.uk';
+const TEST_PASSWORD = 'Testplay1234!';
+const TEST_BACKUP_CODES = ['EB55E411', '16EFE14F', '7B951F83', 'C77C6FC2', 'BE6CB726', '3A4B2A26', 'CEA0E37C', '7F1B6D50', 'FD794CDD', '2AC000EA'];
 const TEST_FIRST_NAME = 'PW-Test';
 const TEST_LAST_NAME = 'Associate';
 
 setup('authenticate as associate', async ({ page }) => {
-  // The associate portal requires email verification to register, which doesn't
-  // work with SMTP blank. Instead, we create the associate account via the STAFF
-  // admin portal users page (which bypasses email verification), then log in.
+  // First check if the saved session is still valid — skip re-auth if it is
+  // (this avoids consuming a single-use backup code on every run)
+  const fs = await import('fs');
+  if (fs.existsSync(authFile)) {
+    const ctx = await page.context().browser()!.newContext({ storageState: authFile });
+    const testPage = await ctx.newPage();
+    await testPage.goto('https://os1-dev-production.up.railway.app/portal/dashboard', { waitUntil: 'domcontentloaded' });
+    const url = testPage.url();
+    await ctx.close();
+    if (url.includes('/portal/dashboard') || (url.includes('/portal/') && !url.includes('/login'))) {
+      console.log('✓ Associate session still valid — reusing saved state');
+      return;
+    }
+    console.log('  Saved associate session expired — re-authenticating...');
+  }
 
-  // Step 1: Try logging in first (account may already exist from a previous run)
+  // Log in with the manually created portal account
   await page.goto('/portal/login');
   await page.fill('[name="email"]', TEST_EMAIL);
   await page.fill('[name="password"]', TEST_PASSWORD);
@@ -29,99 +42,62 @@ setup('authenticate as associate', async ({ page }) => {
 
   const afterLoginUrl = page.url();
 
-  // Check if login succeeded — must be on a portal page that isn't login/register
-  if (
-    afterLoginUrl.includes('/portal/') &&
-    !afterLoginUrl.includes('/portal/login') &&
-    !afterLoginUrl.includes('/portal/register')
-  ) {
-    await page.context().storageState({ path: authFile });
-    console.log('✓ Associate auth state saved (existing account) to', authFile);
-    return;
-  }
+  // Handle 2FA if required — use backup code
+  if (afterLoginUrl.includes('2fa') || afterLoginUrl.includes('verify')) {
+    console.log('  Associate portal requires 2FA — using backup code...');
 
-  // Step 2: Account doesn't exist or password is wrong.
-  // Create it via the staff admin panel.
-  console.log('  Associate login failed — creating account via staff admin...');
+    // The backup_code field is hidden behind a toggle — click "Use a backup code instead"
+    const backupToggle = page.locator('a:has-text("backup code"), button:has-text("backup code")').first();
+    if (await backupToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await backupToggle.click();
+      await page.waitForTimeout(300);
+      console.log('  Clicked backup code toggle');
+    }
 
-  // Load staff admin auth
-  const adminAuthFile = path.join(__dirname, '../playwright/.auth/admin.json');
-  const fs = await import('fs');
-  if (!fs.existsSync(adminAuthFile)) {
-    console.log('  ⚠ No admin auth state — cannot create associate account');
-    await page.context().storageState({ path: authFile });
-    return;
-  }
+    const totpField = page.locator('input[name="totp_code"]');
+    const backupInput = page.locator('input[name="backup_code"]');
 
-  // Use staff admin session to create the associate via the admin portal users
-  // or via the resource pool add associate
-  const adminContext = await page.context().browser()!.newContext({
-    storageState: adminAuthFile,
-  });
-  const adminPage = await adminContext.newPage();
-
-  // Navigate to admin portal users and create a user with a password
-  await adminPage.goto('https://os1-dev-production.up.railway.app/admin/portal-users');
-  await adminPage.waitForLoadState('domcontentloaded');
-
-  // Check if the user already exists in the portal users list
-  const pageBody = await adminPage.textContent('body') || '';
-  if (pageBody.includes(TEST_EMAIL)) {
-    console.log('  Associate already exists in admin portal users — trying to set password');
-  } else {
-    // Create via resource pool
-    await adminPage.goto('https://os1-dev-production.up.railway.app/resource-pool');
-    await adminPage.waitForLoadState('domcontentloaded');
-
-    const addBtn = adminPage.locator('a:has-text("Add Associate"), button:has-text("Add Associate")').first();
-    if (await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await addBtn.click();
-      await adminPage.waitForTimeout(500);
-
-      const modal = adminPage.locator('#addAssociateModal');
-      const nameField = modal.locator('#add-name, [name="name"]').first();
-      if (await nameField.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await nameField.fill(`${TEST_FIRST_NAME} ${TEST_LAST_NAME}`);
+    if (await backupInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+      // Clear the TOTP field to ensure only backup code is submitted
+      if (await totpField.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await totpField.fill('');
       }
-      const emailField = modal.locator('#add-email, [name="email"]').first();
-      if (await emailField.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await emailField.fill(TEST_EMAIL);
-      }
-      const submitBtn = modal.locator('[type="submit"], button:has-text("Add")').first();
-      if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await submitBtn.click();
-        await adminPage.waitForLoadState('domcontentloaded');
-        console.log('  ✓ Associate created via resource pool');
+      // Backup codes are single-use. Use index 2+ (0 and 1 already consumed).
+      const codeIndex = 2;
+      await backupInput.fill(TEST_BACKUP_CODES[codeIndex]);
+      console.log(`  Submitting backup code [${codeIndex}]: ${TEST_BACKUP_CODES[codeIndex]}`);
+      // Click the submit button inside the backup section (not the hidden TOTP section)
+      await page.locator('#backupSection button[type="submit"], #backupSection .os-btn-primary').first().click();
+      await page.waitForLoadState('domcontentloaded');
+      console.log(`  After first backup code: ${page.url()}`);
+
+      // If first code failed, try second
+      if (page.url().includes('2fa') || page.url().includes('verify')) {
+        console.log('  First backup code rejected, trying second...');
+        const totpField2 = page.locator('input[name="totp_code"]');
+        const backupInput2 = page.locator('input[name="backup_code"]');
+        if (await backupInput2.isVisible({ timeout: 3000 }).catch(() => false)) {
+          if (await totpField2.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await totpField2.fill('');
+          }
+          await backupInput2.fill(TEST_BACKUP_CODES[1]);
+          console.log(`  Submitting backup code: ${TEST_BACKUP_CODES[1]}`);
+          await page.locator('#backupSection button[type="submit"], #backupSection .os-btn-primary').first().click();
+          await page.waitForLoadState('domcontentloaded');
+          console.log(`  After second backup code: ${page.url()}`);
+        }
       }
     }
   }
 
-  await adminContext.close();
-
-  // Step 3: The account exists as a Candidate but may not have a password.
-  // Try to register via the portal with this email — if the candidate exists
-  // but has no password, the portal may allow setting one via magic link.
-  // Since that requires SMTP, we'll try the set-password flow if available.
-
-  // For now, try logging in again — if the Candidate was created without a
-  // password, the portal login won't work. In that case, we save an
-  // unauthenticated state and the associate tests will skip.
-  await page.goto('/portal/login');
-  await page.fill('[name="email"]', TEST_EMAIL);
-  await page.fill('[name="password"]', TEST_PASSWORD);
-  await page.click('[type="submit"]');
-  await page.waitForLoadState('domcontentloaded');
-
   const finalUrl = page.url();
+  console.log(`  Associate final URL: ${finalUrl}`);
+
   if (finalUrl.includes('/portal/') && !finalUrl.includes('/portal/login') && !finalUrl.includes('/portal/register')) {
     await page.context().storageState({ path: authFile });
     console.log('✓ Associate auth state saved to', authFile);
   } else {
     console.log('  ⚠ Could not authenticate as associate — portal tests will skip');
-    console.log('  To fix: manually register at /portal/register with:');
-    console.log(`    Email: ${TEST_EMAIL}`);
-    console.log(`    Password: ${TEST_PASSWORD}`);
-    console.log('  Or create the account via the admin panel and set a password.');
     await page.context().storageState({ path: authFile });
   }
 });

@@ -26,23 +26,15 @@ test.describe('Long Text & Edge Cases', () => {
 
   test('10,000 character note on candidate profile does not crash', async ({ page }) => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
-    await guardSessionExpired(page);
 
     const candidateLink = page.locator('table tbody tr a[href*="/candidate/"], a[href*="/candidate/"]').first();
-    if (await candidateLink.count() === 0) {
-      test.skip(true, 'No candidates found in resource pool');
-      return;
-    }
+    await expect(candidateLink, 'At least one candidate must exist in resource pool').toBeVisible({ timeout: 10000 });
 
     await candidateLink.click();
     await page.waitForLoadState('domcontentloaded');
-    await guardSessionExpired(page);
 
     const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
-    if (await notesTextarea.count() === 0) {
-      test.skip(true, 'No notes textarea found on candidate profile');
-      return;
-    }
+    await expect(notesTextarea, 'Notes textarea must exist on candidate profile').toBeVisible({ timeout: 5000 });
 
     const longNote = `[PW-TEST] ${generateLongText(10000)}`;
     await notesTextarea.fill(longNote);
@@ -100,17 +92,12 @@ test.describe('Long Text & Edge Cases', () => {
 
   test('unicode characters in notes do not crash', async ({ page }) => {
     await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
-    await guardSessionExpired(page);
 
     const candidateLink = page.locator('table tbody tr a[href*="/candidate/"], a[href*="/candidate/"]').first();
-    if (await candidateLink.count() === 0) {
-      test.skip(true, 'No candidates found');
-      return;
-    }
+    await expect(candidateLink, 'Candidate must exist').toBeVisible({ timeout: 10000 });
 
     await candidateLink.click();
     await page.waitForLoadState('domcontentloaded');
-    await guardSessionExpired(page);
 
     const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
     if (await notesTextarea.count() === 0) {

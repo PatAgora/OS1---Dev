@@ -834,6 +834,7 @@ def login():
         # Log in directly
         cand.last_login_at = datetime.utcnow()
         session["associate_user_id"] = cand.id
+        session.permanent = True  # Use PERMANENT_SESSION_LIFETIME (60 min) instead of browser-session
         s.commit()
         _audit_portal("login", "Portal login (no 2FA)", candidate_id=cand.id)
 
@@ -1088,6 +1089,7 @@ def setup_2fa():
         s.commit()
 
         session["associate_user_id"] = cand.id
+        session.permanent = True
         session.pop("associate_setup_2fa_id", None)
         session.pop("associate_setup_2fa_next", None)
 
@@ -1140,6 +1142,7 @@ def verify_2fa():
 
         cand.last_login_at = datetime.utcnow()
         session["associate_user_id"] = cand.id
+        session.permanent = True  # Use PERMANENT_SESSION_LIFETIME (60 min) instead of browser-session
         session.pop("associate_2fa_pending_id", None)
         session.pop("associate_2fa_next", None)
         s.commit()

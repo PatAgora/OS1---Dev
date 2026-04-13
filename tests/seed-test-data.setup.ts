@@ -218,6 +218,26 @@ setup('seed test data for full coverage', async ({ browser }) => {
         await dueDate.fill('2026-05-30');
       }
 
+      // Add a line item if possible
+      const addLineBtn = page.locator('button:has-text("Add Line"), button:has-text("Add Item"), a:has-text("Add Line")').first();
+      if (await addLineBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await addLineBtn.click();
+        await page.waitForTimeout(300);
+        // Fill the first line item row
+        const descInput = page.locator('[name*="description"], [name*="desc"]').last();
+        if (await descInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await descInput.fill('[PW-TEST] Consulting services');
+        }
+        const qtyInput = page.locator('[name*="quantity"], [name*="qty"]').last();
+        if (await qtyInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await qtyInput.fill('10');
+        }
+        const rateInput = page.locator('[name*="rate"], [name*="price"]').last();
+        if (await rateInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await rateInput.fill('500');
+        }
+      }
+
       // Fill notes with test marker
       const notesField = page.locator('[name="notes"], textarea').first();
       if (await notesField.isVisible({ timeout: 2000 }).catch(() => false)) {

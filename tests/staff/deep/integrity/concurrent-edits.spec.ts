@@ -20,10 +20,7 @@ test.describe('Concurrent Edits', () => {
     const rpResponse = await page.goto('/resource-pool', { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    if (rpResponse?.status() && rpResponse.status() >= 400) {
-      test.skip(true, 'Resource pool not accessible');
-      return;
-    }
+    expect(rpResponse?.status(), 'Resource pool must be accessible').toBeLessThan(500);
 
     // Extract candidate href from the page
     const candidateLink = page.locator('a[href*="/candidate/"]').first();
@@ -44,16 +41,10 @@ test.describe('Concurrent Edits', () => {
     const candidateResponse = await page.goto(candidatePath, { waitUntil: 'domcontentloaded' });
     await guardSessionExpired(page);
 
-    if (candidateResponse?.status() && candidateResponse.status() >= 400) {
-      test.skip(true, 'No accessible candidate found');
-      return;
-    }
+    expect(candidateResponse?.status(), 'Candidate page must load').toBeLessThan(500);
 
     const notesTextarea = page.locator('textarea[name="content"], textarea[name="note"], textarea[name="notes"], textarea[name="body"]').first();
-    if (await notesTextarea.count() === 0) {
-      test.skip(true, 'No notes form found on candidate profile');
-      return;
-    }
+    expect(await notesTextarea.count(), 'Notes form must exist on candidate profile').toBeGreaterThan(0);
 
     // Get the storage state from the current context
     const storageState = await page.context().storageState();
