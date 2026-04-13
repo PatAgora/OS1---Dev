@@ -2335,6 +2335,8 @@ def my_applications():
         "declined", "unsuccessful", "closed", "cancelled", "canceled",
     }
 
+    ESigRequest = _model("ESigRequest")
+
     applications = []
     with SASession(engine) as s:
         if Application:
@@ -2368,6 +2370,15 @@ def my_applications():
                 else:
                     display_status = "Applied"
 
+                # Look up e-signature / contract status for this application
+                esig = None
+                if ESigRequest:
+                    esig = s.scalar(
+                        select(ESigRequest)
+                        .where(ESigRequest.application_id == app.id)
+                        .order_by(ESigRequest.id.desc())
+                    )
+
                 applications.append({
                     "id": app.id,
                     "job_title": job.title if job else "Untitled Role",
@@ -2382,6 +2393,9 @@ def my_applications():
                     "offer_location": app.offer_location or "",
                     "offer_notes": app.offer_notes or "",
                     "offer_responded_at": app.offer_responded_at.strftime("%d %b %Y") if app.offer_responded_at else "",
+                    # Contract / e-signature info
+                    "contract_status": esig.status if esig else None,
+                    "signing_url": esig.signing_url if esig else None,
                 })
 
     return render_template("associate/my_applications.html",

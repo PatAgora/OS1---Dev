@@ -1855,6 +1855,18 @@
                   <span class="vetting-status-badge vetting-status-{{ check_status }}">
                     {% if check_status == 'complete' %}Complete{% elif check_status == 'in_progress' %}In Progress{% elif check_status == 'not_required' %}Not Required{% else %}Not Started{% endif %}
                   </span>
+                  {% set vc_qc = vetting_checks_map.get(check_name, {}) if vetting_checks_map is defined else {} %}
+                  {% set qc_st = vc_qc.get('qc_status', '') %}
+                  {% set vc_status_upper = (vc_qc.get('status', '')|upper) %}
+                  {% if vc_status_upper == 'AWAITING QC' %}
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.6rem;"><i class="fas fa-clock me-1"></i>Awaiting QC</span>
+                  {% elif vc_status_upper == 'QC COMPLETE' %}
+                    <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.6rem;"><i class="fas fa-check me-1"></i>QC Done</span>
+                  {% elif vc_status_upper == 'REFERRAL APPROVED' %}
+                    <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.6rem;"><i class="fas fa-check-double me-1"></i>Referral OK</span>
+                  {% elif qc_st == 'qc_rejected' %}
+                    <span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.6rem;"><i class="fas fa-times me-1"></i>QC Rejected</span>
+                  {% endif %}
                   <i class="fas fa-chevron-down vetting-expand-icon"></i>
                 </div>
               </div>
@@ -1908,6 +1920,14 @@
                         Automation {{ 'On' if vc_data.get('automation_enabled', true) else 'Paused' }}
                       </label>
                     </div>
+                  </div>
+                  {% endif %}
+                  {# QC workflow link — manage full QC on candidate profile #}
+                  {% if cand %}
+                  <div class="mt-2">
+                    <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}#vetting-checks" class="btn btn-sm btn-outline-primary" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;">
+                      <i class="fas fa-clipboard-check me-1"></i>Manage QC
+                    </a>
                   </div>
                   {% endif %}
                   {% endif %}

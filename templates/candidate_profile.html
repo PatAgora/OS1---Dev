@@ -756,7 +756,7 @@
         </div>
       </div>
 
-      <!-- Vetting Checks Section -->
+      <!-- Vetting Checks Section with QC Workflow -->
       <div class="modern-card mt-4 fade-in-up stagger-4" id="vetting-checks">
         <div class="card-body p-4">
           <div class="section-header mb-3">
@@ -764,10 +764,22 @@
               <i class="fas fa-shield-alt"></i>
               Vetting Checks
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="section-subtitle mb-0">
                 {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
               </span>
+              <!-- Bulk assign analyst -->
+              <div class="d-flex align-items-center gap-1">
+                <select id="bulkAnalystSelect" class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.2rem 0.4rem;">
+                  <option value="">Assign all to...</option>
+                  {% for staff in all_staff_users %}
+                  <option value="{{ staff.id }}">{{ staff.name }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-outline-secondary btn-sm" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="bulkAssignAnalyst({{ cand.id }})" title="Assign all checks to selected analyst">
+                  <i class="fas fa-users-cog"></i>
+                </button>
+              </div>
               <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing (free)">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
@@ -779,25 +791,100 @@
           {% if vetting_checks %}
             <div class="row g-2">
               {% for check in vetting_checks %}
+              {% set s_upper = check.status|upper %}
+              {% set colour_border = '#22c55e' if check.colour == 'green' else '#f97316' if check.colour == 'orange' else '#e2e8f0' %}
               <div class="col-md-6">
-                <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background: #f9fafb; border-left: 3px solid {% if check.status|upper == 'COMPLETE' or check.status|upper == 'QC COMPLETE' %}#10b981{% elif check.status|upper == 'IN PROGRESS' %}#f59e0b{% elif check.status|upper == 'N/A' %}#64748b{% else %}#e5e7eb{% endif %};">
-                  <div>
-                    <div style="font-size: 0.8rem; font-weight: 600;">{{ check.type }}</div>
-                    <div style="font-size: 0.7rem; color: #6b7280;">{{ check.status }}</div>
+                <div class="p-3 rounded" style="background: #f9fafb; border-left: 4px solid {{ colour_border }};">
+                  <!-- Row 1: Check name + status badge -->
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: #1f2937;">{{ check.type }}</div>
+                    <div>
+                      {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}
+                        <span class="badge" style="background: #e5e7eb; color: #6b7280; font-size: 0.65rem;">Not Started</span>
+                      {% elif s_upper == 'IN PROGRESS' %}
+                        <span class="badge" style="background: #dbeafe; color: #1d4ed8; font-size: 0.65rem;">In Progress</span>
+                      {% elif s_upper == 'COMPLETE' %}
+                        <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.65rem;">Complete</span>
+                      {% elif s_upper == 'AWAITING QC' %}
+                        <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.65rem;"><i class="fas fa-clock me-1"></i>Awaiting QC</span>
+                      {% elif s_upper == 'QC COMPLETE' %}
+                        <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.65rem;"><i class="fas fa-check me-1"></i>QC Complete</span>
+                      {% elif s_upper == 'REFERRAL APPROVED' %}
+                        <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.65rem;"><i class="fas fa-check-double me-1"></i>Referral Approved</span>
+                      {% elif s_upper == 'N/A' %}
+                        <span class="badge" style="background: #f1f5f9; color: #94a3b8; font-size: 0.65rem;">N/A</span>
+                      {% elif s_upper == 'FAILED' %}
+                        <span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.65rem;"><i class="fas fa-times me-1"></i>Failed</span>
+                      {% else %}
+                        <span class="badge" style="background: #e5e7eb; color: #6b7280; font-size: 0.65rem;">{{ check.status }}</span>
+                      {% endif %}
+                    </div>
                   </div>
-                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-1 align-items-center">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="check_type" value="{{ check.type }}">
-                    <select name="status" class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.2rem 0.4rem;">
-                      <option value="NOT STARTED" {% if check.status|upper == 'NOT STARTED' %}selected{% endif %}>Not Started</option>
-                      <option value="IN PROGRESS" {% if check.status|upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                      <option value="COMPLETE" {% if check.status|upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
-                      <option value="N/A" {% if check.status|upper == 'N/A' %}selected{% endif %}>N/A</option>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-outline-primary" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </form>
+
+                  <!-- Row 2: Status dropdown (existing) + Analyst assignment -->
+                  <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+                    <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-1 align-items-center">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="check_type" value="{{ check.type }}">
+                      <select name="status" class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.2rem 0.4rem;">
+                        <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
+                        <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-outline-primary" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">
+                        <i class="fas fa-save"></i>
+                      </button>
+                    </form>
+                    <div class="d-flex align-items-center gap-1" style="font-size: 0.7rem;">
+                      <i class="fas fa-user-tie" style="color: #6b7280;" title="Assigned analyst"></i>
+                      <select class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.15rem 0.3rem; max-width: 130px;"
+                              onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value)">
+                        <option value="">Unassigned</option>
+                        {% for staff in all_staff_users %}
+                        <option value="{{ staff.id }}" {% if check.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Row 3: QC Action buttons (contextual) -->
+                  <div class="d-flex gap-1 align-items-center flex-wrap">
+                    {% if s_upper == 'COMPLETE' %}
+                      <button class="btn btn-sm btn-outline-warning" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="submitForQC({{ cand.id }}, '{{ check.type }}')">
+                        <i class="fas fa-paper-plane me-1"></i>Submit for QC
+                      </button>
+                    {% endif %}
+                    {% if s_upper == 'AWAITING QC' %}
+                      <button class="btn btn-sm btn-success" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="openQCModal('{{ check.type }}', 'approve')">
+                        <i class="fas fa-check me-1"></i>QC Approve
+                      </button>
+                      <button class="btn btn-sm btn-danger" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="openQCModal('{{ check.type }}', 'reject')">
+                        <i class="fas fa-times me-1"></i>QC Reject
+                      </button>
+                    {% endif %}
+                    {% if s_upper == 'QC COMPLETE' and not check.referral_approved_by %}
+                      <button class="btn btn-sm btn-outline-success" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="referralApprove({{ cand.id }}, '{{ check.type }}')">
+                        <i class="fas fa-check-double me-1"></i>Referral Approve
+                      </button>
+                    {% endif %}
+                  </div>
+
+                  <!-- Row 4: QC history -->
+                  {% if check.qc_reviewed_by_name %}
+                  <div class="mt-2" style="font-size: 0.7rem; color: #6b7280; background: #f1f5f9; border-radius: 4px; padding: 0.3rem 0.5rem;">
+                    <i class="fas fa-history me-1"></i>
+                    QC'd by <strong>{{ check.qc_reviewed_by_name }}</strong>
+                    {% if check.qc_reviewed_at %} on {{ check.qc_reviewed_at.strftime('%d %b %Y %H:%M') }}{% endif %}{% if check.qc_notes %}: <em>{{ check.qc_notes }}</em>{% endif %}
+                  </div>
+                  {% endif %}
+                  {% if check.referral_approved_by_name %}
+                  <div class="mt-1" style="font-size: 0.7rem; color: #166534; background: #f0fdf4; border-radius: 4px; padding: 0.3rem 0.5rem;">
+                    <i class="fas fa-check-double me-1"></i>
+                    Referral approved by <strong>{{ check.referral_approved_by_name }}</strong>
+                    {% if check.referral_approved_at %} on {{ check.referral_approved_at.strftime('%d %b %Y %H:%M') }}{% endif %}
+                  </div>
+                  {% endif %}
                 </div>
               </div>
               {% endfor %}
@@ -808,6 +895,38 @@
               <p class="mb-0 small">No vetting checks initiated</p>
             </div>
           {% endif %}
+        </div>
+      </div>
+
+      <!-- QC Review Modal -->
+      <div class="modal fade" id="qcReviewModal" tabindex="-1" aria-labelledby="qcReviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="qcReviewModalLabel"><i class="fas fa-clipboard-check me-2"></i>QC Review</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="mb-2" style="font-size: 0.9rem;">
+                Review: <strong id="qcModalCheckType"></strong>
+              </p>
+              <div class="mb-3">
+                <label for="qcNotesInput" class="form-label fw-bold" style="font-size: 0.85rem;">QC Notes</label>
+                <textarea id="qcNotesInput" class="form-control" rows="3" placeholder="Enter QC review notes..."></textarea>
+              </div>
+              <input type="hidden" id="qcModalAction" value="">
+              <input type="hidden" id="qcModalCheckTypeValue" value="">
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-success btn-sm" id="qcApproveBtn" onclick="submitQCReview({{ cand.id }})">
+                <i class="fas fa-check me-1"></i>Approve
+              </button>
+              <button type="button" class="btn btn-danger btn-sm" id="qcRejectBtn" onclick="submitQCReview({{ cand.id }})">
+                <i class="fas fa-times me-1"></i>Reject
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1424,6 +1543,108 @@ function issueContractDirect() {
   .catch(function(err) {
     alert('Failed to add to pipeline: ' + err.message);
   });
+}
+
+// === QC Workflow Functions ===
+
+function _csrfToken() {
+  return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+
+function assignAnalyst(candId, checkType, analystId) {
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('check_type', checkType);
+  body.append('analyst_id', analystId);
+  fetch('/action/assign-analyst/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to assign analyst'); } })
+  .catch(function() { alert('Network error'); });
+}
+
+function bulkAssignAnalyst(candId) {
+  var sel = document.getElementById('bulkAnalystSelect');
+  if (!sel || !sel.value) { alert('Please select an analyst first.'); return; }
+  if (!confirm('Assign ALL vetting checks to ' + sel.options[sel.selectedIndex].text + '?')) return;
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('analyst_id', sel.value);
+  fetch('/action/assign-analyst-bulk/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to bulk-assign'); } })
+  .catch(function() { alert('Network error'); });
+}
+
+function submitForQC(candId, checkType) {
+  if (!confirm('Submit "' + checkType + '" for QC review?')) return;
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('check_type', checkType);
+  fetch('/action/submit-for-qc/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to submit for QC'); } })
+  .catch(function() { alert('Network error'); });
+}
+
+function openQCModal(checkType, action) {
+  document.getElementById('qcModalCheckType').textContent = checkType;
+  document.getElementById('qcModalCheckTypeValue').value = checkType;
+  document.getElementById('qcModalAction').value = action;
+  document.getElementById('qcNotesInput').value = '';
+  // Show/hide the appropriate button
+  document.getElementById('qcApproveBtn').style.display = (action === 'approve') ? '' : 'none';
+  document.getElementById('qcRejectBtn').style.display = (action === 'reject') ? '' : 'none';
+  var modal = new bootstrap.Modal(document.getElementById('qcReviewModal'));
+  modal.show();
+}
+
+function submitQCReview(candId) {
+  var action = document.getElementById('qcModalAction').value;
+  var checkType = document.getElementById('qcModalCheckTypeValue').value;
+  var notes = document.getElementById('qcNotesInput').value;
+  var url = (action === 'approve') ? '/action/qc-approve/' : '/action/qc-reject/';
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('check_type', checkType);
+  body.append('qc_notes', notes);
+  fetch(url + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) {
+    if (r.ok || r.redirected) { location.reload(); }
+    else { alert('QC review failed. You may not be able to QC checks assigned to you.'); }
+  })
+  .catch(function() { alert('Network error'); });
+}
+
+function referralApprove(candId, checkType) {
+  if (!confirm('Grant referral approval for "' + checkType + '"? This is a second-step sign-off.')) return;
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('check_type', checkType);
+  fetch('/action/referral-approve/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Referral approval failed. You may not be the assigned analyst.'); } })
+  .catch(function() { alert('Network error'); });
 }
 
 // Initialise on page load

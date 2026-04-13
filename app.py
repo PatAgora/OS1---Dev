@@ -3356,6 +3356,7 @@ class ESigRequest(Base):
     signed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
+    signing_url = Column(String(500), nullable=True)
 
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
@@ -3953,6 +3954,10 @@ def ensure_schema():
         # ===== esign_requests table =====
         # NOTE: Skipped inline CREATE — full schema defined in ESigRequest model
         # and created by Base.metadata.create_all(engine).
+        try:
+            conn.execute(text("ALTER TABLE esign_requests ADD COLUMN signing_url VARCHAR(500)"))
+        except Exception:
+            pass
 
         # ===== webhook_events table =====
         try:
@@ -9899,7 +9904,7 @@ def application_detail(app_id):
         # Disable action buttons if engagement not active or job not open
         actions_disabled = (not eng_active) or (not job_open)
 
-        # Vetting checks data (for automation toggle and status display)
+        # Vetting checks data (for automation toggle, status display, and QC badges)
         vetting_checks_map = {}
         try:
             for vc in s.scalars(select(VettingCheck).where(VettingCheck.candidate_id == cand.id)).all():
@@ -9908,6 +9913,8 @@ def application_detail(app_id):
                     "status": vc.status or "NOT STARTED",
                     "notes": vc.notes or "",
                     "automation_enabled": vc.automation_enabled if vc.automation_enabled is not None else True,
+                    "qc_status": getattr(vc, 'qc_status', '') or '',
+                    "colour": getattr(vc, 'colour', 'white') or 'white',
                 }
         except Exception:
             pass
@@ -11218,7 +11225,8 @@ def action_contract_issue(cand_id, eng_id):
                     subject, message
                 )
                 if result:
-                    esig.request_id = result
+                    esig.request_id = result["envelope_id"]
+                    esig.signing_url = result.get("signing_url")
                     esig.status = "Sent"
                     esig.sent_at = datetime.datetime.utcnow()
                     flash(f"Contract sent to {cand.email} via Signable.", "success")
@@ -11355,7 +11363,10 @@ def send_esign_signable(appn_id: int, signer_name: str, signer_email: str, subje
     resp.raise_for_status()
     data = resp.json()
     # Signable returns {"envelope_fingerprint": "...", ...}
-    return data.get("envelope_fingerprint") or data.get("id") or str(data)
+    return {
+        "envelope_id": data.get("envelope_fingerprint") or data.get("id") or str(data),
+        "signing_url": data.get("signing_url") or data.get("party_url") or None,
+    }
 
 def poll_esign_signable(request_id: str):
     """Poll envelope status from the Signable REST API.
@@ -11394,17 +11405,18 @@ def action_esign(app_id):
         subject = f"Contract — {job.title}"
         message = "Please review and sign your contract."
         try:
-            req_id = send_esign_signable(appn.id, cand.name, cand.email, subject, message)
+            result = send_esign_signable(appn.id, cand.name, cand.email, subject, message)
         except Exception as e:
             flash(f"E-sign send failed: {e}", "danger")
             return redirect(url_for("application_detail", app_id=app_id))
 
         es = s.scalar(select(ESigRequest).where(ESigRequest.application_id==appn.id))
         if not es:
-            es = ESigRequest(application_id=appn.id, provider="signable", request_id=req_id, status="Sent", sent_at=datetime.datetime.utcnow())
+            es = ESigRequest(application_id=appn.id, provider="signable", request_id=result["envelope_id"], signing_url=result.get("signing_url"), status="Sent", sent_at=datetime.datetime.utcnow())
             s.add(es)
         else:
-            es.request_id = req_id
+            es.request_id = result["envelope_id"]
+            es.signing_url = result.get("signing_url")
             es.provider = "signable"
             es.status = "Sent"
             es.sent_at = datetime.datetime.utcnow()
@@ -11633,6 +11645,16 @@ def candidate_profile(cand_id: int):
                 ).all()
             }
             
+            # Build a lookup of user names for QC reviewer / analyst display
+            _user_name_cache = {}
+            def _get_user_name(uid):
+                if not uid:
+                    return ""
+                if uid not in _user_name_cache:
+                    u = s.get(User, uid)
+                    _user_name_cache[uid] = u.name if u else f"User #{uid}"
+                return _user_name_cache[uid]
+
             for check_type in VETTING_CHECK_TYPES:
                 if check_type in existing_checks:
                     check = existing_checks[check_type]
@@ -11642,6 +11664,17 @@ def candidate_profile(cand_id: int):
                         "status": check.status or "NOT STARTED",
                         "notes": check.notes or "",
                         "automation_enabled": getattr(check, 'automation_enabled', True) if check.automation_enabled is not None else True,
+                        "assigned_to": check.assigned_to,
+                        "assigned_to_name": _get_user_name(check.assigned_to),
+                        "colour": getattr(check, 'colour', 'white') or 'white',
+                        "qc_status": getattr(check, 'qc_status', '') or '',
+                        "qc_reviewed_by": check.qc_reviewed_by,
+                        "qc_reviewed_by_name": _get_user_name(check.qc_reviewed_by),
+                        "qc_reviewed_at": check.qc_reviewed_at,
+                        "qc_notes": getattr(check, 'qc_notes', '') or '',
+                        "referral_approved_by": check.referral_approved_by,
+                        "referral_approved_by_name": _get_user_name(check.referral_approved_by),
+                        "referral_approved_at": check.referral_approved_at,
                     })
                 else:
                     # Create a placeholder for display
@@ -11651,14 +11684,25 @@ def candidate_profile(cand_id: int):
                         "status": "NOT STARTED",
                         "notes": "",
                         "automation_enabled": True,
+                        "assigned_to": None,
+                        "assigned_to_name": "",
+                        "colour": "white",
+                        "qc_status": "",
+                        "qc_reviewed_by": None,
+                        "qc_reviewed_by_name": "",
+                        "qc_reviewed_at": None,
+                        "qc_notes": "",
+                        "referral_approved_by": None,
+                        "referral_approved_by_name": "",
+                        "referral_approved_at": None,
                     })
             
             # Calculate summary
             for vc in vetting_checks:
                 status = (vc["status"] or "").upper()
-                if status == "COMPLETE":
+                if status in ("COMPLETE", "QC COMPLETE", "REFERRAL APPROVED"):
                     vetting_summary["complete"] += 1
-                elif status == "IN PROGRESS":
+                elif status in ("IN PROGRESS", "AWAITING QC"):
                     vetting_summary["in_progress"] += 1
                 elif status == "N/A":
                     vetting_summary["na"] += 1
@@ -11882,6 +11926,19 @@ def candidate_profile(cand_id: int):
             'created_at': af.get('timestamp'),
         })())
 
+    # Staff users for analyst assignment dropdown (QC workflow)
+    all_staff_users = []
+    try:
+        with Session(engine) as s2:
+            all_staff_users = [
+                {"id": u.id, "name": u.name}
+                for u in s2.scalars(
+                    select(User).where(User.is_active == True).order_by(User.name)
+                ).all()
+            ]
+    except Exception:
+        pass
+
     return render_template(
         "candidate_profile.html",
         appn=latest_app,            # can be None
@@ -11917,6 +11974,8 @@ def candidate_profile(cand_id: int):
         contract_status=contract_status,
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
+        # === QC workflow: staff users for analyst dropdown ===
+        all_staff_users=all_staff_users,
         # === Activity Feed & Placements ===
         activity_feed=activity_feed,
         activities=activities,
@@ -16219,16 +16278,18 @@ def action_esign_candidate(cand_id):
                 subject = f"Contract — {job.title if job else 'Agreement'}"
                 message = "Please review and sign your contract."
 
-                req_id = send_esign_signable(appn.id, cand.name, cand.email, subject, message)
+                result = send_esign_signable(appn.id, cand.name, cand.email, subject, message)
 
                 es = s.scalar(select(ESigRequest).where(ESigRequest.application_id == appn.id))
                 if not es:
                     es = ESigRequest(application_id=appn.id, provider="signable",
-                                     request_id=req_id, status="Sent", sent_at=datetime.datetime.utcnow())
+                                     request_id=result["envelope_id"], signing_url=result.get("signing_url"),
+                                     status="Sent", sent_at=datetime.datetime.utcnow())
                     s.add(es)
                 else:
                     es.provider = "signable"
-                    es.request_id = req_id
+                    es.request_id = result["envelope_id"]
+                    es.signing_url = result.get("signing_url")
                     es.status = "Sent"
                     es.sent_at = datetime.datetime.utcnow()
                 cand.esign_status = "Sent"
