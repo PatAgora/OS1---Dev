@@ -4364,88 +4364,81 @@ def ensure_schema():
             except Exception:
                 pass
 
-# Create all model-defined tables FIRST (full schemas from SQLAlchemy models),
-# THEN run ensure_schema() for backwards-compat patches on pre-existing DBs.
-Base.metadata.create_all(engine)
-try:
-    ensure_schema()
-except Exception as e:
-    print(f"⚠️  WARNING: Schema migration failed: {e}")
-    print("⚠️  App will continue but some features may not work correctly")
-    import traceback
-    traceback.print_exc()
+# ===== Deferred schema setup =====
+# Runs on first real request (not /health) so gunicorn can start serving immediately.
+# This avoids Railway health check timeouts caused by slow DB migrations at import time.
+_schema_initialized = False
 
-# ===== Add new columns that may be missing from existing databases =====
-_new_columns = [
-    ("candidates", "current_employer_contact_ok", "BOOLEAN"),
-]
-for _tbl, _col, _type in _new_columns:
+def _run_deferred_schema():
+    """Run all DB migrations and seeding — called once on first request."""
+    global _schema_initialized
+    if _schema_initialized:
+        return
+    _schema_initialized = True
+
+    try:
+        Base.metadata.create_all(engine)
+    except Exception as e:
+        print(f"WARNING: create_all failed: {e}")
+
+    try:
+        ensure_schema()
+    except Exception as e:
+        print(f"WARNING: Schema migration failed: {e}")
+
+    # Add new columns
+    for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN")]:
+        try:
+            with engine.begin() as _conn:
+                _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
+        except Exception:
+            pass
+
+    # Create job_templates table
     try:
         with engine.begin() as _conn:
-            _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
-            print(f"  [MIGRATE] Added {_tbl}.{_col}")
+            _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
+                id SERIAL PRIMARY KEY,
+                role_type VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""))
     except Exception:
-        pass  # Column already exists
+        pass
 
-# ===== Create job_templates table if missing =====
-try:
-    with engine.begin() as _conn:
-        _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
-            id SERIAL PRIMARY KEY,
-            role_type VARCHAR(100) UNIQUE NOT NULL,
-            description TEXT DEFAULT '',
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"""))
-except Exception:
-    pass
-
-# ===== Fix stale users table + seed admin if empty (separate connection) =====
-try:
-    with engine.begin() as conn:
-        # Check if users table has the required columns — if not, drop and let create_all rebuild
-        cols = [r[0] for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
-        )).fetchall()]
-
-        if 'role' not in cols or 'is_active' not in cols:
+    # Seed admin user if needed
+    try:
+        with engine.begin() as conn:
+            cols = [r[0] for r in conn.execute(text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
+            )).fetchall()]
+            if 'role' not in cols or 'is_active' not in cols:
+                user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
+                if user_count == 0:
+                    conn.execute(text("DROP TABLE IF EXISTS password_history"))
+                    conn.execute(text("DROP TABLE IF EXISTS users"))
+        Base.metadata.create_all(engine)
+        with engine.begin() as conn:
             user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
             if user_count == 0:
-                print("Users table has stale schema and 0 rows — recreating...")
-                conn.execute(text("DROP TABLE IF EXISTS password_history"))
-                conn.execute(text("DROP TABLE IF EXISTS users"))
-            else:
-                print(f"Users table has stale schema but {user_count} rows — skipping drop.")
-
-    # Rebuild any dropped tables with full schema
-    Base.metadata.create_all(engine)
-
-    with engine.begin() as conn:
-        user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
-        if user_count == 0:
-            from werkzeug.security import generate_password_hash
-
-            password_hash_value = generate_password_hash("DemoAdmin2024!", method='pbkdf2:sha256')
-
-            conn.execute(
-                text("""
+                from werkzeug.security import generate_password_hash
+                pw = generate_password_hash("DemoAdmin2024!", method='pbkdf2:sha256')
+                conn.execute(text("""
                     INSERT INTO users (name, email, pw_hash, role, is_active, created_at)
                     VALUES (:name, :email, :pw_hash, :role, :is_active, CURRENT_TIMESTAMP)
-                """),
-                {
-                    "name": "Admin User",
-                    "email": "admin@demo.example.com",
-                    "pw_hash": password_hash_value,
-                    "role": "admin",
-                    "is_active": True
-                }
-            )
-            print("Admin user created: admin@demo.example.com")
-        else:
-            print(f"Users table has {user_count} users — skipping admin seed.")
-except Exception as e:
-    print(f"Warning: Could not seed admin user: {e}")
-    import traceback
-    traceback.print_exc()
+                """), {"name": "Admin User", "email": "admin@demo.example.com",
+                       "pw_hash": pw, "role": "admin", "is_active": True})
+    except Exception as e:
+        print(f"Warning: Admin seed: {e}")
+
+    print("Schema initialization complete.")
+
+@app.before_request
+def _deferred_schema_hook():
+    """Run schema setup on first non-health request."""
+    if request.path == "/health":
+        return
+    _run_deferred_schema()
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
