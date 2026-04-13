@@ -186,6 +186,9 @@ def _ensure_models():
         signed_date = Column(DateTime, nullable=True)
         ip_address = Column(String(50), default="")
         created_at = Column(DateTime, default=datetime.utcnow)
+        # Signable envelope ID returned when the consent form is sent for e-signature.
+        # Holds "stub-<uuid>" while SIGNABLE_LIVE_CALLS is disabled.
+        signable_envelope_id = Column(String(64), nullable=True, default=None)
 
     class DeclarationRecord(Base):
         __tablename__ = "declaration_records"
@@ -706,6 +709,10 @@ def _create_portal_tables():
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             try:
                 conn.execute(text("ALTER TABLE consent_records ADD COLUMN reference_consent BOOLEAN DEFAULT FALSE"))
+            except Exception:
+                pass  # Column already exists
+            try:
+                conn.execute(text("ALTER TABLE consent_records ADD COLUMN signable_envelope_id VARCHAR(64)"))
             except Exception:
                 pass  # Column already exists
         current_app._associate_tables_created = True
@@ -1582,8 +1589,46 @@ def consent_form():
                 )
                 s.add(consent)
                 _add_note(s, cand_id, f"Consent form uploaded manually (file: {manual_file.filename}).")
+
+                # Flush so consent.id is populated for the Signable wrapper
+                s.flush()
+
+                # Signable e-signature envelope (kill-switched — see _signable_send_consent_envelope).
+                Candidate = _model("Candidate")
+                cand = s.get(Candidate, cand_id) if Candidate else None
+                cand_name = (cand.name if cand and getattr(cand, "name", None) else consent.legal_name) or consent.legal_name
+                cand_email = (getattr(cand, "email", "") if cand else "") or ""
+                signable_warning_manual = None
+                try:
+                    sig_result = _signable_send_consent_envelope(
+                        candidate_name=cand_name,
+                        candidate_email=cand_email,
+                        consent_id=consent.id,
+                        legal_name=consent.legal_name,
+                    )
+                    if hasattr(consent, "signable_envelope_id"):
+                        consent.signable_envelope_id = sig_result.get("envelope_id", "") or ""
+                    try:
+                        current_app.logger.info(
+                            f"Consent {consent.id}: Signable wrapper returned status="
+                            f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
+                        )
+                    except Exception:
+                        pass
+                except Exception as sig_err:
+                    try:
+                        current_app.logger.warning(f"Consent {consent.id}: Signable wrapper failed: {sig_err}")
+                    except Exception:
+                        pass
+                    signable_warning_manual = (
+                        "Your consent form was saved, but the e-sign envelope could not be sent right now. "
+                        "Our compliance team will re-send it shortly."
+                    )
+
                 s.commit()
 
+                if signable_warning_manual:
+                    flash(signable_warning_manual, "warning")
                 flash("Signed consent form uploaded successfully.", "success")
                 return redirect(url_for("associate.dashboard"))
 
@@ -1605,8 +1650,46 @@ def consent_form():
             )
             s.add(consent)
             _add_note(s, cand_id, f"Consent form signed by '{legal_name}' from IP {request.remote_addr}.")
+
+            # Flush so consent.id is populated for the Signable wrapper
+            s.flush()
+
+            # Signable e-signature envelope (kill-switched — see _signable_send_consent_envelope).
+            Candidate = _model("Candidate")
+            cand = s.get(Candidate, cand_id) if Candidate else None
+            cand_name = (cand.name if cand and getattr(cand, "name", None) else legal_name) or legal_name
+            cand_email = (getattr(cand, "email", "") if cand else "") or ""
+            signable_warning = None
+            try:
+                sig_result = _signable_send_consent_envelope(
+                    candidate_name=cand_name,
+                    candidate_email=cand_email,
+                    consent_id=consent.id,
+                    legal_name=legal_name,
+                )
+                if hasattr(consent, "signable_envelope_id"):
+                    consent.signable_envelope_id = sig_result.get("envelope_id", "") or ""
+                try:
+                    current_app.logger.info(
+                        f"Consent {consent.id}: Signable wrapper returned status="
+                        f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
+                    )
+                except Exception:
+                    pass
+            except Exception as sig_err:
+                try:
+                    current_app.logger.warning(f"Consent {consent.id}: Signable wrapper failed: {sig_err}")
+                except Exception:
+                    pass
+                signable_warning = (
+                    "Your consent form was saved, but the e-sign envelope could not be sent right now. "
+                    "Our compliance team will re-send it shortly."
+                )
+
             s.commit()
 
+        if signable_warning:
+            flash(signable_warning, "warning")
         flash("Consent form submitted successfully.", "success")
         return redirect(url_for("associate.dashboard"))
 
@@ -1670,6 +1753,85 @@ def _signable_send_declaration_envelope(candidate_name, candidate_email, declara
                 f"Would have sent: template_id={template_id!r}, signer_role={signer_role!r}, "
                 f"signer_name={(legal_name or candidate_name)!r}, signer_email={candidate_email!r}, "
                 f"subject={subject!r}, declaration_id={declaration_id!r}, stub_id={stub_id!r}"
+            )
+        except Exception:
+            pass
+        return {
+            "envelope_id": stub_id,
+            "status": "stub_sent",
+            "signing_url": None,
+        }
+
+    # ---------- LIVE MODE — only reached when SIGNABLE_LIVE_CALLS=true ----------
+    # Lazy import so the requests library is never even loaded in stub mode.
+    import requests as _requests  # noqa: E402
+
+    api_key = os.getenv("SIGNABLE_API_KEY", "")
+    base_url = os.getenv("SIGNABLE_BASE_URL", "https://api.signable.co.uk/v1").rstrip("/")
+    if not api_key:
+        raise RuntimeError(
+            "SIGNABLE_LIVE_CALLS is enabled but SIGNABLE_API_KEY is not set — refusing to send."
+        )
+
+    headers = {
+        "Authorization": f"Basic {base64.b64encode((api_key + ':').encode()).decode()}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    payload = {
+        "envelope_title": subject,
+        "envelope_signing_message": message,
+        "envelope_parties": [
+            {
+                "party_name": legal_name or candidate_name,
+                "party_email": candidate_email,
+                "party_role": signer_role,
+            }
+        ],
+    }
+    if template_id:
+        payload["envelope_documents"] = [{"document_template_fingerprint": template_id}]
+
+    resp = _requests.post(f"{base_url}/envelopes", json=payload, headers=headers, timeout=30)
+    resp.raise_for_status()
+    data = resp.json() or {}
+    return {
+        "envelope_id": data.get("envelope_fingerprint") or data.get("id") or "",
+        "status": (data.get("envelope_status") or "sent").lower(),
+        "signing_url": data.get("signing_url"),
+    }
+
+
+def _signable_send_consent_envelope(candidate_name, candidate_email, consent_id, legal_name):
+    """
+    Send the associate consent form as a Signable envelope.
+
+    Returns dict with keys:
+        envelope_id  — Signable envelope fingerprint, or "stub-<uuid>" in stub mode
+        status       — "stub_sent" in stub mode, otherwise the Signable status string
+        signing_url  — URL for the signer (may be None depending on Signable response/mode)
+
+    Raises on live-call failure (caller catches and handles gracefully).
+    """
+    # Placeholders — TODO: confirm with user before going live
+    template_id = os.getenv("SIGNABLE_CONSENT_TEMPLATE_ID", "")  # TODO: confirm with user
+    signer_role = os.getenv("SIGNABLE_CONSENT_SIGNER_ROLE", "Associate")  # TODO: confirm with user
+    subject = "Optimus Consent Form — E-Signature Required"
+    message = (
+        f"Hi {legal_name or candidate_name},\n\n"
+        "Please countersign your Optimus consent form. "
+        "Your consent responses have been recorded — this envelope is the formal e-signature step."
+    )
+
+    # ---------- STUB MODE (default) — never touches the network ----------
+    if not SIGNABLE_LIVE_CALLS:
+        stub_id = "stub-" + uuid4().hex
+        try:
+            current_app.logger.info(
+                "[stub] Signable.envelope.create suppressed (SIGNABLE_LIVE_CALLS=false). "
+                f"Would have sent: template_id={template_id!r}, signer_role={signer_role!r}, "
+                f"signer_name={(legal_name or candidate_name)!r}, signer_email={candidate_email!r}, "
+                f"subject={subject!r}, consent_id={consent_id!r}, stub_id={stub_id!r}"
             )
         except Exception:
             pass
