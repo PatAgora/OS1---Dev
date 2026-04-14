@@ -821,32 +821,27 @@
                     </div>
                   </div>
 
-                  <!-- Row 2: Status dropdown (existing) + Analyst assignment -->
-                  <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-                    <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-1 align-items-center">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <input type="hidden" name="check_type" value="{{ check.type }}">
-                      <select name="status" class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.2rem 0.4rem;">
-                        <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
-                        <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                        <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
-                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
-                      </select>
-                      <button type="submit" class="btn btn-sm btn-outline-primary" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">
-                        <i class="fas fa-save"></i>
-                      </button>
-                    </form>
-                    <div class="d-flex align-items-center gap-1" style="font-size: 0.7rem;">
-                      <i class="fas fa-user-tie" style="color: #6b7280;" title="Assigned analyst"></i>
-                      <select class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.15rem 0.3rem; max-width: 130px;"
-                              onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value)">
-                        <option value="">Unassigned</option>
-                        {% for staff in all_staff_users %}
-                        <option value="{{ staff.id }}" {% if check.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
-                        {% endfor %}
-                      </select>
-                    </div>
-                  </div>
+                  <!-- Row 2: Status + Save + Analyst — evenly spread -->
+                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="check_type" value="{{ check.type }}">
+                    <select name="status" class="form-select form-select-sm" style="font-size: 0.75rem; flex: 1;">
+                      <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
+                      <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
+                      <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                      <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size: 0.75rem;">
+                      <i class="fas fa-save me-1"></i>Save
+                    </button>
+                    <select class="form-select form-select-sm" style="font-size: 0.75rem; flex: 1;"
+                            onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value)">
+                      <option value="">Unassigned</option>
+                      {% for staff in all_staff_users %}
+                      <option value="{{ staff.id }}" {% if check.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </form>
 
                   <!-- Row 3: QC Action buttons (contextual) -->
                   <div class="d-flex gap-1 align-items-center flex-wrap">
