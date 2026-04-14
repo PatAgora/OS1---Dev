@@ -629,8 +629,8 @@
                 <li>
                   <i class="fas fa-file-{{ 'pdf' if d.doc_type == 'cv' else 'alt' }}"></i>
                   <div style="flex: 1;">
-                    {% if d.doc_type == 'cv' and d.filename %}
-                      <a href="{{ url_for('download_cv', fname=d.filename) }}">{{ d.name }}</a>
+                    {% if d.filename %}
+                      <a href="{{ url_for('download_document', doc_id=d.id) }}">{{ d.name }}</a>
                     {% else %}
                       <span class="fw-semibold">{{ d.name }}</span>
                     {% endif %}
