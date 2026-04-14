@@ -7256,12 +7256,12 @@ def workflow():
             try:
                 vetting_stats = s.execute(
                     text("""
-                        SELECT 
+                        SELECT
                             COUNT(*) as total,
-                            SUM(CASE WHEN status = 'Complete' THEN 1 ELSE 0 END) as complete,
-                            SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) as in_progress,
-                            SUM(CASE WHEN status IN ('Not Started', 'NOT STARTED') THEN 1 ELSE 0 END) as not_started,
-                            SUM(CASE WHEN status = 'Not Required' THEN 1 ELSE 0 END) as not_required,
+                            SUM(CASE WHEN status IN ('Complete', 'COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED') THEN 1 ELSE 0 END) as complete,
+                            SUM(CASE WHEN status IN ('In Progress', 'IN PROGRESS', 'AWAITING QC', 'QC IN PROGRESS', 'QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as in_progress,
+                            SUM(CASE WHEN status IN ('Not Started', 'NOT STARTED', 'READY TO START') THEN 1 ELSE 0 END) as not_started,
+                            SUM(CASE WHEN status IN ('Not Required', 'N/A') THEN 1 ELSE 0 END) as not_required,
                             MIN(created_at) as first_check_date
                         FROM vetting_check
                         WHERE candidate_id = :cand_id
