@@ -1477,8 +1477,8 @@ def log_audit_event(event_type: str, event_category: str, action: str,
         # Don't let audit logging failures break the application
         current_app.logger.error(f"Audit logging failed: {str(e)}")
 
-@login_required
 @app.route("/admin/system-diagnostics")
+@login_required
 def admin_system_diagnostics():
     """System diagnostics and configuration check"""
     gemini_model = get_gemini_model()
@@ -1519,20 +1519,20 @@ def admin_system_diagnostics():
     return render_template("admin_system_diagnostics.html", diagnostics=diagnostics)
 
 # ========== Admin Routes for Sidebar Navigation ==========
-@login_required
 @app.route("/admin/users")
+@login_required
 def admin_users():
     """User management page - redirects to existing list users"""
     return redirect(url_for('admin_list_users'))
 
-@login_required
 @app.route("/admin/approvals")
+@login_required
 def admin_approvals():
     """Approvals management page - timesheets, expenses, etc."""
     return render_template("admin_approvals.html")
 
-@login_required
 @app.route("/admin/invoices")
+@login_required
 def admin_invoices():
     """Invoices management page"""
     import json
@@ -2059,8 +2059,8 @@ def admin_invoice_settings():
     # In a full implementation, these would be stored in a settings table
     return render_template("admin_invoice_settings.html")
 
-@login_required
 @app.route("/admin/workflow-stages")
+@login_required
 def admin_workflow_stages():
     """REQ-273: Read-only view of workflow stages.
 
@@ -2083,8 +2083,8 @@ def admin_workflow_stages():
     return render_template("admin_workflow_stages.html", stages=stages, readonly=True)
 
 
-@login_required
 @app.route("/admin/audit-log")
+@login_required
 def admin_audit_log():
     """Audit log page - shows all system activity"""
     # Audit log: viewing audit log (meta, but useful)
@@ -2172,8 +2172,8 @@ def admin_timesheet_config(engagement_id):
 
 # ========== Portal User Management (Public Portal User Management) ==========
 
-@login_required
 @app.route("/admin/portal-users")
+@login_required
 def admin_portal_users():
     """Admin page for managing public portal users (candidates who signed up via the portal)."""
     search = request.args.get("search", "").strip()
@@ -2244,8 +2244,8 @@ def admin_portal_users():
         recent_signups=recent_signups
     )
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>")
+@login_required
 def admin_portal_user_detail(cand_id: int):
     """View/edit a portal user's details."""
     with Session(engine) as s:
@@ -2290,8 +2290,8 @@ def admin_portal_user_detail(cand_id: int):
         documents=documents
     )
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>/verify", methods=["POST"])
+@login_required
 def admin_portal_user_verify(cand_id: int):
     """Manually verify a portal user's email."""
     with Session(engine) as s:
@@ -2308,8 +2308,8 @@ def admin_portal_user_verify(cand_id: int):
     
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>/set-password", methods=["POST"])
+@login_required
 def admin_portal_user_set_password(cand_id: int):
     """Admin: set a password for a portal user (used for testing / manual onboarding)."""
     password = request.form.get("password", "").strip()
@@ -2333,8 +2333,8 @@ def admin_portal_user_set_password(cand_id: int):
 
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>/send-magic-link", methods=["POST"])
+@login_required
 def admin_portal_user_send_magic_link(cand_id: int):
     """Send a magic link to a portal user."""
     from itsdangerous import URLSafeTimedSerializer
@@ -2395,8 +2395,8 @@ def admin_portal_user_send_magic_link(cand_id: int):
     
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>/update", methods=["POST"])
+@login_required
 def admin_portal_user_update(cand_id: int):
     """Update a portal user's details."""
     with Session(engine) as s:
@@ -2420,8 +2420,8 @@ def admin_portal_user_update(cand_id: int):
     
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
-@login_required
 @app.route("/admin/portal-users/<int:cand_id>/delete", methods=["POST"])
+@login_required
 def admin_portal_user_delete(cand_id: int):
     """Delete a portal user and all associated data."""
     with Session(engine) as s:
@@ -2465,8 +2465,8 @@ def admin_portal_user_delete(cand_id: int):
 
     return redirect(url_for("admin_portal_users"))
 
-@login_required
 @app.route("/change-password", methods=["GET", "POST"])
+@login_required
 def change_password():
     """Allow users to change their password"""
     if request.method == "POST":
@@ -6078,8 +6078,8 @@ def index():
         upcoming_leavers=upcoming_leavers,
     )
 
-@login_required
 @app.route("/action/candidate/regenerate_summary", methods=["POST"])
+@login_required
 def candidate_regenerate_summary():
     """
     Rebuild AI summary from latest CV, tag the candidate, mirror tag names into Candidate.skills,
@@ -6470,8 +6470,8 @@ def action_score_candidate(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id, job_id=job_id))
 
 # ---- Opportunities: list + create ----
-@login_required
 @app.route("/opportunities", methods=["GET", "POST"])
+@login_required
 def opportunities_():
     with Session(engine) as s:
         # pull users for the "Owner" dropdown
@@ -6567,8 +6567,8 @@ def opportunities_():
         items=rows,
     )
 
-@login_required
 @app.route("/admin/roles", methods=["GET", "POST"])
+@login_required
 def admin_roles():
     form = RoleTypeForm()
     try:
@@ -6596,8 +6596,8 @@ def admin_roles():
     return render_template("config_roles.html", form=form, roles=roles)
 
 # --- Convert Opportunity → Engagement ---
-@login_required
 @app.route("/opportunities/<int:opp_id>/convert", methods=["POST"], endpoint="opportunity_convert_v2")
+@login_required
 def opportunity_convert_v2(opp_id):
     with Session(engine) as s:
         opp = s.get(Opportunity, opp_id)
@@ -6620,8 +6620,8 @@ def opportunity_convert_v2(opp_id):
         flash(f"Engagement {e.ref or e.id} created.", "success")
         return redirect(url_for("engagement_dashboard", eng_id=e.id))
 
-@login_required
 @app.route("/api/opportunity/<int:opp_id>/update-stage", methods=["POST"])
+@login_required
 def api_opportunity_update_stage(opp_id):
     """Update opportunity stage (e.g. Procurement → Closed Won/Lost)."""
     data = request.get_json(silent=True) or {}
@@ -6672,8 +6672,8 @@ def api_opportunity_update_stage(opp_id):
 
 
 # GAP 4.1: API endpoint for converting opportunity to engagement
-@login_required
 @app.route("/api/opportunity/<int:opp_id>/convert", methods=["POST"])
+@login_required
 def api_opportunity_convert(opp_id):
     """
     GAP 4.1: Convert opportunity to engagement via API.
@@ -6729,8 +6729,8 @@ def api_opportunity_convert(opp_id):
         })
 
 # API endpoint for moving opportunity between pipeline stages (drag-and-drop)
-@login_required
 @app.route("/api/opportunity/move-stage", methods=["POST"])
+@login_required
 def api_opportunity_move_stage():
     """
     Move an opportunity to a different pipeline stage.
@@ -6835,8 +6835,8 @@ def api_opportunity_move_stage():
             "weighted_value": new_weighted
         })
 
-@login_required
 @app.route("/opportunity/<int:opp_id>/convert_to_engagement", methods=["POST"])
+@login_required
 def opportunity_convert_to_engagement(opp_id):
     with Session(engine) as s:
         opp = s.get(Opportunity, opp_id)
@@ -6851,8 +6851,8 @@ def opportunity_convert_to_engagement(opp_id):
         flash(f"Engagement {eng.ref} created.", "success")
         return redirect(url_for("engagement_dashboard", eng_id=eng.id))
 
-@login_required
 @app.route("/admin/opportunities/backfill_engagements", methods=["POST"])
+@login_required
 def backfill_engagements_for_won():
     created = 0
     with Session(engine) as s:
@@ -6867,8 +6867,8 @@ def backfill_engagements_for_won():
     return redirect(url_for("opportunities_"))
 
 # ---- Opportunities: edit ----
-@login_required
 @app.route("/opportunity/<int:opp_id>", methods=["GET", "POST"])
+@login_required
 def opportunity_edit(opp_id):
     # Load the opportunity row
     with Session(engine) as s:
@@ -7026,8 +7026,8 @@ def kanban():
                                ).all() for col in columns}
     return render_template("kanban.html", columns=columns, data=data)
 
-@login_required
 @app.route("/kanban/move", methods=["POST"])
+@login_required
 def kanban_move():
     payload = request.json or {}
     app_id = int(payload.get("app_id"))
@@ -7056,8 +7056,8 @@ def kanban_move():
     return jsonify({"ok": True})
 
 # ============== WORKFLOW PAGE ==============
-@login_required
 @app.route("/workflow")
+@login_required
 def workflow():
     """
     Workflow page showing headline figures for each stage and draggable associate cards.
@@ -7870,8 +7870,8 @@ def api_workflow_bulk_reject():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@login_required
 @app.route("/workflow/move", methods=["POST"])
+@login_required
 def workflow_move():
     """
     Move an application to a new workflow stage.
@@ -8124,8 +8124,8 @@ def workflow_move():
     return jsonify(response_data)
 
 # ============== PLACEMENTS PAGE ==============
-@login_required
 @app.route("/placements")
+@login_required
 def placements():
     """
     Placements page showing all associates currently ON CONTRACT.
@@ -8585,8 +8585,8 @@ def placements():
     )
 
 # CSV Export for Placements
-@login_required
 @app.route("/placements/export")
+@login_required
 def placements_export_csv():
     """Export placements data to CSV"""
     with Session(engine) as s:
@@ -8656,8 +8656,8 @@ def placements_export_csv():
     )
 
 # ============== PROJECTS PAGE ==============
-@login_required
 @app.route("/projects")
+@login_required
 def projects():
     """
     Projects landing page showing pipeline overview.
@@ -8854,8 +8854,8 @@ def pipeline():
         )
 
 
-@login_required
 @app.route("/engagements/create", methods=["GET", "POST"])
+@login_required
 def create_engagement():
     form = EngagementForm()
     if form.validate_on_submit():
@@ -8898,8 +8898,8 @@ def create_engagement():
     return render_template("create_engagement.html", form=form, selected_checks=selected_checks)
 
 # --- Edit engagement (name, ref, dates, vetting requirements) ---
-@login_required
 @app.route("/engagement/<int:eng_id>/edit", methods=["GET", "POST"])
+@login_required
 def engagement_edit(eng_id):
     with Session(engine) as s:
         engagement = s.get(Engagement, eng_id)
@@ -8945,8 +8945,8 @@ def engagement_edit(eng_id):
     selected_checks = from_json_safe(form.vetting_requirements.data or "")
     return render_template("edit_engagement.html", form=form, engagement=engagement, selected_checks=selected_checks)
 
-@login_required
 @app.route("/engagements", methods=["GET"])
+@login_required
 def engagements():
     # Get filter parameters with safe defaults
     name_filter = request.args.get('name', '').strip()
@@ -9203,8 +9203,8 @@ def jobs():
         locked_engagement=locked_eng,  # pass for UX banner/disable
     )
 
-@login_required
 @app.route("/job/<token>")
+@login_required
 def public_job(token):
     with Session(engine) as s:
         job = s.scalar(select(Job).where(Job.public_token==token))
@@ -9213,8 +9213,8 @@ def public_job(token):
         # Render inside session so lazy-loaded relationships (e.g. job.engagement) work
         return render_template("public_job.html", job=job)
 
-@login_required
 @app.route("/job/new", methods=["GET", "POST"])
+@login_required
 def job_new():
     """Create a new job post."""
     from sqlalchemy.orm import Session
@@ -9250,8 +9250,8 @@ def job_new():
         return render_template("job_form.html", job=None, roles=roles, mode="create")
 
 
-@login_required
 @app.route("/job/<int:job_id>/edit", methods=["GET", "POST"])
+@login_required
 def job_edit(job_id):
     """Edit an existing job post."""
     from sqlalchemy.orm import Session
@@ -9372,8 +9372,8 @@ def apply(token):
 
     return render_template("apply.html", form=form, job=job)
 
-@login_required
 @app.route("/my/timesheets", methods=["GET", "POST"])
+@login_required
 @worker_required
 def my_timesheets():
     """
@@ -9427,8 +9427,8 @@ def my_timesheets():
 
     return render_template("timesheets_portal.html", form=form, items=mine, week=(start, end))
 
-@login_required
 @app.route("/action/candidate/delete", methods=["POST"])
+@login_required
 def candidate_delete_action():
     cand_id = int((request.form.get("candidate_id") or "0") or 0)
     confirm = (request.form.get("confirm") or "").lower() == "yes"
@@ -9474,8 +9474,8 @@ def candidate_delete_action():
     flash("Associate deleted.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/candidate/<int:cand_id>/delete-cv/<int:doc_id>", methods=["POST"])
+@login_required
 def candidate_delete_cv(cand_id, doc_id):
     """Delete a CV/document from a candidate's profile."""
     with Session(engine) as s:
@@ -9495,8 +9495,8 @@ def candidate_delete_cv(cand_id, doc_id):
     
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/action/candidate/add", methods=["POST"])
+@login_required
 def add_candidate_manual():
     """Add a new candidate/associate manually from the Resource Pool."""
     name = (request.form.get("name") or "").strip()
@@ -9583,8 +9583,8 @@ def add_candidate_manual():
         flash(f"Associate '{name}' has been added successfully.", "success")
         return redirect(url_for("candidate_profile", cand_id=cand.id))
 
-@login_required
 @app.route("/action/candidate/<int:cand_id>/update_status", methods=["POST"])
+@login_required
 def update_candidate_status(cand_id):
     """Update candidate status and/or availability from the profile page."""
     new_status = (request.form.get("status") or "").strip()
@@ -9625,8 +9625,8 @@ def update_candidate_status(cand_id):
     
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/candidate/<int:cand_id>/update", methods=["POST"])
+@login_required
 def candidate_profile_update(cand_id):
     """Update candidate profile fields from the application detail or profile page."""
     with Session(engine) as s:
@@ -9680,8 +9680,8 @@ def candidate_profile_update(cand_id):
     
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/candidate/<int:cand_id>/update-status", methods=["POST"])
+@login_required
 def candidate_update_status(cand_id):
     """Update candidate global status from profile page."""
     VALID_STATUSES = [
@@ -9716,8 +9716,8 @@ def candidate_update_status(cand_id):
     
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/candidate/<int:cand_id>/add-activity", methods=["POST"])
+@login_required
 def candidate_add_activity(cand_id):
     """Add an activity entry to candidate's activity feed."""
     with Session(engine) as s:
@@ -9747,8 +9747,8 @@ def candidate_add_activity(cand_id):
     
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/application/<int:app_id>", methods=["GET","POST"])
+@login_required
 def application_detail(app_id):
     # Redirect GET requests to the candidate profile page
     if request.method == "GET":
@@ -9904,8 +9904,8 @@ def application_detail(app_id):
             plan_pay_rate=plan_pay_rate,
         )
 
-@login_required
 @app.route("/action/score/<int:app_id>", methods=["POST"])
+@login_required
 def action_score(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
@@ -9925,8 +9925,8 @@ def action_score(app_id):
     flash("AI score updated", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/summarise/<int:app_id>", methods=["POST"])
+@login_required
 def action_summarise(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
@@ -9949,8 +9949,8 @@ def action_summarise(app_id):
 # declines via the associate portal (see associate_portal.offer_accept and
 # associate_portal.offer_decline).
 # =============================================================================
-@login_required
 @app.route("/api/offer/make/<int:app_id>", methods=["POST"])
+@login_required
 def api_offer_make(app_id):
     """Staff captures offer details and sends an offer to a candidate.
 
@@ -10102,8 +10102,8 @@ def api_offer_make(app_id):
 
 
 # -------- Verifile vetting (application-level) --------
-@login_required
 @app.route("/action/verifile/<int:app_id>", methods=["POST"])
+@login_required
 def action_verifile(app_id):
     """Submit vetting checks to Verifile for an application's candidate."""
     do_rtw = bool(request.form.get("rtw"))
@@ -10537,8 +10537,8 @@ def api_vetting_poll_verifile(cand_id):
 
 
 # -------- Interview scheduling (ICS) --------
-@login_required
 @app.route("/action/schedule_interview/<int:app_id>", methods=["POST"])
+@login_required
 def action_schedule_interview(app_id):
     form_dt = request.form.get("scheduled_at")
     interviewer_email = request.form.get("interviewer_email") or INTERVIEWER_EMAIL
@@ -10623,8 +10623,8 @@ def action_schedule_interview(app_id):
     flash("Interview scheduled and invites sent", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/mark_interview_completed/<int:app_id>", methods=["POST"])
+@login_required
 def action_mark_interview_completed(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
@@ -10636,8 +10636,8 @@ def action_mark_interview_completed(app_id):
     flash("Interview marked as completed - moved to Client Review", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/complete_interview/<int:app_id>", methods=["POST"])
+@login_required
 def action_complete_interview(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id == app_id))
@@ -10649,8 +10649,8 @@ def action_complete_interview(app_id):
     flash("Interview completed - moved to Client Review.", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/skip_interview/<int:app_id>", methods=["POST"])
+@login_required
 def action_skip_interview(app_id):
     """Skip interview and move to Client Review without scheduling"""
     with Session(engine) as s:
@@ -10665,8 +10665,8 @@ def action_skip_interview(app_id):
     flash("Interview skipped - moved to Client Review.", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/interview_not_required/<int:app_id>", methods=["POST"])
+@login_required
 def action_interview_not_required(app_id):
     """Mark interview as not required for this application."""
     with Session(engine) as s:
@@ -10780,8 +10780,8 @@ def action_unskip_stage(app_id):
     return redirect(request.referrer or url_for("workflow"))
 
 
-@login_required
 @app.route("/action/vetting/<int:cand_id>", methods=["POST"])
+@login_required
 def action_vetting(cand_id):
     """Start vetting process for this candidate - moves to Accepted stage."""
     with Session(engine) as s:
@@ -11075,8 +11075,8 @@ def api_vetting_toggle_automation(check_id):
 
     return jsonify({"ok": True, "automation_enabled": check.automation_enabled, "message": f"Automation {new_state}"})
 
-@login_required
 @app.route("/action/save_general_notes/<int:cand_id>", methods=["POST"])
+@login_required
 def action_save_general_notes(cand_id):
     """Save general notes for a candidate."""
     notes = request.form.get("general_notes", "").strip()
@@ -11088,8 +11088,8 @@ def action_save_general_notes(cand_id):
     flash("Notes saved.", "success")
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
+@login_required
 @login_required
 def action_contract_issue(cand_id, eng_id):
     """Issue contract for this candidate and engagement — sends via Signable if configured."""
@@ -11215,50 +11215,50 @@ def action_contract_issue(cand_id, eng_id):
 
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@login_required
 @app.route("/action/contract/sign/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_sign(contract_id):
     """Mark contract as signed."""
     flash("Contract signed.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/contract/notice/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_notice(contract_id):
     """Put contract on notice."""
     flash("Contract put on notice.", "info")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/contract/cancel_notice/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_cancel_notice(contract_id):
     """Cancel notice on contract."""
     flash("Notice cancelled.", "info")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/contract/extend/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_extend(contract_id):
     """Extend contract."""
     flash("Contract extended.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/contract/terminate/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_terminate(contract_id):
     """Terminate contract."""
     flash("Contract terminated.", "warning")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/contract/update/<int:contract_id>", methods=["POST"])
+@login_required
 def action_contract_update(contract_id):
     """Update contract details."""
     flash("Contract updated.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
 
-@login_required
 @app.route("/action/save_interview_notes/<int:app_id>", methods=["POST"])
+@login_required
 def action_save_interview_notes(app_id):
     notes = request.form.get("interview_notes", "").strip()
     with Session(engine) as s:
@@ -11270,8 +11270,8 @@ def action_save_interview_notes(app_id):
     flash("Interview notes saved.", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/save_assessor_notes/<int:app_id>", methods=["POST"])
+@login_required
 def action_save_assessor_notes(app_id):
     notes = request.form.get("assessor_notes", "").strip()
     with Session(engine) as s:
@@ -11358,8 +11358,8 @@ def poll_esign_signable(request_id: str):
     }
     return status_map.get(raw_status, raw_status.title())
 
-@login_required
 @app.route("/action/esign/<int:app_id>", methods=["POST"])
+@login_required
 def action_esign(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
@@ -11388,8 +11388,8 @@ def action_esign(app_id):
     flash("Contract sent for e-signature", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
-@login_required
 @app.route("/action/esign_status/<int:app_id>", methods=["POST"])
+@login_required
 def action_esign_status(app_id):
     with Session(engine) as s:
         es = s.scalar(select(ESigRequest).where(ESigRequest.application_id==app_id))
@@ -11472,8 +11472,8 @@ def webhook_esign():
     return jsonify({"ok": True})
 
 # ---- Request updated CV ----
-@login_required
 @app.route("/action/request_updated_cv/<int:app_id>", methods=["POST"])
+@login_required
 def action_request_updated_cv(app_id):
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
@@ -11957,8 +11957,8 @@ def candidate_profile(cand_id: int):
     )
 
 # -------- Req-027: Manual Placement Creation --------
-@login_required
 @app.route("/candidate/<int:cand_id>/create-placement", methods=["POST"])
+@login_required
 def create_manual_placement(cand_id):
     """Create a placement manually when contracts are handled offline."""
     engagement_id = request.form.get("engagement_id", type=int)
@@ -12005,8 +12005,8 @@ def create_manual_placement(cand_id):
 
 
 # -------- Vetting Check Update --------
-@login_required
 @app.route("/candidate/<int:cand_id>/vetting", methods=["POST"])
+@login_required
 def update_vetting_check(cand_id: int):
     """
     Update a vetting check status for a candidate.
@@ -12121,8 +12121,8 @@ def update_vetting_check(cand_id: int):
 
 
 # -------- REQ-269: Manual Vetting Entry Fallback --------
-@login_required
 @app.route("/candidate/<int:cand_id>/vetting-manual", methods=["POST"])
+@login_required
 def manual_vetting_entry(cand_id: int):
     """REQ-269: Manual vetting data entry fallback when Verifile API unavailable."""
     check_type = request.form.get("check_type", "").strip()
@@ -12310,8 +12310,8 @@ def _auto_trigger_vetting(session, candidate_id: int, job_id: int = None):
 # GAP PLAN: VETTING START EMAIL (Batch 2.2)
 # =========================================================================
 
-@login_required
 @app.route("/action/start-vetting/<int:cand_id>", methods=["POST"])
+@login_required
 def start_vetting(cand_id: int):
     """
     Batch 2.2: Send vetting start email to candidate when vetting is triggered.
@@ -12378,8 +12378,8 @@ def start_vetting(cand_id: int):
 # GAP PLAN: QC WORKFLOW (Batch 3)
 # =========================================================================
 
-@login_required
 @app.route("/action/submit-for-qc/<int:cand_id>", methods=["POST"])
+@login_required
 def submit_for_qc(cand_id: int):
     """Batch 3.1: Submit a specific vetting check for QC review."""
     check_type = request.form.get("check_type", "").strip()
@@ -12412,8 +12412,8 @@ def submit_for_qc(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
-@login_required
 @app.route("/action/qc-approve/<int:cand_id>", methods=["POST"])
+@login_required
 def qc_approve(cand_id: int):
     """Batch 3.1: QC approve a vetting check. N9: Only non-analyst roles can QC."""
     check_type = request.form.get("check_type", "").strip()
@@ -12449,8 +12449,8 @@ def qc_approve(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
-@login_required
 @app.route("/action/qc-reject/<int:cand_id>", methods=["POST"])
+@login_required
 def qc_reject(cand_id: int):
     """Batch 3.1: QC reject a vetting check — returns to Ready to Start."""
     check_type = request.form.get("check_type", "").strip()
@@ -12489,8 +12489,8 @@ def qc_reject(cand_id: int):
 # GAP PLAN: ANALYST CASE ALLOCATION (Batch 4)
 # =========================================================================
 
-@login_required
 @app.route("/action/assign-analyst/<int:cand_id>", methods=["POST"])
+@login_required
 def assign_analyst(cand_id: int):
     """Batch 4.1: Assign a staff member (analyst) to a vetting check."""
     check_type = request.form.get("check_type", "").strip()
@@ -12521,8 +12521,8 @@ def assign_analyst(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
-@login_required
 @app.route("/action/assign-analyst-bulk/<int:cand_id>", methods=["POST"])
+@login_required
 def assign_analyst_bulk(cand_id: int):
     """Batch 4.1: Assign one analyst to ALL vetting checks for a candidate."""
     analyst_id = request.form.get("analyst_id", type=int)
@@ -12552,8 +12552,8 @@ def assign_analyst_bulk(cand_id: int):
 # GAP PLAN: QC REVIEWER ASSIGNMENT
 # =========================================================================
 
-@login_required
 @app.route("/action/assign-qc-reviewer/<int:cand_id>", methods=["POST"])
+@login_required
 def assign_qc_reviewer(cand_id: int):
     """Assign a QC reviewer to a vetting check."""
     check_type = request.form.get("check_type", "").strip()
@@ -12585,8 +12585,8 @@ def assign_qc_reviewer(cand_id: int):
 # GAP PLAN: VETTING CHECK COLOUR (N5)
 # =========================================================================
 
-@login_required
 @app.route("/action/set-check-colour/<int:cand_id>", methods=["POST"])
+@login_required
 def set_check_colour(cand_id: int):
     """N5: Manually set the colour of a vetting check card."""
     check_type = request.form.get("check_type", "").strip()
@@ -12611,8 +12611,8 @@ def set_check_colour(cand_id: int):
 # GAP PLAN: ID VERIFICATION FOR DBS (N10)
 # =========================================================================
 
-@login_required
 @app.route("/action/verify-id/<int:cand_id>", methods=["POST"])
+@login_required
 def verify_id(cand_id: int):
     """N10: Record that ID was verified via video call/in-person/IDVT before DBS."""
     method = request.form.get("verification_method", "").strip()
@@ -12647,8 +12647,8 @@ def verify_id(cand_id: int):
 # GAP PLAN: REFERENCE MANAGEMENT — STAFF SIDE (Batch 5)
 # =========================================================================
 
-@login_required
 @app.route("/action/send-reference/<int:cand_id>", methods=["POST"])
+@login_required
 def send_reference(cand_id: int):
     """Batch 5.2: Send a reference request email to referee."""
     ref_id = request.form.get("ref_id", type=int)
@@ -12734,8 +12734,8 @@ def send_reference(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
-@login_required
 @app.route("/action/chase-reference/<int:cand_id>", methods=["POST"])
+@login_required
 def chase_reference(cand_id: int):
     """Batch 5.3: Chase (resend) a reference request with a reminder."""
     ref_id = request.form.get("ref_id", type=int)
@@ -12783,8 +12783,8 @@ def chase_reference(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
-@login_required
 @app.route("/action/receive-reference/<int:cand_id>", methods=["POST"])
+@login_required
 def receive_reference(cand_id: int):
     """Batch 5: Mark a reference as received and optionally upload the response."""
     ref_id = request.form.get("ref_id", type=int)
@@ -12829,8 +12829,8 @@ def receive_reference(cand_id: int):
 # GAP PLAN: CANDIDATE VETTING DATA FIELDS (N1-N4)
 # =========================================================================
 
-@login_required
 @app.route("/candidate/<int:cand_id>/vetting-data", methods=["POST"])
+@login_required
 def update_vetting_data(cand_id: int):
     """N1-N4: Update additional candidate fields needed for vetting checks."""
     with Session(engine) as s:
@@ -12906,8 +12906,8 @@ def _should_remove_from_grid(candidate, application, vetting_checks):
 
 
 # -------- Add Candidate Note --------
-@login_required
 @app.route("/candidate/<int:cand_id>/note", methods=["POST"])
+@login_required
 def add_candidate_note(cand_id: int):
     """Add a note to a candidate's profile"""
     content = request.form.get("note_content", "").strip() or request.form.get("content", "").strip()
@@ -12932,8 +12932,8 @@ def add_candidate_note(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 # -------- Issue Contract --------
-@login_required
 @app.route("/candidate/<int:cand_id>/issue_contract", methods=["POST"])
+@login_required
 def issue_candidate_contract(cand_id: int):
     """
     Issue a contract to a candidate.
@@ -13011,8 +13011,8 @@ def issue_candidate_contract(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 # -------- GAP 1.5: Contract Resend/Chase Actions --------
-@login_required
 @app.route("/api/contract/<int:esig_id>/resend", methods=["POST"])
+@login_required
 def resend_contract(esig_id: int):
     """
     GAP 1.5: Resend a contract that hasn't been signed.
@@ -13049,8 +13049,8 @@ def resend_contract(esig_id: int):
             "message": f"Contract resent to {cand.email if cand else 'candidate'}"
         })
 
-@login_required
 @app.route("/api/contract/<int:esig_id>/chase", methods=["POST"])
+@login_required
 def chase_contract(esig_id: int):
     """
     GAP 1.5: Send a chase email for an unsigned contract.
@@ -13085,8 +13085,8 @@ def chase_contract(esig_id: int):
         })
 
 # -------- GAP 3.1 & 3.3: Contract Extension and Leaving Confirmation --------
-@login_required
 @app.route("/api/contract/<int:esig_id>/extend", methods=["POST"])
+@login_required
 def extend_contract(esig_id: int):
     """
     GAP 3.3: Extend a contract end date.
@@ -13162,8 +13162,8 @@ def bulk_extend_contracts():
 
     return jsonify({"ok": True, "message": f"{updated} contract(s) updated to {new_end_date_str}", "updated": updated})
 
-@login_required
 @app.route("/api/candidate/<int:cand_id>/confirm-leaving", methods=["POST"])
+@login_required
 def confirm_candidate_leaving(cand_id: int):
     """
     GAP 3.3: Confirm candidate is leaving when contract ends.
@@ -13247,8 +13247,8 @@ def process_contract_end_dates():
         return len(ended_contracts)
 
 # GAP 5.4: API endpoint to shortlist candidate to engagement
-@login_required
 @app.route("/api/engagement/<int:eng_id>/shortlist", methods=["POST"])
+@login_required
 def api_engagement_shortlist(eng_id: int):
     """
     GAP 5.4: Shortlist a candidate from search results directly to an engagement.
@@ -13343,8 +13343,8 @@ def api_engagement_shortlist(eng_id: int):
             })
 
 # -------- Retag from CV --------
-@login_required
 @app.route("/candidate/<int:cand_id>/retag", methods=["POST"])
+@login_required
 def retag_candidate_from_cv(cand_id: int):
     """Retag candidate from their CV using AI"""
     # This would trigger AI analysis of the CV to extract skills/tags
@@ -13352,8 +13352,8 @@ def retag_candidate_from_cv(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 # -------- Engagement Dashboard --------
-@login_required
 @app.route("/engagement/<int:eng_id>/dashboard")
+@login_required
 def engagement_dashboard(eng_id):
     # Audit log: engagement view
     
@@ -13871,8 +13871,8 @@ def engagement_dashboard(eng_id):
         )
 
 # -------- Search Associates API for Engagement Dashboard --------
-@login_required
 @app.route("/engagement/<int:eng_id>/search_associates")
+@login_required
 def engagement_search_associates(eng_id):
     """Search associates from resource pool to link to engagement."""
     q = request.args.get("q", "").strip()
@@ -13932,8 +13932,8 @@ def build_plan_form(initial_by_role: Dict[str, int]):
         setattr(_PlanForm, fname, IntegerField(role, default=int(initial_by_role.get(role, 0) or 0)))
     return _PlanForm
 
-@login_required
 @app.route("/shortlist/add", methods=["POST"])
+@login_required
 def shortlist_add():
     job_id = int(request.form.get("job_id", "0") or 0)
     cand_id = int(request.form.get("candidate_id", "0") or 0)
@@ -13979,8 +13979,8 @@ def shortlist_add():
 
     return redirect(url_for("resource_pool", job_id=job_id))
 
-@login_required
 @app.route("/shortlist/remove", methods=["POST"])
+@login_required
 def shortlist_remove():
     job_id = int(request.form.get("job_id", "0") or 0)
     cand_id = int(request.form.get("candidate_id", "0") or 0)
@@ -14003,8 +14003,8 @@ def shortlist_remove():
             flash("Removed from shortlist.", "success")
     return redirect(url_for("resource_pool", job_id=job_id))
 
-@login_required
 @app.route("/engagement/<int:eng_id>/list/<section>")
+@login_required
 def engagement_list(eng_id: int, section: str):
     # Simple shim so templates like url_for('engagement_list', ...) work.
     # It just jumps back to the dashboard and scrolls to an anchor matching `section`.
@@ -14012,8 +14012,8 @@ def engagement_list(eng_id: int, section: str):
     return redirect(url_for("engagement_dashboard", eng_id=eng_id, _anchor=section))
 
 # ---- Withdraw a job (and notify applicants not yet in vetting) ----
-@login_required
 @app.route("/engagement/<int:eng_id>/jobs/<int:job_id>/withdraw", methods=["POST"])
+@login_required
 def engagement_jobs_withdraw(eng_id: int, job_id: int):
     with Session(engine) as s:
         job = s.scalar(select(Job).where(Job.id == job_id, Job.engagement_id == eng_id))
@@ -14072,8 +14072,8 @@ def engagement_jobs_withdraw(eng_id: int, job_id: int):
 
     return redirect(url_for("engagement_job_detail", eng_id=eng_id, job_id=job_id))
 
-@login_required
 @app.route("/engagement/<int:eng_id>/plan", methods=["GET", "POST"])
+@login_required
 def engagement_plan(eng_id):
     with Session(engine) as s:
         engagement = s.get(Engagement, eng_id)
@@ -14278,8 +14278,8 @@ def engagement_plan(eng_id):
     )
 
 # ---- REQ-267: Auto-create jobs from engagement plan ----
-@login_required
 @app.route("/engagement/<int:eng_id>/auto-create-jobs", methods=["POST"])
+@login_required
 def engagement_auto_create_jobs(eng_id):
     """REQ-267: Auto-create jobs from engagement plan roles that don't have matching jobs."""
     single_role = (request.form.get("single_role") or "").strip()
@@ -14368,8 +14368,8 @@ def engagement_auto_create_jobs(eng_id):
     return redirect(request.referrer or url_for("engagement_dashboard", eng_id=eng_id))
 
 # ---- Engagement-scoped Job detail ----
-@login_required
 @app.route("/engagement/<int:eng_id>/jobs/<int:job_id>")
+@login_required
 def engagement_job_detail(eng_id: int, job_id: int):
     with Session(engine) as s:
         job = s.scalar(select(Job).where(Job.id == job_id, Job.engagement_id == eng_id))
@@ -14507,8 +14507,8 @@ def _render_applications_table(
                                job_sel=job_sel,
                                engagement_filter=engagement_filter or "")
 
-@login_required
 @app.route("/applications")
+@login_required
 def applications():
     q               = (request.args.get("q") or "").strip()
     job_id          = request.args.get("job_id")
@@ -14537,8 +14537,8 @@ from sqlalchemy import or_, false
 # from your_module import session, engine, Application, Candidate, Job, Shortlist
 # Ensure the models below are imported from wherever you declare them.
 
-@login_required
 @app.route("/engagement/<int:eng_id>/applications")
+@login_required
 def applications_for_engagement(eng_id: int):
     q = (request.args.get("q") or "").strip()
     role_filter = (request.args.get("role") or "").strip()  # NEW: Role filter
@@ -14677,8 +14677,8 @@ def applications_for_engagement(eng_id: int):
         engagement_finished=False,
     )
 
-@login_required
 @app.route("/engagement/<int:eng_id>/financials")
+@login_required
 def engagement_financials(eng_id):
     with Session(engine) as s:
         engagement = s.scalar(select(Engagement).where(Engagement.id == eng_id))
@@ -14716,8 +14716,8 @@ def engagement_financials(eng_id):
     )
 
 # ============== REVENUE PAGE ==============
-@login_required
 @app.route("/revenue")
+@login_required
 def revenue():
     """
     Revenue dashboard showing financial overview across all engagements.
@@ -15133,8 +15133,8 @@ def revenue():
     )
 
 # -------- REQ-270: Reporting / MI Page --------
-@login_required
 @app.route("/reporting")
+@login_required
 def reporting():
     """REQ-270: Dedicated reporting/MI page with fill rates, time-to-hire, conversion rates."""
     now = datetime.datetime.utcnow()
@@ -15285,8 +15285,8 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
     a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
     return R * 2 * math.asin(math.sqrt(a))
 
-@login_required
 @app.route("/resource-pool")
+@login_required
 def resource_pool():
     # Query params
     q = (request.args.get("q") or "").strip()
@@ -15837,8 +15837,8 @@ def resource_pool():
 
 from flask import Response
 
-@login_required
 @app.route("/resource-pool.csv")
+@login_required
 def resource_pool_csv():
     q = (request.args.get("q") or "").strip()
     has_cv = request.args.get("has_cv", "0") == "1"
@@ -15944,8 +15944,8 @@ def resource_pool_csv():
     )
 
 # -------- Taxonomy: view (read-only) --------
-@login_required
 @app.route("/taxonomy")
+@login_required
 def taxonomy():
     with Session(engine) as s:
         roles = s.scalars(select(TaxonomyCategory).where(TaxonomyCategory.type=="role").order_by(TaxonomyCategory.name.asc())).all()
@@ -15956,8 +15956,8 @@ def taxonomy():
     return render_template("taxonomy.html", roles=roles, subjects=subjects)
 
 # -------- Taxonomy: manage (add/edit/delete) --------
-@login_required
 @app.route("/taxonomy/manage", methods=["GET"])
+@login_required
 def taxonomy_manage():
     cat_form = TaxCategoryForm()
     tag_form = TaxTagForm()
@@ -16038,8 +16038,8 @@ def taxonomy_manage():
                            ref_contacts_per_page=ref_contacts_per_page,
                            ref_houses=ref_houses)
 
-@login_required
 @app.route("/taxonomy/category/add", methods=["POST"])
+@login_required
 def taxonomy_category_add():
     form = TaxCategoryForm()
     if not form.validate_on_submit():
@@ -16051,8 +16051,8 @@ def taxonomy_category_add():
     flash("Category added.", "success")
     return redirect(url_for("taxonomy_manage"))
 
-@login_required
 @app.route("/taxonomy/category/<int:cat_id>/rename", methods=["POST"])
+@login_required
 def taxonomy_category_rename(cat_id):
     new_name = (request.form.get("name") or "").strip()
     if not new_name:
@@ -16067,8 +16067,8 @@ def taxonomy_category_rename(cat_id):
     flash("Category renamed.", "success")
     return redirect(url_for("taxonomy_manage"))
 
-@login_required
 @app.route("/taxonomy/category/<int:cat_id>/delete", methods=["POST"])
+@login_required
 def taxonomy_category_delete(cat_id):
     with Session(engine) as s:
         c = s.scalar(select(TaxonomyCategory).where(TaxonomyCategory.id==cat_id))
@@ -16079,8 +16079,8 @@ def taxonomy_category_delete(cat_id):
     flash("Category deleted.", "success")
     return redirect(url_for("taxonomy_manage"))
 
-@login_required
 @app.route("/taxonomy/tag/add", methods=["POST"])
+@login_required
 def taxonomy_tag_add():
     form = TaxTagForm()
     # rebuild choices to allow validation in POST
@@ -16107,8 +16107,8 @@ def taxonomy_tag_add():
     flash("Tag added.", "success")
     return redirect(url_for("taxonomy_manage"))
 
-@login_required
 @app.route("/taxonomy/tag/<int:tag_id>/delete", methods=["POST"])
+@login_required
 def taxonomy_tag_delete(tag_id):
     with Session(engine) as s:
         t = s.scalar(select(TaxonomyTag).where(TaxonomyTag.id==tag_id))
@@ -16119,8 +16119,8 @@ def taxonomy_tag_delete(tag_id):
     flash("Tag deleted.", "success")
     return redirect(url_for("taxonomy_manage"))
 
-@login_required
 @app.route("/action/taxonomy/retag_all", methods=["POST"])
+@login_required
 def taxonomy_retag_all():
     """
     Re-tag candidates in batches: POST /action/taxonomy/retag_all?batch=500&offset=0&overwrite=0
@@ -16181,8 +16181,8 @@ def taxonomy_retag_all():
     return redirect(url_for("taxonomy"))
     
 
-@login_required
 @app.route("/action/taxonomy/retag_one/<int:cand_id>", methods=["POST"])
+@login_required
 def taxonomy_retag_one(cand_id):
     """Re-tag just one candidate (handy button next to a row)."""
     with Session(engine) as s:
@@ -16668,8 +16668,8 @@ def engagement_jobs(eng_id):
         ).all()
     return render_template("eng_jobs_list.html", engagement=eng, jobs=jobs)
 
-@login_required
 @app.route("/engagement/<int:eng_id>/jobs/create", methods=["GET","POST"])
+@login_required
 def engagement_jobs_create(eng_id):
     with Session(engine) as s:
         eng = s.get(Engagement, eng_id)
@@ -17059,8 +17059,8 @@ def candidate_upload_cv(cand_id):
     return render_template("candidate_upload_cv.html", form=form, cand=cand)
 
 # OPTIONAL: simple worker signup (disable in prod or restrict to admins)
-@login_required
 @app.route("/signup", methods=["GET", "POST"])
+@login_required
 def signup():
     form = WorkerSignupForm()
     if form.validate_on_submit():
@@ -17158,8 +17158,8 @@ def _check_umbrella_registration(candidate_id, session_obj):
 
 
 # REQ-003: Duplicate referee email detection
-@login_required
 @app.route("/api/check-duplicate-referee-email", methods=["GET"])
+@login_required
 def api_check_duplicate_referee_email():
     """Flag when the same referee email appears under multiple company names."""
     email = request.args.get("email", "").strip().lower()
@@ -17187,8 +17187,8 @@ def api_check_duplicate_referee_email():
 
 
 # REQ-111: Bulk document download for audits
-@login_required
 @app.route("/candidate/<int:cand_id>/download-all-docs")
+@login_required
 def download_all_docs(cand_id):
     """Download all documents for a candidate as a ZIP file for audit purposes."""
     import zipfile
@@ -17244,8 +17244,8 @@ NON_RESPONDING_ORGS = {
     "ONS Finance": "Census work via ONS Finance. Bank statements accepted as alternative evidence.",
 }
 
-@login_required
 @app.route("/api/check-reference-org", methods=["GET"])
+@login_required
 def api_check_reference_org():
     """
     REQ-113/114/115: Check if an organisation is known non-responding,
@@ -17280,8 +17280,8 @@ def api_check_reference_org():
 
 
 # REQ-138: DBS certificate upload when convictions present
-@login_required
 @app.route("/action/flag-dbs-convictions/<int:cand_id>", methods=["POST"])
+@login_required
 def flag_dbs_convictions(cand_id):
     """Mark that DBS has convictions — triggers requirement to upload DBS certificate."""
     with Session(engine) as s:
@@ -17318,8 +17318,8 @@ def flag_dbs_convictions(cand_id):
 # Check result returned → "RETURNED - PENDING CHECK" → reviewed → "COMPLETE" or "ON HOLD"
 
 # Fix 3: Referral Approved two-step approval
-@login_required
 @app.route("/action/referral-approve/<int:cand_id>", methods=["POST"])
+@login_required
 def referral_approve(cand_id: int):
     """Two-step Referral Approved — requires a different user than the analyst."""
     check_type = request.form.get("check_type", "").strip()
@@ -17370,8 +17370,8 @@ RTW_RULES = {
 }
 
 
-@login_required
 @app.route("/api/validate-rtw", methods=["GET"])
+@login_required
 def api_validate_rtw():
     """Validate RTW document type and rules."""
     doc_type = request.args.get("rtw_type", "").strip()
@@ -17386,8 +17386,8 @@ def api_validate_rtw():
 # (done inline below in the dict)
 
 # Fix 7: Referee hold-until date route
-@login_required
 @app.route("/action/hold-reference/<int:cand_id>", methods=["POST"])
+@login_required
 def hold_reference(cand_id: int):
     """Set a hold-until date on a reference to pause auto-chasers."""
     ref_id = request.form.get("ref_id", type=int)
@@ -17631,8 +17631,8 @@ def _validate_check_data(candidate_id, check_type, session_obj):
     return len(missing) == 0, missing
 
 
-@login_required
 @app.route("/api/validate-check-data/<int:cand_id>", methods=["GET"])
+@login_required
 def api_validate_check_data(cand_id):
     """GAP 6: API to check if a candidate has all required data for a specific check type."""
     check_type = request.args.get("check_type", "").strip()
@@ -17851,8 +17851,8 @@ def _check_poa_90_day_rule(candidate_id, session_obj):
 # GAP PLAN: BATCH 11 — ADMIN REFERENCE DATA MANAGEMENT
 # =========================================================================
 
-@login_required
 @app.route("/admin/reference-contacts")
+@login_required
 def admin_reference_contacts():
     """Batch 11.1: CRUD page for approved reference contacts (4,935 entries)."""
     search = request.args.get("search", "").strip()
@@ -17887,8 +17887,8 @@ def admin_reference_contacts():
                            page=page, per_page=per_page, total=total or 0)
 
 
-@login_required
 @app.route("/admin/reference-contacts/add", methods=["POST"])
+@login_required
 def admin_reference_contact_add():
     """Add a new reference contact."""
     ReferenceContact = None
@@ -17921,8 +17921,8 @@ def admin_reference_contact_add():
     return redirect(next_url)
 
 
-@login_required
 @app.route("/admin/reference-contacts/<int:contact_id>/edit", methods=["POST"])
+@login_required
 def admin_reference_contact_edit(contact_id):
     """Edit an existing reference contact."""
     ReferenceContact = None
@@ -17950,8 +17950,8 @@ def admin_reference_contact_edit(contact_id):
     return redirect(url_for("admin_reference_contacts"))
 
 
-@login_required
 @app.route("/admin/reference-contacts/<int:contact_id>/delete", methods=["POST"])
+@login_required
 def admin_reference_contact_delete(contact_id):
     """Delete a reference contact."""
     ReferenceContact = None
@@ -17976,8 +17976,8 @@ def admin_reference_contact_delete(contact_id):
     return redirect(next_url)
 
 
-@login_required
 @app.route("/admin/reference-contacts/import", methods=["POST"])
+@login_required
 def admin_reference_contacts_import():
     """Batch 11.1: Bulk import reference contacts from CSV or XLSX."""
     ReferenceContact = None
@@ -18070,8 +18070,8 @@ def admin_reference_contacts_import():
     return redirect(next_url)
 
 
-@login_required
 @app.route("/admin/reference-houses/import", methods=["POST"])
+@login_required
 def admin_reference_houses_import():
     """Bulk import flagged reference houses from CSV or XLSX."""
     FlaggedReferenceHouse = None
@@ -18167,8 +18167,8 @@ def admin_reference_houses_import():
 
 # ---- Contradiction Fix 6: Admin — Approved Umbrella Companies ----
 
-@login_required
 @app.route("/admin/umbrella-companies")
+@login_required
 def admin_umbrella_companies():
     """CRUD page for approved umbrella companies."""
     search = request.args.get("search", "").strip()
@@ -18189,8 +18189,8 @@ def admin_umbrella_companies():
                            per_page=per_page, search=search)
 
 
-@login_required
 @app.route("/admin/umbrella-companies/add", methods=["POST"])
+@login_required
 def admin_umbrella_company_add():
     """Add a new approved umbrella company."""
     name = request.form.get("name", "").strip()
@@ -18214,8 +18214,8 @@ def admin_umbrella_company_add():
     return redirect(url_for("admin_umbrella_companies"))
 
 
-@login_required
 @app.route("/admin/umbrella-companies/<int:umb_id>/edit", methods=["POST"])
+@login_required
 def admin_umbrella_company_edit(umb_id):
     """Edit an approved umbrella company."""
     with Session(engine) as s:
@@ -18236,8 +18236,8 @@ def admin_umbrella_company_edit(umb_id):
     return redirect(url_for("admin_umbrella_companies"))
 
 
-@login_required
 @app.route("/admin/umbrella-companies/<int:umb_id>/delete", methods=["POST"])
+@login_required
 def admin_umbrella_company_delete(umb_id):
     """Delete an approved umbrella company."""
     with Session(engine) as s:
@@ -18254,8 +18254,8 @@ def admin_umbrella_company_delete(umb_id):
 
 # ---- Admin: Flagged Reference Houses ----
 
-@login_required
 @app.route("/admin/reference-houses")
+@login_required
 def admin_reference_houses():
     """Batch 11.2: CRUD page for flagged reference houses with full intel (N17)."""
     FlaggedReferenceHouse = None
@@ -18275,8 +18275,8 @@ def admin_reference_houses():
     return render_template("admin_reference_houses.html", houses=houses)
 
 
-@login_required
 @app.route("/admin/reference-houses/add", methods=["POST"])
+@login_required
 def admin_reference_house_add():
     """Add a flagged reference house."""
     FlaggedReferenceHouse = None
@@ -18306,8 +18306,8 @@ def admin_reference_house_add():
     return redirect(next_url)
 
 
-@login_required
 @app.route("/admin/reference-houses/<int:house_id>/edit", methods=["POST"])
+@login_required
 def admin_reference_house_edit(house_id):
     """Edit a flagged reference house."""
     FlaggedReferenceHouse = None
@@ -18336,8 +18336,8 @@ def admin_reference_house_edit(house_id):
     return redirect(url_for("admin_reference_houses"))
 
 
-@login_required
 @app.route("/admin/reference-houses/<int:house_id>/delete", methods=["POST"])
+@login_required
 def admin_reference_house_delete(house_id):
     """Delete a flagged reference house."""
     FlaggedReferenceHouse = None
