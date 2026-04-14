@@ -5727,17 +5727,17 @@ def index():
         # 4. Vetting Completed — driven by actual vetting check statuses, not workflow stage.
         # A candidate's vetting is complete when ALL their VettingCheck records are in a
         # terminal state (Complete, N/A, QC COMPLETE, REFERRAL APPROVED).
-        complete_statuses = ("Complete", "COMPLETE", "N/A", "QC COMPLETE", "REFERRAL APPROVED")
-        # Get all candidate IDs that have vetting checks
-        all_vetted_cands = s.execute(
-            select(VettingCheck.candidate_id, func.count(VettingCheck.id).label("total"),
-                   func.sum(func.cast(VettingCheck.status.in_(complete_statuses), Integer)).label("done"))
-            .group_by(VettingCheck.candidate_id)
-        ).all()
-        # Filter to candidates where ALL checks are complete (done == total)
-        fully_vetted_ids = [row.candidate_id for row in all_vetted_cands if row.total > 0 and row.done == row.total]
+        complete_statuses = ["Complete", "COMPLETE", "N/A", "QC COMPLETE", "REFERRAL APPROVED"]
+        all_vetting = s.scalars(select(VettingCheck)).all()
+        # Group by candidate
+        cand_checks = {}
+        for vc in all_vetting:
+            cand_checks.setdefault(vc.candidate_id, []).append(vc.status or "NOT STARTED")
+        fully_vetted_ids = [
+            cid for cid, statuses in cand_checks.items()
+            if len(statuses) > 0 and all(st in complete_statuses for st in statuses)
+        ]
         if eng_ids and fully_vetted_ids:
-            # Further filter to candidates with applications in the selected engagements
             vetted_in_eng = s.scalars(
                 select(func.distinct(Application.candidate_id))
                 .join(Job, Job.id == Application.job_id)
