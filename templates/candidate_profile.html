@@ -1156,17 +1156,28 @@
           {% else %}
             <div class="text-center text-muted py-2" id="issueContractSection">
               <p class="mb-1 small">No contract issued</p>
-              {% if latest_app %}
-              <a id="issueContractBtn" href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary">
+              {% set vet_total = vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started %}
+              {% set vet_done = vetting_summary.complete %}
+              {% if vet_total > 0 and vet_done < vet_total %}
+              <div class="alert alert-warning py-1 px-2 mb-2" style="font-size: 0.75rem;">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Cannot issue contract — vetting not complete ({{ vet_done }}/{{ vet_total }})
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" disabled>
                 <i class="fas fa-file-signature me-1"></i> Issue Contract
-              </a>
+              </button>
+              {% elif vet_total == 0 %}
+              <div class="alert alert-warning py-1 px-2 mb-2" style="font-size: 0.75rem;">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Cannot issue contract — vetting has not been started
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" disabled>
+                <i class="fas fa-file-signature me-1"></i> Issue Contract
+              </button>
               {% else %}
-              <form method="POST" action="" id="directContractForm" class="d-inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
-                  <i class="fas fa-file-signature me-1"></i> Issue Contract
-                </button>
-              </form>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
+                <i class="fas fa-file-signature me-1"></i> Issue Contract
+              </button>
               {% endif %}
             </div>
           {% endif %}
