@@ -10,7 +10,6 @@ echo "PORT: ${PORT:-8080}"
 exec gunicorn app:app \
     --bind 0.0.0.0:${PORT:-8080} \
     --workers 2 \
-    --preload \
     --timeout 120 \
     --log-level info \
     --access-logfile - \
