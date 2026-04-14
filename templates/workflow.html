@@ -1379,47 +1379,26 @@ function cascadeFilters() {
     }
   });
 
-  // Apply visibility and reset any selected option that is now hidden
-
-  // Clients
-  Array.from(clientSel.options).forEach(function(opt) {
-    if (opt.value === 'all') return;
-    opt.style.display = validClients.has(opt.value) ? '' : 'none';
-  });
-  if (selectedClient !== 'all' && !validClients.has(selectedClient)) {
-    clientSel.value = 'all';
-  }
-
-  // Engagements
-  Array.from(engSel.options).forEach(function(opt) {
-    if (opt.value === 'all') return;
-    opt.style.display = validEngIds.has(opt.value) ? '' : 'none';
-  });
-  if (selectedEng !== 'all' && !validEngIds.has(selectedEng)) {
-    engSel.value = 'all';
-  }
-
-  // Roles
-  if (roleSel) {
-    Array.from(roleSel.options).forEach(function(opt) {
+  // Apply visibility — use hidden + disabled (CSS display:none doesn't work on <option>)
+  function applyFilter(sel, validSet, selectedVal) {
+    if (!sel) return selectedVal;
+    Array.from(sel.options).forEach(function(opt) {
       if (opt.value === 'all') return;
-      opt.style.display = validRoles.size === 0 || validRoles.has(opt.value) ? '' : 'none';
+      var valid = validSet.size === 0 || validSet.has(opt.value);
+      opt.hidden = !valid;
+      opt.disabled = !valid;
     });
-    if (selectedRole !== 'all' && validRoles.size > 0 && !validRoles.has(selectedRole)) {
-      roleSel.value = 'all';
+    if (selectedVal !== 'all' && validSet.size > 0 && !validSet.has(selectedVal)) {
+      sel.value = 'all';
+      return 'all';
     }
+    return selectedVal;
   }
 
-  // Intakes
-  if (intakeSel) {
-    Array.from(intakeSel.options).forEach(function(opt) {
-      if (opt.value === 'all') return;
-      opt.style.display = validIntakes.size === 0 || validIntakes.has(opt.value) ? '' : 'none';
-    });
-    if (selectedIntake !== 'all' && validIntakes.size > 0 && !validIntakes.has(selectedIntake)) {
-      intakeSel.value = 'all';
-    }
-  }
+  selectedClient = applyFilter(clientSel, validClients, selectedClient);
+  selectedEng = applyFilter(engSel, validEngIds, selectedEng);
+  applyFilter(roleSel, validRoles, selectedRole);
+  applyFilter(intakeSel, validIntakes, selectedIntake);
 
   _cascadeGuard = false;
 }
