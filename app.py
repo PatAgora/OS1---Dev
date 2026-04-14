@@ -11088,8 +11088,57 @@ def action_save_general_notes(cand_id):
     flash("Notes saved.", "success")
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-@app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
+@app.route("/action/contract/retract/<int:cand_id>", methods=["POST"])
 @login_required
+def retract_contract(cand_id):
+    """Retract an issued contract — sets ESigRequest status to Retracted."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        esig = s.scalar(
+            select(ESigRequest)
+            .where(ESigRequest.candidate_id == cand_id)
+            .where(ESigRequest.status.notin_(["Retracted", "Signed", "Completed"]))
+            .order_by(ESigRequest.created_at.desc())
+        )
+        if not esig:
+            flash("No active contract to retract.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        old_status = esig.status
+        esig.status = "Retracted"
+
+        # Update application status back to previous stage
+        appn = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        if appn and appn.status in ("Contract Issued", "Contract Sent"):
+            appn.status = "Accepted"
+
+        # Add note
+        note = CandidateNote(
+            candidate_id=cand_id,
+            user_email=current_user.email if current_user.is_authenticated else "System",
+            note_type="system",
+            content=f"Contract retracted (was: {old_status})"
+        )
+        s.add(note)
+
+        log_audit_event('update', 'workflow',
+                        f'Contract retracted for candidate {cand.name}',
+                        'candidate', cand_id,
+                        {'old_status': old_status, 'new_status': 'Retracted'})
+        s.commit()
+        flash("Contract retracted.", "success")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
+@app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
 @login_required
 def action_contract_issue(cand_id, eng_id):
     """Issue contract for this candidate and engagement — sends via Signable if configured."""

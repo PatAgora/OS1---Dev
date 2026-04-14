@@ -1130,9 +1130,19 @@
           {% endif %}
 
           {% if contract_status %}
-            <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% else %}#f59e0b{% endif %};">
-              <div class="fw-semibold" style="font-size: 0.85rem;">
-                Contract Status: <span class="text-capitalize">{{ contract_status }}</span>
+            <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% elif contract_status == 'Retracted' %}#fee2e2{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% elif contract_status == 'Retracted' %}#ef4444{% else %}#f59e0b{% endif %};">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="fw-semibold" style="font-size: 0.85rem;">
+                  Contract Status: <span class="text-capitalize">{{ contract_status }}</span>
+                </div>
+                {% if contract_status not in ['signed', 'completed', 'Retracted'] %}
+                <form method="POST" action="{{ url_for('retract_contract', cand_id=cand.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to retract this contract? This cannot be undone.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.7rem;">
+                    <i class="fas fa-times-circle me-1"></i>Retract Contract
+                  </button>
+                </form>
+                {% endif %}
               </div>
             </div>
           {% else %}
