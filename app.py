@@ -4364,22 +4364,20 @@ def ensure_schema():
             except Exception:
                 pass
 
-# ===== Deferred schema setup =====
-# Runs on first real request (not /health) so gunicorn can start serving immediately.
-# This avoids Railway health check timeouts caused by slow DB migrations at import time.
+# ===== Create tables at import time (fast — just checks they exist) =====
+Base.metadata.create_all(engine)
+
+# ===== Deferred schema migrations =====
+# ALTER TABLE calls are slow on Postgres and can block startup.
+# Run them on first non-health request so Railway health check passes.
 _schema_initialized = False
 
 def _run_deferred_schema():
-    """Run all DB migrations and seeding — called once on first request."""
+    """Run ALTER TABLE migrations and seeding — called once on first request."""
     global _schema_initialized
     if _schema_initialized:
         return
     _schema_initialized = True
-
-    try:
-        Base.metadata.create_all(engine)
-    except Exception as e:
-        print(f"WARNING: create_all failed: {e}")
 
     try:
         ensure_schema()
@@ -4406,36 +4404,11 @@ def _run_deferred_schema():
     except Exception:
         pass
 
-    # Seed admin user if needed
-    try:
-        with engine.begin() as conn:
-            cols = [r[0] for r in conn.execute(text(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
-            )).fetchall()]
-            if 'role' not in cols or 'is_active' not in cols:
-                user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
-                if user_count == 0:
-                    conn.execute(text("DROP TABLE IF EXISTS password_history"))
-                    conn.execute(text("DROP TABLE IF EXISTS users"))
-        Base.metadata.create_all(engine)
-        with engine.begin() as conn:
-            user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
-            if user_count == 0:
-                from werkzeug.security import generate_password_hash
-                pw = generate_password_hash("DemoAdmin2024!", method='pbkdf2:sha256')
-                conn.execute(text("""
-                    INSERT INTO users (name, email, pw_hash, role, is_active, created_at)
-                    VALUES (:name, :email, :pw_hash, :role, :is_active, CURRENT_TIMESTAMP)
-                """), {"name": "Admin User", "email": "admin@demo.example.com",
-                       "pw_hash": pw, "role": "admin", "is_active": True})
-    except Exception as e:
-        print(f"Warning: Admin seed: {e}")
-
-    print("Schema initialization complete.")
+    print("Schema migrations complete.")
 
 @app.before_request
 def _deferred_schema_hook():
-    """Run schema setup on first non-health request."""
+    """Run schema migrations on first non-health request."""
     if request.path == "/health":
         return
     _run_deferred_schema()
