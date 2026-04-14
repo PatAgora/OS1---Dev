@@ -4371,37 +4371,11 @@ def ensure_schema():
                 pass
 
 # ===== Schema setup =====
-# create_all is fast (checks tables exist) — run at import time so sessions work.
+# create_all handles all table/column creation from the ORM models.
+# ensure_schema() is only needed for legacy databases missing columns —
+# on an established DB it's a no-op (all ALTERs fail silently).
+# Skipping it avoids Postgres table locks that block live requests.
 Base.metadata.create_all(engine)
-
-# ensure_schema + ALTER TABLEs are slow on Postgres — run in background thread
-# so gunicorn can serve /health immediately for Railway's health check.
-import threading
-def _background_schema_migrations():
-    try:
-        ensure_schema()
-    except Exception as e:
-        print(f"WARNING: Schema migration failed: {e}")
-    for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN"),
-                               ("vetting_check", "qc_assigned_to", "INTEGER")]:
-        try:
-            with engine.begin() as _conn:
-                _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
-        except Exception:
-            pass
-    try:
-        with engine.begin() as _conn:
-            _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
-                id SERIAL PRIMARY KEY,
-                role_type VARCHAR(100) UNIQUE NOT NULL,
-                description TEXT DEFAULT '',
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )"""))
-    except Exception:
-        pass
-    print("Background schema migrations complete.")
-
-threading.Thread(target=_background_schema_migrations, daemon=True).start()
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
