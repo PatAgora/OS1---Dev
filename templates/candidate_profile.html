@@ -804,6 +804,8 @@
                       <span class="badge" style="background: #dbeafe; color: #1d4ed8;">In Progress</span>
                     {% elif s_upper == 'COMPLETE' %}
                       <span class="badge" style="background: #dcfce7; color: #166534;">Complete</span>
+                    {% elif s_upper == 'SENT TO QC' %}
+                      <span class="badge" style="background: #ede9fe; color: #6d28d9;"><i class="fas fa-paper-plane me-1"></i>Sent to QC</span>
                     {% elif s_upper == 'QC IN PROGRESS' %}
                       <span class="badge" style="background: #e0e7ff; color: #4338ca;"><i class="fas fa-search me-1"></i>QC In Progress</span>
                     {% elif s_upper == 'QC REWORK NEEDED' %}
@@ -833,16 +835,32 @@
                     <input type="hidden" name="check_type" value="{{ check.type }}">
                     <div style="flex: 1;">
                       <label style="font-size: 0.65rem; color: #6b7280; display: block;">Status</label>
+                      {% set is_qc_assignee = (check.qc_assigned_to and current_user.is_authenticated and check.qc_assigned_to == current_user.id) %}
                       <select name="status" class="form-select form-select-sm" style="font-size: 0.75rem;">
+                        {# Analyst statuses — visible to assigned analyst (not QC) #}
+                        {% if not is_qc_assignee %}
                         <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
                         <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                        <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                        <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                        <option value="AWAIT QC REWORK CHECK" {% if s_upper == 'AWAIT QC REWORK CHECK' %}selected{% endif %}>Await QC Rework Check</option>
+                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                        {% if s_upper == 'COMPLETE' %}<option value="COMPLETE" selected>Complete</option>{% endif %}
+                        {% if s_upper == 'QC IN PROGRESS' %}<option value="QC IN PROGRESS" selected>QC In Progress</option>{% endif %}
+                        {% if s_upper == 'QC REWORK NEEDED' %}<option value="QC REWORK NEEDED" selected>QC Rework Needed</option>{% endif %}
+                        {% if s_upper == 'QC COMPLETE' %}<option value="QC COMPLETE" selected>QC Complete</option>{% endif %}
+                        {% if s_upper == 'QC NOT REQUIRED' %}<option value="QC NOT REQUIRED" selected>QC Not Required</option>{% endif %}
+                        {% endif %}
+                        {# QC statuses — visible to QC assignee only #}
+                        {% if is_qc_assignee %}
                         <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
                         <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
-                        <option value="AWAIT QC REWORK CHECK" {% if s_upper == 'AWAIT QC REWORK CHECK' %}selected{% endif %}>Await QC Rework Check</option>
                         <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
                         <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
-                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                        {% if s_upper == 'SENT TO QC' %}<option value="SENT TO QC" selected>Sent to QC</option>{% endif %}
+                        {% if s_upper == 'NOT STARTED' %}<option value="NOT STARTED" selected>Not Started</option>{% endif %}
+                        {% if s_upper == 'IN PROGRESS' %}<option value="IN PROGRESS" selected>In Progress</option>{% endif %}
+                        {% if s_upper == 'AWAIT QC REWORK CHECK' %}<option value="AWAIT QC REWORK CHECK" selected>Await QC Rework Check</option>{% endif %}
+                        {% endif %}
                       </select>
                     </div>
                     <button type="submit" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="font-size: 0.65rem; padding: 0.25rem 0.5rem; height: 31px;">

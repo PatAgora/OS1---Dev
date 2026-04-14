@@ -7259,7 +7259,7 @@ def workflow():
                         SELECT
                             COUNT(*) as total,
                             SUM(CASE WHEN status IN ('Complete', 'COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED') THEN 1 ELSE 0 END) as complete,
-                            SUM(CASE WHEN status IN ('In Progress', 'IN PROGRESS', 'AWAITING QC', 'QC IN PROGRESS', 'QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as in_progress,
+                            SUM(CASE WHEN status IN ('In Progress', 'IN PROGRESS', 'AWAITING QC', 'SENT TO QC', 'QC IN PROGRESS', 'QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as in_progress,
                             SUM(CASE WHEN status IN ('Not Started', 'NOT STARTED', 'READY TO START') THEN 1 ELSE 0 END) as not_started,
                             SUM(CASE WHEN status IN ('Not Required', 'N/A') THEN 1 ELSE 0 END) as not_required,
                             SUM(CASE WHEN status IN ('QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as rework_needed,
@@ -11670,7 +11670,7 @@ def candidate_profile(cand_id: int):
                 status = (vc["status"] or "").upper()
                 if status in ("COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"):
                     vetting_summary["complete"] += 1
-                elif status in ("IN PROGRESS", "AWAITING QC", "QC IN PROGRESS", "QC REWORK NEEDED", "AWAIT QC REWORK CHECK"):
+                elif status in ("IN PROGRESS", "AWAITING QC", "SENT TO QC", "QC IN PROGRESS", "QC REWORK NEEDED", "AWAIT QC REWORK CHECK"):
                     vetting_summary["in_progress"] += 1
                 elif status == "N/A":
                     vetting_summary["na"] += 1
