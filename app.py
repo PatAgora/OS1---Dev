@@ -5713,7 +5713,7 @@ def index():
             ) or 0
         
         # 3. Associates Offered (applications currently in "Offered" stage only)
-        offer_stages = ["Offered", "Offer Made", "Offer Sent"]
+        offer_stages = ["Offered", "Offer Made", "Offer Sent", "Accepted", "Offer Accepted"]
         associates_offered_query = (
             select(func.count(func.distinct(Application.candidate_id)))
             .select_from(Application)
@@ -5724,20 +5724,29 @@ def index():
             associates_offered_query = associates_offered_query.where(Job.engagement_id.in_(eng_ids))
         associates_offered = s.scalar(associates_offered_query) or 0
         
-        # 4. Vetting Completed (applications that have passed vetting)
-        vetting_completed_query = (
-            select(func.count(Application.id))
-            .select_from(Application)
-            .join(Job, Job.id == Application.job_id)
-            .where(Application.status.in_([
-                "Ready to Contract", "Vetting Complete",
-                "Contract Sent", "Contract Issued",
-                "Placed", "Contract Signed", "Contracted", "Active", "Hired", "Onboarding",
-            ]))
-        )
-        if eng_ids:
-            vetting_completed_query = vetting_completed_query.where(Job.engagement_id.in_(eng_ids))
-        vetting_completed = s.scalar(vetting_completed_query) or 0
+        # 4. Vetting Completed — driven by actual vetting check statuses, not workflow stage.
+        # A candidate's vetting is complete when ALL their VettingCheck records are in a
+        # terminal state (Complete, N/A, QC COMPLETE, REFERRAL APPROVED).
+        complete_statuses = ("Complete", "COMPLETE", "N/A", "QC COMPLETE", "REFERRAL APPROVED")
+        # Get all candidate IDs that have vetting checks
+        all_vetted_cands = s.execute(
+            select(VettingCheck.candidate_id, func.count(VettingCheck.id).label("total"),
+                   func.sum(func.cast(VettingCheck.status.in_(complete_statuses), Integer)).label("done"))
+            .group_by(VettingCheck.candidate_id)
+        ).all()
+        # Filter to candidates where ALL checks are complete (done == total)
+        fully_vetted_ids = [row.candidate_id for row in all_vetted_cands if row.total > 0 and row.done == row.total]
+        if eng_ids and fully_vetted_ids:
+            # Further filter to candidates with applications in the selected engagements
+            vetted_in_eng = s.scalars(
+                select(func.distinct(Application.candidate_id))
+                .join(Job, Job.id == Application.job_id)
+                .where(Application.candidate_id.in_(fully_vetted_ids))
+                .where(Job.engagement_id.in_(eng_ids))
+            ).all()
+            vetting_completed = len(vetted_in_eng)
+        else:
+            vetting_completed = len(fully_vetted_ids)
         
         # 5. Contracted (signed contracts)
         contracted_query = (
