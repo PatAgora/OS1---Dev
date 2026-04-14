@@ -764,29 +764,29 @@
               <i class="fas fa-shield-alt"></i>
               Vetting Checks
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <span class="section-subtitle mb-0">
-                {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
-              </span>
-              <!-- Bulk assign analyst -->
-              <div class="d-flex align-items-center gap-1">
-                <select id="bulkAnalystSelect" class="form-select form-select-sm" style="font-size: 0.7rem; width: auto; padding: 0.2rem 0.4rem;">
-                  <option value="">Assign all to...</option>
-                  {% for staff in all_staff_users %}
-                  <option value="{{ staff.id }}">{{ staff.name }}</option>
-                  {% endfor %}
-                </select>
-                <button class="btn btn-outline-secondary btn-sm" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="bulkAssignAnalyst({{ cand.id }})" title="Assign all checks to selected analyst">
-                  <i class="fas fa-users-cog"></i>
-                </button>
-              </div>
-              <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing (free)">
-                <i class="fas fa-envelope me-1"></i> Start Referencing
-              </button>
-              <button class="btn btn-warning btn-sm" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting (paid)">
-                <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
+          </div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 p-2 rounded" style="background: #f1f5f9;">
+            <span class="fw-semibold" style="font-size: 0.85rem; color: #1f2937;">
+              <i class="fas fa-chart-pie me-1 text-primary"></i>
+              {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
+            </span>
+            <div class="d-flex align-items-center gap-1">
+              <select id="bulkAnalystSelect" class="form-select form-select-sm" style="font-size: 0.75rem; width: auto;">
+                <option value="">Assign all to...</option>
+                {% for staff in all_staff_users %}
+                <option value="{{ staff.id }}">{{ staff.name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-outline-secondary btn-sm" onclick="bulkAssignAnalyst({{ cand.id }})" title="Assign all checks to selected analyst">
+                <i class="fas fa-users-cog"></i> Assign
               </button>
             </div>
+            <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing">
+              <i class="fas fa-envelope me-1"></i> Start Referencing
+            </button>
+            <button class="btn btn-warning btn-sm" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting">
+              <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
+            </button>
           </div>
           {% if vetting_checks %}
             <div class="row g-2">
