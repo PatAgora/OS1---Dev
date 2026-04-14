@@ -827,11 +827,11 @@
                     {% endif %}
                   </div>
 
-                  <!-- Row 2: Status | Save | Assigned | QC Assigned — even grid -->
-                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="row g-2 mb-2 align-items-center">
+                  <!-- Row 2: Status + Save -->
+                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-2 mb-2 align-items-end">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="check_type" value="{{ check.type }}">
-                    <div class="col-3">
+                    <div style="flex: 1;">
                       <label style="font-size: 0.65rem; color: #6b7280; display: block;">Status</label>
                       <select name="status" class="form-select form-select-sm" style="font-size: 0.75rem;">
                         <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
@@ -845,12 +845,13 @@
                         <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
                       </select>
                     </div>
-                    <div class="col-1 text-center" style="padding-top: 14px;">
-                      <button type="submit" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="font-size: 0.65rem; padding: 0.25rem 0.4rem; height: 31px; width: 100%;">
-                        <i class="fas fa-save" style="font-size: 0.65rem;"></i>
-                      </button>
-                    </div>
-                    <div class="col-4">
+                    <button type="submit" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="font-size: 0.65rem; padding: 0.25rem 0.5rem; height: 31px;">
+                      <i class="fas fa-save" style="font-size: 0.65rem;"></i>
+                    </button>
+                  </form>
+                  <!-- Row 3: Assigned + QC Assigned -->
+                  <div class="row g-2">
+                    <div class="col-6">
                       <label style="font-size: 0.65rem; color: #6b7280; display: block;">Assigned</label>
                       <select class="form-select form-select-sm" style="font-size: 0.75rem;"
                               onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value)">
@@ -860,7 +861,7 @@
                         {% endfor %}
                       </select>
                     </div>
-                    <div class="col-4">
+                    <div class="col-6">
                       <label style="font-size: 0.65rem; color: #6b7280; display: block;">QC Assigned</label>
                       <select class="form-select form-select-sm" style="font-size: 0.75rem;"
                               onchange="assignQCReviewer({{ cand.id }}, '{{ check.type }}', this.value)">
@@ -870,7 +871,7 @@
                         {% endfor %}
                       </select>
                     </div>
-                  </form>
+                  </div>
 
                   <!-- Row 3: QC Action buttons (contextual) -->
                   {% if s_upper in ('COMPLETE', 'AWAITING QC') or (s_upper == 'QC COMPLETE' and not check.referral_approved_by) %}
