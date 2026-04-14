@@ -406,7 +406,7 @@
     
     <form method="GET" action="{{ url_for('applications') }}">
       <div class="row g-3">
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
           <label class="field-label">Search</label>
           <input type="text"
                  name="q"
@@ -416,19 +416,29 @@
                  placeholder="Name, skills, job…">
         </div>
 
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
+          <label class="field-label">Engagement</label>
+          <select name="engagement_id" id="filterEngagement" class="form-select field-input" aria-label="Filter by engagement">
+            <option value="">All Engagements</option>
+            {% for eng in engagements %}
+            <option value="{{ eng.id }}" data-client="{{ eng.client }}" {% if engagement_filter == eng.id|string %}selected{% endif %}>{{ eng.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
           <label class="field-label">Job</label>
-          <select name="job_id" class="form-select field-input" aria-label="Filter by job">
+          <select name="job_id" id="filterJob" class="form-select field-input" aria-label="Filter by job">
             <option value="">All jobs</option>
             {% for j in jobs %}
-              <option value="{{ j.id }}" {{ 'selected' if job_sel and j.id==job_sel.id else '' }}>
+              <option value="{{ j.id }}" data-engagement-id="{{ j.engagement_id }}" {{ 'selected' if job_sel and j.id==job_sel.id else '' }}>
                 {{ j.title }}{% if j.engagement %} — {{ j.engagement.name }}{% endif %}
               </option>
             {% endfor %}
           </select>
         </div>
 
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-md-1">
           <label class="field-label">Per Page</label>
           <select name="per_page" class="form-select field-input" aria-label="Results per page">
             {% for n in [10,25,50,100] %}
@@ -556,7 +566,7 @@
         <div class="modern-pagination">
           <!-- Previous Button -->
           <a class="page-btn {{ 'disabled' if pagination.page <= 1 else '' }}"
-             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=(pagination.page - 1), per_page=pagination.per_page) }}">
+             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), engagement_id=engagement_filter, page=(pagination.page - 1), per_page=pagination.per_page) }}">
             <i class="fas fa-chevron-left"></i>
           </a>
 
@@ -564,7 +574,7 @@
           {% for p in range(1, pagination.pages + 1) %}
             {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
               <a class="page-btn {{ 'active' if p == pagination.page else '' }}"
-                 href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=p, per_page=pagination.per_page) }}">
+                 href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), engagement_id=engagement_filter, page=p, per_page=pagination.per_page) }}">
                 {{ p }}
               </a>
             {% elif p == pagination.page - 3 or p == pagination.page + 3 %}
@@ -574,7 +584,7 @@
 
           <!-- Next Button -->
           <a class="page-btn {{ 'disabled' if pagination.page >= pagination.pages else '' }}"
-             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), page=(pagination.page + 1), per_page=pagination.per_page) }}">
+             href="{{ url_for('applications', q=q, job_id=(job_sel.id if job_sel else ''), engagement_id=engagement_filter, page=(pagination.page + 1), per_page=pagination.per_page) }}">
             <i class="fas fa-chevron-right"></i>
           </a>
         </div>
@@ -597,4 +607,64 @@
 </div>
 
 </div>
+
+<script>
+(function() {
+  var engSel = document.getElementById('filterEngagement');
+  var jobSel = document.getElementById('filterJob');
+  if (!engSel || !jobSel) return;
+
+  var cascading = false;
+
+  engSel.addEventListener('change', function() {
+    if (cascading) return;
+    cascading = true;
+    var engId = engSel.value;
+    var jobOpts = jobSel.querySelectorAll('option');
+    var currentJobVisible = false;
+    for (var i = 0; i < jobOpts.length; i++) {
+      var opt = jobOpts[i];
+      if (!opt.value) { opt.hidden = false; continue; }
+      var valid = !engId || opt.getAttribute('data-engagement-id') === engId;
+      opt.hidden = !valid;
+      if (opt.selected && valid) currentJobVisible = true;
+    }
+    if (!currentJobVisible) jobSel.value = '';
+    cascading = false;
+  });
+
+  jobSel.addEventListener('change', function() {
+    if (cascading) return;
+    cascading = true;
+    var jobVal = jobSel.value;
+    if (jobVal) {
+      var selectedOpt = jobSel.querySelector('option[value="' + jobVal + '"]');
+      var jobEngId = selectedOpt ? selectedOpt.getAttribute('data-engagement-id') : '';
+      if (jobEngId) {
+        engSel.value = jobEngId;
+      }
+      var engOpts = engSel.querySelectorAll('option');
+      for (var i = 0; i < engOpts.length; i++) {
+        var opt = engOpts[i];
+        if (!opt.value) { opt.hidden = false; continue; }
+        var valid = opt.value === jobEngId;
+        opt.hidden = !valid;
+      }
+    } else {
+      var engOpts = engSel.querySelectorAll('option');
+      for (var i = 0; i < engOpts.length; i++) {
+        engOpts[i].hidden = false;
+      }
+    }
+    cascading = false;
+  });
+
+  // Apply initial cascade state on page load
+  if (engSel.value) {
+    engSel.dispatchEvent(new Event('change'));
+  } else if (jobSel.value) {
+    jobSel.dispatchEvent(new Event('change'));
+  }
+})();
+</script>
 {% endblock %}

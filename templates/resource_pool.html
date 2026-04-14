@@ -563,13 +563,24 @@
                    placeholder="Search by name, skills, location... Use AND/OR/NOT for boolean search">
           </div>
           
+          <!-- Engagement Filter -->
+          <div class="col-12 col-md-3">
+            <label class="field-label">Engagement</label>
+            <select name="engagement_id" id="filterEngagement" class="field-input form-select" aria-label="Filter by engagement">
+              <option value="">All Engagements</option>
+              {% for eng in engagements %}
+              <option value="{{ eng.id }}" {% if engagement_filter == eng.id|string %}selected{% endif %}>{{ eng.name }}{% if eng.client %} ({{ eng.client }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+
           <!-- Job Filter -->
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-3">
             <label class="field-label">Target Job</label>
-            <select name="job_id" class="field-input form-select" aria-label="Filter by job">
+            <select name="job_id" id="filterJob" class="field-input form-select" aria-label="Filter by job">
               <option value="">All jobs (no targeting)</option>
               {% for j in jobs %}
-                <option value="{{ j.id }}" {{ 'selected' if job and j.id==job.id else '' }}>
+                <option value="{{ j.id }}" data-engagement-id="{{ j.engagement_id or '' }}" {{ 'selected' if job and j.id==job.id else '' }}>
                   {{ j.title }}{% if j.engagement %} — {{ j.engagement.name }}{% endif %}
                 </option>
               {% endfor %}
@@ -1728,6 +1739,70 @@ document.querySelectorAll('.col-toggle').forEach(function(cb) {
 
 // Load saved config on page load
 loadColumnConfig();
+
+// ---- Engagement ↔ Job cascade filter ----
+(function() {
+  var engSelect = document.getElementById('filterEngagement');
+  var jobSelect = document.getElementById('filterJob');
+  if (!engSelect || !jobSelect) return;
+
+  var _cascading = false;
+
+  engSelect.addEventListener('change', function() {
+    if (_cascading) return;
+    _cascading = true;
+    var engId = engSelect.value;
+    var jobOpts = jobSelect.options;
+    var currentJobStillValid = false;
+    for (var i = 0; i < jobOpts.length; i++) {
+      var opt = jobOpts[i];
+      if (!opt.value) { opt.hidden = false; continue; } // "All jobs" always visible
+      var optEng = opt.getAttribute('data-engagement-id') || '';
+      var valid = !engId || optEng === engId;
+      opt.hidden = !valid;
+      if (opt.selected && valid) currentJobStillValid = true;
+    }
+    if (!currentJobStillValid) jobSelect.value = '';
+    _cascading = false;
+  });
+
+  jobSelect.addEventListener('change', function() {
+    if (_cascading) return;
+    _cascading = true;
+    var selectedOpt = jobSelect.options[jobSelect.selectedIndex];
+    if (selectedOpt && selectedOpt.value) {
+      var engId = selectedOpt.getAttribute('data-engagement-id') || '';
+      if (engId) {
+        engSelect.value = engId;
+        // Re-filter job list to match this engagement
+        var jobOpts = jobSelect.options;
+        for (var i = 0; i < jobOpts.length; i++) {
+          var opt = jobOpts[i];
+          if (!opt.value) { opt.hidden = false; continue; }
+          var optEng = opt.getAttribute('data-engagement-id') || '';
+          opt.hidden = optEng !== engId;
+        }
+      }
+    } else {
+      // "All jobs" selected — don't change engagement, but unhide jobs matching current engagement
+      var engId = engSelect.value;
+      var jobOpts = jobSelect.options;
+      for (var i = 0; i < jobOpts.length; i++) {
+        var opt = jobOpts[i];
+        if (!opt.value) { opt.hidden = false; continue; }
+        var optEng = opt.getAttribute('data-engagement-id') || '';
+        opt.hidden = engId ? optEng !== engId : false;
+      }
+    }
+    _cascading = false;
+  });
+
+  // Apply initial filter on page load if engagement is pre-selected
+  if (engSelect.value) {
+    var evt = new Event('change');
+    engSelect.dispatchEvent(evt);
+  }
+})();
 </script>
 </div>
 {% endblock %}

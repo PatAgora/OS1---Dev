@@ -1549,7 +1549,11 @@ def admin_invoices():
         # Get unique clients for filter dropdown
         clients = s.execute(text("SELECT DISTINCT client FROM engagements WHERE client IS NOT NULL")).fetchall()
         client_list = [{"id": c[0], "name": c[0]} for c in clients if c[0]]
-        
+
+        # Get engagements for filter dropdown (id, name, client)
+        engagements_rows = s.execute(text("SELECT id, COALESCE(name, client || ' Engagement'), client FROM engagements WHERE client IS NOT NULL")).fetchall()
+        engagement_list = [{"id": e[0], "name": e[1], "client": e[2]} for e in engagements_rows]
+
         return render_template("admin_invoices.html",
             invoices=invoices,
             draft_count=len(draft_invoices),
@@ -1560,7 +1564,8 @@ def admin_invoices():
             paid_amount=sum(i.total_amount or 0 for i in paid_invoices),
             overdue_count=len(overdue_invoices),
             overdue_amount=sum(i.total_amount or 0 for i in overdue_invoices),
-            clients=client_list
+            clients=client_list,
+            engagements=engagement_list
         )
 
 @app.route("/admin/invoices/create", methods=["GET", "POST"])
@@ -14385,6 +14390,7 @@ def _render_applications_table(
     q: str = "",
     job_id: Optional[str] = None,
     eng_id: Optional[int] = None,
+    engagement_filter: Optional[str] = None,
     page: int = 1,
     per_page: int = 25,
     hide_closed: bool = True,                 # hide apps for non-Open jobs
@@ -14400,6 +14406,10 @@ def _render_applications_table(
             base = base.where(Job.engagement_id == eng_id, Job.status == "Open")
         if hide_closed:
             base = base.where(Job.status == "Open")
+
+        # Filter by engagement dropdown (global applications page only)
+        if engagement_filter and str(engagement_filter).isdigit():
+            base = base.where(Job.engagement_id == int(engagement_filter))
 
         if job_id and str(job_id).isdigit():
             base = base.where(Job.id == int(job_id))
@@ -14446,23 +14456,42 @@ def _render_applications_table(
         tpl = "applications_engagement.html" if eng_id else "applications.html"
         engagement = s.get(Engagement, eng_id) if eng_id else None
 
+        # Load filter dropdown data for global applications page
+        all_jobs = []
+        all_engagements = []
+        job_sel = None
+        if not eng_id:
+            all_jobs = s.execute(
+                select(Job).where(Job.status == "Open").order_by(Job.title)
+            ).scalars().all()
+            all_engagements = s.execute(
+                select(Engagement).order_by(Engagement.name)
+            ).scalars().all()
+            if job_id and str(job_id).isdigit():
+                job_sel = s.get(Job, int(job_id))
+
         # Render inside session so lazy-loaded relationships work
         return render_template(tpl, q=q, job_id=job_id, eng_id=eng_id,
-                               items=items, pagination=pagination, engagement=engagement)
+                               items=items, pagination=pagination, engagement=engagement,
+                               jobs=all_jobs, engagements=all_engagements,
+                               job_sel=job_sel,
+                               engagement_filter=engagement_filter or "")
 
 @login_required
 @app.route("/applications")
 def applications():
-    q        = (request.args.get("q") or "").strip()
-    job_id   = request.args.get("job_id")
-    page     = max(1, int(request.args.get("page") or 1))
-    per_page = max(5, min(100, int(request.args.get("per_page") or 25)))
+    q               = (request.args.get("q") or "").strip()
+    job_id          = request.args.get("job_id")
+    engagement_id   = request.args.get("engagement_id")
+    page            = max(1, int(request.args.get("page") or 1))
+    per_page        = max(5, min(100, int(request.args.get("per_page") or 25)))
 
     # Global view (no engagement filter), still hide closed jobs by default
     return _render_applications_table(
         q=q,
         job_id=job_id,
         eng_id=None,
+        engagement_filter=engagement_id,
         page=page,
         per_page=per_page,
         hide_closed=True,
@@ -15238,6 +15267,7 @@ def resource_pool():
     engagement_status = request.args.get("engagement_status", "all")  # Engagement status filter ("all", "on", "off")
     rank = request.args.get("rank") == "1"  # run heavy work for top N rows on page
     exclude_shortlisted = request.args.get("exclude_shortlisted", "0") == "1"
+    engagement_filter = request.args.get("engagement_id") or ""
     page = max(1, int((request.args.get("page") or "1") or 1))
     per_page = max(5, min(100, int((request.args.get("per_page") or "25") or 25)))
     
@@ -15271,6 +15301,11 @@ def resource_pool():
         if job_id_int:
             job = s.scalar(select(Job).where(Job.id == job_id_int))
         
+        # Engagements for dropdown
+        engagements = s.scalars(
+            select(Engagement).order_by(Engagement.name)
+        ).all()
+
         # Get unique locations from jobs for filter dropdown
         all_locations = s.scalars(
             select(Job.location)
@@ -15427,6 +15462,16 @@ def resource_pool():
                 .distinct()
             )
             base = base.where(Candidate.id.in_(location_candidate_ids))
+
+        # Engagement filter: show only candidates who applied to jobs in this engagement
+        if engagement_filter and str(engagement_filter).isdigit():
+            eng_candidate_ids = (
+                select(Application.candidate_id)
+                .join(Job, Job.id == Application.job_id)
+                .where(Job.engagement_id == int(engagement_filter))
+                .distinct()
+            )
+            base = base.where(Candidate.id.in_(eng_candidate_ids))
 
         # Last updated (based on CV upload time)
         if last_updated in {"7", "30", "90", "365"}:
@@ -15738,6 +15783,8 @@ def resource_pool():
         all_locations=all_locations,
         rows=rows,
         jobs=jobs,
+        engagements=engagements,
+        engagement_filter=engagement_filter,
         job=job,
         job_id=job.id if job else None,
         pagination=pagination,

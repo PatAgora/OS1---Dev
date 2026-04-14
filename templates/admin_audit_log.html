@@ -401,6 +401,62 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         searchInput.addEventListener('input', filterEntries);
     }
+
+    // --- Bidirectional cascade: Event Type <-> Category ---
+    var eventCategoryMap = {
+        'login': ['auth'],
+        'logout': ['auth'],
+        'create': ['user_mgmt', 'data_access', 'workflow'],
+        'update': ['user_mgmt', 'data_access', 'workflow'],
+        'delete': ['user_mgmt', 'data_access', 'workflow'],
+        'view': ['data_access'],
+        'security': ['security']
+    };
+
+    // Build reverse map: category -> event types
+    var categoryEventMap = {};
+    for (var evt in eventCategoryMap) {
+        eventCategoryMap[evt].forEach(function(cat) {
+            if (!categoryEventMap[cat]) categoryEventMap[cat] = [];
+            if (categoryEventMap[cat].indexOf(evt) === -1) categoryEventMap[cat].push(evt);
+        });
+    }
+
+    var eventTypeSelect = document.getElementById('event-type-filter');
+    var categorySelect = document.getElementById('category-filter');
+    var cascadeGuard = false;
+
+    eventTypeSelect.addEventListener('change', function() {
+        if (cascadeGuard) return;
+        cascadeGuard = true;
+        var selected = eventTypeSelect.value;
+        var validCats = selected ? (eventCategoryMap[selected] || []) : null;
+        Array.prototype.forEach.call(categorySelect.options, function(opt) {
+            if (!opt.value) { opt.hidden = false; return; } // "All" option always visible
+            opt.hidden = validCats ? validCats.indexOf(opt.value) === -1 : false;
+        });
+        // If current category selection is now hidden, reset it
+        if (categorySelect.selectedOptions[0] && categorySelect.selectedOptions[0].hidden) {
+            categorySelect.value = '';
+        }
+        cascadeGuard = false;
+    });
+
+    categorySelect.addEventListener('change', function() {
+        if (cascadeGuard) return;
+        cascadeGuard = true;
+        var selected = categorySelect.value;
+        var validEvents = selected ? (categoryEventMap[selected] || []) : null;
+        Array.prototype.forEach.call(eventTypeSelect.options, function(opt) {
+            if (!opt.value) { opt.hidden = false; return; }
+            opt.hidden = validEvents ? validEvents.indexOf(opt.value) === -1 : false;
+        });
+        // If current event type selection is now hidden, reset it
+        if (eventTypeSelect.selectedOptions[0] && eventTypeSelect.selectedOptions[0].hidden) {
+            eventTypeSelect.value = '';
+        }
+        cascadeGuard = false;
+    });
 });
 
 function filterEntries() {
@@ -408,18 +464,18 @@ function filterEntries() {
     const eventType = document.getElementById('event-type-filter').value.toLowerCase();
     const category = document.getElementById('category-filter').value.toLowerCase();
     const status = document.getElementById('status-filter').value.toLowerCase();
-    
+
     document.querySelectorAll('.audit-entry').forEach(entry => {
         const text = entry.textContent.toLowerCase();
         const entryType = entry.dataset.type || '';
         const entryCategory = entry.dataset.category || '';
         const entryStatus = entry.dataset.status || '';
-        
+
         const matchesSearch = text.includes(search);
         const matchesType = !eventType || entryType.includes(eventType);
         const matchesCategory = !category || entryCategory.includes(category);
         const matchesStatus = !status || entryStatus.includes(status);
-        
+
         entry.style.display = matchesSearch && matchesType && matchesCategory && matchesStatus ? '' : 'none';
     });
 }
@@ -435,7 +491,12 @@ function resetFilters() {
     document.getElementById('status-filter').value = '';
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value = '';
-    
+
+    // Unhide all cascade options
+    document.querySelectorAll('#event-type-filter option, #category-filter option').forEach(function(opt) {
+        opt.hidden = false;
+    });
+
     document.querySelectorAll('.audit-entry').forEach(entry => {
         entry.style.display = '';
     });

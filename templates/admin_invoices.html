@@ -301,7 +301,13 @@
     <select id="client-filter" aria-label="Filter by client">
         <option value="">All Clients</option>
         {% for client in clients|default([]) %}
-        <option value="{{ client.id }}">{{ client.name }}</option>
+        <option value="{{ client.name }}">{{ client.name }}</option>
+        {% endfor %}
+    </select>
+    <select id="engagement-filter" aria-label="Filter by engagement">
+        <option value="">All Engagements</option>
+        {% for eng in engagements|default([]) %}
+        <option value="{{ eng.id }}" data-client="{{ eng.client }}">{{ eng.name }}</option>
         {% endfor %}
     </select>
     <input type="date" id="date-from" placeholder="From" aria-label="Filter from date">
@@ -331,7 +337,7 @@
             </thead>
             <tbody>
                 {% for inv in invoices|default([]) %}
-                <tr>
+                <tr data-client="{{ inv.client_name }}" data-engagement="{{ inv.engagement_id or '' }}">
                     <td><span class="invoice-number">{{ inv.invoice_number }}</span></td>
                     <td>{{ inv.client_name }}</td>
                     <td>{{ inv.engagement_name }}</td>
@@ -382,24 +388,75 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         searchInput.addEventListener('input', filterInvoices);
     }
-    
+
     // Filter functionality
-    document.querySelectorAll('#status-filter, #client-filter, #date-from, #date-to').forEach(el => {
+    document.querySelectorAll('#status-filter, #client-filter, #engagement-filter, #date-from, #date-to').forEach(el => {
         el.addEventListener('change', filterInvoices);
     });
-    
+
+    // --- Bidirectional cascade: Client <-> Engagement ---
+    var clientSelect = document.getElementById('client-filter');
+    var engagementSelect = document.getElementById('engagement-filter');
+    var cascadeGuard = false;
+
+    clientSelect.addEventListener('change', function() {
+        if (cascadeGuard) return;
+        cascadeGuard = true;
+        var selectedClient = clientSelect.value;
+        Array.prototype.forEach.call(engagementSelect.options, function(opt) {
+            if (!opt.value) { opt.hidden = false; return; }
+            var optClient = opt.getAttribute('data-client') || '';
+            opt.hidden = selectedClient ? (optClient !== selectedClient) : false;
+        });
+        if (engagementSelect.selectedOptions[0] && engagementSelect.selectedOptions[0].hidden) {
+            engagementSelect.value = '';
+        }
+        cascadeGuard = false;
+        filterInvoices();
+    });
+
+    engagementSelect.addEventListener('change', function() {
+        if (cascadeGuard) return;
+        cascadeGuard = true;
+        var selectedOpt = engagementSelect.selectedOptions[0];
+        if (selectedOpt && selectedOpt.value) {
+            var engClient = selectedOpt.getAttribute('data-client') || '';
+            // Show only the matching client, hide others
+            Array.prototype.forEach.call(clientSelect.options, function(opt) {
+                if (!opt.value) { opt.hidden = false; return; }
+                opt.hidden = engClient ? (opt.value !== engClient) : false;
+            });
+            if (clientSelect.selectedOptions[0] && clientSelect.selectedOptions[0].hidden) {
+                clientSelect.value = '';
+            }
+        } else {
+            // Reset: show all client options
+            Array.prototype.forEach.call(clientSelect.options, function(opt) {
+                opt.hidden = false;
+            });
+        }
+        cascadeGuard = false;
+        filterInvoices();
+    });
+
     function filterInvoices() {
         const search = document.getElementById('invoice-search').value.toLowerCase();
         const status = document.getElementById('status-filter').value.toLowerCase();
-        
+        const client = document.getElementById('client-filter').value;
+        const engagement = document.getElementById('engagement-filter').value;
+
         document.querySelectorAll('.invoice-table tbody tr').forEach(row => {
             const text = row.textContent.toLowerCase();
             const rowStatus = row.querySelector('.status-badge')?.textContent.toLowerCase() || '';
-            
+            const rowClient = row.getAttribute('data-client') || '';
+            const rowEngagement = row.getAttribute('data-engagement') || '';
+
             const matchesSearch = text.includes(search);
             const matchesStatus = !status || rowStatus.includes(status);
-            
-            row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+            const matchesClient = !client || rowClient === client;
+            const matchesEngagement = !engagement || rowEngagement === engagement;
+
+            row.style.display = matchesSearch && matchesStatus && matchesClient && matchesEngagement ? '' : 'none';
         });
     }
 });
