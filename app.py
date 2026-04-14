@@ -11711,6 +11711,7 @@ def candidate_profile(cand_id: int):
             candidate_notes = s.scalars(
                 select(CandidateNote)
                 .where(CandidateNote.candidate_id == cand_id)
+                .where(CandidateNote.note_type == "note")
                 .order_by(CandidateNote.created_at.desc())
                 .limit(50)
             ).all()
