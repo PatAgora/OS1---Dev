@@ -278,16 +278,10 @@
         </div>
 
         <!-- Add new note -->
-        <div class="row g-3 mb-3">
-          <div class="col-12">
-            <label class="form-label-modern">
-              <i class="fas fa-plus-circle"></i>
-              Add Note
-            </label>
-            {{ form.notes(class="form-control-modern", rows="3", placeholder="Type a new note...", value="") }}
-            <button type="submit" class="btn btn-sm btn-primary mt-2">
-              <i class="fas fa-plus me-1"></i> Add Note
-            </button>
+        <div class="mb-3">
+          {{ form.notes(class="form-control-modern w-100", rows="3", placeholder="Type a new note...", value="", style="width: 100%;") }}
+          <div class="d-flex justify-content-end mt-2">
+            <button type="submit" class="btn btn-sm btn-primary">Add Note</button>
           </div>
         </div>
 
