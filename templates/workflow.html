@@ -1049,26 +1049,11 @@
               <i class="fas fa-forward"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end" style="font-size:0.75rem;min-width:180px;z-index:9999;">
-              <li class="dropdown-header">Skip to...</li>
+              <li class="dropdown-header">Move to...</li>
               {% for target in stages %}
                 {% if target.id != stage.id %}
                 <li>
                   <form method="POST" action="{{ url_for('action_skip_stage', app_id=card.id) }}" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="target_stage" value="{{ target.name }}">
-                    <button type="submit" class="dropdown-item">
-                      <i class="fas {{ target.icon }} me-1" style="color:{{ target.color }};width:14px;"></i> {{ target.short }}
-                    </button>
-                  </form>
-                </li>
-                {% endif %}
-              {% endfor %}
-              <li><hr class="dropdown-divider"></li>
-              <li class="dropdown-header">Move back to...</li>
-              {% for target in stages %}
-                {% if target.id != stage.id %}
-                <li>
-                  <form method="POST" action="{{ url_for('action_unskip_stage', app_id=card.id) }}" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="target_stage" value="{{ target.name }}">
                     <button type="submit" class="dropdown-item">
