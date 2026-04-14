@@ -10958,6 +10958,15 @@ def api_vetting_trigger_referencing(cand_id):
         except Exception as e:
             current_app.logger.warning(f"Reference auto-create failed for cand {cand_id}: {e}")
 
+        # Add activity note
+        note_text = f"Referencing started: {triggered} checks triggered, {refs_created} references created, {refs_held} held"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=current_user.email if current_user.is_authenticated else "System",
+            note_type="system",
+            content=note_text,
+        ))
+
         log_audit_event(
             'update', 'vetting',
             f'Referencing started for {cand.name}: {triggered} checks, {refs_created} refs created, {refs_held} held',
@@ -10969,7 +10978,7 @@ def api_vetting_trigger_referencing(cand_id):
 
     return jsonify({
         "ok": True,
-        "msg": f"Referencing started: {triggered} checks, {refs_created} references created, {refs_held} held"
+        "msg": f"Referencing started: {triggered} checks triggered, {refs_created} references created, {refs_held} held"
     })
 
 
@@ -11070,6 +11079,14 @@ def api_vetting_trigger(cand_id):
             msg += f', {na_count} marked N/A (not required)'
         if engagement_ref:
             msg += f' (per {engagement_ref} requirements)'
+
+        # Add activity note
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=current_user.email if current_user.is_authenticated else "System",
+            note_type="system",
+            content=msg,
+        ))
 
         log_audit_event(
             'update', 'vetting',
