@@ -9766,8 +9766,15 @@ def candidate_add_activity(cand_id):
 @login_required
 @app.route("/application/<int:app_id>", methods=["GET","POST"])
 def application_detail(app_id):
-    # Audit log: application view
-    
+    # Redirect GET requests to the candidate profile page
+    if request.method == "GET":
+        with Session(engine) as s:
+            appn = s.scalar(select(Application).where(Application.id == app_id))
+            if appn and appn.candidate_id:
+                return redirect(url_for("candidate_profile", cand_id=appn.candidate_id))
+            abort(404)
+
+    # POST requests continue to be handled here (form submissions)
     interview_form = InterviewForm()
 
     with Session(engine) as s:
