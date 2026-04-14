@@ -5712,14 +5712,8 @@ def index():
                 .where(EngagementPlan.engagement_id.in_(eng_ids))
             ) or 0
         
-        # 3. Associates Offered (applications in "Offered" or later stage)
-        offer_stages = [
-            "Offered", "Offer Made", "Offer Sent",
-            "Accepted", "Offer Accepted",
-            "Ready to Contract", "Vetting Complete", "Vetting", "Vetting In-Flight",
-            "Contract Sent", "Contract Issued",
-            "Placed", "Contract Signed", "Contracted", "Active", "Hired", "Onboarding",
-        ]
+        # 3. Associates Offered (applications currently in "Offered" stage only)
+        offer_stages = ["Offered", "Offer Made", "Offer Sent"]
         associates_offered_query = (
             select(func.count(func.distinct(Application.candidate_id)))
             .select_from(Application)
