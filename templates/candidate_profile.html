@@ -804,10 +804,18 @@
                       <span class="badge" style="background: #dbeafe; color: #1d4ed8;">In Progress</span>
                     {% elif s_upper == 'COMPLETE' %}
                       <span class="badge" style="background: #dcfce7; color: #166534;">Complete</span>
+                    {% elif s_upper == 'QC IN PROGRESS' %}
+                      <span class="badge" style="background: #e0e7ff; color: #4338ca;"><i class="fas fa-search me-1"></i>QC In Progress</span>
+                    {% elif s_upper == 'QC REWORK NEEDED' %}
+                      <span class="badge" style="background: #fee2e2; color: #991b1b;"><i class="fas fa-redo me-1"></i>QC Rework Needed</span>
+                    {% elif s_upper == 'AWAIT QC REWORK CHECK' %}
+                      <span class="badge" style="background: #fef3c7; color: #92400e;"><i class="fas fa-clock me-1"></i>Await QC Rework Check</span>
                     {% elif s_upper == 'AWAITING QC' %}
                       <span class="badge" style="background: #fef3c7; color: #92400e;"><i class="fas fa-clock me-1"></i>Awaiting QC</span>
                     {% elif s_upper == 'QC COMPLETE' %}
                       <span class="badge" style="background: #dcfce7; color: #166534;"><i class="fas fa-check me-1"></i>QC Complete</span>
+                    {% elif s_upper == 'QC NOT REQUIRED' %}
+                      <span class="badge" style="background: #f1f5f9; color: #64748b;"><i class="fas fa-minus-circle me-1"></i>QC Not Required</span>
                     {% elif s_upper == 'REFERRAL APPROVED' %}
                       <span class="badge" style="background: #dcfce7; color: #166534;"><i class="fas fa-check-double me-1"></i>Referral Approved</span>
                     {% elif s_upper == 'N/A' %}
@@ -829,6 +837,11 @@
                         <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
                         <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
                         <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                        <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
+                        <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
+                        <option value="AWAIT QC REWORK CHECK" {% if s_upper == 'AWAIT QC REWORK CHECK' %}selected{% endif %}>Await QC Rework Check</option>
+                        <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
+                        <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
                         <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
                       </select>
                     </div>

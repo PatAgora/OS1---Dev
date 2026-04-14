@@ -5708,7 +5708,7 @@ def index():
         # 4. Vetting Completed — driven by actual vetting check statuses, not workflow stage.
         # A candidate's vetting is complete when ALL their VettingCheck records are in a
         # terminal state (Complete, N/A, QC COMPLETE, REFERRAL APPROVED).
-        complete_statuses = ["Complete", "COMPLETE", "N/A", "QC COMPLETE", "REFERRAL APPROVED"]
+        complete_statuses = ["Complete", "COMPLETE", "N/A", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"]
         all_vetting = s.scalars(select(VettingCheck)).all()
         # Group by candidate
         cand_checks = {}
@@ -11119,7 +11119,7 @@ def action_contract_issue(cand_id, eng_id):
         ).all()
         if vetting_checks:
             incomplete = [vc for vc in vetting_checks if vc.status not in (
-                "Complete", "COMPLETE", "N/A", "QC COMPLETE", "REFERRAL APPROVED"
+                "Complete", "COMPLETE", "N/A", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"
             )]
             if incomplete:
                 incomplete_names = ", ".join(vc.check_type for vc in incomplete[:3])
@@ -11665,9 +11665,9 @@ def candidate_profile(cand_id: int):
             # Calculate summary
             for vc in vetting_checks:
                 status = (vc["status"] or "").upper()
-                if status in ("COMPLETE", "QC COMPLETE", "REFERRAL APPROVED"):
+                if status in ("COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"):
                     vetting_summary["complete"] += 1
-                elif status in ("IN PROGRESS", "AWAITING QC"):
+                elif status in ("IN PROGRESS", "AWAITING QC", "QC IN PROGRESS", "QC REWORK NEEDED", "AWAIT QC REWORK CHECK"):
                     vetting_summary["in_progress"] += 1
                 elif status == "N/A":
                     vetting_summary["na"] += 1
