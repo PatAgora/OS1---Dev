@@ -1386,7 +1386,6 @@ function cascadeFilters() {
       if (opt.value === 'all') return;
       var valid = validSet.size === 0 || validSet.has(opt.value);
       opt.hidden = !valid;
-      opt.disabled = !valid;
     });
     if (selectedVal !== 'all' && validSet.size > 0 && !validSet.has(selectedVal)) {
       sel.value = 'all';
