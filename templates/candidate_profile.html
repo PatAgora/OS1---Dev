@@ -1348,7 +1348,7 @@
               <div class="mb-2">
                 <select class="field-input form-select" name="job_id" required>
                   <option value="">Select job…</option>
-                  {% for j in g.get('jobs_for_quick_pick', []) %}
+                  {% for j in jobs_for_quick_pick %}
                     <option value="{{ j.id }}">{{ j.title }}</option>
                   {% endfor %}
                 </select>

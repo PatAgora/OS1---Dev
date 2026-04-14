@@ -11992,6 +11992,8 @@ def candidate_profile(cand_id: int):
 
     # Staff users for analyst assignment dropdown (QC workflow)
     all_staff_users = []
+    # Jobs for Match to Job / quick shortlist
+    jobs_for_quick_pick = []
     try:
         with Session(engine) as s2:
             all_staff_users = [
@@ -12000,6 +12002,9 @@ def candidate_profile(cand_id: int):
                     select(User).where(User.is_active == True).order_by(User.name)
                 ).all()
             ]
+            jobs_for_quick_pick = s2.scalars(
+                select(Job).where(Job.title.isnot(None), Job.title != "").order_by(Job.title)
+            ).all()
     except Exception:
         pass
 
@@ -12040,6 +12045,7 @@ def candidate_profile(cand_id: int):
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
         # === QC workflow: staff users for analyst dropdown ===
         all_staff_users=all_staff_users,
+        jobs_for_quick_pick=jobs_for_quick_pick,
         # === Activity Feed & Placements ===
         activity_feed=activity_feed,
         activities=activities,
