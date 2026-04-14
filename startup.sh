@@ -9,7 +9,8 @@ echo "PORT: ${PORT:-8080}"
 # Start gunicorn IMMEDIATELY so Railway health check passes
 exec gunicorn app:app \
     --bind 0.0.0.0:${PORT:-8080} \
-    --workers 4 \
+    --workers 2 \
+    --preload \
     --timeout 120 \
     --log-level info \
     --access-logfile - \

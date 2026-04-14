@@ -4369,54 +4369,32 @@ def ensure_schema():
             except Exception:
                 pass
 
-# ===== Create tables at import time (fast — just checks they exist) =====
+# ===== Schema setup at import time =====
 Base.metadata.create_all(engine)
+try:
+    ensure_schema()
+except Exception as e:
+    print(f"WARNING: Schema migration failed: {e}")
 
-# ===== Deferred schema migrations =====
-# ALTER TABLE calls are slow on Postgres and can block startup.
-# Run them on first non-health request so Railway health check passes.
-_schema_initialized = False
-
-def _run_deferred_schema():
-    """Run ALTER TABLE migrations and seeding — called once on first request."""
-    global _schema_initialized
-    if _schema_initialized:
-        return
-    _schema_initialized = True
-
-    try:
-        ensure_schema()
-    except Exception as e:
-        print(f"WARNING: Schema migration failed: {e}")
-
-    # Add new columns
-    for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN")]:
-        try:
-            with engine.begin() as _conn:
-                _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
-        except Exception:
-            pass
-
-    # Create job_templates table
+# Add new columns
+for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN")]:
     try:
         with engine.begin() as _conn:
-            _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
-                id SERIAL PRIMARY KEY,
-                role_type VARCHAR(100) UNIQUE NOT NULL,
-                description TEXT DEFAULT '',
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )"""))
+            _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
     except Exception:
         pass
 
-    print("Schema migrations complete.")
-
-@app.before_request
-def _deferred_schema_hook():
-    """Run schema migrations on first non-health request."""
-    if request.path == "/health":
-        return
-    _run_deferred_schema()
+# Create job_templates table
+try:
+    with engine.begin() as _conn:
+        _conn.execute(text("""CREATE TABLE IF NOT EXISTS job_templates (
+            id SERIAL PRIMARY KEY,
+            role_type VARCHAR(100) UNIQUE NOT NULL,
+            description TEXT DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""))
+except Exception:
+    pass
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
