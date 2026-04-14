@@ -1147,6 +1147,10 @@
                   <i class="fas fa-times-circle me-1"></i>Retract Contract
                 </button>
               </form>
+              {% elif contract_status == 'Retracted' and latest_app %}
+              <a href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary w-100 mt-2" style="font-size: 0.7rem;">
+                <i class="fas fa-file-signature me-1"></i>Re-issue Contract
+              </a>
               {% endif %}
             </div>
           {% else %}
