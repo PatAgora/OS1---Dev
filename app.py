@@ -7651,6 +7651,31 @@ def workflow():
             "owner": getattr(eng, "owner", "") or "",
         }
 
+    # QC Queue — checks assigned to current user or all checks in QC pipeline
+    qc_queue = []
+    try:
+        qc_checks = s.scalars(
+            select(VettingCheck)
+            .where(VettingCheck.status.in_(["SENT TO QC", "QC IN PROGRESS", "QC REWORK NEEDED", "AWAIT QC REWORK CHECK"]))
+            .order_by(VettingCheck.updated_at.desc())
+        ).all()
+        for vc in qc_checks:
+            cand = s.get(Candidate, vc.candidate_id)
+            analyst = s.get(User, vc.assigned_to) if vc.assigned_to else None
+            qc_reviewer = s.get(User, vc.qc_assigned_to) if getattr(vc, 'qc_assigned_to', None) else None
+            qc_queue.append({
+                "check_type": vc.check_type,
+                "status": vc.status,
+                "candidate_id": vc.candidate_id,
+                "candidate_name": cand.name if cand else f"Candidate #{vc.candidate_id}",
+                "assigned_to_name": analyst.name if analyst else "Unassigned",
+                "qc_assigned_to": getattr(vc, 'qc_assigned_to', None),
+                "qc_assigned_to_name": qc_reviewer.name if qc_reviewer else "Unassigned",
+                "updated_at": vc.updated_at,
+            })
+    except Exception:
+        pass
+
     return render_template(
         "workflow.html",
         stages=stages,
@@ -7675,6 +7700,7 @@ def workflow():
         unsigned_contracts=unsigned_contracts_data,
         vetting_summary=vetting_summary,
         focus_stage=focus_stage,
+        qc_queue=qc_queue,
     )
 
 @app.route("/api/workflow/move", methods=["POST"])
