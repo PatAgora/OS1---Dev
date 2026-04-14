@@ -838,6 +838,9 @@
       <div class="filter-buttons">
         <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
         <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()"><i class="fas fa-times me-1"></i> Clear</button>
+        <a href="{{ url_for('workflow') }}?vetting=complete" class="btn {% if vetting_filter == 'complete' %}btn-success{% else %}btn-outline-success{% endif %}" title="Show only candidates with vetting complete">
+          <i class="fas fa-check-circle me-1"></i> Vetting Complete
+        </a>
         <button type="button" class="btn btn-outline-warning" id="reworkFilterBtn" onclick="toggleReworkFilter()" title="Show only candidates with vetting rework needed">
           <i class="fas fa-exclamation-triangle me-1"></i> Rework Needed
         </button>

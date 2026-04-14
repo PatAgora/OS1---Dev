@@ -7083,6 +7083,7 @@ def workflow():
     intake_filter = request.args.get("intake", "all")
     analyst_filter = request.args.get("analyst", "all")  # N15: Analyst filter
     focus_stage = request.args.get("stage", "")  # Pre-focus on specific stage(s) from dashboard
+    vetting_filter = request.args.get("vetting", "")  # Filter by vetting status (complete/incomplete)
     
     # REQ-273: Load workflow stages from DB config (falls back to defaults)
     with Session(engine) as s:
@@ -7651,6 +7652,25 @@ def workflow():
             "owner": getattr(eng, "owner", "") or "",
         }
 
+    # Vetting filter — show only candidates whose vetting is complete/incomplete
+    if vetting_filter:
+        complete_vet_statuses = ["Complete", "COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED", "N/A"]
+        # Build set of candidate IDs with all vetting complete
+        all_vet = s.scalars(select(VettingCheck)).all()
+        vet_by_cand = {}
+        for vc in all_vet:
+            vet_by_cand.setdefault(vc.candidate_id, []).append(vc.status or "NOT STARTED")
+        if vetting_filter == "complete":
+            vet_cand_ids = {cid for cid, statuses in vet_by_cand.items() if len(statuses) > 0 and all(s in complete_vet_statuses for s in statuses)}
+        else:
+            vet_cand_ids = {cid for cid, statuses in vet_by_cand.items() if not all(s in complete_vet_statuses for s in statuses)}
+        # Filter stage_data to only matching candidates
+        for stage_id in stage_data:
+            stage_data[stage_id] = [c for c in stage_data[stage_id] if c["candidate_id"] in vet_cand_ids]
+        # Update stage counts
+        for stage in stages:
+            stage["count"] = len(stage_data.get(stage["id"], []))
+
     # QC Queue — checks assigned to current user or all checks in QC pipeline
     qc_queue = []
     try:
@@ -7701,6 +7721,7 @@ def workflow():
         vetting_summary=vetting_summary,
         focus_stage=focus_stage,
         qc_queue=qc_queue,
+        vetting_filter=vetting_filter,
     )
 
 @app.route("/api/workflow/move", methods=["POST"])
