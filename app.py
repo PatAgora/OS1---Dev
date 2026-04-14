@@ -7327,7 +7327,52 @@ def workflow():
             except Exception:
                 pass
             return None
-        
+
+        def get_referencing_progress(candidate_id):
+            """Get referencing progress for a candidate — similar to vetting progress."""
+            try:
+                ref_stats = s.execute(
+                    text("""
+                        SELECT
+                            COUNT(*) as total,
+                            SUM(CASE WHEN status = 'received' THEN 1 ELSE 0 END) as received,
+                            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+                            SUM(CASE WHEN status = 'not_sent' THEN 1 ELSE 0 END) as not_sent,
+                            SUM(CASE WHEN status = 'on_hold' THEN 1 ELSE 0 END) as on_hold,
+                            SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged
+                        FROM reference_requests
+                        WHERE candidate_id = :cand_id
+                    """),
+                    {"cand_id": candidate_id}
+                ).first()
+                if ref_stats and ref_stats[0] > 0:
+                    total = ref_stats[0] or 0
+                    received = ref_stats[1] or 0
+                    sent = ref_stats[2] or 0
+                    not_sent = ref_stats[3] or 0
+                    on_hold = ref_stats[4] or 0
+                    flagged = ref_stats[5] or 0
+                    percentage = (received / total * 100) if total > 0 else 0
+                    if received == total:
+                        rag = "green"
+                    elif received > 0 or sent > 0:
+                        rag = "amber"
+                    else:
+                        rag = "red"
+                    return {
+                        "total": total,
+                        "received": received,
+                        "sent": sent,
+                        "not_sent": not_sent,
+                        "on_hold": on_hold,
+                        "flagged": flagged,
+                        "percentage": round(percentage),
+                        "rag": rag,
+                    }
+            except Exception:
+                pass
+            return None
+
         # Build data for each stage
         # GAP 1.3: Enhanced card content with days_in_stage calculation
         stage_data = {}
@@ -7364,6 +7409,7 @@ def workflow():
                     "intake": intake,
                     "days_in_stage": (now - app.created_at).days if app.created_at else 0,
                     "vetting_progress": get_vetting_progress(cand.id),
+                    "referencing_progress": get_referencing_progress(cand.id),
                 })
             stage_data[stage["id"]] = cards
         
@@ -12697,6 +12743,35 @@ def assign_qc_reviewer(cand_id: int):
                         'candidate', cand_id,
                         {'check_type': check_type, 'reviewer_id': reviewer_id})
         s.commit()
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
+@app.route("/action/assign-qc-reviewer-bulk/<int:cand_id>", methods=["POST"])
+@login_required
+def assign_qc_reviewer_bulk(cand_id: int):
+    """Assign one QC reviewer to ALL vetting checks for a candidate."""
+    reviewer_id = request.form.get("reviewer_id", type=int)
+
+    with Session(engine) as s:
+        checks = s.scalars(
+            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+        ).all()
+
+        reviewer_name = "Unassigned"
+        if reviewer_id:
+            reviewer = s.get(User, reviewer_id)
+            reviewer_name = reviewer.name if reviewer else f"User #{reviewer_id}"
+
+        for vc in checks:
+            vc.qc_assigned_to = reviewer_id
+
+        log_audit_event('update', 'vetting',
+                        f'Bulk QC assign: all checks for candidate #{cand_id} assigned to {reviewer_name}',
+                        'candidate', cand_id,
+                        {'reviewer_id': reviewer_id, 'checks_updated': len(checks)})
+        s.commit()
+        flash(f"All vetting checks QC assigned to {reviewer_name}.", "success")
 
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
