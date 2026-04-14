@@ -327,8 +327,8 @@
         <p class="subtitle mb-0">Create and manage job postings for your engagements</p>
       </div>
       {% if not locked_engagement %}
-      <a class="btn btn-modern-outline btn-sm" href="{{ url_for('engagements') }}">
-        <i class="fas fa-arrow-left"></i> Back to Engagements
+      <a class="btn btn-modern-outline btn-sm" href="javascript:history.back()">
+        <i class="fas fa-arrow-left"></i> Back
       </a>
       {% endif %}
     </div>
@@ -348,8 +348,8 @@
       </div>
     </div>
     <a class="btn btn-modern-outline-light btn-sm"
-       href="{{ url_for('engagement_dashboard', eng_id=locked_engagement.id) }}">
-      <i class="fas fa-arrow-left"></i> Back to Engagement
+       href="javascript:history.back()">
+      <i class="fas fa-arrow-left"></i> Back
     </a>
   </div>
   {% endif %}

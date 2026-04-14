@@ -570,15 +570,9 @@
         </div>
       </div>
       <div>
-        {% if from_candidate %}
-          <a class="btn btn-modern btn-modern-outline" href="{{ url_for('resource_pool') }}">
-            <i class="fas fa-arrow-left me-2"></i>Back to Resource Pool
+        <a class="btn btn-modern btn-modern-outline" href="javascript:history.back()">
+            <i class="fas fa-arrow-left me-2"></i>Back
           </a>
-        {% else %}
-          <a class="btn btn-modern btn-modern-outline" href="{{ url_for('applications') }}">
-            <i class="fas fa-arrow-left me-2"></i>Back to Applications
-          </a>
-        {% endif %}
       </div>
     </div>
   </div>

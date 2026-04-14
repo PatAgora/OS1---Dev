@@ -6,10 +6,10 @@
     <div>
       <h3 class="fw-bold mb-1">{{ title }} — {{ engagement.name }} <span class="text-muted">({{ engagement.client }})</span></h3>
       <div class="small text-secondary">
-        <a href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">&larr; Back to Dashboard</a>
+        <a href="javascript:history.back()"><i class="fas fa-arrow-left"></i> Back</a>
       </div>
     </div>
-    <a class="btn btn-outline-secondary" href="{{ url_for('engagements') }}">Back to Engagements</a>
+    <a class="btn btn-outline-secondary" href="javascript:history.back()"><i class="fas fa-arrow-left"></i> Back</a>
   </div>
 
   {% if section in ['declared','interview_scheduled','interview_completed'] %}
