@@ -1205,27 +1205,30 @@ function toggleEngagementView(view) {
 
 // ===== Summary tile recalculation (item 1) =====
 function recalcSummaryTiles() {
-  // Count visible pipeline rows
-  const pipelineRows = document.querySelectorAll('#pipeline-table tbody tr:not(.empty-row):not([style*="display: none"])');
-  let pipelineCount = 0, totalValue = 0, weightedValue = 0;
-  pipelineRows.forEach(row => {
-    pipelineCount++;
-    const val = parseFloat(row.dataset.value) || 0;
-    const prob = parseFloat(row.dataset.probability) || 50;
-    totalValue += val;
-    weightedValue += val * prob / 100;
-  });
-  document.getElementById('tile-pipeline-count').textContent = pipelineCount;
-  document.getElementById('tile-total-value').textContent = totalValue.toLocaleString('en-GB', {maximumFractionDigits: 0});
-  document.getElementById('tile-weighted-value').textContent = weightedValue.toLocaleString('en-GB', {maximumFractionDigits: 0});
+  try {
+    const pipelineRows = document.querySelectorAll('#pipeline-table tbody tr:not(.empty-row):not([style*="display: none"])');
+    let pipelineCount = 0, totalValue = 0, weightedValue = 0;
+    pipelineRows.forEach(row => {
+      pipelineCount++;
+      const val = parseFloat(row.dataset.value) || 0;
+      const prob = parseFloat(row.dataset.probability) || 50;
+      totalValue += val;
+      weightedValue += val * prob / 100;
+    });
+    var el;
+    el = document.getElementById('tile-pipeline-count'); if (el) el.textContent = pipelineCount;
+    el = document.getElementById('tile-total-value'); if (el) el.textContent = totalValue.toLocaleString('en-GB', {maximumFractionDigits: 0});
+    el = document.getElementById('tile-weighted-value'); if (el) el.textContent = weightedValue.toLocaleString('en-GB', {maximumFractionDigits: 0});
 
-  // Count visible engagement rows
-  const engRows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row):not([style*="display: none"])');
-  let activeCount = 0;
-  engRows.forEach(row => {
-    if ((row.dataset.status || 'Active') === 'Active') activeCount++;
-  });
-  document.getElementById('tile-active-eng').textContent = activeCount;
+    const engRows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row):not([style*="display: none"])');
+    let activeCount = 0;
+    engRows.forEach(row => {
+      if ((row.dataset.status || 'Active') === 'Active') activeCount++;
+    });
+    el = document.getElementById('tile-active-eng'); if (el) el.textContent = activeCount;
+  } catch (e) {
+    console.warn('recalcSummaryTiles error:', e);
+  }
 }
 
 // ===== Dropdown Multi-Select Functions =====
