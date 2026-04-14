@@ -819,11 +819,12 @@
                     {% endif %}
                   </div>
 
-                  <!-- Row 2: Status | Save | Assigned — equal thirds -->
+                  <!-- Row 2: Status | Save | Assigned | QC Assigned — even grid -->
                   <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="row g-2 mb-2 align-items-center">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="check_type" value="{{ check.type }}">
-                    <div class="col-5">
+                    <div class="col-3">
+                      <label style="font-size: 0.65rem; color: #6b7280; display: block;">Status</label>
                       <select name="status" class="form-select form-select-sm" style="font-size: 0.75rem;">
                         <option value="NOT STARTED" {% if s_upper == 'NOT STARTED' or s_upper == 'READY TO START' %}selected{% endif %}>Not Started</option>
                         <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
@@ -831,17 +832,28 @@
                         <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
                       </select>
                     </div>
-                    <div class="col-2 text-center">
-                      <button type="submit" class="btn btn-sm btn-outline-primary w-100" style="font-size: 0.75rem;">
-                        <i class="fas fa-save me-1"></i>Save
+                    <div class="col-1 text-center" style="padding-top: 14px;">
+                      <button type="submit" class="btn btn-sm btn-outline-primary w-100" style="font-size: 0.7rem;">
+                        <i class="fas fa-save"></i>
                       </button>
                     </div>
-                    <div class="col-5">
+                    <div class="col-4">
+                      <label style="font-size: 0.65rem; color: #6b7280; display: block;">Assigned</label>
                       <select class="form-select form-select-sm" style="font-size: 0.75rem;"
                               onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value)">
                         <option value="">Unassigned</option>
                         {% for staff in all_staff_users %}
                         <option value="{{ staff.id }}" {% if check.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-4">
+                      <label style="font-size: 0.65rem; color: #6b7280; display: block;">QC Assigned</label>
+                      <select class="form-select form-select-sm" style="font-size: 0.75rem;"
+                              onchange="assignQCReviewer({{ cand.id }}, '{{ check.type }}', this.value)">
+                        <option value="">Unassigned</option>
+                        {% for staff in all_staff_users %}
+                        <option value="{{ staff.id }}" {% if check.qc_assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
                         {% endfor %}
                       </select>
                     </div>
@@ -1564,6 +1576,21 @@ function assignAnalyst(candId, checkType, analystId) {
     body: body
   })
   .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to assign analyst'); } })
+  .catch(function() { alert('Network error'); });
+}
+
+function assignQCReviewer(candId, checkType, reviewerId) {
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  body.append('check_type', checkType);
+  body.append('reviewer_id', reviewerId);
+  fetch('/action/assign-qc-reviewer/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to assign QC reviewer'); } })
   .catch(function() { alert('Network error'); });
 }
 

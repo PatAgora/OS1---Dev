@@ -3457,6 +3457,7 @@ class VettingCheck(Base):
     id_verification_method = Column(String(50), nullable=True)  # video_call, in_person, idvt
     id_verified_at = Column(DateTime, nullable=True)
     # Gap plan 3: QC workflow
+    qc_assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)  # QC reviewer assigned
     qc_status = Column(String(30), default="")  # awaiting_qc, qc_approved, qc_rejected
     qc_reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     qc_reviewed_at = Column(DateTime, nullable=True)
@@ -4381,7 +4382,8 @@ def _background_schema_migrations():
         ensure_schema()
     except Exception as e:
         print(f"WARNING: Schema migration failed: {e}")
-    for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN")]:
+    for _tbl, _col, _type in [("candidates", "current_employer_contact_ok", "BOOLEAN"),
+                               ("vetting_check", "qc_assigned_to", "INTEGER")]:
         try:
             with engine.begin() as _conn:
                 _conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_type}"))
@@ -11651,6 +11653,8 @@ def candidate_profile(cand_id: int):
                         "automation_enabled": getattr(check, 'automation_enabled', True) if check.automation_enabled is not None else True,
                         "assigned_to": check.assigned_to,
                         "assigned_to_name": _get_user_name(check.assigned_to),
+                        "qc_assigned_to": getattr(check, 'qc_assigned_to', None),
+                        "qc_assigned_to_name": _get_user_name(getattr(check, 'qc_assigned_to', None)),
                         "colour": getattr(check, 'colour', 'white') or 'white',
                         "qc_status": getattr(check, 'qc_status', '') or '',
                         "qc_reviewed_by": check.qc_reviewed_by,
@@ -11671,6 +11675,8 @@ def candidate_profile(cand_id: int):
                         "automation_enabled": True,
                         "assigned_to": None,
                         "assigned_to_name": "",
+                        "qc_assigned_to": None,
+                        "qc_assigned_to_name": "",
                         "colour": "white",
                         "qc_status": "",
                         "qc_reviewed_by": None,
@@ -12564,6 +12570,39 @@ def assign_analyst_bulk(cand_id: int):
 
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
+
+# =========================================================================
+# GAP PLAN: QC REVIEWER ASSIGNMENT
+# =========================================================================
+
+@login_required
+@app.route("/action/assign-qc-reviewer/<int:cand_id>", methods=["POST"])
+def assign_qc_reviewer(cand_id: int):
+    """Assign a QC reviewer to a vetting check."""
+    check_type = request.form.get("check_type", "").strip()
+    reviewer_id = request.form.get("reviewer_id", type=int)
+
+    with Session(engine) as s:
+        vc = s.scalar(
+            select(VettingCheck)
+            .where(VettingCheck.candidate_id == cand_id, VettingCheck.check_type == check_type)
+        )
+        if not vc:
+            return jsonify({"ok": False, "msg": "Check not found"}), 404
+
+        vc.qc_assigned_to = reviewer_id
+        reviewer_name = "Unassigned"
+        if reviewer_id:
+            reviewer = s.get(User, reviewer_id)
+            reviewer_name = reviewer.name if reviewer else f"User #{reviewer_id}"
+
+        log_audit_event('update', 'vetting',
+                        f'QC reviewer for "{check_type}" set to {reviewer_name}',
+                        'candidate', cand_id,
+                        {'check_type': check_type, 'reviewer_id': reviewer_id})
+        s.commit()
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 # =========================================================================
 # GAP PLAN: VETTING CHECK COLOUR (N5)
