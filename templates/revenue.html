@@ -1558,13 +1558,13 @@ function filterDropdownItems(input, dropdownId) {
     
     items.forEach(item => {
         const label = item.querySelector('label').textContent.toLowerCase();
-        item.style.display = label.includes(filter) ? '' : 'none';
+        item.hidden = !label.includes(filter);
     });
 }
 
 function selectAll(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
-    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([style*="display: none"]) input[type="checkbox"]');
+    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([hidden]) input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
     updateDropdownText(dropdownId);
 }
@@ -1628,13 +1628,9 @@ function cascadeRevenueFilters(source) {
             items.forEach(function(item) {
                 var val = item.getAttribute(attrName);
                 if (val === null) return; // skip items without the attribute
-                if (allowedValues === null) {
-                    // null means "show all"
-                    item.style.display = '';
-                } else if (allowedValues.includes(val)) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
+                var isValid = allowedValues === null || allowedValues.includes(val);
+                item.hidden = !isValid;
+                if (!isValid) {
                     var cb = item.querySelector('input[type="checkbox"]');
                     if (cb) cb.checked = false;
                 }
@@ -1798,7 +1794,7 @@ function clearFilters() {
     updateDropdownText('roleDropdown');
     // Reset all dropdown items to visible
     document.querySelectorAll('.dropdown-multiselect .dropdown-item').forEach(function(item) {
-        item.style.display = '';
+        item.hidden = false;
     });
     // Submit to clear
     window.location.href = '{{ url_for("revenue") }}';

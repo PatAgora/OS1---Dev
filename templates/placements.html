@@ -1093,13 +1093,13 @@ function filterDropdownItems(input, dropdownId) {
     const items = dropdown.querySelectorAll('.dropdown-item');
     items.forEach(item => {
         const label = item.querySelector('label').textContent.toLowerCase();
-        item.style.display = label.includes(filter) ? '' : 'none';
+        item.hidden = !label.includes(filter);
     });
 }
 
 function selectAll(dropdownId, placeholder) {
     const dropdown = document.getElementById(dropdownId);
-    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([style*="display: none"]) input[type="checkbox"]');
+    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([hidden]) input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
     updateDropdownText(dropdownId, placeholder);
 }
@@ -1550,7 +1550,7 @@ function cascadePlacementFilters() {
       var cb = item.querySelector('input[type="checkbox"]');
       if (!cb) return;
       var isValid = !anyFilterActive || cfg.validSet.has(cb.value);
-      item.style.display = isValid ? '' : 'none';
+      item.hidden = !isValid;
       // If a checked value is no longer valid, uncheck it
       if (!isValid && cb.checked) {
         cb.checked = false;

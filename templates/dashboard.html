@@ -993,13 +993,13 @@ function filterDropdownItems(input, dropdownId) {
     
     items.forEach(item => {
         const label = item.querySelector('label').textContent.toLowerCase();
-        item.style.display = label.includes(filter) ? '' : 'none';
+        item.hidden = !label.includes(filter);
     });
 }
 
 function selectAll(dropdownId, placeholder) {
     const dropdown = document.getElementById(dropdownId);
-    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([style*="display: none"]) input[type="checkbox"]');
+    const checkboxes = dropdown.querySelectorAll('.dropdown-item:not([hidden]) input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
     updateDropdownText(dropdownId, placeholder);
 }
@@ -1246,7 +1246,7 @@ function _setDropdownVisibility(dropdownId, allowedSet, placeholder) {
     var cb = item.querySelector('input[type="checkbox"]');
     if (!cb) return;
     var visible = allowedSet === null || allowedSet.has(cb.value);
-    item.style.display = visible ? '' : 'none';
+    item.hidden = !visible;
     if (!visible && cb.checked) {
       cb.checked = false;
       anyUnchecked = true;
