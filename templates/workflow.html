@@ -982,23 +982,6 @@
         </div>
         {% endif %}
 
-        <!-- Referencing Progress Bar -->
-        <div class="vetting-status-bar mt-1">
-          {% if card.referencing_progress %}
-          <div class="vetting-header">
-            <span class="vetting-label">References</span>
-            <span class="vetting-count">{{ card.referencing_progress.received }}/{{ card.referencing_progress.total }}</span>
-            <span class="rag-indicator rag-{{ card.referencing_progress.rag }}" title="{{ card.referencing_progress.rag|upper }}"></span>
-          </div>
-          <div class="vetting-bar">
-            <div class="vetting-fill rag-{{ card.referencing_progress.rag }}" style="width: {{ card.referencing_progress.percentage }}%"></div>
-          </div>
-          {% if card.referencing_progress.on_hold %}
-          <div style="font-size: 0.6rem; color: #92400e;">{{ card.referencing_progress.on_hold }} on hold</div>
-          {% endif %}
-          {% endif %}
-        </div>
-
         <div class="card-actions">
           <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}"
              class="btn btn-outline-primary btn-sm"
