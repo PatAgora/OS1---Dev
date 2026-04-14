@@ -7262,6 +7262,7 @@ def workflow():
                             SUM(CASE WHEN status IN ('In Progress', 'IN PROGRESS', 'AWAITING QC', 'QC IN PROGRESS', 'QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as in_progress,
                             SUM(CASE WHEN status IN ('Not Started', 'NOT STARTED', 'READY TO START') THEN 1 ELSE 0 END) as not_started,
                             SUM(CASE WHEN status IN ('Not Required', 'N/A') THEN 1 ELSE 0 END) as not_required,
+                            SUM(CASE WHEN status IN ('QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as rework_needed,
                             MIN(created_at) as first_check_date
                         FROM vetting_check
                         WHERE candidate_id = :cand_id
@@ -7275,7 +7276,8 @@ def workflow():
                     in_progress = vetting_stats[2] or 0
                     not_started = vetting_stats[3] or 0
                     not_required = vetting_stats[4] or 0
-                    first_check_date = vetting_stats[5]
+                    rework_needed = vetting_stats[5] or 0
+                    first_check_date = vetting_stats[6]
                     
                     # Calculate effective total (excluding not required)
                     effective_total = total - not_required
@@ -7313,6 +7315,7 @@ def workflow():
                         "in_progress": in_progress,
                         "not_started": not_started,
                         "not_required": not_required,
+                        "rework_needed": rework_needed,
                         "effective_total": effective_total,
                         "percentage": round(percentage),
                         "rag": rag,

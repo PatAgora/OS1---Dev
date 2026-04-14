@@ -838,6 +838,9 @@
       <div class="filter-buttons">
         <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
         <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()"><i class="fas fa-times me-1"></i> Clear</button>
+        <button type="button" class="btn btn-outline-warning" id="reworkFilterBtn" onclick="toggleReworkFilter()" title="Show only candidates with vetting rework needed">
+          <i class="fas fa-exclamation-triangle me-1"></i> Rework Needed
+        </button>
         <button type="button" class="btn btn-outline-danger" id="bulkRejectToggle" onclick="toggleBulkMode()">
           <i class="fas fa-ban me-1"></i> Bulk Reject
         </button>
@@ -885,6 +888,7 @@
            data-sla-status="{{ card.vetting_progress.sla_status if card.vetting_progress else 'in' }}"
            data-vetting-complete="{{ card.vetting_progress.complete if card.vetting_progress else 0 }}"
            data-vetting-total="{{ card.vetting_progress.effective_total if card.vetting_progress else 0 }}"
+           data-rework-needed="{{ card.vetting_progress.rework_needed if card.vetting_progress else 0 }}"
            ondragstart="handleDragStart(event)"
            ondragend="handleDragEnd(event)"
            style="--card-accent: {{ stage.color }}">
@@ -967,6 +971,13 @@
           </div>
           {% endif %}
         </div>
+        {% if card.vetting_progress and card.vetting_progress.rework_needed %}
+        <div class="mt-1">
+          <span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.65rem;">
+            <i class="fas fa-exclamation-triangle me-1"></i>Vetting Rework Needed ({{ card.vetting_progress.rework_needed }})
+          </span>
+        </div>
+        {% endif %}
 
         <div class="card-actions">
           <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}"
@@ -1416,7 +1427,30 @@ function clearFilters() {
   window.location.href = '{{ url_for("workflow") }}';
 }
 
-// Start Referencing only (free) — References + Employment History checks
+var _reworkFilterActive = false;
+function toggleReworkFilter() {
+  _reworkFilterActive = !_reworkFilterActive;
+  var btn = document.getElementById('reworkFilterBtn');
+  if (_reworkFilterActive) {
+    btn.classList.remove('btn-outline-warning');
+    btn.classList.add('btn-warning');
+  } else {
+    btn.classList.remove('btn-warning');
+    btn.classList.add('btn-outline-warning');
+  }
+  // Show/hide cards based on rework status
+  document.querySelectorAll('.kanban-card').forEach(function(card) {
+    if (_reworkFilterActive) {
+      var rework = parseInt(card.dataset.reworkNeeded || '0', 10);
+      card.style.display = rework > 0 ? '' : 'none';
+    } else {
+      card.style.display = '';
+    }
+  });
+  updateColumnCounts();
+}
+
+// Start Referencing — References + Employment History checks
 function triggerReferencing(candidateId) {
   if (!confirm('Start referencing for this associate? References and Employment History checks will be set to In Progress. Reference requests will be sent (respecting contact preferences).')) return;
   fetch('/api/vetting/trigger-referencing/' + candidateId, {
