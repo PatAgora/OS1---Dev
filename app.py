@@ -11570,7 +11570,7 @@ def candidate_profile(cand_id: int):
         for d in docs:
             documents_ctx.append({
                 'id': d.id,
-                'name': d.filename or 'Untitled',
+                'name': getattr(d, 'original_name', None) or d.filename or 'Untitled',
                 'filename': d.filename,
                 'doc_type': getattr(d, 'doc_type', 'cv') or 'cv',
                 'ts': d.uploaded_at.strftime('%d %b %Y') if getattr(d, 'uploaded_at', None) else '',
@@ -11711,7 +11711,6 @@ def candidate_profile(cand_id: int):
             candidate_notes = s.scalars(
                 select(CandidateNote)
                 .where(CandidateNote.candidate_id == cand_id)
-                .where(CandidateNote.note_type == "note")
                 .order_by(CandidateNote.created_at.desc())
                 .limit(50)
             ).all()
