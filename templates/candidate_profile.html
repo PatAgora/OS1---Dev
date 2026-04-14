@@ -1139,22 +1139,18 @@
           </div>
           {% endif %}
 
-          {% if contract_status %}
-            <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% elif contract_status == 'Retracted' %}#fee2e2{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% elif contract_status == 'Retracted' %}#ef4444{% else %}#f59e0b{% endif %};">
+          {% if contract_status and contract_status not in ['Retracted'] %}
+            <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% else %}#f59e0b{% endif %};">
               <div class="fw-semibold" style="font-size: 0.85rem;">
                 Contract Status: <span class="text-capitalize">{{ contract_status }}</span>
               </div>
-              {% if contract_status not in ['signed', 'completed', 'Retracted'] %}
+              {% if contract_status not in ['signed', 'completed'] %}
               <form method="POST" action="{{ url_for('retract_contract', cand_id=cand.id) }}" class="mt-2" onsubmit="return confirm('Are you sure you want to retract this contract? This cannot be undone.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-sm btn-outline-danger w-100" style="font-size: 0.7rem;">
                   <i class="fas fa-times-circle me-1"></i>Retract Contract
                 </button>
               </form>
-              {% elif contract_status == 'Retracted' and latest_app %}
-              <a href="{{ url_for('application_detail', app_id=latest_app.id) }}#contract-section" class="btn btn-sm btn-outline-primary w-100 mt-2" style="font-size: 0.7rem;">
-                <i class="fas fa-file-signature me-1"></i>Re-issue Contract
-              </a>
               {% endif %}
             </div>
           {% else %}
