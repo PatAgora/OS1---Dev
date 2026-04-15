@@ -2172,6 +2172,17 @@ def secondary_job_declaration():
     )
 
 
+@associate_bp.route("/employment-reference-declaration", methods=["GET"])
+@_require_login
+def employment_reference_declaration():
+    """Employment Reference Declaration — embedded Signable widget."""
+    widget_url = os.getenv("SIGNABLE_EMPLOYMENT_REF_WIDGET_URL", "")
+    return render_template(
+        "associate/employment_reference_declaration.html",
+        widget_url=widget_url,
+    )
+
+
 @associate_bp.route("/references/employment", methods=["GET"])
 @_require_login
 def references_employment():
