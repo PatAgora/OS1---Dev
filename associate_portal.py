@@ -1350,8 +1350,30 @@ def personal_details():
             current_app.logger.info(f"Personal details saved for candidate {cand_id}, contact_employer={cand.current_employer_contact_ok}")
         except Exception as e:
             s.rollback()
+            # Might be missing columns — try adding them
+            try:
+                eng = _engine()
+                with eng.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    for stmt in [
+                        "ALTER TABLE associate_profiles ADD COLUMN most_recent_employer VARCHAR(300) DEFAULT ''",
+                        "ALTER TABLE associate_profiles ADD COLUMN contact_current_employer BOOLEAN DEFAULT TRUE",
+                    ]:
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
+                # Retry the save
+                with SASession(eng) as s2:
+                    cand2 = s2.get(Candidate, cand_id)
+                    if cand2:
+                        cand2.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
+                        s2.commit()
+                        flash("Personal details saved.", "success")
+                        return redirect(url_for("associate.personal_details"))
+            except Exception:
+                pass
             current_app.logger.error(f"Personal details save failed for candidate {cand_id}: {e}")
-            flash(f"Failed to save personal details: {e}", "danger")
+            flash(f"Failed to save personal details. Please try again.", "danger")
             return redirect(url_for("associate.personal_details"))
 
     flash("Personal details saved.", "success")
