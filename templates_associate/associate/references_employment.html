@@ -25,14 +25,14 @@
 
 <!-- Gaps Detected Warning -->
 {% if gaps_detected and gaps_detected|length > 0 %}
-<div class="alert alert-warning mb-4">
-    <div><i class="fas fa-exclamation-triangle me-2"></i><strong>Gaps detected in your employment history:</strong></div>
-    <ul style="display: block; margin: 0.5rem 0; padding-left: 1.5rem;">
+<div class="alert alert-warning mb-4" style="display: block !important;">
+    <p class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i><strong>Gaps detected in your employment history:</strong></p>
+    <ul style="margin-bottom: 0.5rem; padding-left: 1.5rem;">
         {% for gap in gaps_detected %}
         <li>{{ gap.from_date.strftime('%b %Y') if gap.from_date else '?' }} to {{ gap.to_date.strftime('%b %Y') if gap.to_date else '?' }} ({{ gap.days }} days)</li>
         {% endfor %}
     </ul>
-    <div>Please add a gap explanation for each period above.</div>
+    <p class="mb-0">Please add a gap explanation for each period above.</p>
 </div>
 {% endif %}
 
