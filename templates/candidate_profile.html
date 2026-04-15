@@ -954,7 +954,6 @@
       </div>
 
       <!-- Reference Requests Section -->
-      {% if reference_requests %}
       <div class="modern-card mt-4 fade-in-up stagger-5" id="reference-requests">
         <div class="card-body p-4">
           <div class="section-header mb-3">
@@ -1024,9 +1023,13 @@
               </tbody>
             </table>
           </div>
+          {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-info-circle me-2"></i>No reference requests yet. Click <strong>Start Referencing</strong> above to create them from the associate's employment history.
+          </div>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
 
       <!-- QC Review Modal -->
       <div class="modal fade" id="qcReviewModal" tabindex="-1" aria-labelledby="qcReviewModalLabel" aria-hidden="true">
