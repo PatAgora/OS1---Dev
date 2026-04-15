@@ -139,6 +139,7 @@ def _ensure_models():
         previous_first_names = Column(String(500), default="")
         previous_surnames = Column(String(500), default="")
         most_recent_employer = Column(String(300), default="")
+        contact_current_employer = Column(Boolean, default=True)
         unsubscribed = Column(Boolean, default=False)
         profile_picture = Column(String(500), default="")
         dob = Column(Date, nullable=True)
@@ -715,7 +716,15 @@ def _create_portal_tables():
             try:
                 conn.execute(text("ALTER TABLE consent_records ADD COLUMN signable_envelope_id VARCHAR(64)"))
             except Exception:
-                pass  # Column already exists
+                pass
+            try:
+                conn.execute(text("ALTER TABLE associate_profiles ADD COLUMN most_recent_employer VARCHAR(300) DEFAULT ''"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE associate_profiles ADD COLUMN contact_current_employer BOOLEAN DEFAULT TRUE"))
+            except Exception:
+                pass
         current_app._associate_tables_created = True
     except Exception as exc:
         current_app.logger.warning("Could not create associate portal tables: %s", exc)
@@ -1303,6 +1312,9 @@ def personal_details():
         contact_number = _sanitise(request.form.get("contact_number", "")).strip()
         if contact_number:
             cand.phone = contact_number
+        # Sync contact current employer to Candidate model
+        if hasattr(cand, 'current_employer_contact_ok'):
+            cand.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
 
         # Update profile fields
         if profile:
@@ -1330,6 +1342,7 @@ def personal_details():
             profile.available_from = _parse_date(request.form.get("available_from", ""))
             profile.national_insurance_number = _sanitise(request.form.get("national_insurance_number", ""))
             profile.most_recent_employer = _sanitise(request.form.get("most_recent_employer", ""))
+            profile.contact_current_employer = request.form.get("contact_current_employer") == "1"
             profile.unsubscribed = request.form.get("unsubscribed") == "1"
 
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")
