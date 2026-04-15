@@ -2253,7 +2253,31 @@ def admin_portal_user_detail(cand_id: int):
         if not cand:
             flash("Associate not found", "danger")
             return redirect(url_for("admin_portal_users"))
-        
+
+        # Get associate profile (detailed personal info from portal)
+        profile = None
+        try:
+            from associate_portal import _ensure_models, _portal_model
+            _ensure_models()
+            AssociateProfile = _portal_model("AssociateProfile")
+            if AssociateProfile:
+                profile = s.scalars(
+                    select(AssociateProfile).where(AssociateProfile.candidate_id == cand_id)
+                ).first()
+                if profile:
+                    # Force load all profile attributes
+                    _ = (profile.title, profile.first_name, profile.surname,
+                         profile.dob, profile.address_line1, profile.address_line2,
+                         profile.city, profile.postcode, profile.country,
+                         profile.contact_number, profile.national_insurance_number,
+                         profile.gender, profile.emergency_contact_name,
+                         profile.emergency_contact_phone, profile.emergency_contact_relationship,
+                         profile.aliases, profile.previous_names,
+                         profile.current_salary, profile.expected_salary,
+                         profile.available_from)
+        except Exception:
+            pass
+
         # Get applications for this candidate (eagerly load job relationship)
         applications = s.scalars(
             select(Application)
@@ -2261,31 +2285,32 @@ def admin_portal_user_detail(cand_id: int):
             .where(Application.candidate_id == cand_id)
             .order_by(Application.created_at.desc())
         ).all()
-        
+
         # Get documents
         documents = s.scalars(
             select(Document)
             .where(Document.candidate_id == cand_id)
             .order_by(Document.uploaded_at.desc())
         ).all()
-        
+
         # Force load all attributes before session closes
         _ = cand.name, cand.email, cand.phone, cand.status, cand.source
         _ = cand.email_verified, cand.email_verified_at, cand.created_at
         _ = cand.last_login_at, cand.last_activity_at
         if hasattr(cand, 'about'):
             _ = cand.about
-        
+
         for app in applications:
             if app.job:
                 _ = app.job.title
-        
+
         for doc in documents:
             _ = doc.filename, doc.original_name, doc.doc_type, doc.uploaded_at
-    
+
     return render_template(
         "admin_portal_user_detail.html",
         cand=cand,
+        profile=profile,
         applications=applications,
         documents=documents
     )

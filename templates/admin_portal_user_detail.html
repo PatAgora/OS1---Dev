@@ -59,37 +59,132 @@
       <div class="card-body">
         <form method="post" action="{{ url_for('admin_portal_user_update', cand_id=cand.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Full Name</label>
-              <input type="text" name="name" class="form-control" value="{{ cand.name or '' }}">
+
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Basic Information</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-2">
+              <label class="form-label">Title</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.title if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">First Name</label>
+              <input type="text" name="name" class="form-control form-control-sm" value="{{ profile.first_name if profile else (cand.name or '').split(' ')[0] }}" readonly>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">Surname</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.surname if profile else (cand.name or '').split(' ')[-1] if ' ' in (cand.name or '') else '' }}" readonly>
             </div>
             <div class="col-md-6">
               <label class="form-label">Email Address</label>
-              <input type="email" name="email" class="form-control" value="{{ cand.email or '' }}">
+              <input type="email" name="email" class="form-control form-control-sm" value="{{ cand.email or '' }}">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-3">
               <label class="form-label">Phone Number</label>
-              <input type="tel" name="phone" class="form-control" value="{{ cand.phone or '' }}">
+              <input type="tel" name="phone" class="form-control form-control-sm" value="{{ profile.contact_number if profile and profile.contact_number else cand.phone or '' }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Date of Birth</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.dob.strftime('%d/%m/%Y') if profile and profile.dob else '' }}" readonly>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Gender</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.gender if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">NI Number</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.national_insurance_number if profile else '' }}" readonly>
             </div>
             <div class="col-md-6">
               <label class="form-label">Status</label>
-              <select name="status" class="form-select">
-                <option value="Available" {% if cand.status == 'Available' %}selected{% endif %}>Available</option>
-                <option value="On Assignment" {% if cand.status == 'On Assignment' %}selected{% endif %}>On Assignment</option>
-                <option value="On Hold" {% if cand.status == 'On Hold' %}selected{% endif %}>On Hold</option>
-                <option value="Unavailable" {% if cand.status == 'Unavailable' %}selected{% endif %}>Unavailable</option>
+              <select name="status" class="form-select form-select-sm">
+                {% for st in ['Available', 'On Assignment', 'On Contract', 'On Notice', 'In Vetting', 'Interviewing', 'Ex-Associate', 'On Hold', 'Unavailable', 'DNU'] %}
+                <option value="{{ st }}" {% if cand.status == st %}selected{% endif %}>{{ st }}</option>
+                {% endfor %}
               </select>
             </div>
-            <div class="col-12">
-              <label class="form-label">About / Notes</label>
-              <textarea name="about" class="form-control" rows="3">{{ cand.about or '' }}</textarea>
+          </div>
+
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Address</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Address Line 1</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.address_line1 if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Address Line 2</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.address_line2 if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">City</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.city if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Postcode</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.postcode if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Country</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.country if profile else 'United Kingdom' }}" readonly>
             </div>
           </div>
-          
+
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Emergency Contact</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label">Name</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.emergency_contact_name if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Phone</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.emergency_contact_phone if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Relationship</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.emergency_contact_relationship if profile else '' }}" readonly>
+            </div>
+          </div>
+
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Employment</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label">Current Salary</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.current_salary if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Expected Salary</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.expected_salary if profile else '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Available From</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.available_from.strftime('%d/%m/%Y') if profile and profile.available_from else '' }}" readonly>
+            </div>
+          </div>
+
+          {% if profile and profile.aliases %}
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Other Names</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label">Aliases</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.aliases }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Previous First Names</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.previous_first_names or '' }}" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Previous Surnames</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.previous_surnames or '' }}" readonly>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="col-12 mb-3">
+            <label class="form-label">About / Notes</label>
+            <textarea name="about" class="form-control form-control-sm" rows="2">{{ cand.about or '' }}</textarea>
+          </div>
+
           <div class="mt-3">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary btn-sm">
               <i class="fas fa-save me-1"></i> Save Changes
             </button>
           </div>
