@@ -10597,16 +10597,23 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     checks_for_verifile = []
     for ct in checks_to_submit:
         if ct not in VERIFILE_CHECK_MAP:
+            print(f"[Verifile] Skipping {ct}: no mapping")
             continue
         vc = session.scalar(
             select(VettingCheck)
             .where(VettingCheck.candidate_id == candidate_id)
             .where(VettingCheck.check_type == ct)
         )
-        if not vc or vc.status.upper() in ("COMPLETE", "N/A"):
+        if not vc:
+            print(f"[Verifile] Skipping {ct}: no VettingCheck record found")
+            continue
+        if vc.status.upper() in ("COMPLETE", "N/A"):
+            print(f"[Verifile] Skipping {ct}: status={vc.status}")
             continue
         checks_for_verifile.append(ct)
+        print(f"[Verifile] Including {ct}: status={vc.status}, map={VERIFILE_CHECK_MAP[ct]}")
 
+    print(f"[Verifile] Total checks for Verifile: {len(checks_for_verifile)}")
     if not checks_for_verifile:
         return 0
 
