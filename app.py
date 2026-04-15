@@ -10401,47 +10401,21 @@ def action_verifile(app_id):
 VERIFILE_DBS_LEVEL = os.getenv("VERIFILE_DBS_LEVEL", "Basic")  # Basic, Standard, or Enhanced
 
 VERIFILE_CHECK_MAP = {
-    # Criminal Record Checks — exact Verifile product names
-    # Options: "Criminal record check (Basic DBS, England & Wales)"
-    #          "Criminal record check (Standard DBS, England & Wales)"
-    #          "Criminal record check (Enhanced DBS, England & Wales)"
-    #          "Criminal record check (Basic, Northern Ireland)"
-    #          "Criminal record check (Level 1, Scotland)" / Level 2 / Level 2 with Barred Lists
-    #          "DBS Adult First check"
-    #          "PVG scheme (Registration, Scotland)" / "PVG scheme (Update, Scotland)"
-    "DBS Check": f"Criminal record check ({VERIFILE_DBS_LEVEL} DBS, England & Wales)",
+    # Correct Verifile CheckTypeId values (from GET /metadata/checktypes)
+    "DBS Check": "UKCriminalRecordBasicEnglandWales",
+    "Identity Verification": "UKOnlineIDCheck",
+    "Right to Work": "UKRightToWorkDigitalConditional",
+    "Address History": "Activity",
+    "Employment History": "EmploymentHistoryUK",
+    "References": "CharacterProfessionalReferenceUK",
+    "Qualifications": "AcademicQualificationUK",
+    "Professional Registration": "ProfessionalMembershipQualificationUK",
 
-    # Identity and Documents Verification — Verifile products:
-    # "Digital identity check", "Online identity check", "Global passport validation",
-    # "Passport check", "URU (online identity check)", "360 degree background report"
-    "Identity Verification": "Digital identity check",
-
-    # Right to Work — Verifile products:
-    # "Right to work (Digital & Conditional)", "Right to work (Digital)",
-    # "Right to work check (audit)"
-    "Right to Work": "Right to work (Digital)",
-
-    # Referencing and Verification — exact Verifile names
-    "Address History":          "Activity checks",          # covers address/activity verification
-    "Employment History":       "Employment history check",
-    "References":               "Character reference check",
-    "Qualifications":           "Education qualifications check",
-    "Professional Registration": "Professional memberships and qualifications check",
-
-    # Credit and Financial Checks — Verifile products:
-    # "Credit check (Equifax)", "Credit check (Experian)",
-    # "Civil litigation search", "Directorship search"
-    "Credit Check":                    "Credit check (Experian)",
-    "Directorship / Disqualification": "Directorship search",
-
-    # Fraud Checks
-    # "Global fraud and sanctions search", "Cifas fraud database check"
-    "Sanctions / PEP": "Global fraud and sanctions search",
-
-    # Open Media Searches — Verifile products:
-    # "Classic Social Media Search", "Classic Adverse Internet Search",
-    # "News Search", "Executive due diligence report"
-    "Social Media Review": "Classic Social Media Search",
+    # Credit and Financial Checks
+    "Credit Check": "UKCreditCheckExperian",
+    "Directorship / Disqualification": "UKInvestigativeDirectorshipsSearch",
+    "Sanctions / PEP": "GlobalFraudandSanctionsSearch",
+    "Social Media Review": "ClassicSocialMediaSearch",
 }
 
 # Full Verifile product catalogue (for reference / future use)
@@ -10510,137 +10484,150 @@ def _verifile_headers():
         "Accept": "application/json",
     }
 
-def verifile_create_candidate(name: str, email: str, candidate_id: int) -> str:
-    """Create a candidate/subject in Verifile. Returns the Verifile subject ID.
+def verifile_place_order(name: str, email: str, candidate_id: int, check_types: list) -> str:
+    """Place a candidate-entry order with Verifile.
 
-    POST /v3/subjects
+    POST /orders/candidateentry — single order with all checks.
+    The candidate receives an email invitation to complete via Verifile's portal.
+    Returns the Verifile order ID.
     """
     headers = _verifile_headers()
-    # Split name into first/last for Verifile
     parts = (name or "").strip().split(None, 1)
     first_name = parts[0] if parts else "Unknown"
     last_name = parts[1] if len(parts) > 1 else ""
 
+    import uuid as _uuid
+    check_groups = []
+    for ct in check_types:
+        check_type_id = VERIFILE_CHECK_MAP.get(ct, "")
+        if check_type_id:
+            check_groups.append({"CheckTypeId": check_type_id, "Quantity": 1})
+
+    if not check_groups:
+        raise RuntimeError("No valid Verifile check types to submit")
+
     payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": email,
-        "external_reference": f"OS1-CAND-{candidate_id}",
+        "UniqueKey": str(_uuid.uuid4()),
+        "CheckGroups": check_groups,
+        "Candidate": {
+            "CurrentName": {
+                "FirstName": first_name,
+                "LastName": last_name
+            },
+            "PersonalInfo": {
+                "ApplicantType": "Candidate",
+                "CandidateEmail": email
+            }
+        }
     }
+
     resp = _requests_lib.post(
-        f"{VERIFILE_BASE_URL}/subjects",
+        f"{VERIFILE_BASE_URL}/orders/candidateentry",
         json=payload,
         headers=headers,
         timeout=30,
     )
     resp.raise_for_status()
     data = resp.json()
-    return str(data.get("id") or data.get("subject_id") or "")
+    order_id = str(data.get("Id") or data.get("id") or "")
+    print(f"[Verifile] Order placed: {order_id} for candidate {candidate_id} with {len(check_groups)} checks")
+    return order_id
 
-def verifile_submit_check(subject_id: str, check_type: str, candidate_id: int, webhook_url: str) -> str:
-    """Submit a single screening check to Verifile. Returns the Verifile screening/order ID.
 
-    POST /v3/screenings
-    """
-    headers = _verifile_headers()
-    product_code = VERIFILE_CHECK_MAP.get(check_type, "")
-    if not product_code:
-        raise RuntimeError(f"No Verifile product mapping for check type: {check_type}")
+def verifile_poll_order(order_id: str) -> dict:
+    """Poll an order status from Verifile.
 
-    payload = {
-        "subject_id": subject_id,
-        "product_code": product_code,
-        "external_reference": f"OS1-CAND-{candidate_id}-{check_type}",
-        "webhook_url": webhook_url,
-    }
-    resp = _requests_lib.post(
-        f"{VERIFILE_BASE_URL}/screenings",
-        json=payload,
-        headers=headers,
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return str(data.get("id") or data.get("screening_id") or "")
-
-def verifile_poll_check(screening_id: str) -> dict:
-    """Poll a single screening status from Verifile.
-
-    GET /v3/screenings/{id}
-    Returns dict with 'status' and 'result' keys.
+    GET /orders/{orderId}/status
+    Returns dict with 'status', 'check_statuses', and 'result' keys.
     """
     headers = _verifile_headers()
     resp = _requests_lib.get(
-        f"{VERIFILE_BASE_URL}/screenings/{screening_id}",
+        f"{VERIFILE_BASE_URL}/orders/{order_id}/status",
         headers=headers,
         timeout=30,
     )
     resp.raise_for_status()
     data = resp.json()
-    raw_status = (data.get("status") or "unknown").lower()
+    raw_status = (data.get("orderStatus") or data.get("Status") or "unknown").lower()
 
-    # Map Verifile statuses to our internal statuses
     status_map = {
-        "pending": "In Progress",
-        "in_progress": "In Progress",
+        "awaiting candidate entry": "In Progress",
+        "application": "In Progress",
+        "information required": "In Progress",
         "processing": "In Progress",
-        "awaiting_input": "In Progress",
-        "complete": "Complete",
+        "quality checking": "In Progress",
         "completed": "Complete",
-        "passed": "Complete",
-        "clear": "Complete",
-        "failed": "Failed",
-        "rejected": "Failed",
         "cancelled": "N/A",
-        "refer": "In Progress",
     }
+    # Extract per-check statuses
+    check_statuses = {}
+    for cs in data.get("checkStatuses", []):
+        check_name = cs.get("checkName", "")
+        check_desc = (cs.get("checkStatusDescription") or "").lower()
+        if "completed" in check_desc or "green" in check_desc:
+            check_statuses[check_name] = "Complete"
+        elif "cancelled" in check_desc:
+            check_statuses[check_name] = "N/A"
+        elif "amber" in check_desc:
+            check_statuses[check_name] = "Complete"  # Amber = completed with findings
+        elif "red" in check_desc:
+            check_statuses[check_name] = "Failed"
+        else:
+            check_statuses[check_name] = "In Progress"
+
     return {
         "status": status_map.get(raw_status, "In Progress"),
+        "check_statuses": check_statuses,
         "result": data,
     }
 
+
 def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: str,
                                 checks_to_submit: list, session) -> int:
-    """Submit multiple vetting checks to Verifile for a candidate.
+    """Submit vetting checks to Verifile as a single candidate-entry order.
 
-    Creates the candidate in Verifile (or reuses existing), then submits each check.
-    Updates VettingCheck rows with external_ref and external_provider.
+    Places one order with all requested checks. Verifile emails the candidate
+    to complete via their portal. Updates VettingCheck rows with the order ID.
     Returns count of successfully submitted checks.
     """
     if not VERIFILE_APIM_KEY:
-        return 0  # Verifile not configured — checks stay as manual
-
-    webhook_url = f"{APP_BASE_URL}/webhook/verifile"
-    submitted = 0
-
-    try:
-        subject_id = verifile_create_candidate(cand_name, cand_email, candidate_id)
-    except Exception as e:
-        current_app.logger.warning(f"Verifile: failed to create subject for candidate #{candidate_id}: {e}")
         return 0
 
-    for check_type in checks_to_submit:
-        if check_type not in VERIFILE_CHECK_MAP:
-            continue  # No Verifile mapping — stays manual
+    # Filter to checks that have a Verifile mapping and aren't already complete
+    checks_for_verifile = []
+    for ct in checks_to_submit:
+        if ct not in VERIFILE_CHECK_MAP:
+            continue
+        vc = session.scalar(
+            select(VettingCheck)
+            .where(VettingCheck.candidate_id == candidate_id)
+            .where(VettingCheck.check_type == ct)
+        )
+        if not vc or vc.status.upper() in ("COMPLETE", "N/A"):
+            continue
+        checks_for_verifile.append(ct)
 
-        # Find the VettingCheck row
+    if not checks_for_verifile:
+        return 0
+
+    try:
+        order_id = verifile_place_order(cand_name, cand_email, candidate_id, checks_for_verifile)
+    except Exception as e:
+        current_app.logger.warning(f"Verifile: failed to place order for candidate #{candidate_id}: {e}")
+        return 0
+
+    submitted = 0
+    for check_type in checks_for_verifile:
         vc = session.scalar(
             select(VettingCheck)
             .where(VettingCheck.candidate_id == candidate_id)
             .where(VettingCheck.check_type == check_type)
         )
-        if not vc or vc.status.upper() in ("COMPLETE", "N/A"):
-            continue
-
-        try:
-            screening_id = verifile_submit_check(subject_id, check_type, candidate_id, webhook_url)
-            vc.external_ref = screening_id
+        if vc:
+            vc.external_ref = order_id
             vc.external_provider = "verifile"
             vc.status = "In Progress"
             submitted += 1
-        except Exception as e:
-            current_app.logger.warning(f"Verifile: failed to submit {check_type} for candidate #{candidate_id}: {e}")
-            vc.notes = (vc.notes or "") + f"\nVerifile submit failed: {e}"
 
     return submitted
 
@@ -10769,18 +10756,30 @@ def api_vetting_poll_verifile(cand_id):
         ).scalars().all()
 
         updated = 0
-        for vc in checks:
-            if not vc.external_ref:
-                continue
+        # Group checks by order_id (external_ref) since all checks share one order
+        order_ids = set(vc.external_ref for vc in checks if vc.external_ref)
+        for order_id in order_ids:
             try:
-                result = verifile_poll_check(vc.external_ref)
-                vc.status = result["status"]
+                result = verifile_poll_order(order_id)
+                # Update each check's status based on the order's check_statuses
+                for vc in checks:
+                    if vc.external_ref != order_id:
+                        continue
+                    check_type_id = VERIFILE_CHECK_MAP.get(vc.check_type, "")
+                    if check_type_id and check_type_id in result.get("check_statuses", {}):
+                        new_status = result["check_statuses"][check_type_id]
+                        vc.status = new_status
+                        if new_status == "Complete":
+                            vc.completed_at = datetime.datetime.utcnow()
+                        updated += 1
+                    elif result["status"] in ("Complete", "N/A"):
+                        vc.status = result["status"]
+                        if result["status"] == "Complete":
+                            vc.completed_at = datetime.datetime.utcnow()
+                        updated += 1
                 vc.external_result = json.dumps(result["result"])[:19999]
-                if result["status"] == "Complete":
-                    vc.completed_at = datetime.datetime.utcnow()
-                updated += 1
             except Exception as e:
-                current_app.logger.warning(f"Verifile poll failed for {vc.check_type}: {e}")
+                current_app.logger.warning(f"Verifile poll failed for order {order_id}: {e}")
 
         s.commit()
 
