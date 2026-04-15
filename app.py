@@ -5089,7 +5089,7 @@ def _smart_truncate(txt: str, limit: int) -> str:
     return cut.rstrip() + " …"
 
 def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") -> str:
-    text = _truncate_for_ai(text or "", 12000)
+    text = _truncate_for_ai(text or "", 4000)  # Send less text = faster response
     if not text:
         return ""
     model = get_gemini_model()
@@ -5102,31 +5102,20 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""Provide a brief recruiter summary of this CV. Use bullet points. Keep it under 200 words.
+            prompt = f"""In under 100 words, summarise this CV for a recruiter:
+• Most recent role and employer
+• Years of experience and sector
+• Top 3 skills
+• Any concerns (gaps, short tenures) or "None"
+Only use facts from the CV. If unreadable, say "Unable to retrieve information from CV."
 {jd_section}
-**Summary:**
-• Current/most recent role and employer
-• Total years of experience
-• Key sector (e.g. financial services, banking, compliance)
-
-**Key Skills:**
-• List 3-5 specific skills, tools, certifications or clearance levels found in the CV
-
-**Concerns:**
-• Note any gaps, short tenures or missing skills. If none, write "None identified"
-
-Rules:
-- ONLY use information explicitly stated in the CV below
-- Never fabricate or assume details not present
-- If the CV text is empty or unreadable, respond with: "Unable to retrieve information from CV."
-
-CV TEXT:
+CV:
 {text}
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                max_output_tokens=1500,
-                temperature=0.3,
+                max_output_tokens=500,
+                temperature=0.2,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
             if not resp.parts:
