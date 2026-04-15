@@ -26,6 +26,10 @@
         <input type="text" name="location" class="form-control" value="{{ job.location if job else '' }}" placeholder="e.g. London, UK">
       </div>
       <div class="col-md-4">
+        <label class="form-label fw-semibold">Sector</label>
+        <input type="text" name="sector" class="form-control" value="{{ job.sector if job else '' }}" placeholder="e.g. Financial Services, Banking">
+      </div>
+      <div class="col-md-4">
         <label class="form-label fw-semibold">Salary / Rate</label>
         <input type="text" name="salary_range" class="form-control" value="{{ job.salary_range if job else '' }}" placeholder="e.g. £250/day">
       </div>

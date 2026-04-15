@@ -3068,6 +3068,7 @@ class Job(Base):
     role_type = Column(String(50), default="")
     location = Column(String(200), default="")
     salary_range = Column(String(200), default="")
+    sector = Column(String(200), default="")
     status = Column(String(50), default="Open")
     public_token = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -4442,6 +4443,7 @@ try:
         for _stmt in [
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed_at TIMESTAMP",
+            "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -9476,6 +9478,7 @@ def job_new():
             description = request.form.get("description") or ""
             status = request.form.get("status") or "Open"
             location = request.form.get("location") or ""
+            sector = request.form.get("sector") or ""
             salary_range = request.form.get("salary_range") or ""
             engagement_id = request.form.get("engagement_id") or None
 
@@ -9485,6 +9488,7 @@ def job_new():
                 description=description,
                 status=status,
                 location=location,
+                sector=sector,
                 salary_range=salary_range,
                 engagement_id=engagement_id,
                 created_at=datetime.datetime.utcnow(),
@@ -9517,6 +9521,7 @@ def job_edit(job_id):
             job.role_type = request.form.get("role") or job.role_type
             job.description = request.form.get("description") or job.description
             job.location = request.form.get("location") or job.location
+            job.sector = request.form.get("sector") or getattr(job, 'sector', '') or ''
             job.salary_range = request.form.get("salary_range") or job.salary_range
             job.status = request.form.get("status") or job.status
             s.commit()
@@ -10548,6 +10553,7 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
         # Load job title from latest application if available
         job_title = "Associate"
         employer_name = "Optimus Solutions"
+        job_sector = ""
         try:
             with Session(engine) as js:
                 app_row = js.scalar(
@@ -10558,6 +10564,8 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
                     job = js.get(Job, app_row.job_id)
                     if job and job.title:
                         job_title = job.title
+                    if job and getattr(job, 'sector', ''):
+                        job_sector = job.sector
                     if job and job.engagement_id:
                         eng = js.get(Engagement, job.engagement_id)
                         if eng and eng.client:
@@ -10567,7 +10575,7 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
 
         payload["CheckSpecificData"] = {
             "CheckCriminalPurposeOfCheck": "Paid Work in UK",
-            "CheckCriminalEmploymentSector": "FINANCIAL SERVICES",
+            "CheckCriminalEmploymentSector": job_sector or "FINANCIAL SERVICES",
             "CheckCriminalPositionAppliedFor": job_title,
             "CheckCriminalEmployerName": employer_name,
         }
@@ -12099,10 +12107,16 @@ def candidate_profile(cand_id: int):
         # Load profile to check for missing data per vetting check
         _profile_for_vet = None
         try:
-            from associate_portal import _portal_model as _pm2
+            from associate_portal import _ensure_models as _em2, _portal_model as _pm2
+            _em2()
             _AP = _pm2("AssociateProfile")
             if _AP:
                 _profile_for_vet = s.scalar(select(_AP).where(_AP.candidate_id == cand_id))
+                if _profile_for_vet:
+                    # Force load attributes before they're accessed in _missing_for_check
+                    _ = (_profile_for_vet.passport_number, _profile_for_vet.dob,
+                         _profile_for_vet.gender, _profile_for_vet.address_line1,
+                         _profile_for_vet.postcode, _profile_for_vet.driving_licence_number)
         except Exception:
             pass
 
