@@ -940,26 +940,6 @@
       Current Engagements
       <span class="subtitle">Live delivery work in progress</span>
     </h2>
-    <div class="d-flex gap-2 align-items-center">
-      <!-- Active/Completed Toggle (item 13) -->
-      <div style="display: flex; border: 2px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-        <button type="button" class="filter-btn eng-toggle-btn active-toggle" id="eng-toggle-active"
-                onclick="toggleEngagementView('active')"
-                style="border: none; border-radius: 0; padding: 0.375rem 0.75rem; font-size: 0.8rem; background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%); color: white;">
-          Active
-        </button>
-        <button type="button" class="filter-btn eng-toggle-btn" id="eng-toggle-completed"
-                onclick="toggleEngagementView('completed')"
-                style="border: none; border-radius: 0; padding: 0.375rem 0.75rem; font-size: 0.8rem; background: white; color: #374151;">
-          Completed
-        </button>
-        <button type="button" class="filter-btn eng-toggle-btn" id="eng-toggle-all"
-                onclick="toggleEngagementView('all')"
-                style="border: none; border-radius: 0; padding: 0.375rem 0.75rem; font-size: 0.8rem; background: white; color: #374151;">
-          All
-        </button>
-      </div>
-    </div>
   </div>
 
   <!-- Engagements Filters -->
@@ -1028,6 +1008,29 @@
             <div class="dropdown-multiselect-item" onclick="toggleOption(this, 'eng-role-dropdown')">
               <input type="checkbox" id="eng-role-{{ loop.index }}" value="{{ role }}">
               <label for="eng-role-{{ loop.index }}">{{ role }}</label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <div class="dropdown-multiselect" id="eng-status-dropdown">
+          <button type="button" class="dropdown-multiselect-btn" onclick="toggleDropdown('eng-status-dropdown')">
+            <span class="selected-text">All Statuses</span>
+            <i class="fas fa-chevron-down dropdown-arrow"></i>
+          </button>
+          <div class="dropdown-multiselect-menu">
+            {% set eng_statuses = [] %}
+            {% for eng in engagements %}
+              {% if eng.status and eng.status not in eng_statuses %}
+                {% if eng_statuses.append(eng.status) %}{% endif %}
+              {% endif %}
+            {% endfor %}
+            {% for status in eng_statuses|sort %}
+            <div class="dropdown-multiselect-item" onclick="toggleOption(this, 'eng-status-dropdown')">
+              <input type="checkbox" id="eng-status-{{ loop.index }}" value="{{ status }}">
+              <label for="eng-status-{{ loop.index }}">{{ status }}</label>
             </div>
             {% endfor %}
           </div>
@@ -1163,20 +1166,10 @@ function toggleClosedLostDetails() {
   document.getElementById('closed-won-details').style.display = 'none';
 }
 
-// ===== Active/Completed toggle for engagements (item 13) =====
-let currentEngView = 'active';
+// ===== Engagements view (status now handled by filter dropdown) =====
 function toggleEngagementView(view) {
-  currentEngView = view;
-  // Update button styles
-  ['active', 'completed', 'all'].forEach(v => {
-    const btn = document.getElementById('eng-toggle-' + v);
-    if (v === view) {
-      btn.style.background = 'linear-gradient(135deg, #030a1d 0%, #1e3a8a 100%)';
-      btn.style.color = 'white';
-    } else {
-      btn.style.background = 'white';
-      btn.style.color = '#374151';
-    }
+  // Legacy — status is now a filter dropdown. Just re-apply filters.
+  applyEngagementsFilters();
   });
   // Filter engagement rows
   const rows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row)');
@@ -1441,6 +1434,7 @@ function applyEngagementsFilters() {
   const nameFilter = getSelectedValues('eng-name-dropdown');
   const refFilter = getSelectedValues('eng-ref-dropdown');
   const roleFilter = getSelectedValues('eng-role-dropdown');
+  const statusFilter = getSelectedValues('eng-status-dropdown');
 
   const rows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row)');
   let visibleCount = 0;
@@ -1453,14 +1447,11 @@ function applyEngagementsFilters() {
     const status = row.dataset.status || 'Active';
 
     let show = true;
-    // Respect the active/completed toggle
-    if (currentEngView === 'active' && status !== 'Active') show = false;
-    if (currentEngView === 'completed' && status === 'Active') show = false;
-
     if (clientFilter.length > 0 && !clientFilter.includes(client)) show = false;
     if (nameFilter.length > 0 && !nameFilter.includes(name)) show = false;
     if (refFilter.length > 0 && !refFilter.includes(ref)) show = false;
     if (roleFilter.length > 0 && !roleFilter.some(r => roles.includes(r))) show = false;
+    if (statusFilter.length > 0 && !statusFilter.includes(status)) show = false;
 
     row.style.display = show ? '' : 'none';
     if (show) visibleCount++;
@@ -1475,7 +1466,7 @@ function applyEngagementsFilters() {
 
 function clearEngagementsFilters() {
   // Unhide all dropdown items before clearing
-  ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown'].forEach(id => {
+  ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown', 'eng-status-dropdown'].forEach(id => {
     const dropdown = document.getElementById(id);
     if (!dropdown) return;
     dropdown.querySelectorAll('.dropdown-multiselect-item').forEach(item => {
@@ -1487,6 +1478,7 @@ function clearEngagementsFilters() {
   clearDropdown('eng-name-dropdown');
   clearDropdown('eng-ref-dropdown');
   clearDropdown('eng-role-dropdown');
+  clearDropdown('eng-status-dropdown');
 
   // Re-apply the current toggle view
   toggleEngagementView(currentEngView);
@@ -1494,8 +1486,8 @@ function clearEngagementsFilters() {
 }
 
 function cascadeEngagementFilters() {
-  const dropdownIds = ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown'];
-  const attrKeys = ['client', 'name', 'ref', 'roles'];
+  const dropdownIds = ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown', 'eng-status-dropdown'];
+  const attrKeys = ['client', 'name', 'ref', 'roles', 'status'];
 
   // Read current selections for each dropdown
   const selections = {};
@@ -1503,7 +1495,7 @@ function cascadeEngagementFilters() {
     selections[attrKeys[i]] = getSelectedValues(id);
   });
 
-  // Collect all engagement rows (including hidden ones) as data records
+  // Collect all engagement rows as data records
   const rows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row)');
   const records = [];
   rows.forEach(row => {
@@ -1520,19 +1512,14 @@ function cascadeEngagementFilters() {
   dropdownIds.forEach((dropdownId, idx) => {
     const thisAttr = attrKeys[idx];
 
-    // Filter records by all OTHER selections (not this dropdown's)
     const validValues = new Set();
     records.forEach(rec => {
-      // Check status toggle
-      if (currentEngView === 'active' && rec.status !== 'Active') return;
-      if (currentEngView === 'completed' && rec.status === 'Active') return;
-
       let matchesOthers = true;
       for (let j = 0; j < dropdownIds.length; j++) {
-        if (j === idx) continue; // skip self
+        if (j === idx) continue;
         const otherAttr = attrKeys[j];
         const otherSel = selections[otherAttr];
-        if (otherSel.length === 0) continue; // no filter on this dimension
+        if (otherSel.length === 0) continue;
 
         if (otherAttr === 'roles') {
           if (!otherSel.some(r => rec.roles.includes(r))) { matchesOthers = false; break; }
@@ -1542,7 +1529,6 @@ function cascadeEngagementFilters() {
       }
       if (!matchesOthers) return;
 
-      // This record passes all other filters — its value(s) for thisAttr are valid
       if (thisAttr === 'roles') {
         rec.roles.forEach(r => { if (r) validValues.add(r); });
       } else {
