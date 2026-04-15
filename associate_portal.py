@@ -2320,9 +2320,27 @@ def references_extract_from_cv():
         if not doc:
             return jsonify({"ok": False, "error": "No CV uploaded. Please upload your CV first on the My Profile page."}), 400
 
+        # Try to extract text — log details on failure
+        try:
+            from app import _doc_file_path
+            file_path = _doc_file_path(doc)
+            file_exists = os.path.exists(file_path)
+            current_app.logger.info(
+                f"CV extraction: doc.id={doc.id}, filename={doc.filename}, "
+                f"original_name={doc.original_name}, resolved_path={file_path}, "
+                f"exists={file_exists}"
+            )
+        except Exception as path_err:
+            current_app.logger.warning(f"CV path resolution failed: {path_err}")
+            file_path = "unknown"
+            file_exists = False
+
+        if not file_exists:
+            return jsonify({"ok": False, "error": f"CV file not found on server. Please re-upload your CV. (path: {doc.filename})"}), 400
+
         cv_text = extract_cv_text(doc)
         if not cv_text or len(cv_text.strip()) < 50:
-            return jsonify({"ok": False, "error": "Could not extract text from your CV. Please ensure it is a readable PDF or DOCX file."}), 400
+            return jsonify({"ok": False, "error": "Could not extract text from your CV. The file may be scanned/image-based. Please upload a text-based PDF or DOCX file."}), 400
 
     entries = ai_extract_employment_history(cv_text)
     if not entries:
