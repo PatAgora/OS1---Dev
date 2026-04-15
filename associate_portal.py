@@ -1378,12 +1378,11 @@ def upload_cv():
         flash("Please upload a PDF, DOC, or DOCX file.", "danger")
         return redirect(url_for("associate.personal_details"))
 
-    import uuid
-    upload_dir = os.path.join("uploads", "cvs")
-    os.makedirs(upload_dir, exist_ok=True)
-    safe_name = f"{cand_id}_{uuid.uuid4().hex[:8]}.{ext}"
-    filepath = os.path.join(upload_dir, safe_name)
-    file.save(filepath)
+    # Save to same location as documents page (static/uploads/associate_docs/)
+    saved = _save_file(file)
+    if not saved:
+        flash("Failed to save CV.", "danger")
+        return redirect(url_for("associate.personal_details"))
 
     with SASession(engine) as s:
         if Document:
@@ -1394,8 +1393,8 @@ def upload_cv():
             doc = Document(
                 candidate_id=cand_id,
                 doc_type="cv",
-                filename=safe_name,
-                original_name=file.filename,
+                filename=saved["filename"],
+                original_name=saved["original_name"],
             )
             s.add(doc)
             s.commit()
