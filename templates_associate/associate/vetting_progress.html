@@ -14,8 +14,10 @@
 <div class="portal-card mb-4">
     <div class="portal-card-header">
         <h3><i class="fas fa-shield-alt me-2"></i>Vetting Overview</h3>
-        {% set total_checks = vetting_checks|length if vetting_checks else 0 %}
-        {% set complete_checks = vetting_checks|selectattr('status', 'equalto', 'Complete')|list|length if vetting_checks else 0 %}
+        {% set total_checks = 12 %}
+        {% set complete_checks = [] %}
+        {% if vetting_checks %}{% for c in vetting_checks %}{% if c.status and c.status|upper in ('COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED') %}{% if complete_checks.append(1) %}{% endif %}{% endif %}{% endfor %}{% endif %}
+        {% set complete_checks = complete_checks|length %}
         {% if total_checks > 0 %}
         <span class="badge bg-{{ 'success' if complete_checks == total_checks else 'warning' }} fs-6">
             {{ complete_checks }}/{{ total_checks }} Complete
@@ -93,9 +95,18 @@
         'social_media': {'icon': 'share-alt', 'title': 'Social Media Review', 'description': 'Review of publicly available social media profiles for any concerns.'}
     } %}
 
-    {% if vetting_checks and vetting_checks|length > 0 %}
+    {# Build a lookup of existing checks by their title (matching check_config titles) #}
+    {% set check_statuses = {} %}
+    {% if vetting_checks %}
         {% for check in vetting_checks %}
-        {% set config = check_config.get(check.check_type, {'icon': 'question-circle', 'title': check.check_type|replace('_', ' ')|title, 'description': ''}) %}
+            {% if check_statuses.update({check.check_type: check.status or 'Not Started'}) %}{% endif %}
+        {% endfor %}
+    {% endif %}
+
+    {% for key, config in check_config.items() %}
+        {# Match DB check_type (e.g. "Right to Work") to config title #}
+        {% set status = check_statuses.get(config.title, 'Not Started') %}
+        {% set s_upper = status|upper %}
         <div class="col-md-6 col-lg-4">
             <div class="portal-card vetting-check-card h-100">
                 <div class="portal-card-body">
@@ -105,33 +116,28 @@
                         </div>
                         <div class="vetting-card-title">
                             <h5>{{ config.title }}</h5>
-                            {% if check.status == 'Complete' %}
+                            {% if s_upper in ('COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED') %}
                             <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Complete</span>
-                            {% elif check.status == 'In Progress' %}
+                            {% elif s_upper in ('IN PROGRESS', 'SENT TO QC', 'QC IN PROGRESS', 'AWAIT QC REWORK CHECK') %}
                             <span class="badge bg-primary"><i class="fas fa-spinner fa-spin me-1"></i>In Progress</span>
-                            {% elif check.status == 'On Hold' %}
+                            {% elif s_upper in ('QC REWORK NEEDED',) %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-redo me-1"></i>Under Review</span>
+                            {% elif s_upper == 'ON HOLD' %}
                             <span class="badge bg-warning text-dark"><i class="fas fa-pause-circle me-1"></i>On Hold</span>
-                            {% elif check.status == 'N/A' %}
-                            <span class="badge bg-secondary"><i class="fas fa-minus-circle me-1"></i>N/A</span>
+                            {% elif s_upper == 'N/A' %}
+                            <span class="badge bg-secondary"><i class="fas fa-minus-circle me-1"></i>Not Required</span>
                             {% else %}
                             <span class="badge bg-light text-dark border"><i class="fas fa-circle me-1"></i>Not Started</span>
                             {% endif %}
                         </div>
                     </div>
                     <p class="vetting-card-description text-muted">{{ config.description }}</p>
-                    {% if check.action_required is defined and check.action_required %}
-                    <div class="vetting-action-required mt-2">
-                        <span class="text-danger fw-bold"><i class="fas fa-exclamation-circle me-1"></i>Action Required</span>
-                        {% if check.action_url is defined and check.action_url %}
-                        <a href="{{ check.action_url }}" class="btn btn-sm btn-outline-danger ms-2">Provide Info</a>
-                        {% endif %}
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endfor %}
-    {% else %}
+    {% endfor %}
+
+    {% if false %}
         <!-- Default cards when no checks exist yet -->
         {% for key, config in check_config.items() %}
         <div class="col-md-6 col-lg-4">
