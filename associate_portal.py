@@ -1537,6 +1537,7 @@ def consent_form():
                     consent=consent,
                     already_signed=consent is not None,
                     reference_consent=reference_consent,
+                    signable_consent_widget_url=os.getenv("SIGNABLE_CONSENT_WIDGET_URL", ""),
                 )
         except Exception:
             current_app.logger.exception("Error loading consent form for candidate %s.", cand_id)
@@ -1894,7 +1895,7 @@ def declaration_form():
             decl = s.query(DeclarationRecord).filter_by(candidate_id=cand_id).order_by(
                 DeclarationRecord.created_at.desc()
             ).first() if DeclarationRecord else None
-            return render_template("associate/declaration_form.html", declaration=decl, already_signed=decl is not None)
+            return render_template("associate/declaration_form.html", declaration=decl, already_signed=decl is not None, signable_declaration_widget_url=os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""))
 
     with SASession(engine) as s:
         legal_name = _sanitise(request.form.get("legal_name", "")).strip()
