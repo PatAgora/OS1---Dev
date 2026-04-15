@@ -11315,6 +11315,7 @@ def api_vetting_trigger(cand_id):
 
         # Auto-submit to Verifile if API key is configured
         verifile_submitted = 0
+        verifile_error = ""
         if VERIFILE_APIM_KEY:
             try:
                 verifile_submitted = verifile_submit_all_checks(
@@ -11322,6 +11323,7 @@ def api_vetting_trigger(cand_id):
                 )
                 s.commit()
             except Exception as e:
+                verifile_error = str(e)
                 current_app.logger.warning(f"Verifile auto-submit failed for candidate #{cand_id}: {e}")
 
     result_msg = f"Vetting started: {created} checks initialised"
@@ -11329,8 +11331,10 @@ def api_vetting_trigger(cand_id):
         result_msg += f", {na_count} not required"
     if verifile_submitted:
         result_msg += f", {verifile_submitted} submitted to Verifile"
+    elif verifile_error:
+        result_msg += f" (Verifile error: {verifile_error})"
     elif VERIFILE_APIM_KEY:
-        result_msg += " (Verifile submission pending)"
+        result_msg += " (Verifile: no eligible checks to submit)"
 
     return jsonify({"ok": True, "message": result_msg})
 
