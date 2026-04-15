@@ -74,7 +74,7 @@
                 <div class="doc-info">
                     <i class="fas fa-file-{{ 'pdf' if doc.filename.endswith('.pdf') else 'image' }} doc-icon"></i>
                     <div class="doc-details">
-                        <span class="doc-name">{{ doc.filename }}</span>
+                        <span class="doc-name">{{ doc.original_name or doc.filename }}</span>
                         <span class="doc-meta">Uploaded {{ doc.uploaded_at.strftime('%d %b %Y') if doc.uploaded_at else '' }}</span>
                     </div>
                 </div>
@@ -220,7 +220,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="doc-info">' +
             '<i class="fas fa-' + iconClass + ' doc-icon"></i>' +
             '<div class="doc-details">' +
-            '<span class="doc-name">' + doc.filename + '</span>' +
+            '<span class="doc-name">' + (doc.original_name || doc.filename) + '</span>' +
             '<span class="doc-meta">Uploaded ' + dateStr + '</span>' +
             '</div></div>' +
             '<div class="doc-actions">' +
