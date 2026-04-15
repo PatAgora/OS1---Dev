@@ -5184,8 +5184,18 @@ CV:
         text = text.strip()
 
         import json
+        # Fix common JSON issues: trailing commas, truncated responses
+        text = text.rstrip().rstrip(",")
+        # If truncated (no closing bracket), try to close it
+        if text.startswith("[") and not text.endswith("]"):
+            # Find last complete object
+            last_brace = text.rfind("}")
+            if last_brace > 0:
+                text = text[:last_brace + 1] + "]"
+
         result = json.loads(text)
         if isinstance(result, list):
+            print(f"[AI Extract] Parsed {len(result)} entries")
             return result
         elif isinstance(result, dict) and "entries" in result:
             return result["entries"]
