@@ -1357,7 +1357,7 @@ def personal_details():
             profile.available_from = _parse_date(request.form.get("available_from", ""))
             profile.national_insurance_number = _sanitise(request.form.get("national_insurance_number", ""))
             profile.most_recent_employer = _sanitise(request.form.get("most_recent_employer", ""))
-            profile.contact_current_employer = request.form.get("contact_current_employer") == "1"
+            # contact_current_employer saved on Candidate model (line above), not profile
             profile.unsubscribed = request.form.get("unsubscribed") == "1"
 
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")

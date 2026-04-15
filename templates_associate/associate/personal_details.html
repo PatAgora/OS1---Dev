@@ -204,7 +204,7 @@
         <div class="portal-card-body">
             <div class="form-check">
                 <input type="hidden" name="contact_current_employer" value="0">
-                <input type="checkbox" class="form-check-input" id="contact_current_employer" name="contact_current_employer" value="1" {% if not profile or profile.contact_current_employer is none or profile.contact_current_employer %}checked{% endif %}>
+                <input type="checkbox" class="form-check-input" id="contact_current_employer" name="contact_current_employer" value="1" {% if associate and associate.current_employer_contact_ok %}checked{% endif %}>
                 <label class="form-check-label" for="contact_current_employer">
                     <strong>Can we contact your current employer for a reference?</strong>
                 </label>

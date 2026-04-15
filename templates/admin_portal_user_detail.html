@@ -178,15 +178,14 @@
           {% endif %}
 
           <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Referencing</h6>
-          <div class="row g-3 mb-4">
+          <div class="row g-3 mb-4 align-items-center">
             <div class="col-md-6">
-              <div class="d-flex align-items-center gap-2">
-                {% if cand.current_employer_contact_ok %}
-                  <span class="badge bg-success"><i class="fas fa-check me-1"></i>Can contact current employer</span>
-                {% else %}
-                  <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Do not contact current employer</span>
-                {% endif %}
-              </div>
+              <label class="form-label">Contact Current Employer</label>
+              {% if cand.current_employer_contact_ok %}
+                <div><span class="badge bg-success"><i class="fas fa-check me-1"></i>Yes — can contact current employer</span></div>
+              {% else %}
+                <div><span class="badge bg-danger"><i class="fas fa-times me-1"></i>No — do not contact current employer</span></div>
+              {% endif %}
             </div>
             <div class="col-md-6">
               <label class="form-label">Most Recent Employer</label>
