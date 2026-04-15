@@ -10542,6 +10542,36 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
     if dob_str:
         payload["Candidate"]["PersonalInfo"]["DateOfBirth"] = dob_str
 
+    # DBS checks require CheckSpecificData even for candidate-entry
+    has_dbs = any(ct == "DBS Check" for ct in check_types if ct in VERIFILE_CHECK_MAP)
+    if has_dbs:
+        # Load job title from latest application if available
+        job_title = "Associate"
+        employer_name = "Optimus Solutions"
+        try:
+            with Session(engine) as js:
+                app_row = js.scalar(
+                    select(Application).where(Application.candidate_id == candidate_id)
+                    .order_by(Application.created_at.desc())
+                )
+                if app_row and app_row.job_id:
+                    job = js.get(Job, app_row.job_id)
+                    if job and job.title:
+                        job_title = job.title
+                    if job and job.engagement_id:
+                        eng = js.get(Engagement, job.engagement_id)
+                        if eng and eng.client:
+                            employer_name = eng.client
+        except Exception:
+            pass
+
+        payload["CheckSpecificData"] = {
+            "CheckCriminalPurposeOfCheck": "Paid Work in UK",
+            "CheckCriminalEmploymentSector": "FINANCIAL SERVICES",
+            "CheckCriminalPositionAppliedFor": job_title,
+            "CheckCriminalEmployerName": employer_name,
+        }
+
     import json as _json
     print(f"[Verifile] Placing candidate-entry order: {_json.dumps(payload, indent=2)}")
 
