@@ -2344,7 +2344,7 @@ def references_extract_from_cv():
 
     entries = ai_extract_employment_history(cv_text)
     if not entries:
-        return jsonify({"ok": False, "error": "Could not extract employment history. Please enter your history manually."}), 400
+        return jsonify({"ok": False, "error": f"AI could not extract employment history from your CV ({len(cv_text)} chars extracted). This may happen with scanned PDFs or CVs with unusual formatting. Please enter your history manually."}), 400
 
     return jsonify({"ok": True, "entries": entries})
 

@@ -5174,21 +5174,38 @@ CV TEXT:
 """ + cv_text[:10000]
 
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.1, "max_output_tokens": 4000}
+        import google.generativeai as genai
+        gen_config = genai.GenerationConfig(
+            temperature=0.1,
+            max_output_tokens=4000,
         )
-        text = response.text.strip()
+        response = model.generate_content(prompt, generation_config=gen_config)
+        raw = (response.text or "").strip()
+        print(f"[AI Extract] Raw response ({len(raw)} chars): {raw[:500]}")
+
         # Strip markdown code fences if present
+        text = raw
         if text.startswith("```"):
-            text = text.split("\n", 1)[-1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
+            # Remove first line (```json or ```)
+            text = text.split("\n", 1)[-1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
         import json
-        return json.loads(text)
+        result = json.loads(text)
+        if isinstance(result, list):
+            return result
+        elif isinstance(result, dict) and "entries" in result:
+            return result["entries"]
+        else:
+            print(f"[AI Extract] Unexpected format: {type(result)}")
+            return []
     except Exception as e:
-        print(f"AI employment extraction failed: {e}")
+        try:
+            current_app.logger.warning(f"AI employment extraction failed: {e}")
+        except Exception:
+            print(f"AI employment extraction failed: {e}")
         return []
 
 
