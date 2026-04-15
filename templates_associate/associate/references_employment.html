@@ -25,13 +25,14 @@
 
 <!-- Gaps Detected Warning -->
 {% if gaps_detected and gaps_detected|length > 0 %}
-<div class="alert alert-warning mb-4 d-flex align-items-center flex-wrap gap-1">
-    <i class="fas fa-exclamation-triangle me-1"></i>
-    <strong>Gaps detected:</strong>
-    {% for gap in gaps_detected %}
-    <span>{{ gap.from_date.strftime('%b %Y') if gap.from_date else '?' }} to {{ gap.to_date.strftime('%b %Y') if gap.to_date else '?' }} ({{ gap.days }} days){% if not loop.last %},{% endif %}</span>
-    {% endfor %}
-    <span>— Please add a gap explanation for each period.</span>
+<div class="alert alert-warning mb-4">
+    <i class="fas fa-exclamation-triangle me-2"></i><strong>Gaps detected in your employment history:</strong>
+    <ul class="mb-2 mt-2">
+        {% for gap in gaps_detected %}
+        <li>{{ gap.from_date.strftime('%b %Y') if gap.from_date else '?' }} to {{ gap.to_date.strftime('%b %Y') if gap.to_date else '?' }} ({{ gap.days }} days)</li>
+        {% endfor %}
+    </ul>
+    Please add a gap explanation for each period above.
 </div>
 {% endif %}
 
