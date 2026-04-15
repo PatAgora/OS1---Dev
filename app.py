@@ -6969,7 +6969,7 @@ def opportunity_edit(opp_id):
                 flash(f"Engagement {e.ref} created.", "success")
                 return redirect(url_for("engagement_dashboard", eng_id=e.id))
 
-            return redirect(url_for("opportunities_"))
+            return redirect(url_for("opportunity_edit", opp_id=opp_id))
 
     # Req-041: Load timestamped notes for display
     with Session(engine) as s:
