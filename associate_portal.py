@@ -1313,7 +1313,16 @@ def personal_details():
         if contact_number:
             cand.phone = contact_number
         # Sync contact current employer to Candidate model
-        cand.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
+        contact_val = request.form.get("contact_current_employer") == "1"
+        cand.current_employer_contact_ok = contact_val
+        # Also set via raw SQL as fallback in case ORM doesn't persist
+        try:
+            s.execute(
+                text("UPDATE candidates SET current_employer_contact_ok = :val WHERE id = :cid"),
+                {"val": contact_val, "cid": cand_id}
+            )
+        except Exception:
+            pass
 
         # Update profile fields
         if profile:
