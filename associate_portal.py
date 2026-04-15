@@ -2074,39 +2074,8 @@ def vetting_progress():
 @associate_bp.route("/references", methods=["GET"])
 @_require_login
 def references():
-    """References landing page — two clickable cards: Employment History and Vetting Checks."""
-    EmploymentHistory = _portal_model("EmploymentHistory")
-    QualificationRecord = _portal_model("QualificationRecord")
-    engine = _engine()
-    cand_id = _get_associate_id()
-
-    employment_count = 0
-    gap_count = 0
-    qualification_count = 0
-    years_covered = None
-
-    with SASession(engine) as s:
-        if EmploymentHistory:
-            entries = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).all()
-            employment_count = sum(1 for e in entries if not getattr(e, "is_gap", False))
-            gap_count = sum(1 for e in entries if getattr(e, "is_gap", False))
-            # Years covered: span from earliest start to latest end (or today)
-            starts = [e.start_date for e in entries if e.start_date]
-            if starts:
-                ends = [e.end_date or date.today() for e in entries if e.start_date]
-                span_days = (max(ends) - min(starts)).days
-                years_covered = round(span_days / 365.25, 1)
-
-        if QualificationRecord:
-            qualification_count = s.query(QualificationRecord).filter_by(candidate_id=cand_id).count()
-
-    return render_template(
-        "associate/references.html",
-        employment_count=employment_count,
-        gap_count=gap_count,
-        qualification_count=qualification_count,
-        years_covered=years_covered,
-    )
+    """Redirect to employment history page."""
+    return redirect(url_for("associate.references_employment"))
 
 
 @associate_bp.route("/references/employment", methods=["GET"])
