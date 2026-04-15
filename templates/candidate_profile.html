@@ -943,6 +943,12 @@
                     {% if check.referral_approved_at %} on {{ check.referral_approved_at.strftime('%d %b %Y %H:%M') }}{% endif %}
                   </div>
                   {% endif %}
+                  {% if check.missing_data %}
+                  <div class="mt-1" style="font-size: 0.7rem; color: #991b1b; background: #fee2e2; border-radius: 4px; padding: 0.3rem 0.5rem;">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    <strong>Missing:</strong> {{ check.missing_data|join(', ') }}
+                  </div>
+                  {% endif %}
                 </div>
               </div>
               {% endfor %}

@@ -12149,7 +12149,53 @@ def candidate_profile(cand_id: int):
         # === Vetting Checks ===
         vetting_checks = []
         vetting_summary = {"complete": 0, "in_progress": 0, "not_started": 0, "na": 0}
-        
+
+        # Load profile to check for missing data per vetting check
+        _profile_for_vet = None
+        try:
+            from associate_portal import _portal_model as _pm2
+            _AP = _pm2("AssociateProfile")
+            if _AP:
+                _profile_for_vet = s.scalar(select(_AP).where(_AP.candidate_id == cand_id))
+        except Exception:
+            pass
+
+        def _missing_for_check(check_type):
+            """Return list of missing data items for this check type."""
+            p = _profile_for_vet
+            missing = []
+            if check_type in ("Identity Verification", "DBS Check"):
+                if not p or not getattr(p, 'passport_number', ''):
+                    missing.append("Passport number")
+                if not p or not getattr(p, 'passport_expiry_date', None):
+                    missing.append("Passport expiry date")
+                if not p or not getattr(p, 'dob', None):
+                    missing.append("Date of birth")
+                if not p or not getattr(p, 'gender', ''):
+                    missing.append("Gender")
+            if check_type == "DBS Check":
+                if not p or not getattr(p, 'address_line1', ''):
+                    missing.append("Address")
+                if not p or not getattr(p, 'postcode', ''):
+                    missing.append("Postcode")
+            if check_type == "Right to Work":
+                if not p or not getattr(p, 'passport_number', ''):
+                    missing.append("Passport number")
+            if check_type == "Credit Check":
+                if not p or not getattr(p, 'address_line1', ''):
+                    missing.append("Address")
+                if not p or not getattr(p, 'dob', None):
+                    missing.append("Date of birth")
+            if check_type == "Address History":
+                if not p or not getattr(p, 'address_line1', ''):
+                    missing.append("Current address")
+            if check_type in ("Employment History", "References"):
+                pass  # Checked via employment history entries
+            if check_type == "Sanctions / PEP":
+                if not p or not getattr(p, 'dob', None):
+                    missing.append("Date of birth")
+            return missing
+
         try:
             existing_checks = {
                 vc.check_type: vc
@@ -12190,6 +12236,7 @@ def candidate_profile(cand_id: int):
                         "referral_approved_by": check.referral_approved_by,
                         "referral_approved_by_name": _get_user_name(check.referral_approved_by),
                         "referral_approved_at": check.referral_approved_at,
+                        "missing_data": _missing_for_check(check_type),
                     })
                 else:
                     # Create a placeholder for display
@@ -12212,6 +12259,7 @@ def candidate_profile(cand_id: int):
                         "referral_approved_by": None,
                         "referral_approved_by_name": "",
                         "referral_approved_at": None,
+                        "missing_data": _missing_for_check(check_type),
                     })
             
             # Calculate summary
@@ -12250,6 +12298,32 @@ def candidate_profile(cand_id: int):
         except Exception:
             pass
         
+        # === Employment History (from portal) ===
+        employment_history = []
+        try:
+            from associate_portal import _ensure_models, _portal_model
+            _ensure_models()
+            EmpHistory = _portal_model("EmploymentHistory")
+            if EmpHistory:
+                emp_entries = s.scalars(
+                    select(EmpHistory).where(EmpHistory.candidate_id == cand_id)
+                    .order_by(EmpHistory.start_date.desc())
+                ).all()
+                for emp in emp_entries:
+                    employment_history.append({
+                        "company_name": getattr(emp, 'company_name', '') or '',
+                        "job_title": getattr(emp, 'job_title', '') or '',
+                        "start_date": emp.start_date,
+                        "end_date": emp.end_date,
+                        "is_gap": getattr(emp, 'is_gap', False),
+                        "gap_reason": getattr(emp, 'gap_reason', '') or '',
+                        "referee_email": getattr(emp, 'referee_email', '') or '',
+                        "permission_to_request": getattr(emp, 'permission_to_request', True),
+                        "permission_delay_reason": getattr(emp, 'permission_delay_reason', '') or '',
+                    })
+        except Exception:
+            pass
+
         # === Reference Requests ===
         reference_requests = []
         try:
