@@ -3544,6 +3544,16 @@ class ReferenceRequest(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
+# ---- Email Templates (admin-editable) ----
+class EmailTemplate(Base):
+    __tablename__ = "email_templates"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)  # e.g. "reference_request"
+    subject = Column(String(500), default="")
+    body = Column(Text, default="")
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
 # ---- Contradiction Fix 6: Approved Umbrella Companies ----
 class ApprovedUmbrella(Base):
     """Admin-managed list of approved umbrella companies."""
@@ -11973,6 +11983,31 @@ def candidate_profile(cand_id: int):
         except Exception:
             pass
         
+        # === Reference Requests ===
+        reference_requests = []
+        try:
+            reference_requests = [
+                {
+                    "id": rr.id,
+                    "company_name": rr.company_name or "",
+                    "referee_email": rr.referee_email or "",
+                    "referee_name": rr.referee_name or "",
+                    "status": rr.status or "not_sent",
+                    "sent_at": rr.sent_at,
+                    "chase_count": rr.chase_count or 0,
+                    "colour": rr.colour or "white",
+                    "permission_status": rr.permission_status or "yes",
+                    "notes": rr.notes or "",
+                }
+                for rr in s.scalars(
+                    select(ReferenceRequest)
+                    .where(ReferenceRequest.candidate_id == cand_id)
+                    .order_by(ReferenceRequest.created_at.desc())
+                ).all()
+            ]
+        except Exception:
+            pass
+
         # === Contract Status ===
         contract_status = None
         esig_request = None
@@ -12228,6 +12263,8 @@ def candidate_profile(cand_id: int):
         placements=all_placements,
         placements_active=placements_active,
         placements_historic=placements_historic,
+        # Reference requests for preview/send
+        reference_requests=reference_requests,
         # Req-027: Active engagements for manual placement creation
         active_engagements=s.scalars(
             select(Engagement).where(Engagement.status == "Active").order_by(Engagement.name)
@@ -12954,6 +12991,77 @@ def verify_id(cand_id: int):
 # GAP PLAN: REFERENCE MANAGEMENT — STAFF SIDE (Batch 5)
 # =========================================================================
 
+@app.route("/action/preview-reference/<int:cand_id>/<int:ref_id>", methods=["GET"])
+@login_required
+def preview_reference_email(cand_id: int, ref_id: int):
+    """Return JSON with the rendered reference request email for preview/edit before sending."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        ref_req = s.get(ReferenceRequest, ref_id)
+        if not cand or not ref_req or ref_req.candidate_id != cand_id:
+            return jsonify({"error": "Not found"}), 404
+
+        merge_fields = {
+            "candidate_name": cand.name or "",
+            "company_name": ref_req.company_name or "",
+            "referee_name": ref_req.referee_name or "Sir/Madam",
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+        }
+        if ref_req.employment_history_id:
+            try:
+                from associate_portal import _ensure_models, _portal_model
+                _ensure_models()
+                EmpHistory = _portal_model("EmploymentHistory")
+                if EmpHistory:
+                    emp = s.get(EmpHistory, ref_req.employment_history_id)
+                    if emp:
+                        merge_fields["job_title"] = getattr(emp, "job_title", "") or ""
+                        sd = getattr(emp, "start_date", None)
+                        ed = getattr(emp, "end_date", None)
+                        if sd:
+                            merge_fields["start_date"] = sd.strftime("%d/%m/%Y") if hasattr(sd, "strftime") else str(sd)
+                        if ed:
+                            merge_fields["end_date"] = ed.strftime("%d/%m/%Y") if hasattr(ed, "strftime") else str(ed)
+            except Exception:
+                pass
+
+        email_tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "reference_request"))
+        if email_tpl:
+            subject = email_tpl.subject
+            body = email_tpl.body
+        else:
+            subject = "Reference Request — {candidate_name}"
+            body = """<h2>Reference Request</h2>
+<p>Dear {referee_name},</p>
+<p>We are writing to request a reference for <strong>{candidate_name}</strong>
+who has listed your organisation (<strong>{company_name}</strong>) as a
+previous employer.</p>
+<p>Please could you confirm the following:</p>
+<ul>
+    <li>Dates of employment</li>
+    <li>Job title / role</li>
+    <li>Reason for leaving</li>
+    <li>Any other relevant information</li>
+</ul>
+<p>Please reply directly to this email with the reference details.</p>
+<p>The candidate's signed consent form is attached for your records.</p>
+<p>Thank you for your assistance.</p>
+<p>Regards,<br>Optimus Compliance Team</p>"""
+
+        for field, value in merge_fields.items():
+            subject = subject.replace("{" + field + "}", value)
+            body = body.replace("{" + field + "}", value)
+
+        return jsonify({
+            "subject": subject,
+            "body": body,
+            "referee_email": ref_req.referee_email or "",
+            "company_name": ref_req.company_name or "",
+        })
+
+
 @app.route("/action/send-reference/<int:cand_id>", methods=["POST"])
 @login_required
 def send_reference(cand_id: int):
@@ -12961,6 +13069,9 @@ def send_reference(cand_id: int):
     ref_id = request.form.get("ref_id", type=int)
     referee_email = request.form.get("referee_email", "").strip()
     company_name = request.form.get("company_name", "").strip()
+    # Allow recruiter to pass a customised subject/body from the preview modal
+    custom_subject = (request.form.get("email_subject") or "").strip()
+    custom_body = (request.form.get("email_body") or "").strip()
 
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
@@ -12986,27 +13097,72 @@ def send_reference(cand_id: int):
             flash("No referee email address provided.", "danger")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
 
+        # Build merge field values from the ReferenceRequest + linked EmploymentHistory
+        merge_fields = {
+            "candidate_name": cand.name or "",
+            "company_name": ref_req.company_name or "",
+            "referee_name": ref_req.referee_name or "Sir/Madam",
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+        }
+        # Try to pull job_title, start_date, end_date from linked EmploymentHistory
+        if ref_req.employment_history_id:
+            try:
+                from associate_portal import _ensure_models, _portal_model
+                _ensure_models()
+                EmpHistory = _portal_model("EmploymentHistory")
+                if EmpHistory:
+                    emp = s.get(EmpHistory, ref_req.employment_history_id)
+                    if emp:
+                        merge_fields["job_title"] = getattr(emp, "job_title", "") or ""
+                        sd = getattr(emp, "start_date", None)
+                        ed = getattr(emp, "end_date", None)
+                        if sd:
+                            merge_fields["start_date"] = sd.strftime("%d/%m/%Y") if hasattr(sd, "strftime") else str(sd)
+                        if ed:
+                            merge_fields["end_date"] = ed.strftime("%d/%m/%Y") if hasattr(ed, "strftime") else str(ed)
+            except Exception:
+                pass
+
+        # If the recruiter customised the email via the preview modal, use that directly
+        if custom_subject and custom_body:
+            email_subject = custom_subject
+            html_body = custom_body
+        else:
+            # Load template from DB; fall back to hardcoded default
+            email_tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "reference_request"))
+            if email_tpl:
+                email_subject = email_tpl.subject
+                html_body = email_tpl.body
+                # Replace merge fields
+                for field, value in merge_fields.items():
+                    email_subject = email_subject.replace("{" + field + "}", value)
+                    html_body = html_body.replace("{" + field + "}", value)
+            else:
+                # Hardcoded fallback
+                email_subject = f"Reference Request — {cand.name}"
+                html_body = f"""
+                <h2>Reference Request</h2>
+                <p>Dear {merge_fields['referee_name']},</p>
+                <p>We are writing to request a reference for <strong>{cand.name}</strong>
+                who has listed your organisation (<strong>{ref_req.company_name}</strong>) as a
+                previous employer.</p>
+                <p>Please could you confirm the following:</p>
+                <ul>
+                    <li>Dates of employment</li>
+                    <li>Job title / role</li>
+                    <li>Reason for leaving</li>
+                    <li>Any other relevant information</li>
+                </ul>
+                <p>Please reply directly to this email with the reference details.</p>
+                <p>The candidate's signed consent form is attached for your records.</p>
+                <p>Thank you for your assistance.</p>
+                <p>Regards,<br>Optimus Compliance Team</p>
+                """
+
         # Send reference request email with consent form attached
         try:
-            base_url = os.getenv("APP_BASE_URL", "http://localhost:5001")
-            html_body = f"""
-            <h2>Reference Request</h2>
-            <p>Dear Sir/Madam,</p>
-            <p>We are writing to request a reference for <strong>{cand.name}</strong>
-            who has listed your organisation (<strong>{ref_req.company_name}</strong>) as a
-            previous employer.</p>
-            <p>Please could you confirm the following:</p>
-            <ul>
-                <li>Dates of employment</li>
-                <li>Job title / role</li>
-                <li>Reason for leaving</li>
-                <li>Any other relevant information</li>
-            </ul>
-            <p>Please reply directly to this email with the reference details.</p>
-            <p>The candidate's signed consent form is attached for your records.</p>
-            <p>Thank you for your assistance.</p>
-            <p>Regards,<br>Optimus Compliance Team</p>
-            """
             # Auto-attach signed consent form
             attachments = []
             consent_doc = s.scalar(
@@ -13024,7 +13180,7 @@ def send_reference(cand_id: int):
                             f.read(),
                             "application/pdf"
                         ))
-            send_email(ref_req.referee_email, f"Reference Request — {cand.name}", html_body,
+            send_email(ref_req.referee_email, email_subject, html_body,
                        attachments=attachments if attachments else None)
             ref_req.status = "sent"
             ref_req.sent_at = datetime.datetime.utcnow()
@@ -16351,6 +16507,55 @@ def taxonomy_manage():
     except Exception:
         ref_houses = []
 
+    # Load or seed the reference request email template
+    email_template_ref = None
+    try:
+        with Session(engine) as s6:
+            email_template_ref = s6.scalar(
+                select(EmailTemplate).where(EmailTemplate.name == "reference_request")
+            )
+            if not email_template_ref:
+                default_body = """<h2>Reference Request</h2>
+<p>Dear {referee_name},</p>
+<p>We are writing to request a reference for <strong>{candidate_name}</strong>
+who has listed your organisation (<strong>{company_name}</strong>) as a
+previous employer.</p>
+<p><strong>Job Title:</strong> {job_title}<br>
+<strong>Start Date:</strong> {start_date}<br>
+<strong>End Date:</strong> {end_date}</p>
+<p>Please could you confirm the following:</p>
+<ul>
+    <li>Dates of employment</li>
+    <li>Job title / role</li>
+    <li>Reason for leaving</li>
+    <li>Any other relevant information</li>
+</ul>
+<p>Please reply directly to this email with the reference details.</p>
+<p>The candidate's signed consent form is attached for your records.</p>
+<p>Thank you for your assistance.</p>
+<p>Regards,<br>Optimus Compliance Team</p>"""
+                email_template_ref = EmailTemplate(
+                    name="reference_request",
+                    subject="Reference Request — {candidate_name}",
+                    body=default_body,
+                )
+                s6.add(email_template_ref)
+                s6.commit()
+                # Re-fetch to get ID
+                email_template_ref = s6.scalar(
+                    select(EmailTemplate).where(EmailTemplate.name == "reference_request")
+                )
+            # Detach-safe: copy values
+            email_template_ref = {
+                "id": email_template_ref.id,
+                "name": email_template_ref.name,
+                "subject": email_template_ref.subject,
+                "body": email_template_ref.body,
+                "updated_at": email_template_ref.updated_at,
+            }
+    except Exception:
+        email_template_ref = None
+
     return render_template("taxonomy_manage.html",
                            roles=roles, subjects=subjects,
                            tags_by_cat=tags_by_cat,
@@ -16364,7 +16569,8 @@ def taxonomy_manage():
                            ref_contacts_search=ref_contacts_search,
                            ref_contacts_page=ref_contacts_page,
                            ref_contacts_per_page=ref_contacts_per_page,
-                           ref_houses=ref_houses)
+                           ref_houses=ref_houses,
+                           email_template_ref=email_template_ref)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
@@ -16868,6 +17074,42 @@ def delete_job_template(tpl_id):
             s.commit()
             flash(f"Template for '{tpl.role_type}' deleted.", "success")
     return redirect(url_for("taxonomy_manage") + "#job-templates")
+
+
+@app.route("/admin/email-template/save", methods=["POST"])
+@login_required
+def save_email_template():
+    """Save or update an email template."""
+    import bleach as _bleach
+    tpl_name = (request.form.get("template_name") or "").strip()
+    subject = (request.form.get("subject") or "").strip()
+    body = (request.form.get("body") or "").strip()
+
+    if not tpl_name:
+        flash("Template name is required.", "danger")
+        return redirect(url_for("taxonomy_manage") + "#email-templates")
+
+    # Sanitise HTML body — allow safe tags for email formatting
+    allowed_tags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "strong", "em",
+                    "ul", "ol", "li", "a", "table", "thead", "tbody", "tr", "td", "th",
+                    "span", "div", "hr", "img", "b", "i", "u"]
+    allowed_attrs = {"a": ["href", "title"], "img": ["src", "alt", "width", "height"],
+                     "span": ["style"], "td": ["style"], "th": ["style"], "div": ["style"],
+                     "p": ["style"]}
+    body = _bleach.clean(body, tags=allowed_tags, attributes=allowed_attrs, strip=False)
+
+    with Session(engine) as s:
+        existing = s.scalar(select(EmailTemplate).where(EmailTemplate.name == tpl_name))
+        if existing:
+            existing.subject = subject
+            existing.body = body
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            s.add(EmailTemplate(name=tpl_name, subject=subject, body=body))
+        s.commit()
+
+    flash(f"Email template '{tpl_name}' saved.", "success")
+    return redirect(url_for("taxonomy_manage") + "#email-templates")
 
 
 @login_required
