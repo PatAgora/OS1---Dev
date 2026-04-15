@@ -27,7 +27,12 @@
       </div>
       <div class="col-md-4">
         <label class="form-label fw-semibold">Sector</label>
-        <input type="text" name="sector" class="form-control" value="{{ job.sector if job else '' }}" placeholder="e.g. Financial Services, Banking">
+        <select name="sector" class="form-select">
+          <option value="">Select sector...</option>
+          {% for s in ['FINANCIAL AND INSURANCE','RECRUITMENT AND HR','INFORMATION AND COMMUNICATION','PROFESSIONAL, TECHNICAL','ADMINISTRATIVE AND SUPPORT','NHS','CENTRAL GOVERNMENT','LOCAL GOVERNMENT','PUBLIC SECTOR- OTHER','CONSTRUCTION','MANUFACTURING','RETAIL','REAL ESTATE ACTIVITIES','TRANSPORTATION AND STORAGE','ACCOMMODATION AND FOOD SERVICE','SOCIAL CARE','LAW ENFORCEMENT AND SECURITY','PRIVATE HEALTHCARE','ARTS AND ENTERTAINMENT','LEISURE, SPORT AND TOURISM','VOLUNTARY/CHARITY','PRESCHOOL EDUCATION','PRIMARY EDUCATION','SECONDARY EDUCATION','ACADEMY EDUCATION','FURTHER EDUCATION','HIGHER EDUCATION','INDEPENDENT EDUCATION','FOSTER/ADOPTION','CHILD CARE','DRIVERS','ENERGY AND AIR CONDITIONING','WATER AND WASTE MANAGEMENT','AGRICULTURE, FORESTRY AND FISHING','MINING AND QUARRYING','TRADE OR REPAIR OF VEHICLES'] %}
+          <option value="{{ s }}" {{ 'selected' if job and job.sector == s else '' }}>{{ s }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-4">
         <label class="form-label fw-semibold">Salary / Rate</label>
