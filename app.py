@@ -10575,7 +10575,7 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
 
         payload["CheckSpecificData"] = {
             "CheckCriminalPurposeOfCheck": "Paid Work in UK",
-            "CheckCriminalEmploymentSector": job_sector or "FINANCIAL SERVICES",
+            "CheckCriminalEmploymentSector": job_sector or "FINANCIAL AND INSURANCE",
             "CheckCriminalPositionAppliedFor": job_title,
             "CheckCriminalEmployerName": employer_name,
         }
