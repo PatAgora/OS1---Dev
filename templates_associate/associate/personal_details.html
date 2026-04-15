@@ -188,9 +188,8 @@
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Employment Company</label>
-                    <input type="text" class="form-control" value="{{ employment_company or '' }}" readonly style="background: #f3f4f6; color: #6b7280;">
-                    <small class="text-muted">Auto-populated from <a href="/portal/company-details">Company Details</a></small>
+                    <label class="form-label">Most Recent Employer</label>
+                    <input type="text" name="most_recent_employer" class="form-control" value="{{ profile.most_recent_employer if profile and profile.most_recent_employer else '' }}" placeholder="Enter your most recent employer">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="available_from">Available From</label>
@@ -237,9 +236,8 @@
                 <input type="hidden" name="unsubscribed" value="0">
                 <input type="checkbox" class="form-check-input" id="unsubscribed" name="unsubscribed" value="1" {% if profile and profile.unsubscribed %}checked{% endif %}>
                 <label class="form-check-label" for="unsubscribed">
-                    Unsubscribe from all future communications from Optimus
+                    Unsubscribe from all future communications from Optimus. This will also hide your profile from recruiter searches.
                 </label>
-                <small class="d-block text-muted mt-1">This will also hide your profile from recruiter searches.</small>
             </div>
         </div>
     </div>

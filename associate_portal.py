@@ -138,6 +138,7 @@ def _ensure_models():
         previous_names = Column(Text, default="")
         previous_first_names = Column(String(500), default="")
         previous_surnames = Column(String(500), default="")
+        most_recent_employer = Column(String(300), default="")
         unsubscribed = Column(Boolean, default=False)
         profile_picture = Column(String(500), default="")
         dob = Column(Date, nullable=True)
@@ -1328,6 +1329,7 @@ def personal_details():
             profile.expected_salary = _sanitise(request.form.get("expected_salary", ""))
             profile.available_from = _parse_date(request.form.get("available_from", ""))
             profile.national_insurance_number = _sanitise(request.form.get("national_insurance_number", ""))
+            profile.most_recent_employer = _sanitise(request.form.get("most_recent_employer", ""))
             profile.unsubscribed = request.form.get("unsubscribed") == "1"
 
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")
