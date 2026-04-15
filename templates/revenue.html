@@ -883,12 +883,17 @@
                     <option value="12" {% if selected_month == '12' %}selected{% endif %}>December</option>
                 </select>
             </div>
-            <div class="filter-group" style="min-width: 80px;">
+            <div class="filter-group" style="min-width: 160px;">
                 <label for="weekFilter">Week</label>
                 <select id="weekFilter" name="week">
                     <option value="">All Weeks</option>
                     {% for w in range(1, 53) %}
-                    <option value="{{ w }}" {% if selected_week == w|string %}selected{% endif %}>Week {{ w }}</option>
+                    {% set fy_start_year = selected_fy|default('2025')|int %}
+                    {% set april1 = '%04d-04-01' % fy_start_year %}
+                    <option value="{{ w }}" {% if selected_week == w|string %}selected{% endif %}
+                            data-week="{{ w }}">
+                      Week {{ w }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -1516,12 +1521,110 @@ if (marginVsForecastCtx) {
 }
 
 // Filter Functions
+// UK FY quarter-to-month mapping (April start)
+var _quarterMonths = {'1': ['4','5','6'], '2': ['7','8','9'], '3': ['10','11','12'], '4': ['1','2','3']};
+var _monthToQuarter = {};
+Object.keys(_quarterMonths).forEach(function(q) {
+    _quarterMonths[q].forEach(function(m) { _monthToQuarter[m] = q; });
+});
+
 function setQuarter(q) {
     document.getElementById('quarterFilter').value = q;
     document.querySelectorAll('.period-btn[data-quarter]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.quarter === q);
     });
+    cascadePeriodFilters('quarter');
 }
+
+function cascadePeriodFilters(source) {
+    var monthSel = document.getElementById('monthFilter');
+    var quarterVal = document.getElementById('quarterFilter').value;
+    var monthVal = monthSel ? monthSel.value : '';
+
+    if (source === 'quarter' && quarterVal) {
+        // Quarter selected — only show months in that quarter
+        var validMonths = _quarterMonths[quarterVal] || [];
+        if (monthSel) {
+            Array.from(monthSel.options).forEach(function(opt) {
+                if (!opt.value) { opt.hidden = false; return; }
+                opt.hidden = validMonths.indexOf(opt.value) === -1;
+            });
+            // Reset month if it's now hidden
+            if (monthVal && validMonths.indexOf(monthVal) === -1) {
+                monthSel.value = '';
+            }
+        }
+    } else if (source === 'month' && monthVal) {
+        // Month selected — only allow the quarter it falls in
+        var correctQ = _monthToQuarter[monthVal] || '';
+        document.querySelectorAll('.period-btn[data-quarter]').forEach(function(btn) {
+            if (correctQ) {
+                btn.disabled = btn.dataset.quarter !== correctQ;
+                btn.style.opacity = btn.dataset.quarter !== correctQ ? '0.3' : '1';
+            } else {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        });
+        // Auto-set quarter to match
+        if (correctQ) {
+            document.getElementById('quarterFilter').value = correctQ;
+            document.querySelectorAll('.period-btn[data-quarter]').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.quarter === correctQ);
+            });
+        }
+    } else {
+        // No selection — reset all
+        if (monthSel) {
+            Array.from(monthSel.options).forEach(function(opt) { opt.hidden = false; });
+        }
+        document.querySelectorAll('.period-btn[data-quarter]').forEach(function(btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
+    }
+}
+
+// Update week labels to show w/c dates based on selected FY
+function updateWeekLabels() {
+    var fySel = document.getElementById('fyFilter');
+    var weekSel = document.getElementById('weekFilter');
+    if (!fySel || !weekSel) return;
+    var fyYear = parseInt(fySel.value) || new Date().getFullYear();
+    // UK FY starts 6 April (first Monday on or after 1 April)
+    var april1 = new Date(fyYear, 3, 1); // April 1
+    // Find first Monday on or after April 1
+    var dayOfWeek = april1.getDay();
+    var daysToMon = (dayOfWeek === 0) ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
+    var firstMonday = new Date(fyYear, 3, 1 + daysToMon);
+
+    Array.from(weekSel.options).forEach(function(opt) {
+        if (!opt.value) return;
+        var w = parseInt(opt.value);
+        var wcDate = new Date(firstMonday.getTime() + (w - 1) * 7 * 86400000);
+        var dd = ('0' + wcDate.getDate()).slice(-2);
+        var mm = ('0' + (wcDate.getMonth() + 1)).slice(-2);
+        opt.textContent = 'Wk ' + w + ' (w/c ' + dd + '/' + mm + '/' + wcDate.getFullYear() + ')';
+    });
+}
+
+// Attach listeners
+document.addEventListener('DOMContentLoaded', function() {
+    var monthSel = document.getElementById('monthFilter');
+    var fySel = document.getElementById('fyFilter');
+    if (monthSel) {
+        monthSel.addEventListener('change', function() { cascadePeriodFilters('month'); });
+    }
+    if (fySel) {
+        fySel.addEventListener('change', updateWeekLabels);
+    }
+    // Apply initial state
+    updateWeekLabels();
+    var q = document.getElementById('quarterFilter').value;
+    var m = monthSel ? monthSel.value : '';
+    if (m) cascadePeriodFilters('month');
+    else if (q) cascadePeriodFilters('quarter');
+});
 
 // Dropdown Multi-select Functions
 function toggleDropdown(dropdownId) {
