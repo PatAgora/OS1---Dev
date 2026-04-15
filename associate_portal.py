@@ -2300,7 +2300,7 @@ def references_add_employment():
                 )
             return redirect(url_for("associate.references_employment"))
 
-        can_contact = request.form.get("can_contact") == "1"
+        can_contact = "1" in request.form.getlist("can_contact")
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
@@ -3945,7 +3945,7 @@ def references_edit_entry(entry_id):
             entry.end_date = _parse_date(request.form.get("end_date", ""))
             entry.job_title = _sanitise(request.form.get("job_title", ""))
             entry.reason_for_leaving = _sanitise(request.form.get("reason_for_leaving", ""))
-            entry.permission_to_request = request.form.get("can_contact") == "1"
+            entry.permission_to_request = "1" in request.form.getlist("can_contact")
 
         _add_note(s, cand_id, f"Employment entry updated: {entry.company_name or 'Gap'}.")
         s.commit()
