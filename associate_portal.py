@@ -2025,8 +2025,8 @@ def declaration_form():
 @associate_bp.route("/intro-to-vetting")
 @_require_login
 def intro_to_vetting():
-    """Introduction to the vetting process."""
-    return render_template("associate/intro_to_vetting.html")
+    """Redirect to merged vetting progress page."""
+    return redirect(url_for("associate.vetting_progress"))
 
 
 @associate_bp.route("/vetting-progress")
