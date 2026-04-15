@@ -1313,16 +1313,19 @@ def personal_details():
         if contact_number:
             cand.phone = contact_number
         # Sync contact current employer to Candidate model
-        contact_val = request.form.get("contact_current_employer") == "1"
+        raw_contact = request.form.getlist("contact_current_employer")
+        contact_val = "1" in raw_contact
+        current_app.logger.info(f"[SAVE] contact_current_employer form values: {raw_contact}, resolved: {contact_val}")
         cand.current_employer_contact_ok = contact_val
-        # Also set via raw SQL as fallback in case ORM doesn't persist
+        # Force via raw SQL
         try:
             s.execute(
                 text("UPDATE candidates SET current_employer_contact_ok = :val WHERE id = :cid"),
                 {"val": contact_val, "cid": cand_id}
             )
-        except Exception:
-            pass
+            current_app.logger.info(f"[SAVE] SQL UPDATE candidates SET current_employer_contact_ok = {contact_val} WHERE id = {cand_id}")
+        except Exception as sql_err:
+            current_app.logger.error(f"[SAVE] SQL UPDATE failed: {sql_err}")
 
         # Update profile fields
         if profile:
