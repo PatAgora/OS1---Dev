@@ -970,29 +970,37 @@
               </th>
               <th class="text-center" style="width: 50px;">#</th>
               <th style="min-width: 180px;">Associate</th>
-              <th style="min-width: 140px;">
+              <th style="min-width: 140px; position: relative;">
                 Status
-                <select id="colFilterStatus" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" aria-label="Filter by status" onchange="applyColumnFilter()">
-                  <option value="">All</option>
-                  <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
-                  <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
-                  <option value="On Contract" {{ 'selected' if request.args.get('associate_status') == 'On Contract' else '' }}>On Contract</option>
-                  <option value="On Notice" {{ 'selected' if request.args.get('associate_status') == 'On Notice' else '' }}>On Notice</option>
-                  <option value="In Vetting" {{ 'selected' if request.args.get('associate_status') == 'In Vetting' else '' }}>In Vetting</option>
-                  <option value="Interviewing" {{ 'selected' if request.args.get('associate_status') == 'Interviewing' else '' }}>Interviewing</option>
-                  <option value="Ex-Associate" {{ 'selected' if request.args.get('associate_status') == 'Ex-Associate' else '' }}>Ex-Associate</option>
-                  <option value="Unavailable" {{ 'selected' if request.args.get('associate_status') == 'Unavailable' else '' }}>Unavailable</option>
-                  <option value="DNU" {{ 'selected' if request.args.get('associate_status') == 'DNU' else '' }}>DNU</option>
-                </select>
+                <div class="dropdown-multiselect mt-1" id="col-status-dropdown" style="font-weight: normal;">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start" style="font-size: 0.7rem;" onclick="toggleColDropdown('col-status-dropdown')">
+                    <span class="selected-text">All</span>
+                    <i class="fas fa-chevron-down float-end" style="font-size: 0.6rem; margin-top: 3px;"></i>
+                  </button>
+                  <div class="dropdown-menu-custom" style="display:none; position:absolute; z-index:1000; background:white; border:1px solid #dee2e6; border-radius:6px; padding:0.25rem; min-width:160px; max-height:200px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                    {% for st in ['Available','On Assignment','On Contract','On Notice','In Vetting','Interviewing','Ex-Associate','Unavailable','DNU'] %}
+                    <label class="d-flex align-items-center gap-2 px-2 py-1" style="font-size:0.75rem; cursor:pointer; white-space:nowrap;">
+                      <input type="checkbox" value="{{ st }}" onchange="applyColumnFilter()"> {{ st }}
+                    </label>
+                    {% endfor %}
+                  </div>
+                </div>
               </th>
-              <th style="min-width: 140px;">
+              <th style="min-width: 140px; position: relative;">
                 Location
-                <select id="colFilterLocation" class="form-select form-select-sm mt-1" style="font-weight: normal; font-size: 0.75rem;" aria-label="Filter by location" onchange="applyColumnFilter()">
-                  <option value="all" {{ 'selected' if location_filter == 'all' else '' }}>All</option>
-                  {% for loc in all_locations %}
-                    <option value="{{ loc }}" {{ 'selected' if location_filter == loc else '' }}>{{ loc }}</option>
-                  {% endfor %}
-                </select>
+                <div class="dropdown-multiselect mt-1" id="col-location-dropdown" style="font-weight: normal;">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start" style="font-size: 0.7rem;" onclick="toggleColDropdown('col-location-dropdown')">
+                    <span class="selected-text">All</span>
+                    <i class="fas fa-chevron-down float-end" style="font-size: 0.6rem; margin-top: 3px;"></i>
+                  </button>
+                  <div class="dropdown-menu-custom" style="display:none; position:absolute; z-index:1000; background:white; border:1px solid #dee2e6; border-radius:6px; padding:0.25rem; min-width:160px; max-height:200px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                    {% for loc in all_locations %}
+                    <label class="d-flex align-items-center gap-2 px-2 py-1" style="font-size:0.75rem; cursor:pointer; white-space:nowrap;">
+                      <input type="checkbox" value="{{ loc }}" onchange="applyColumnFilter()"> {{ loc }}
+                    </label>
+                    {% endfor %}
+                  </div>
+                </div>
               </th>
               <th style="min-width: 100px;">Rate</th>
               <th style="min-width: 80px;">Clearance</th>
@@ -1646,29 +1654,61 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Column header filtering — updates the page URL with the selected filter values
+function toggleColDropdown(id) {
+  var dd = document.getElementById(id);
+  var menu = dd.querySelector('.dropdown-menu-custom');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close column dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  document.querySelectorAll('.dropdown-menu-custom').forEach(function(menu) {
+    if (!menu.parentElement.contains(e.target)) {
+      menu.style.display = 'none';
+    }
+  });
+});
+
+function getColFilterValues(dropdownId) {
+  var dd = document.getElementById(dropdownId);
+  if (!dd) return [];
+  var vals = [];
+  dd.querySelectorAll('input[type="checkbox"]:checked').forEach(function(cb) { vals.push(cb.value); });
+  return vals;
+}
+
+function updateColDropdownText(dropdownId) {
+  var dd = document.getElementById(dropdownId);
+  if (!dd) return;
+  var vals = getColFilterValues(dropdownId);
+  var textEl = dd.querySelector('.selected-text');
+  if (textEl) {
+    textEl.textContent = vals.length === 0 ? 'All' : vals.length + ' selected';
+  }
+}
+
 function applyColumnFilter() {
-  const url = new URL(window.location.href);
+  // Update dropdown text
+  updateColDropdownText('col-status-dropdown');
+  updateColDropdownText('col-location-dropdown');
 
-  // Status filter from column header
-  const statusVal = document.getElementById('colFilterStatus').value;
-  if (statusVal) {
-    url.searchParams.set('associate_status', statusVal);
-  } else {
-    url.searchParams.delete('associate_status');
-  }
+  var statusVals = getColFilterValues('col-status-dropdown');
+  var locationVals = getColFilterValues('col-location-dropdown');
 
-  // Location filter from column header
-  const locationVal = document.getElementById('colFilterLocation').value;
-  if (locationVal && locationVal !== 'all') {
-    url.searchParams.set('location', locationVal);
-  } else {
-    url.searchParams.delete('location');
-  }
+  // Client-side filter table rows
+  var rows = document.querySelectorAll('#resourcePoolTable tbody tr');
+  rows.forEach(function(row) {
+    var statusCell = row.querySelector('td:nth-child(4)');
+    var locationCell = row.querySelector('td:nth-child(5)');
+    var rowStatus = statusCell ? (statusCell.textContent || '').trim() : '';
+    var rowLocation = locationCell ? (locationCell.textContent || '').trim() : '';
 
-  // Reset to page 1 when filters change
-  url.searchParams.set('page', '1');
+    var show = true;
+    if (statusVals.length > 0 && !statusVals.some(function(v) { return rowStatus.includes(v); })) show = false;
+    if (locationVals.length > 0 && !locationVals.some(function(v) { return rowLocation.includes(v); })) show = false;
 
-  window.location.href = url.toString();
+    row.style.display = show ? '' : 'none';
+  });
 }
 
 // ===== REQ-268: Column Configuration =====
