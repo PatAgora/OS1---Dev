@@ -12165,10 +12165,10 @@ def candidate_profile(cand_id: int):
             p = _profile_for_vet
             missing = []
             if check_type in ("Identity Verification", "DBS Check"):
-                if not p or not getattr(p, 'passport_number', ''):
-                    missing.append("Passport number")
-                if not p or not getattr(p, 'passport_expiry_date', None):
-                    missing.append("Passport expiry date")
+                has_passport = p and getattr(p, 'passport_number', '')
+                has_dl = p and getattr(p, 'driving_licence_number', '')
+                if not has_passport and not has_dl:
+                    missing.append("Passport or Driving Licence number")
                 if not p or not getattr(p, 'dob', None):
                     missing.append("Date of birth")
                 if not p or not getattr(p, 'gender', ''):
@@ -12179,8 +12179,10 @@ def candidate_profile(cand_id: int):
                 if not p or not getattr(p, 'postcode', ''):
                     missing.append("Postcode")
             if check_type == "Right to Work":
-                if not p or not getattr(p, 'passport_number', ''):
-                    missing.append("Passport number")
+                has_passport = p and getattr(p, 'passport_number', '')
+                has_dl = p and getattr(p, 'driving_licence_number', '')
+                if not has_passport and not has_dl:
+                    missing.append("Passport or Driving Licence number")
             if check_type == "Credit Check":
                 if not p or not getattr(p, 'address_line1', ''):
                     missing.append("Address")
