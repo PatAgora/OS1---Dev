@@ -5102,29 +5102,40 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""Summarise this CV in under 150 words for a recruiter. Be concise — bullet points only, no waffle.
+            prompt = f"""Provide a brief recruiter summary of this CV. Use bullet points. Keep it under 200 words.
 {jd_section}
-**Summary:** 2-3 bullet points — current/most recent role, years of experience, key sector
-**Key Skills:** 3-5 bullet points — specific skills, tools, certifications, clearance levels
-**Concerns:** 1-2 bullet points — gaps, short tenures, missing skills (or "None identified")
+**Summary:**
+• Current/most recent role and employer
+• Total years of experience
+• Key sector (e.g. financial services, banking, compliance)
 
-ONLY use information explicitly in the CV. Never fabricate details.
-If the CV is unreadable, respond: "Unable to retrieve information from CV."
+**Key Skills:**
+• List 3-5 specific skills, tools, certifications or clearance levels found in the CV
+
+**Concerns:**
+• Note any gaps, short tenures or missing skills. If none, write "None identified"
+
+Rules:
+- ONLY use information explicitly stated in the CV below
+- Never fabricate or assume details not present
+- If the CV text is empty or unreadable, respond with: "Unable to retrieve information from CV."
 
 CV TEXT:
 {text}
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                max_output_tokens=800,
+                max_output_tokens=1500,
                 temperature=0.3,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
+            if not resp.parts:
+                return "Unable to retrieve information from CV."
             out = (resp.text or "").strip()
-            if "unable to retrieve" in out.lower() or "cannot parse" in out.lower() or "cannot extract" in out.lower():
+            if "unable to retrieve" in out.lower():
                 return "Unable to retrieve information from CV."
             if out:
-                return _smart_truncate(out, max_chars)
+                return out
         except Exception as e:
             try:
                 current_app.logger.exception("ai_summarise Gemini failed: %s", e)
