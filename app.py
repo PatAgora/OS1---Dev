@@ -11785,61 +11785,36 @@ def webhook_esign():
                         except Exception:
                             pass
 
-        s.commit()
-    return jsonify({"ok": True})
+            else:
+                # Not a known contract — check if it's a declaration (match by signer email)
+                if envelope_status in ("signed", "completed"):
+                    signer_email = ""
+                    parties = payload.get("envelope_parties") or []
+                    if isinstance(parties, list):
+                        for party in parties:
+                            if isinstance(party, dict):
+                                signer_email = (party.get("party_email") or "").strip().lower()
+                                if signer_email:
+                                    break
+                    if not signer_email:
+                        signer_email = (payload.get("signer_email") or payload.get("email") or "").strip().lower()
 
-
-@app.route("/webhook/signable-declaration", methods=["GET", "POST"])
-@csrf.exempt
-def webhook_signable_declaration():
-    """Webhook for Signable employment reference declaration.
-    When signed, matches signer email to candidate and sets flag."""
-    if request.method == "GET":
-        return jsonify({"ok": True, "message": "Signable declaration webhook active"}), 200
-
-    payload = request.json or {}
-
-    # Log the event
-    with Session(engine) as s:
-        s.add(WebhookEvent(
-            source="signable_declaration",
-            event_type=str(payload.get("event", payload.get("envelope_status", "unknown"))),
-            payload=json.dumps(payload)[:39999]
-        ))
-
-        status = (payload.get("envelope_status") or "").lower()
-        if status in ("signed", "completed"):
-            # Find signer email from payload
-            signer_email = ""
-            parties = payload.get("envelope_parties") or []
-            if isinstance(parties, list):
-                for party in parties:
-                    if isinstance(party, dict):
-                        signer_email = (party.get("party_email") or "").strip().lower()
-                        if signer_email:
-                            break
-            if not signer_email:
-                signer_email = (payload.get("signer_email") or payload.get("email") or "").strip().lower()
-
-            if signer_email:
-                # Match to candidate by email
-                cand = s.scalar(
-                    select(Candidate).where(func.lower(Candidate.email) == signer_email)
-                )
-                if cand:
-                    cand.employment_ref_declaration_signed = True
-                    cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
-                    # Add activity note
-                    s.add(CandidateNote(
-                        candidate_id=cand.id,
-                        user_email="Signable Webhook",
-                        note_type="system",
-                        content="Employment Reference Declaration signed via Signable."
-                    ))
-                    print(f"[Webhook] Employment ref declaration signed by {signer_email} (candidate {cand.id})")
+                    if signer_email:
+                        cand = s.scalar(
+                            select(Candidate).where(func.lower(Candidate.email) == signer_email)
+                        )
+                        if cand:
+                            cand.employment_ref_declaration_signed = True
+                            cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+                            s.add(CandidateNote(
+                                candidate_id=cand.id,
+                                user_email="Signable Webhook",
+                                note_type="system",
+                                content="Employment Reference Declaration signed via Signable."
+                            ))
+                            print(f"[Webhook] Declaration signed by {signer_email} (candidate {cand.id})")
 
         s.commit()
-
     return jsonify({"ok": True})
 
 
