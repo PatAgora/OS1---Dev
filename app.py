@@ -6516,9 +6516,7 @@ def opportunities_():
                 owner=owner_name,  # storing name for now
                 est_start=est_start_dt,
                 est_value=int(val or 0),
-                # we keep probability in db but we no longer ask user for it,
-                # so default to 0 for new Leads, 100 for Closed Won, 0 for Closed Lost
-                probability=100 if form.stage.data.lower() == "closed won" else 0,
+                probability={"lead": 0, "qualified lead": 10, "proposal": 30, "procurement": 50, "closed won": 100, "closed lost": 0}.get((form.stage.data or "").lower(), 0),
                 notes=form.notes.data or "",
                 client_contact_name=form.client_contact_name.data or "",
                 client_contact_role=form.client_contact_role.data or "",
@@ -6630,9 +6628,9 @@ def api_opportunity_update_stage(opp_id):
     if not new_stage:
         return jsonify({"ok": False, "error": "Stage is required"}), 400
 
-    # Req-042: Require a note when changing pipeline stage
-    if not stage_note:
-        return jsonify({"ok": False, "error": "Please add a note explaining this stage change.", "note_required": True}), 400
+    # Only require a note when closing (Won/Lost)
+    if not stage_note and to_stage in ("Closed Won", "Closed Lost"):
+        return jsonify({"ok": False, "error": "A note is required when closing an opportunity.", "note_required": True}), 400
 
     with Session(engine) as s:
         opp = s.get(Opportunity, opp_id)
@@ -6748,9 +6746,9 @@ def api_opportunity_move_stage():
     if not opp_id or not to_stage:
         return jsonify({"ok": False, "error": "Missing required fields"}), 400
 
-    # Req-042: Require a note when changing pipeline stage
-    if not stage_note:
-        return jsonify({"ok": False, "error": "Please add a note explaining this stage change.", "note_required": True}), 400
+    # Only require a note when closing (Won/Lost)
+    if not stage_note and to_stage in ("Closed Won", "Closed Lost"):
+        return jsonify({"ok": False, "error": "A note is required when closing an opportunity.", "note_required": True}), 400
     
     with Session(engine) as s:
         opp = s.get(Opportunity, int(opp_id))
@@ -6935,8 +6933,9 @@ def opportunity_edit(opp_id):
                 opp.est_start = None
             opp.est_value = int(form.est_value.data or 0)
 
-            # probability is now implicit; we keep writing it for downstream logic
-            opp.probability = 100 if (opp.stage or "").strip().lower() == "closed won" else 0
+            # Set probability based on stage
+            _stage_prob = {"lead": 0, "qualified lead": 10, "proposal": 30, "procurement": 50, "closed won": 100, "closed lost": 0}
+            opp.probability = _stage_prob.get((opp.stage or "").strip().lower(), 0)
 
             # Req-041: Save notes as timestamped entries instead of overwriting
             new_note_text = (form.notes.data or "").strip()

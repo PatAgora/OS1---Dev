@@ -874,12 +874,6 @@
       Pipeline
       <span class="subtitle">Track all opportunities in the pipeline</span>
     </h2>
-    <div style="display: flex; align-items: center; gap: 0.5rem;">
-      <label style="font-size: 0.8rem; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 0.35rem;">
-        <input type="checkbox" id="showLeadToggle" onchange="toggleLeadRows(this.checked)" style="cursor: pointer;">
-        Show Leads
-      </label>
-    </div>
   </div>
 
   <table class="data-table" id="pipeline-table">
@@ -897,7 +891,6 @@
       {% for opp in opportunities %}
       {% if (opp.stage or '').lower() not in ('closed won', 'closed lost') %}
       <tr data-opp-id="{{ opp.id }}"
-          {% if (opp.stage or '').lower() == 'lead' %}style="display: none;" class="lead-row"{% endif %}
           data-client="{{ opp.client or '' }}"
           data-name="{{ opp.name or '' }}"
           data-stage="{{ opp.stage or 'Lead' }}"
@@ -1473,9 +1466,19 @@ function applyEngagementsFilters() {
   if (emptyRow) emptyRow.style.display = visibleCount === 0 ? '' : 'none';
 
   recalcSummaryTiles();
+  cascadeEngagementFilters();
 }
 
 function clearEngagementsFilters() {
+  // Unhide all dropdown items before clearing
+  ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown'].forEach(id => {
+    const dropdown = document.getElementById(id);
+    if (!dropdown) return;
+    dropdown.querySelectorAll('.dropdown-multiselect-item').forEach(item => {
+      item.hidden = false;
+    });
+  });
+
   clearDropdown('eng-client-dropdown');
   clearDropdown('eng-name-dropdown');
   clearDropdown('eng-ref-dropdown');
@@ -1484,6 +1487,85 @@ function clearEngagementsFilters() {
   // Re-apply the current toggle view
   toggleEngagementView(currentEngView);
   recalcSummaryTiles();
+}
+
+function cascadeEngagementFilters() {
+  const dropdownIds = ['eng-client-dropdown', 'eng-name-dropdown', 'eng-ref-dropdown', 'eng-role-dropdown'];
+  const attrKeys = ['client', 'name', 'ref', 'roles'];
+
+  // Read current selections for each dropdown
+  const selections = {};
+  dropdownIds.forEach((id, i) => {
+    selections[attrKeys[i]] = getSelectedValues(id);
+  });
+
+  // Collect all engagement rows (including hidden ones) as data records
+  const rows = document.querySelectorAll('#engagements-table tbody tr:not(.empty-row)');
+  const records = [];
+  rows.forEach(row => {
+    records.push({
+      client: row.dataset.client || '',
+      name: row.dataset.name || '',
+      ref: row.dataset.ref || '',
+      roles: row.dataset.roles ? row.dataset.roles.split(',') : [],
+      status: row.dataset.status || 'Active'
+    });
+  });
+
+  // For each dropdown, determine valid values based on OTHER dropdowns' selections
+  dropdownIds.forEach((dropdownId, idx) => {
+    const thisAttr = attrKeys[idx];
+
+    // Filter records by all OTHER selections (not this dropdown's)
+    const validValues = new Set();
+    records.forEach(rec => {
+      // Check status toggle
+      if (currentEngView === 'active' && rec.status !== 'Active') return;
+      if (currentEngView === 'completed' && rec.status === 'Active') return;
+
+      let matchesOthers = true;
+      for (let j = 0; j < dropdownIds.length; j++) {
+        if (j === idx) continue; // skip self
+        const otherAttr = attrKeys[j];
+        const otherSel = selections[otherAttr];
+        if (otherSel.length === 0) continue; // no filter on this dimension
+
+        if (otherAttr === 'roles') {
+          if (!otherSel.some(r => rec.roles.includes(r))) { matchesOthers = false; break; }
+        } else {
+          if (!otherSel.includes(rec[otherAttr])) { matchesOthers = false; break; }
+        }
+      }
+      if (!matchesOthers) return;
+
+      // This record passes all other filters — its value(s) for thisAttr are valid
+      if (thisAttr === 'roles') {
+        rec.roles.forEach(r => { if (r) validValues.add(r); });
+      } else {
+        if (rec[thisAttr]) validValues.add(rec[thisAttr]);
+      }
+    });
+
+    // Now show/hide items in this dropdown
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+    let changed = false;
+    dropdown.querySelectorAll('.dropdown-multiselect-item').forEach(item => {
+      const cb = item.querySelector('input[type="checkbox"]');
+      if (!cb) return;
+      const val = cb.value;
+      const isValid = validValues.has(val);
+      item.hidden = !isValid;
+      if (!isValid && cb.checked) {
+        cb.checked = false;
+        item.classList.remove('selected');
+        changed = true;
+      }
+    });
+    if (changed) {
+      updateDropdownText(dropdownId);
+    }
+  });
 }
 
 // ===== Pipeline Drag and Drop Functions =====
@@ -1532,10 +1614,13 @@ function handlePipelineDrop(event) {
   
   const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
 
-  // Req-042: Require a note before allowing stage move
-  const stageNote = prompt('Moving from ' + originalPipelineStage + ' to ' + targetStage + '.\n\nPlease add a note explaining this change:');
-  if (stageNote === null) return;  // User cancelled
-  if (!stageNote.trim()) { alert('A note is required to change the stage.'); return; }
+  // Only require a note for Closed Won / Closed Lost moves
+  var stageNote = '';
+  if (targetStage === 'Closed Won' || targetStage === 'Closed Lost') {
+    stageNote = prompt('Moving to ' + targetStage + '.\n\nPlease add a note:');
+    if (stageNote === null) return;
+    if (!stageNote.trim()) { alert('A note is required when closing an opportunity.'); return; }
+  }
 
   // Hide any empty placeholder in target
   const emptyPlaceholder = targetStageBody.querySelector('.empty-placeholder');
