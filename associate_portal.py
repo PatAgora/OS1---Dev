@@ -2325,6 +2325,72 @@ def references_add_gap():
     return redirect(url_for("associate.references_employment"))
 
 
+@associate_bp.route("/references/extract-from-cv", methods=["POST"])
+@_require_login
+def references_extract_from_cv():
+    """Use AI to extract employment history from candidate's CV."""
+    from app import extract_cv_text, ai_extract_employment_history, Document, engine
+
+    cand_id = _get_associate_id()
+    if not cand_id:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+
+    with SASession(engine) as s:
+        # Find latest CV
+        doc = s.query(Document).filter_by(candidate_id=cand_id, doc_type="cv").order_by(Document.id.desc()).first()
+        if not doc:
+            return jsonify({"ok": False, "error": "No CV uploaded. Please upload your CV first on the My Profile page."}), 400
+
+        cv_text = extract_cv_text(doc)
+        if not cv_text or len(cv_text.strip()) < 50:
+            return jsonify({"ok": False, "error": "Could not extract text from your CV. Please ensure it is a readable PDF or DOCX file."}), 400
+
+    entries = ai_extract_employment_history(cv_text)
+    if not entries:
+        return jsonify({"ok": False, "error": "Could not extract employment history. Please enter your history manually."}), 400
+
+    return jsonify({"ok": True, "entries": entries})
+
+
+@associate_bp.route("/references/save-extracted", methods=["POST"])
+@_require_login
+def references_save_extracted():
+    """Save AI-extracted employment history entries."""
+    cand_id = _get_associate_id()
+    if not cand_id:
+        return jsonify({"ok": False, "error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or not data.get("entries"):
+        return jsonify({"ok": False, "error": "No entries to save"}), 400
+
+    _ensure_models()
+    EmploymentHistory = _portal_model("EmploymentHistory")
+    engine = _engine()
+
+    saved = 0
+    with SASession(engine) as s:
+        for entry in data["entries"]:
+            start = _parse_date(entry.get("start_date", ""))
+            end = _parse_date(entry.get("end_date", "")) if entry.get("end_date") != "Present" else None
+
+            emp = EmploymentHistory(
+                candidate_id=cand_id,
+                company_name=_sanitise(entry.get("company_name", "")),
+                job_title=_sanitise(entry.get("job_title", "")),
+                start_date=start,
+                end_date=end,
+                is_gap=bool(entry.get("is_gap", False)),
+                gap_reason=_sanitise(entry.get("gap_reason", "")),
+                reference_status="not_sent",
+            )
+            s.add(emp)
+            saved += 1
+        s.commit()
+
+    return jsonify({"ok": True, "saved": saved})
+
+
 @associate_bp.route("/references/add-qualification", methods=["POST"])
 @_require_login
 def references_add_qualification():

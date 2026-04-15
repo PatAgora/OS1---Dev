@@ -5101,6 +5101,55 @@ CANDIDATE CV:
         bullets.append("• Summary: " + joined[:600])
     return _smart_truncate("\n".join(bullets), max_chars)
 
+
+def ai_extract_employment_history(cv_text: str) -> list:
+    """Extract employment history from CV text using Gemini AI.
+    Returns list of dicts: company_name, job_title, start_date (YYYY-MM), end_date (YYYY-MM or Present), is_gap, gap_reason"""
+    model = get_gemini_model()
+    if not model or not cv_text.strip():
+        return []
+
+    prompt = """Extract ALL employment history from this CV/resume text. Return ONLY a JSON array with no other text.
+
+For each role include:
+- "company_name": employer name
+- "job_title": role/position title
+- "start_date": in YYYY-MM format (e.g. "2022-03")
+- "end_date": in YYYY-MM format, or "Present" if current role
+- "is_gap": false
+
+Also identify any gaps between jobs longer than 1 month. For gaps:
+- "company_name": ""
+- "job_title": ""
+- "start_date": gap start YYYY-MM
+- "end_date": gap end YYYY-MM
+- "is_gap": true
+- "gap_reason": "Gap between roles"
+
+Order from most recent to oldest. Return valid JSON only.
+
+CV TEXT:
+""" + cv_text[:10000]
+
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.1, "max_output_tokens": 4000}
+        )
+        text = response.text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+        import json
+        return json.loads(text)
+    except Exception as e:
+        print(f"AI employment extraction failed: {e}")
+        return []
+
+
 # --- Optional text extraction deps ---
 try:
     from PyPDF2 import PdfReader            # pip install PyPDF2

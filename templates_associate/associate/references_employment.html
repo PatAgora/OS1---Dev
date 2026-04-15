@@ -43,6 +43,44 @@
     <strong>Reference House Detected:</strong> <span id="referenceHouseMessage"></span>
 </div>
 
+<!-- AI CV Extraction -->
+<div class="portal-card mb-4">
+    <div class="portal-card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1"><i class="fas fa-magic me-2 text-primary"></i>Extract from CV</h5>
+                <p class="text-muted mb-0" style="font-size: 0.85rem;">Use AI to automatically extract your employment history from your uploaded CV.</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="extractCVBtn" onclick="extractFromCV()">
+                <i class="fas fa-robot me-1"></i> Extract from CV
+            </button>
+        </div>
+
+        <!-- Loading spinner -->
+        <div id="extractLoading" style="display: none;" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Analysing your CV... this may take a few seconds.</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="extractError" style="display: none;" class="alert alert-warning mt-3"></div>
+
+        <!-- Results preview -->
+        <div id="extractResults" style="display: none;" class="mt-3">
+            <h6>Review extracted employment history:</h6>
+            <div id="extractedEntries"></div>
+            <div class="d-flex gap-2 mt-3">
+                <button type="button" class="btn btn-success" onclick="saveExtracted()">
+                    <i class="fas fa-check me-1"></i> Save Selected
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="clearExtracted()">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Existing Employment Timeline -->
 <div class="portal-card mb-4">
     <div class="portal-card-header">
@@ -429,6 +467,101 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // ---------- AI CV Extraction ----------
+    window.extractFromCV = function() {
+        document.getElementById('extractCVBtn').disabled = true;
+        document.getElementById('extractLoading').style.display = '';
+        document.getElementById('extractError').style.display = 'none';
+        document.getElementById('extractResults').style.display = 'none';
+
+        fetch('/portal/references/extract-from-cv', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('extractLoading').style.display = 'none';
+            document.getElementById('extractCVBtn').disabled = false;
+
+            if (!data.ok) {
+                document.getElementById('extractError').textContent = data.error || 'Extraction failed';
+                document.getElementById('extractError').style.display = '';
+                return;
+            }
+
+            // Build editable preview rows
+            var html = '';
+            data.entries.forEach(function(entry, i) {
+                var isGap = entry.is_gap;
+                var bgColor = isGap ? '#fef3c7' : '#f0fdf4';
+                var borderColor = isGap ? '#f59e0b' : '#10b981';
+                html += '<div class="p-3 mb-2 rounded" style="background: ' + bgColor + '; border-left: 3px solid ' + borderColor + ';">';
+                html += '<div class="d-flex align-items-start gap-2">';
+                html += '<input type="checkbox" checked class="mt-1 extract-check" data-index="' + i + '">';
+                html += '<div style="flex: 1;">';
+                if (isGap) {
+                    html += '<div class="fw-semibold" style="color: #92400e;"><i class="fas fa-exclamation-triangle me-1"></i>Gap: ' + (entry.gap_reason || 'Between roles') + '</div>';
+                } else {
+                    html += '<div class="fw-semibold">' + (entry.job_title || 'Unknown Role') + '</div>';
+                    html += '<div class="text-muted" style="font-size: 0.85rem;">' + (entry.company_name || 'Unknown Company') + '</div>';
+                }
+                html += '<div style="font-size: 0.8rem; color: #6b7280;">' + (entry.start_date || '?') + ' — ' + (entry.end_date || '?') + '</div>';
+                html += '</div></div></div>';
+            });
+
+            document.getElementById('extractedEntries').innerHTML = html;
+            document.getElementById('extractResults').style.display = '';
+
+            // Store entries for saving
+            window._extractedEntries = data.entries;
+        })
+        .catch(function(e) {
+            document.getElementById('extractLoading').style.display = 'none';
+            document.getElementById('extractCVBtn').disabled = false;
+            document.getElementById('extractError').textContent = 'Error: ' + e.message;
+            document.getElementById('extractError').style.display = '';
+        });
+    };
+
+    window.saveExtracted = function() {
+        if (!window._extractedEntries) return;
+
+        // Get only checked entries
+        var selected = [];
+        document.querySelectorAll('.extract-check:checked').forEach(function(cb) {
+            var idx = parseInt(cb.dataset.index);
+            if (window._extractedEntries[idx]) selected.push(window._extractedEntries[idx]);
+        });
+
+        if (selected.length === 0) {
+            alert('Please select at least one entry to save.');
+            return;
+        }
+
+        fetch('/portal/references/save-extracted', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            credentials: 'same-origin',
+            body: JSON.stringify({entries: selected})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                alert(data.saved + ' entries saved successfully.');
+                location.reload();
+            } else {
+                alert(data.error || 'Failed to save');
+            }
+        })
+        .catch(function(e) { alert('Error: ' + e.message); });
+    };
+
+    window.clearExtracted = function() {
+        document.getElementById('extractResults').style.display = 'none';
+        window._extractedEntries = null;
+    };
 
     // ---------- Delete entry handler ----------
     document.querySelectorAll('.delete-entry-btn').forEach(function(btn) {
