@@ -11786,8 +11786,9 @@ def webhook_esign():
                             pass
 
             else:
-                # Not a known contract — check if it's a declaration (match by signer email)
+                # Not a known contract — declaration/form signed via Signable widget
                 if envelope_status in ("signed", "completed"):
+                    # Extract signer email
                     signer_email = ""
                     parties = payload.get("envelope_parties") or []
                     if isinstance(parties, list):
@@ -11799,20 +11800,45 @@ def webhook_esign():
                     if not signer_email:
                         signer_email = (payload.get("signer_email") or payload.get("email") or "").strip().lower()
 
+                    # Identify the document type from envelope title
+                    envelope_title = (payload.get("envelope_title") or payload.get("title") or "").strip()
+                    title_lower = envelope_title.lower()
+
+                    # Determine document type for activity feed
+                    if "employment" in title_lower and ("reference" in title_lower or "declaration" in title_lower):
+                        doc_label = "Employment Reference Declaration"
+                        is_emp_ref = True
+                    elif "consent" in title_lower:
+                        doc_label = "Consent Form"
+                        is_emp_ref = False
+                    elif "declaration" in title_lower:
+                        doc_label = "Declaration Form"
+                        is_emp_ref = False
+                    elif "secondary" in title_lower and "job" in title_lower:
+                        doc_label = "Secondary Job Declaration"
+                        is_emp_ref = False
+                    else:
+                        doc_label = envelope_title or "Signable Document"
+                        is_emp_ref = False
+
                     if signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
                         )
                         if cand:
-                            cand.employment_ref_declaration_signed = True
-                            cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+                            # Set employment ref flag if applicable
+                            if is_emp_ref:
+                                cand.employment_ref_declaration_signed = True
+                                cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+
+                            # Activity note for ALL signed documents
                             s.add(CandidateNote(
                                 candidate_id=cand.id,
-                                user_email="Signable Webhook",
+                                user_email="Signable",
                                 note_type="system",
-                                content="Employment Reference Declaration signed via Signable."
+                                content=f"{doc_label} signed via Signable."
                             ))
-                            print(f"[Webhook] Declaration signed by {signer_email} (candidate {cand.id})")
+                            print(f"[Webhook] {doc_label} signed by {signer_email} (candidate {cand.id})")
 
         s.commit()
     return jsonify({"ok": True})
