@@ -4436,6 +4436,20 @@ def ensure_schema():
 # Skipping it avoids Postgres table locks that block live requests.
 Base.metadata.create_all(engine)
 
+# Add new columns that create_all won't add to existing tables
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _mc:
+        for _stmt in [
+            "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed_at TIMESTAMP",
+        ]:
+            try:
+                _mc.execute(text(_stmt))
+            except Exception:
+                pass
+except Exception:
+    pass
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
