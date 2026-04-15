@@ -158,6 +158,14 @@ def _ensure_models():
         national_insurance_number = Column(String(20), default="")
         # P8: Gender field for vetting checks
         gender = Column(String(20), default="")
+        # Identity documents for Verifile client entry
+        passport_number = Column(String(20), default="")
+        passport_issuing_country = Column(String(10), default="GB")
+        passport_issue_date = Column(Date, nullable=True)
+        passport_expiry_date = Column(Date, nullable=True)
+        driving_licence_number = Column(String(20), default="")
+        driving_licence_issuing_country = Column(String(10), default="GB")
+        driving_licence_issue_date = Column(Date, nullable=True)
         created_at = Column(DateTime, default=datetime.utcnow)
         updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -729,6 +737,19 @@ def _create_portal_tables():
                 conn.execute(text("ALTER TABLE associate_profiles ADD COLUMN contact_current_employer BOOLEAN DEFAULT TRUE"))
             except Exception:
                 pass
+            for col_stmt in [
+                "ALTER TABLE associate_profiles ADD COLUMN passport_number VARCHAR(20) DEFAULT ''",
+                "ALTER TABLE associate_profiles ADD COLUMN passport_issuing_country VARCHAR(10) DEFAULT 'GB'",
+                "ALTER TABLE associate_profiles ADD COLUMN passport_issue_date DATE",
+                "ALTER TABLE associate_profiles ADD COLUMN passport_expiry_date DATE",
+                "ALTER TABLE associate_profiles ADD COLUMN driving_licence_number VARCHAR(20) DEFAULT ''",
+                "ALTER TABLE associate_profiles ADD COLUMN driving_licence_issuing_country VARCHAR(10) DEFAULT 'GB'",
+                "ALTER TABLE associate_profiles ADD COLUMN driving_licence_issue_date DATE",
+            ]:
+                try:
+                    conn.execute(text(col_stmt))
+                except Exception:
+                    pass
         current_app._associate_tables_created = True
     except Exception as exc:
         current_app.logger.warning("Could not create associate portal tables: %s", exc)
@@ -1356,6 +1377,13 @@ def personal_details():
             profile.expected_salary = _sanitise(request.form.get("expected_salary", ""))
             profile.available_from = _parse_date(request.form.get("available_from", ""))
             profile.national_insurance_number = _sanitise(request.form.get("national_insurance_number", ""))
+            profile.passport_number = _sanitise(request.form.get("passport_number", ""))
+            profile.passport_issuing_country = _sanitise(request.form.get("passport_issuing_country", "GB"))
+            profile.passport_issue_date = _parse_date(request.form.get("passport_issue_date", ""))
+            profile.passport_expiry_date = _parse_date(request.form.get("passport_expiry_date", ""))
+            profile.driving_licence_number = _sanitise(request.form.get("driving_licence_number", ""))
+            profile.driving_licence_issuing_country = _sanitise(request.form.get("driving_licence_issuing_country", "GB"))
+            profile.driving_licence_issue_date = _parse_date(request.form.get("driving_licence_issue_date", ""))
             profile.most_recent_employer = _sanitise(request.form.get("most_recent_employer", ""))
             # contact_current_employer saved on Candidate model (line above), not profile
             profile.unsubscribed = request.form.get("unsubscribed") == "1"

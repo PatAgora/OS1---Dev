@@ -221,20 +221,70 @@
         <div class="portal-card-body">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label" for="ni_number">NI Number</label>
-                    <input type="text" id="national_insurance_number" name="national_insurance_number" class="form-control" value="{{ profile.national_insurance_number if profile and profile.national_insurance_number else '' }}" placeholder="AB 12 34 56 C" maxlength="13">
-                    <small class="text-muted">Format: AB 12 34 56 C</small>
+                    <label class="form-label">NI Number</label>
+                    <input type="text" name="national_insurance_number" class="form-control" value="{{ profile.national_insurance_number if profile and profile.national_insurance_number else '' }}" placeholder="AB 12 34 56 C" maxlength="13">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label" for="gender">Gender</label>
-                    <select id="gender" name="gender" class="form-select">
+                    <label class="form-label">Gender</label>
+                    <select name="gender" class="form-select">
                         <option value="">Select...</option>
                         <option value="Male" {% if profile and profile.gender == 'Male' %}selected{% endif %}>Male</option>
                         <option value="Female" {% if profile and profile.gender == 'Female' %}selected{% endif %}>Female</option>
                         <option value="Non-binary" {% if profile and profile.gender == 'Non-binary' %}selected{% endif %}>Non-binary</option>
                         <option value="Prefer not to say" {% if profile and profile.gender == 'Prefer not to say' %}selected{% endif %}>Prefer not to say</option>
                     </select>
-                    <small class="text-muted">Required for DBS and vetting checks</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Passport Details -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-passport me-2"></i>Passport Details</h3>
+        </div>
+        <div class="portal-card-body">
+            <p class="text-muted mb-3">Required for identity verification and DBS checks. Leave blank if you do not have a passport.</p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Passport Number</label>
+                    <input type="text" name="passport_number" class="form-control" value="{{ profile.passport_number if profile and profile.passport_number else '' }}" placeholder="123456789" maxlength="20">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Issuing Country</label>
+                    <input type="text" name="passport_issuing_country" class="form-control" value="{{ profile.passport_issuing_country if profile and profile.passport_issuing_country else 'GB' }}" placeholder="GB" maxlength="5">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Issue Date</label>
+                    <input type="date" name="passport_issue_date" class="form-control" value="{{ profile.passport_issue_date.strftime('%Y-%m-%d') if profile and profile.passport_issue_date else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Expiry Date</label>
+                    <input type="date" name="passport_expiry_date" class="form-control" value="{{ profile.passport_expiry_date.strftime('%Y-%m-%d') if profile and profile.passport_expiry_date else '' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Driving Licence Details -->
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-car me-2"></i>Driving Licence Details</h3>
+        </div>
+        <div class="portal-card-body">
+            <p class="text-muted mb-3">Required for identity verification. Leave blank if you do not have a UK driving licence.</p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Driving Licence Number</label>
+                    <input type="text" name="driving_licence_number" class="form-control" value="{{ profile.driving_licence_number if profile and profile.driving_licence_number else '' }}" placeholder="SMITH608292JA9UC" maxlength="20">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Issuing Country</label>
+                    <input type="text" name="driving_licence_issuing_country" class="form-control" value="{{ profile.driving_licence_issuing_country if profile and profile.driving_licence_issuing_country else 'GB' }}" placeholder="GB" maxlength="5">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Issue Date</label>
+                    <input type="date" name="driving_licence_issue_date" class="form-control" value="{{ profile.driving_licence_issue_date.strftime('%Y-%m-%d') if profile and profile.driving_licence_issue_date else '' }}">
                 </div>
             </div>
         </div>
