@@ -5146,27 +5146,16 @@ def ai_extract_employment_history(cv_text: str) -> list:
     if not model or not cv_text.strip():
         return []
 
-    prompt = """Extract ALL employment history from this CV/resume text. Return ONLY a JSON array with no other text.
+    prompt = """Extract the employment history from this CV. Return a JSON array only, no other text.
 
-For each role include:
-- "company_name": employer name
-- "job_title": role/position title
-- "start_date": in YYYY-MM format (e.g. "2022-03")
-- "end_date": in YYYY-MM format, or "Present" if current role
-- "is_gap": false
+Each entry: {"company_name": "...", "job_title": "...", "start_date": "YYYY-MM", "end_date": "YYYY-MM or Present", "is_gap": false}
 
-Also identify any gaps between jobs longer than 1 month. For gaps:
-- "company_name": ""
-- "job_title": ""
-- "start_date": gap start YYYY-MM
-- "end_date": gap end YYYY-MM
-- "is_gap": true
-- "gap_reason": "Gap between roles"
+For gaps between jobs over 1 month: {"company_name": "", "job_title": "", "start_date": "YYYY-MM", "end_date": "YYYY-MM", "is_gap": true, "gap_reason": "Gap between roles"}
 
-Order from most recent to oldest. Return valid JSON only.
+Most recent first. JSON array only — no markdown, no explanation.
 
-CV TEXT:
-""" + cv_text[:10000]
+CV:
+""" + cv_text[:8000]
 
     try:
         import google.generativeai as genai
@@ -5175,7 +5164,14 @@ CV TEXT:
             max_output_tokens=4000,
         )
         response = model.generate_content(prompt, generation_config=gen_config)
+        # Handle blocked responses
+        if not response.parts:
+            print(f"[AI Extract] Response blocked or empty. Candidates: {response.candidates}")
+            return []
         raw = (response.text or "").strip()
+        if not raw:
+            print("[AI Extract] Empty response text")
+            return []
         print(f"[AI Extract] Raw response ({len(raw)} chars): {raw[:500]}")
 
         # Strip markdown code fences if present
