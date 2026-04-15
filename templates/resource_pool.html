@@ -480,9 +480,9 @@
     animation: fadeInUp 0.5s ease forwards;
   }
   
-  .stagger-1 { animation-delay: 0.1s; opacity: 0; }
-  .stagger-2 { animation-delay: 0.2s; opacity: 0; }
-  .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+  .stagger-1 { }
+  .stagger-2 { }
+  .stagger-3 { }
   
   /* Responsive */
   @media (max-width: 768px) {
@@ -559,8 +559,8 @@
                 <span class="badge bg-primary ms-2">{{ active_filter_count }} filters active</span>
               {% endif %}
             </label>
-            <input type="text" name="q" value="{{ q }}" class="field-input form-control form-control-lg" 
-                   placeholder="Search by name, skills, location... Use AND/OR/NOT for boolean search">
+            <input type="text" name="q" value="{{ q }}" class="field-input form-control"
+                   placeholder="Search by name, skills, location...">
           </div>
           
           <!-- Engagement Filter -->
