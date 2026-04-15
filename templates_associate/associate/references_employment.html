@@ -121,6 +121,15 @@
                     {% if entry.reason_for_leaving is defined and entry.reason_for_leaving %}
                     <p class="text-muted mb-1"><small>Reason for leaving: {{ entry.reason_for_leaving }}</small></p>
                     {% endif %}
+                    {% if entry.entry_type is not defined or entry.entry_type != 'gap' %}
+                    <p class="mb-1">
+                        {% if entry.permission_to_request is defined and entry.permission_to_request == false %}
+                        <span class="badge bg-danger" style="font-size: 0.7rem;"><i class="fas fa-times me-1"></i>Do not contact</span>
+                        {% else %}
+                        <span class="badge bg-success" style="font-size: 0.7rem;"><i class="fas fa-check me-1"></i>Can contact for reference</span>
+                        {% endif %}
+                    </p>
+                    {% endif %}
                     <div class="timeline-actions mt-2">
                         <button type="button" class="btn btn-sm btn-outline-primary edit-entry-btn" data-entry-id="{{ entry.id }}" data-entry-type="{{ entry.entry_type if entry.entry_type is defined else 'employment' }}">
                             <i class="fas fa-edit"></i> Edit
@@ -205,7 +214,16 @@
                     <input type="text" id="reason_for_leaving" name="reason_for_leaving" class="form-control" placeholder="e.g. End of contract, career progression, redundancy...">
                 </div>
 
-                <!-- Reference consent is now managed globally via the Consent Form -->
+                <div class="col-md-12">
+                    <div class="form-check mt-2">
+                        <input type="hidden" name="can_contact" value="0">
+                        <input type="checkbox" class="form-check-input" id="can_contact" name="can_contact" value="1" checked>
+                        <label class="form-check-label" for="can_contact">
+                            <strong>Can we contact this employer for a reference?</strong>
+                        </label>
+                        <small class="d-block text-muted">If unchecked, we will not contact this employer until you give permission.</small>
+                    </div>
+                </div>
             </div>
 
             <div class="mt-4">

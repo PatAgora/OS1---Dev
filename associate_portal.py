@@ -2300,8 +2300,7 @@ def references_add_employment():
                 )
             return redirect(url_for("associate.references_employment"))
 
-        # NOTE: permission_to_request is no longer set per-entry.
-        # Global reference consent is stored on ConsentRecord.reference_consent instead.
+        can_contact = request.form.get("can_contact") == "1"
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
@@ -2313,6 +2312,7 @@ def references_add_employment():
             job_title=_sanitise(request.form.get("job_title", "")),
             reason_for_leaving=_sanitise(request.form.get("reason_for_leaving", "")),
             is_gap=False,
+            permission_to_request=can_contact,
             reference_status="not_sent",
         )
         s.add(entry)
