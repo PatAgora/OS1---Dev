@@ -3211,6 +3211,8 @@ class Candidate(Base):
     # card fields…
     onboarded_at = Column(DateTime, nullable=True)
     esign_status = Column(String(50), default=None)
+    employment_ref_declaration_signed = Column(Boolean, default=False)
+    employment_ref_declaration_signed_at = Column(DateTime, nullable=True)
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -11043,26 +11045,15 @@ def api_vetting_trigger_referencing(cand_id):
     Sends reference requests respecting contact permission flags."""
     REFERENCE_CHECKS = ["References", "Employment History"]
 
-    # Check if employment reference declaration has been signed
-    force = request.form.get("force") == "1" or request.args.get("force") == "1"
-    if not force:
-        try:
-            from associate_portal import _ensure_models, _portal_model
-            _ensure_models()
-            DeclarationRecord = _portal_model("DeclarationRecord")
-            if DeclarationRecord:
-                with Session(engine) as check_s:
-                    decl = check_s.scalar(
-                        select(DeclarationRecord).where(DeclarationRecord.candidate_id == cand_id)
-                    )
-                    if not decl or not decl.signed_date:
-                        return jsonify({
-                            "ok": False,
-                            "error": "The applicant has not yet signed the Employment Reference Declaration. Referencing cannot start until this is completed.",
-                            "declaration_missing": True
-                        }), 400
-        except Exception:
-            pass
+    # Check if employment reference declaration has been signed via Signable
+    with Session(engine) as check_s:
+        cand_check = check_s.get(Candidate, cand_id)
+        if cand_check and not getattr(cand_check, 'employment_ref_declaration_signed', False):
+            return jsonify({
+                "ok": False,
+                "error": "The applicant has not yet signed the Employment Reference Declaration. Referencing cannot start until this is completed.",
+                "declaration_missing": True
+            }), 400
 
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
@@ -11796,6 +11787,61 @@ def webhook_esign():
 
         s.commit()
     return jsonify({"ok": True})
+
+
+@app.route("/webhook/signable-declaration", methods=["GET", "POST"])
+@csrf.exempt
+def webhook_signable_declaration():
+    """Webhook for Signable employment reference declaration.
+    When signed, matches signer email to candidate and sets flag."""
+    if request.method == "GET":
+        return jsonify({"ok": True, "message": "Signable declaration webhook active"}), 200
+
+    payload = request.json or {}
+
+    # Log the event
+    with Session(engine) as s:
+        s.add(WebhookEvent(
+            source="signable_declaration",
+            event_type=str(payload.get("event", payload.get("envelope_status", "unknown"))),
+            payload=json.dumps(payload)[:39999]
+        ))
+
+        status = (payload.get("envelope_status") or "").lower()
+        if status in ("signed", "completed"):
+            # Find signer email from payload
+            signer_email = ""
+            parties = payload.get("envelope_parties") or []
+            if isinstance(parties, list):
+                for party in parties:
+                    if isinstance(party, dict):
+                        signer_email = (party.get("party_email") or "").strip().lower()
+                        if signer_email:
+                            break
+            if not signer_email:
+                signer_email = (payload.get("signer_email") or payload.get("email") or "").strip().lower()
+
+            if signer_email:
+                # Match to candidate by email
+                cand = s.scalar(
+                    select(Candidate).where(func.lower(Candidate.email) == signer_email)
+                )
+                if cand:
+                    cand.employment_ref_declaration_signed = True
+                    cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+                    # Add activity note
+                    s.add(CandidateNote(
+                        candidate_id=cand.id,
+                        user_email="Signable Webhook",
+                        note_type="system",
+                        content="Employment Reference Declaration signed via Signable."
+                    ))
+                    print(f"[Webhook] Employment ref declaration signed by {signer_email} (candidate {cand.id})")
+
+        s.commit()
+
+    return jsonify({"ok": True})
+
 
 # ---- Request updated CV ----
 @app.route("/action/request_updated_cv/<int:app_id>", methods=["POST"])
