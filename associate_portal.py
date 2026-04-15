@@ -3945,14 +3945,13 @@ def references_edit_entry(entry_id):
             entry.end_date = _parse_date(request.form.get("end_date", ""))
             entry.job_title = _sanitise(request.form.get("job_title", ""))
             entry.reason_for_leaving = _sanitise(request.form.get("reason_for_leaving", ""))
-            # NOTE: permission_to_request no longer set per-entry.
-            # Global reference consent is on ConsentRecord.reference_consent.
+            entry.permission_to_request = request.form.get("can_contact") == "1"
 
         _add_note(s, cand_id, f"Employment entry updated: {entry.company_name or 'Gap'}.")
         s.commit()
 
     flash("Entry updated successfully.", "success")
-    return redirect(url_for("associate.references"))
+    return redirect(url_for("associate.references_employment"))
 
 
 @associate_bp.route("/api/edit-entry/<int:entry_id>", methods=["PUT", "POST"])

@@ -123,7 +123,14 @@
       "is_gap": {% if entry.entry_type is defined and entry.entry_type == 'gap' %}true{% else %}false{% endif %},
       "label": {% if entry.entry_type is defined and entry.entry_type == 'gap' %}"Career gap"{% else %}{{ (entry.company_name or 'Employment')|tojson }}{% endif %},
       "start_date": {{ (entry.start_date.strftime('%Y-%m-%d') if entry.start_date else None)|tojson }},
-      "end_date": {{ (entry.end_date.strftime('%Y-%m-%d') if entry.end_date else None)|tojson }}
+      "end_date": {{ (entry.end_date.strftime('%Y-%m-%d') if entry.end_date else None)|tojson }},
+      "company_name": {{ (entry.company_name or '')|tojson }},
+      "agency_name": {{ (entry.agency_name or '')|tojson }},
+      "referee_email": {{ (entry.referee_email or '')|tojson }},
+      "company_address": {{ (entry.company_address or '')|tojson }},
+      "job_title": {{ (entry.job_title or '')|tojson }},
+      "reason_for_leaving": {{ (entry.reason_for_leaving or '')|tojson }},
+      "permission_to_request": {% if entry.permission_to_request is defined and entry.permission_to_request == false %}false{% else %}true{% endif %}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ]
@@ -542,6 +549,58 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('extractResults').style.display = 'none';
         window._extractedEntries = null;
     };
+
+    // ---------- Edit entry handler ----------
+    var entriesData = JSON.parse(document.getElementById('existingEntriesJson').textContent || '{"entries":[]}');
+    document.querySelectorAll('.edit-entry-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var entryId = parseInt(this.getAttribute('data-entry-id'));
+            var entry = entriesData.entries.find(function(e) { return e.id === entryId; });
+            if (!entry) { alert('Entry not found'); return; }
+            if (entry.is_gap) { alert('Gap entries cannot be edited here.'); return; }
+
+            // Populate the Add Employment form with entry data
+            var form = document.getElementById('addEmploymentForm');
+            form.querySelector('[name="company_name"]').value = entry.company_name || '';
+            form.querySelector('[name="agency_name"]').value = entry.agency_name || '';
+            form.querySelector('[name="referee_email"]').value = entry.referee_email || '';
+            form.querySelector('[name="company_address"]').value = entry.company_address || '';
+            form.querySelector('[name="start_date"]').value = entry.start_date || '';
+            form.querySelector('[name="end_date"]').value = entry.end_date || '';
+            form.querySelector('[name="job_title"]').value = entry.job_title || '';
+            form.querySelector('[name="reason_for_leaving"]').value = entry.reason_for_leaving || '';
+            var contactCb = form.querySelector('#can_contact');
+            if (contactCb) contactCb.checked = entry.permission_to_request !== false;
+
+            // Change form action to edit route and update button text
+            form.action = '/portal/references/edit-entry/' + entryId;
+            var submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+            submitBtn.classList.remove('btn-primary');
+            submitBtn.classList.add('btn-success');
+
+            // Add a cancel button if not already there
+            if (!document.getElementById('cancelEditBtn')) {
+                var cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.id = 'cancelEditBtn';
+                cancelBtn.className = 'btn btn-outline-secondary ms-2';
+                cancelBtn.innerHTML = 'Cancel';
+                cancelBtn.onclick = function() {
+                    form.action = '/portal/references/add-employment';
+                    form.reset();
+                    submitBtn.innerHTML = '<i class="fas fa-plus me-1"></i> Add Employment Entry';
+                    submitBtn.classList.remove('btn-success');
+                    submitBtn.classList.add('btn-primary');
+                    cancelBtn.remove();
+                };
+                submitBtn.parentElement.appendChild(cancelBtn);
+            }
+
+            // Scroll to the form
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
 
     // ---------- Delete entry handler ----------
     document.querySelectorAll('.delete-entry-btn').forEach(function(btn) {
