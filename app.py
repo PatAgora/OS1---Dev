@@ -5389,15 +5389,34 @@ def _truncate_for_ai(text: str, limit: int = 12000) -> str:
     return t[:limit]
 
 def _extract_text_from_pdf(path: str) -> str:
+    # Try pdfplumber first (better layout handling)
+    try:
+        import pdfplumber
+        text_parts = []
+        with pdfplumber.open(path) as pdf:
+            for page in pdf.pages:
+                t = page.extract_text()
+                if t:
+                    text_parts.append(t)
+        result = "\n".join(text_parts)
+        if result.strip():
+            print(f"[PDF] pdfplumber extracted {len(result)} chars from {path}")
+            return result
+    except Exception as e:
+        print(f"[PDF] pdfplumber failed: {e}")
+
+    # Fallback to PyPDF2
     if PdfReader is None:
         return ""
     try:
         with open(path, "rb") as f:
             reader = PdfReader(f)
             pages = [p.extract_text() or "" for p in reader.pages]
-            return "\n".join(pages)
+            result = "\n".join(pages)
+            print(f"[PDF] PyPDF2 extracted {len(result)} chars from {path}")
+            return result
     except Exception as e:
-        print("PDF extract error:", e)
+        print(f"[PDF] PyPDF2 failed: {e}")
         return ""
 
 def _extract_text_from_docx(path: str) -> str:

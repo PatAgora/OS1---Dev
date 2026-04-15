@@ -1399,6 +1399,22 @@ def upload_cv():
             s.add(doc)
             s.commit()
 
+            # Auto-generate AI summary after CV upload
+            try:
+                from app import extract_cv_text, ai_summarise
+                Candidate = _model("Candidate")
+                cv_text = extract_cv_text(doc)
+                if cv_text and len(cv_text.strip()) > 50:
+                    summary = ai_summarise(cv_text)
+                    if summary and Candidate:
+                        cand_obj = s.get(Candidate, cand_id)
+                        if cand_obj:
+                            cand_obj.ai_summary = summary
+                            s.commit()
+                            current_app.logger.info(f"AI summary auto-generated for candidate {cand_id}")
+            except Exception as e:
+                current_app.logger.warning(f"Auto AI summary failed for candidate {cand_id}: {e}")
+
     flash("CV uploaded successfully.", "success")
     return redirect(url_for("associate.personal_details"))
 
