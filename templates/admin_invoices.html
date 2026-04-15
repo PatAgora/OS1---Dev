@@ -289,30 +289,70 @@
 </div>
 
 <!-- Filter Bar -->
-<div class="filter-bar">
-    <input type="text" placeholder="Search invoices..." id="invoice-search" aria-label="Search invoices">
-    <select id="status-filter" aria-label="Filter by status">
-        <option value="">All Status</option>
-        <option value="draft">Draft</option>
-        <option value="pending">Pending</option>
-        <option value="paid">Paid</option>
-        <option value="overdue">Overdue</option>
-    </select>
-    <select id="client-filter" aria-label="Filter by client">
-        <option value="">All Clients</option>
-        {% for client in clients|default([]) %}
-        <option value="{{ client.name }}">{{ client.name }}</option>
-        {% endfor %}
-    </select>
-    <select id="engagement-filter" aria-label="Filter by engagement">
-        <option value="">All Engagements</option>
-        {% for eng in engagements|default([]) %}
-        <option value="{{ eng.id }}" data-client="{{ eng.client }}">{{ eng.name }}</option>
-        {% endfor %}
-    </select>
-    <input type="date" id="date-from" placeholder="From" aria-label="Filter from date">
-    <input type="date" id="date-to" placeholder="To" aria-label="Filter to date">
+<div class="filter-bar" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; padding: 1rem; background: #f9fafb; border-radius: 8px; margin-bottom: 1rem;">
+    <div style="flex: 1; min-width: 180px;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Search</label>
+        <input type="text" placeholder="Search invoices..." id="invoice-search" class="form-control form-control-sm" aria-label="Search invoices">
+    </div>
+    <div style="min-width: 140px; position: relative;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Status</label>
+        <div class="inv-multiselect" id="inv-status-dd">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start" style="font-size: 0.75rem;" onclick="toggleInvDD('inv-status-dd')">
+                <span class="dd-text">All</span> <i class="fas fa-chevron-down float-end" style="font-size: 0.6rem; margin-top: 3px;"></i>
+            </button>
+            <div class="inv-dd-menu" style="display:none;">
+                {% set seen_statuses = [] %}
+                {% for inv in invoices|default([]) %}
+                  {% set st = inv.status|default('Draft') %}
+                  {% if st not in seen_statuses %}{% if seen_statuses.append(st) %}{% endif %}{% endif %}
+                {% endfor %}
+                {% for st in seen_statuses|sort %}
+                <label class="inv-dd-item"><input type="checkbox" value="{{ st }}" onchange="filterInvoices()"> {{ st }}</label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div style="min-width: 140px; position: relative;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Client</label>
+        <div class="inv-multiselect" id="inv-client-dd">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start" style="font-size: 0.75rem;" onclick="toggleInvDD('inv-client-dd')">
+                <span class="dd-text">All</span> <i class="fas fa-chevron-down float-end" style="font-size: 0.6rem; margin-top: 3px;"></i>
+            </button>
+            <div class="inv-dd-menu" style="display:none;">
+                {% for client in clients|default([]) %}
+                <label class="inv-dd-item"><input type="checkbox" value="{{ client.name }}" onchange="filterInvoices()"> {{ client.name }}</label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div style="min-width: 160px; position: relative;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Engagement</label>
+        <div class="inv-multiselect" id="inv-eng-dd">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start" style="font-size: 0.75rem;" onclick="toggleInvDD('inv-eng-dd')">
+                <span class="dd-text">All</span> <i class="fas fa-chevron-down float-end" style="font-size: 0.6rem; margin-top: 3px;"></i>
+            </button>
+            <div class="inv-dd-menu" style="display:none;">
+                {% for eng in engagements|default([]) %}
+                <label class="inv-dd-item" data-client="{{ eng.client }}"><input type="checkbox" value="{{ eng.id }}" onchange="filterInvoices()"> {{ eng.name }}</label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div style="min-width: 120px;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">From</label>
+        <input type="date" id="date-from" class="form-control form-control-sm" aria-label="Filter from date" onchange="filterInvoices()">
+    </div>
+    <div style="min-width: 120px;">
+        <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">To</label>
+        <input type="date" id="date-to" class="form-control form-control-sm" aria-label="Filter to date" onchange="filterInvoices()">
+    </div>
 </div>
+<style>
+.inv-multiselect { position: relative; }
+.inv-dd-menu { position: absolute; z-index: 1000; background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 0.25rem; min-width: 160px; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.inv-dd-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+.inv-dd-item:hover { background: #f3f4f6; border-radius: 4px; }
+</style>
 
 <!-- Invoices Table -->
 <div class="invoice-card">
@@ -337,7 +377,7 @@
             </thead>
             <tbody>
                 {% for inv in invoices|default([]) %}
-                <tr data-client="{{ inv.client_name }}" data-engagement="{{ inv.engagement_id or '' }}">
+                <tr data-client="{{ inv.client_name }}" data-engagement="{{ inv.engagement_id or '' }}" data-status="{{ inv.status|default('Draft') }}">
                     <td><span class="invoice-number">{{ inv.invoice_number }}</span></td>
                     <td>{{ inv.client_name }}</td>
                     <td>{{ inv.engagement_name }}</td>
@@ -382,83 +422,119 @@
 </div>
 
 <script>
+function toggleInvDD(id) {
+    var dd = document.getElementById(id);
+    var menu = dd.querySelector('.inv-dd-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('.inv-dd-menu').forEach(function(menu) {
+        if (!menu.parentElement.contains(e.target)) menu.style.display = 'none';
+    });
+});
+
+function getInvDDValues(id) {
+    var dd = document.getElementById(id);
+    if (!dd) return [];
+    var vals = [];
+    dd.querySelectorAll('input[type="checkbox"]:checked').forEach(function(cb) { vals.push(cb.value); });
+    return vals;
+}
+
+function updateInvDDText(id) {
+    var dd = document.getElementById(id);
+    if (!dd) return;
+    var vals = getInvDDValues(id);
+    var textEl = dd.querySelector('.dd-text');
+    if (textEl) textEl.textContent = vals.length === 0 ? 'All' : vals.length + ' selected';
+}
+
+function filterInvoices() {
+    updateInvDDText('inv-status-dd');
+    updateInvDDText('inv-client-dd');
+    updateInvDDText('inv-eng-dd');
+
+    var search = (document.getElementById('invoice-search').value || '').toLowerCase();
+    var statusVals = getInvDDValues('inv-status-dd');
+    var clientVals = getInvDDValues('inv-client-dd');
+    var engVals = getInvDDValues('inv-eng-dd');
+    var dateFrom = document.getElementById('date-from').value;
+    var dateTo = document.getElementById('date-to').value;
+
+    document.querySelectorAll('.invoice-table tbody tr').forEach(function(row) {
+        var text = (row.textContent || '').toLowerCase();
+        var rowStatus = row.getAttribute('data-status') || '';
+        var rowClient = row.getAttribute('data-client') || '';
+        var rowEng = row.getAttribute('data-engagement') || '';
+
+        var show = true;
+        if (search && text.indexOf(search) === -1) show = false;
+        if (statusVals.length > 0 && statusVals.indexOf(rowStatus) === -1) show = false;
+        if (clientVals.length > 0 && clientVals.indexOf(rowClient) === -1) show = false;
+        if (engVals.length > 0 && engVals.indexOf(rowEng) === -1) show = false;
+
+        row.style.display = show ? '' : 'none';
+    });
+
+    // Bidirectional cascade
+    cascadeInvFilters();
+}
+
+function cascadeInvFilters() {
+    var statusVals = getInvDDValues('inv-status-dd');
+    var clientVals = getInvDDValues('inv-client-dd');
+    var engVals = getInvDDValues('inv-eng-dd');
+
+    // Build records from table rows
+    var records = [];
+    document.querySelectorAll('.invoice-table tbody tr').forEach(function(row) {
+        records.push({
+            status: row.getAttribute('data-status') || '',
+            client: row.getAttribute('data-client') || '',
+            eng: row.getAttribute('data-engagement') || ''
+        });
+    });
+
+    function validVals(field, otherFilters) {
+        var valid = new Set();
+        records.forEach(function(rec) {
+            var match = true;
+            otherFilters.forEach(function(f) {
+                if (f.vals.length > 0 && f.vals.indexOf(rec[f.key]) === -1) match = false;
+            });
+            if (match && rec[field]) valid.add(rec[field]);
+        });
+        return valid;
+    }
+
+    // Status: filter by client + engagement
+    var validStatuses = validVals('status', [{key:'client',vals:clientVals},{key:'eng',vals:engVals}]);
+    var statusDD = document.getElementById('inv-status-dd');
+    if (statusDD) statusDD.querySelectorAll('.inv-dd-item').forEach(function(item) {
+        var cb = item.querySelector('input[type="checkbox"]');
+        if (cb) { item.hidden = validStatuses.size > 0 && !validStatuses.has(cb.value); if (item.hidden && cb.checked) { cb.checked = false; } }
+    });
+
+    // Client: filter by status + engagement
+    var validClients = validVals('client', [{key:'status',vals:statusVals},{key:'eng',vals:engVals}]);
+    var clientDD = document.getElementById('inv-client-dd');
+    if (clientDD) clientDD.querySelectorAll('.inv-dd-item').forEach(function(item) {
+        var cb = item.querySelector('input[type="checkbox"]');
+        if (cb) { item.hidden = validClients.size > 0 && !validClients.has(cb.value); if (item.hidden && cb.checked) { cb.checked = false; } }
+    });
+
+    // Engagement: filter by status + client
+    var validEngs = validVals('eng', [{key:'status',vals:statusVals},{key:'client',vals:clientVals}]);
+    var engDD = document.getElementById('inv-eng-dd');
+    if (engDD) engDD.querySelectorAll('.inv-dd-item').forEach(function(item) {
+        var cb = item.querySelector('input[type="checkbox"]');
+        if (cb) { item.hidden = validEngs.size > 0 && !validEngs.has(cb.value); if (item.hidden && cb.checked) { cb.checked = false; } }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Search functionality
-    const searchInput = document.getElementById('invoice-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', filterInvoices);
-    }
-
-    // Filter functionality
-    document.querySelectorAll('#status-filter, #client-filter, #engagement-filter, #date-from, #date-to').forEach(el => {
-        el.addEventListener('change', filterInvoices);
-    });
-
-    // --- Bidirectional cascade: Client <-> Engagement ---
-    var clientSelect = document.getElementById('client-filter');
-    var engagementSelect = document.getElementById('engagement-filter');
-    var cascadeGuard = false;
-
-    clientSelect.addEventListener('change', function() {
-        if (cascadeGuard) return;
-        cascadeGuard = true;
-        var selectedClient = clientSelect.value;
-        Array.prototype.forEach.call(engagementSelect.options, function(opt) {
-            if (!opt.value) { opt.hidden = false; return; }
-            var optClient = opt.getAttribute('data-client') || '';
-            opt.hidden = selectedClient ? (optClient !== selectedClient) : false;
-        });
-        if (engagementSelect.selectedOptions[0] && engagementSelect.selectedOptions[0].hidden) {
-            engagementSelect.value = '';
-        }
-        cascadeGuard = false;
-        filterInvoices();
-    });
-
-    engagementSelect.addEventListener('change', function() {
-        if (cascadeGuard) return;
-        cascadeGuard = true;
-        var selectedOpt = engagementSelect.selectedOptions[0];
-        if (selectedOpt && selectedOpt.value) {
-            var engClient = selectedOpt.getAttribute('data-client') || '';
-            // Show only the matching client, hide others
-            Array.prototype.forEach.call(clientSelect.options, function(opt) {
-                if (!opt.value) { opt.hidden = false; return; }
-                opt.hidden = engClient ? (opt.value !== engClient) : false;
-            });
-            if (clientSelect.selectedOptions[0] && clientSelect.selectedOptions[0].hidden) {
-                clientSelect.value = '';
-            }
-        } else {
-            // Reset: show all client options
-            Array.prototype.forEach.call(clientSelect.options, function(opt) {
-                opt.hidden = false;
-            });
-        }
-        cascadeGuard = false;
-        filterInvoices();
-    });
-
-    function filterInvoices() {
-        const search = document.getElementById('invoice-search').value.toLowerCase();
-        const status = document.getElementById('status-filter').value.toLowerCase();
-        const client = document.getElementById('client-filter').value;
-        const engagement = document.getElementById('engagement-filter').value;
-
-        document.querySelectorAll('.invoice-table tbody tr').forEach(row => {
-            const text = row.textContent.toLowerCase();
-            const rowStatus = row.querySelector('.status-badge')?.textContent.toLowerCase() || '';
-            const rowClient = row.getAttribute('data-client') || '';
-            const rowEngagement = row.getAttribute('data-engagement') || '';
-
-            const matchesSearch = text.includes(search);
-            const matchesStatus = !status || rowStatus.includes(status);
-            const matchesClient = !client || rowClient === client;
-            const matchesEngagement = !engagement || rowEngagement === engagement;
-
-            row.style.display = matchesSearch && matchesStatus && matchesClient && matchesEngagement ? '' : 'none';
-        });
-    }
+    var searchInput = document.getElementById('invoice-search');
+    if (searchInput) searchInput.addEventListener('input', filterInvoices);
 });
 </script>
 
