@@ -12105,56 +12105,53 @@ def candidate_profile(cand_id: int):
         vetting_summary = {"complete": 0, "in_progress": 0, "not_started": 0, "na": 0}
 
         # Load profile to check for missing data per vetting check
-        _profile_for_vet = None
+        _profile_data = {}
         try:
-            from associate_portal import _ensure_models as _em2, _portal_model as _pm2
-            _em2()
-            _AP = _pm2("AssociateProfile")
-            if _AP:
-                _profile_for_vet = s.scalar(select(_AP).where(_AP.candidate_id == cand_id))
-                if _profile_for_vet:
-                    # Force load attributes before they're accessed in _missing_for_check
-                    _ = (_profile_for_vet.passport_number, _profile_for_vet.dob,
-                         _profile_for_vet.gender, _profile_for_vet.address_line1,
-                         _profile_for_vet.postcode, _profile_for_vet.driving_licence_number)
+            row = s.execute(text(
+                "SELECT dob, gender, address_line1, postcode, passport_number, "
+                "driving_licence_number FROM associate_profiles WHERE candidate_id = :cid"
+            ), {"cid": cand_id}).first()
+            if row:
+                _profile_data = {
+                    "dob": row[0],
+                    "gender": row[1] or "",
+                    "address_line1": row[2] or "",
+                    "postcode": row[3] or "",
+                    "passport_number": row[4] or "",
+                    "driving_licence_number": row[5] or "",
+                }
         except Exception:
             pass
 
         def _missing_for_check(check_type):
             """Return list of missing data items for this check type."""
-            p = _profile_for_vet
+            p = _profile_data
             missing = []
             if check_type in ("Identity Verification", "DBS Check"):
-                has_passport = p and getattr(p, 'passport_number', '')
-                has_dl = p and getattr(p, 'driving_licence_number', '')
-                if not has_passport and not has_dl:
+                if not p.get("passport_number") and not p.get("driving_licence_number"):
                     missing.append("Passport or Driving Licence number")
-                if not p or not getattr(p, 'dob', None):
+                if not p.get("dob"):
                     missing.append("Date of birth")
-                if not p or not getattr(p, 'gender', ''):
+                if not p.get("gender"):
                     missing.append("Gender")
             if check_type == "DBS Check":
-                if not p or not getattr(p, 'address_line1', ''):
+                if not p.get("address_line1"):
                     missing.append("Address")
-                if not p or not getattr(p, 'postcode', ''):
+                if not p.get("postcode"):
                     missing.append("Postcode")
             if check_type == "Right to Work":
-                has_passport = p and getattr(p, 'passport_number', '')
-                has_dl = p and getattr(p, 'driving_licence_number', '')
-                if not has_passport and not has_dl:
+                if not p.get("passport_number") and not p.get("driving_licence_number"):
                     missing.append("Passport or Driving Licence number")
             if check_type == "Credit Check":
-                if not p or not getattr(p, 'address_line1', ''):
+                if not p.get("address_line1"):
                     missing.append("Address")
-                if not p or not getattr(p, 'dob', None):
+                if not p.get("dob"):
                     missing.append("Date of birth")
             if check_type == "Address History":
-                if not p or not getattr(p, 'address_line1', ''):
+                if not p.get("address_line1"):
                     missing.append("Current address")
-            if check_type in ("Employment History", "References"):
-                pass  # Checked via employment history entries
             if check_type == "Sanctions / PEP":
-                if not p or not getattr(p, 'dob', None):
+                if not p.get("dob"):
                     missing.append("Date of birth")
             return missing
 
