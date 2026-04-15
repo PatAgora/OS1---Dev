@@ -2457,35 +2457,52 @@ def admin_portal_user_delete(cand_id: int):
 
         name = cand.name
 
-        # Clean up all related records
-        app_ids = [aid for (aid,) in s.execute(
-            select(Application.id).where(Application.candidate_id == cand_id)
-        ).all()]
-        if app_ids:
-            s.execute(delete(ESigRequest).where(ESigRequest.application_id.in_(app_ids)))
+        # Clean up all related records — order matters for foreign keys
+        try:
+            app_ids = [aid for (aid,) in s.execute(
+                select(Application.id).where(Application.candidate_id == cand_id)
+            ).all()]
+
+            # ESigRequest (references application_id and candidate_id)
+            s.execute(delete(ESigRequest).where(ESigRequest.candidate_id == cand_id))
+            if app_ids:
+                s.execute(delete(ESigRequest).where(ESigRequest.application_id.in_(app_ids)))
+                try:
+                    s.execute(delete(TrustIDCheck).where(TrustIDCheck.application_id.in_(app_ids)))
+                except Exception:
+                    pass
+                s.execute(delete(Application).where(Application.id.in_(app_ids)))
+
+            s.execute(delete(VettingCheck).where(VettingCheck.candidate_id == cand_id))
+            s.execute(delete(Shortlist).where(Shortlist.candidate_id == cand_id))
+            s.execute(delete(CandidateTag).where(CandidateTag.candidate_id == cand_id))
+            s.execute(delete(Document).where(Document.candidate_id == cand_id))
+
             try:
-                s.execute(delete(TrustIDCheck).where(TrustIDCheck.application_id.in_(app_ids)))
+                s.execute(delete(CandidateNote).where(CandidateNote.candidate_id == cand_id))
             except Exception:
                 pass
-            s.execute(delete(Application).where(Application.id.in_(app_ids)))
-        s.execute(delete(VettingCheck).where(VettingCheck.candidate_id == cand_id))
-        s.execute(delete(Shortlist).where(Shortlist.candidate_id == cand_id))
-        s.execute(delete(CandidateTag).where(CandidateTag.candidate_id == cand_id))
-        s.execute(delete(Document).where(Document.candidate_id == cand_id))
-        try:
-            s.execute(delete(CandidateNote).where(CandidateNote.candidate_id == cand_id))
-        except Exception:
-            pass
-        # Clean up associate profile if exists
-        try:
-            s.execute(text("DELETE FROM associate_profiles WHERE candidate_id = :cid"), {"cid": cand_id})
-        except Exception:
-            pass
+            try:
+                s.execute(delete(ReferenceRequest).where(ReferenceRequest.candidate_id == cand_id))
+            except Exception:
+                pass
 
-        log_audit_event('delete', 'data_access', f'Deleted portal user: {name} (id={cand_id})',
-                        details={"candidate_id": cand_id, "applications_deleted": len(app_ids)})
-        s.delete(cand)
-        s.commit()
+            # Portal tables
+            for tbl in ['associate_profiles', 'employment_history', 'consent_records',
+                        'declaration_records', 'qualification_records', 'address_history']:
+                try:
+                    s.execute(text(f"DELETE FROM {tbl} WHERE candidate_id = :cid"), {"cid": cand_id})
+                except Exception:
+                    pass
+
+            log_audit_event('delete', 'data_access', f'Deleted portal user: {name} (id={cand_id})',
+                            details={"candidate_id": cand_id, "applications_deleted": len(app_ids)})
+            s.delete(cand)
+            s.commit()
+        except Exception as e:
+            s.rollback()
+            flash(f"Failed to delete user: {e}", "danger")
+            return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
         flash(f"Portal user {name} and all associated data deleted", "success")
 
     return redirect(url_for("admin_portal_users"))
