@@ -43,44 +43,6 @@
     <strong>Reference House Detected:</strong> <span id="referenceHouseMessage"></span>
 </div>
 
-<!-- AI CV Extraction -->
-<div class="portal-card mb-4">
-    <div class="portal-card-body">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h5 class="mb-1"><i class="fas fa-magic me-2 text-primary"></i>Extract from CV</h5>
-                <p class="text-muted mb-0" style="font-size: 0.85rem;">Use AI to automatically extract your employment history from your uploaded CV.</p>
-            </div>
-            <button type="button" class="btn btn-primary" id="extractCVBtn" onclick="extractFromCV()">
-                <i class="fas fa-robot me-1"></i> Extract from CV
-            </button>
-        </div>
-
-        <!-- Loading spinner -->
-        <div id="extractLoading" style="display: none;" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="text-muted mt-2">Analysing your CV... this may take a few seconds.</p>
-        </div>
-
-        <!-- Error message -->
-        <div id="extractError" style="display: none;" class="alert alert-warning mt-3"></div>
-
-        <!-- Results preview -->
-        <div id="extractResults" style="display: none;" class="mt-3">
-            <h6>Review extracted employment history:</h6>
-            <div id="extractedEntries"></div>
-            <div class="d-flex gap-2 mt-3">
-                <button type="button" class="btn btn-success" onclick="saveExtracted()">
-                    <i class="fas fa-check me-1"></i> Save Selected
-                </button>
-                <button type="button" class="btn btn-outline-secondary" onclick="clearExtracted()">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Existing Employment Timeline -->
 <div class="portal-card mb-4">
     <div class="portal-card-header">
