@@ -2301,6 +2301,14 @@ def references_add_employment():
             return redirect(url_for("associate.references_employment"))
 
         can_contact = "1" in request.form.getlist("can_contact")
+        no_contact_reason = _sanitise(request.form.get("no_contact_reason", "")).strip()
+        earliest_contact = _parse_date(request.form.get("earliest_contact_date", ""))
+
+        # If can't contact, reason is required
+        if not can_contact and not no_contact_reason:
+            flash("Please provide a reason why we cannot contact this employer.", "danger")
+            return redirect(url_for("associate.references_employment"))
+
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
@@ -2313,6 +2321,8 @@ def references_add_employment():
             reason_for_leaving=_sanitise(request.form.get("reason_for_leaving", "")),
             is_gap=False,
             permission_to_request=can_contact,
+            permission_delay_reason=no_contact_reason if not can_contact else "",
+            permission_future_date=earliest_contact if not can_contact else None,
             reference_status="not_sent",
         )
         s.add(entry)
@@ -3945,7 +3955,14 @@ def references_edit_entry(entry_id):
             entry.end_date = _parse_date(request.form.get("end_date", ""))
             entry.job_title = _sanitise(request.form.get("job_title", ""))
             entry.reason_for_leaving = _sanitise(request.form.get("reason_for_leaving", ""))
-            entry.permission_to_request = "1" in request.form.getlist("can_contact")
+            can_contact = "1" in request.form.getlist("can_contact")
+            entry.permission_to_request = can_contact
+            if not can_contact:
+                entry.permission_delay_reason = _sanitise(request.form.get("no_contact_reason", ""))
+                entry.permission_future_date = _parse_date(request.form.get("earliest_contact_date", ""))
+            else:
+                entry.permission_delay_reason = ""
+                entry.permission_future_date = None
 
         _add_note(s, cand_id, f"Employment entry updated: {entry.company_name or 'Gap'}.")
         s.commit()

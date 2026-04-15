@@ -112,6 +112,14 @@
                     <p class="mb-1">
                         {% if entry.permission_to_request is defined and entry.permission_to_request == false %}
                         <span class="badge bg-danger" style="font-size: 0.7rem;"><i class="fas fa-times me-1"></i>Do not contact</span>
+                        {% if entry.permission_delay_reason %}
+                        <small class="text-muted ms-1">— {{ entry.permission_delay_reason }}</small>
+                        {% endif %}
+                        {% if entry.permission_future_date %}
+                        <small class="text-muted ms-1">(earliest: {{ entry.permission_future_date.strftime('%d/%m/%Y') }})</small>
+                        {% else %}
+                        <small class="text-muted ms-1">(TBC)</small>
+                        {% endif %}
                         {% else %}
                         <span class="badge bg-success" style="font-size: 0.7rem;"><i class="fas fa-check me-1"></i>Can contact for reference</span>
                         {% endif %}
@@ -211,11 +219,24 @@
                 <div class="col-md-12">
                     <div class="form-check mt-2">
                         <input type="hidden" name="can_contact" value="0">
-                        <input type="checkbox" class="form-check-input" id="can_contact" name="can_contact" value="1" checked>
+                        <input type="checkbox" class="form-check-input" id="can_contact" name="can_contact" value="1" checked onchange="toggleNoContactFields()">
                         <label class="form-check-label" for="can_contact">
                             <strong>Can we contact this employer for a reference?</strong>
                         </label>
-                        <small class="d-block text-muted">If unchecked, we will not contact this employer until you give permission.</small>
+                        <small class="d-block text-muted">If unchecked, you must provide a reason and an earliest contact date.</small>
+                    </div>
+                </div>
+                <div class="col-md-12" id="noContactFields" style="display: none;">
+                    <div class="row g-3 mt-1 p-3 rounded" style="background: #fef3c7; border: 1px solid #f59e0b;">
+                        <div class="col-md-8">
+                            <label class="form-label" for="no_contact_reason">Reason for not contacting <span class="text-danger">*</span></label>
+                            <input type="text" id="no_contact_reason" name="no_contact_reason" class="form-control" placeholder="e.g. Current employer — not yet resigned">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="earliest_contact_date">Earliest contact date</label>
+                            <input type="date" id="earliest_contact_date" name="earliest_contact_date" class="form-control">
+                            <small class="text-muted">Leave blank if TBC</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -296,8 +317,22 @@
 
 {% block extra_js %}
 <script>
+function toggleNoContactFields() {
+    var cb = document.getElementById('can_contact');
+    var fields = document.getElementById('noContactFields');
+    var reasonInput = document.getElementById('no_contact_reason');
+    if (cb.checked) {
+        fields.style.display = 'none';
+        if (reasonInput) reasonInput.removeAttribute('required');
+    } else {
+        fields.style.display = '';
+        if (reasonInput) reasonInput.setAttribute('required', 'required');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var csrfToken = getCsrfToken();
+    toggleNoContactFields();
 
     // ---------- Gap reason "Other" toggle ----------
     var gapReason = document.getElementById('gap_reason');
