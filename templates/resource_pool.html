@@ -914,11 +914,23 @@
           <button type="button" class="bulk-action-btn" onclick="exportSelectedCSV()">
             <i class="fas fa-file-csv"></i> Export CSV
           </button>
-          {% if job %}
-          <button type="button" class="bulk-action-btn" onclick="addSelectedToPipeline()">
-            <i class="fas fa-plus-circle"></i> Add to Pipeline
-          </button>
-          {% endif %}
+          <div style="position: relative; display: inline-block;">
+            <button type="button" class="bulk-action-btn" id="pipelineBtn" onclick="togglePipelineDropdown()">
+              <i class="fas fa-plus-circle"></i> Add to Pipeline
+            </button>
+            <div id="pipelineDropdown" style="display:none; position:absolute; left:0; top:100%; z-index:1050; background:#fff; border:1px solid #dee2e6; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); padding:0.75rem; min-width:250px; margin-top:4px;">
+              <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.5rem; color:#374151;">Select Job</div>
+              <select id="pipelineJobSelect" class="form-select form-select-sm mb-2" style="font-size:0.8rem;">
+                <option value="">Choose a job...</option>
+                {% for j in jobs %}
+                <option value="{{ j.id }}">{{ j.title }}{% if j.engagement %} — {{ j.engagement.name }}{% endif %}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn btn-sm btn-primary w-100" onclick="addSelectedToPipeline()">
+                <i class="fas fa-plus me-1"></i> Add Selected
+              </button>
+            </div>
+          </div>
           <button type="button" class="bulk-action-btn" onclick="sendBulkEmail()">
             <i class="fas fa-envelope"></i> Bulk Email
           </button>
@@ -1506,37 +1518,56 @@ function exportSelectedCSV() {
 }
 
 // Add selected to pipeline (shortlist)
+function togglePipelineDropdown() {
+  var dd = document.getElementById('pipelineDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+// Close pipeline dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  var dd = document.getElementById('pipelineDropdown');
+  var btn = document.getElementById('pipelineBtn');
+  if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
 function addSelectedToPipeline() {
   if (selectedCandidates.size === 0) {
     alert('Please select at least one associate.');
     return;
   }
-  
-  const ids = Array.from(selectedCandidates.keys());
-  
-  // Submit as form
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '{{ url_for("bulk_shortlist") if view_exists("bulk_shortlist") else "#" }}';
-  
-  ids.forEach(id => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'candidate_ids[]';
-    input.value = id;
-    form.appendChild(input);
+  var jobSelect = document.getElementById('pipelineJobSelect');
+  if (!jobSelect || !jobSelect.value) {
+    alert('Please select a job first.');
+    return;
+  }
+  var jobId = jobSelect.value;
+  var ids = Array.from(selectedCandidates.keys());
+  var csrfToken = document.querySelector('meta[name="csrf-token"]');
+  var token = csrfToken ? csrfToken.content : '';
+
+  // Add each candidate to the pipeline sequentially
+  var added = 0;
+  var errors = 0;
+  var chain = Promise.resolve();
+  ids.forEach(function(candId) {
+    chain = chain.then(function() {
+      return fetch('{{ url_for("add_candidate_to_job_pipeline") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': token},
+        credentials: 'same-origin',
+        body: 'csrf_token=' + token + '&candidate_id=' + candId + '&job_id=' + jobId
+      }).then(function(r) {
+        if (r.ok) added++;
+        else errors++;
+      }).catch(function() { errors++; });
+    });
   });
-  
-  {% if job %}
-  const jobInput = document.createElement('input');
-  jobInput.type = 'hidden';
-  jobInput.name = 'job_id';
-  jobInput.value = '{{ job.id }}';
-  form.appendChild(jobInput);
-  {% endif %}
-  
-  document.body.appendChild(form);
-  form.submit();
+  chain.then(function() {
+    document.getElementById('pipelineDropdown').style.display = 'none';
+    alert(added + ' associate(s) added to pipeline.' + (errors > 0 ? ' ' + errors + ' failed.' : ''));
+    if (added > 0) location.reload();
+  });
 }
 
 // Send bulk email
