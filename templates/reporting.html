@@ -69,6 +69,32 @@
         <p class="page-subtitle">Fill rates, time-to-hire, pipeline conversion, and vetting completion metrics</p>
     </div>
 
+    <!-- Filters -->
+    <form method="GET" action="{{ url_for('reporting') }}" class="report-card mb-3 p-3">
+      <div class="d-flex align-items-end gap-3 flex-wrap">
+        <div style="flex: 1; min-width: 200px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Client</label>
+          <select name="clients" id="reportClientFilter" class="form-select form-select-sm" multiple size="1" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+            {% for client in all_clients %}
+            <option value="{{ client }}" {% if client in selected_clients %}selected{% endif %}>{{ client }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="flex: 1; min-width: 200px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Engagement</label>
+          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" multiple size="1" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+            {% for eng in all_engagements %}
+            <option value="{{ eng.id }}" data-client="{{ eng.client or '' }}" {% if eng.id|string in selected_engagements %}selected{% endif %}>{{ eng.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
+          <a href="{{ url_for('reporting') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times me-1"></i> Clear</a>
+        </div>
+      </div>
+    </form>
+
     <!-- KPI Summary Row -->
     <div class="kpi-row">
         <div class="kpi-tile">
@@ -310,5 +336,43 @@ function exportFillRates() {
     link.download = 'fill_rates_report.csv';
     link.click();
 }
+
+function cascadeReportFilters() {
+  var clientSel = document.getElementById('reportClientFilter');
+  var engSel = document.getElementById('reportEngFilter');
+  if (!clientSel || !engSel) return;
+
+  var selectedClients = Array.from(clientSel.selectedOptions).map(function(o) { return o.value; });
+  var selectedEngs = Array.from(engSel.selectedOptions).map(function(o) { return o.value; });
+
+  // Client selected → hide engagements not matching
+  if (selectedClients.length > 0) {
+    Array.from(engSel.options).forEach(function(opt) {
+      var client = opt.getAttribute('data-client') || '';
+      opt.hidden = selectedClients.indexOf(client) === -1;
+      if (opt.hidden && opt.selected) opt.selected = false;
+    });
+  } else {
+    Array.from(engSel.options).forEach(function(opt) { opt.hidden = false; });
+  }
+
+  // Engagement selected → hide clients not matching
+  if (selectedEngs.length > 0) {
+    var validClients = new Set();
+    Array.from(engSel.options).forEach(function(opt) {
+      if (selectedEngs.indexOf(opt.value) !== -1) {
+        validClients.add(opt.getAttribute('data-client') || '');
+      }
+    });
+    Array.from(clientSel.options).forEach(function(opt) {
+      opt.hidden = !validClients.has(opt.value);
+      if (opt.hidden && opt.selected) opt.selected = false;
+    });
+  } else {
+    Array.from(clientSel.options).forEach(function(opt) { opt.hidden = false; });
+  }
+}
+// Run on page load
+cascadeReportFilters();
 </script>
 {% endblock %}

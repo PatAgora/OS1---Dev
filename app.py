@@ -15338,12 +15338,29 @@ def reporting():
     """REQ-270: Dedicated reporting/MI page with fill rates, time-to-hire, conversion rates."""
     now = datetime.datetime.utcnow()
 
+    # Filter parameters
+    selected_clients = request.args.getlist("clients")
+    selected_engagements = request.args.getlist("engagements")
+
     with Session(engine) as s:
+        # All clients and engagements for filter dropdowns
+        all_clients = sorted(set(
+            c for c in s.scalars(select(Engagement.client).distinct().where(Engagement.client.isnot(None))).all() if c
+        ))
+        all_engagements = s.scalars(
+            select(Engagement).order_by(Engagement.name)
+        ).all()
+
         # 1. Fill Rate by Engagement
         fill_rates = []
-        active_engs = s.scalars(
-            select(Engagement).where(Engagement.status == "Active").order_by(Engagement.name)
-        ).all()
+        eng_query = select(Engagement).where(Engagement.status == "Active").order_by(Engagement.name)
+        if selected_clients:
+            eng_query = eng_query.where(Engagement.client.in_(selected_clients))
+        if selected_engagements:
+            eng_ids = [int(e) for e in selected_engagements if e.isdigit()]
+            if eng_ids:
+                eng_query = eng_query.where(Engagement.id.in_(eng_ids))
+        active_engs = s.scalars(eng_query).all()
 
         for eng in active_engs:
             target = s.scalar(
@@ -15456,6 +15473,10 @@ def reporting():
         completed_checks=completed_checks,
         app_volume_labels=app_volume_labels,
         app_volume_data=app_volume_data,
+        all_clients=all_clients,
+        all_engagements=all_engagements,
+        selected_clients=selected_clients,
+        selected_engagements=selected_engagements,
     )
 
 
