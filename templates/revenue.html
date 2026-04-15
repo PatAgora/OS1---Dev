@@ -1533,7 +1533,18 @@ function setQuarter(q) {
     document.querySelectorAll('.period-btn[data-quarter]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.quarter === q);
     });
-    cascadePeriodFilters('quarter');
+    // Directly filter months — cascade inline
+    var validMonths = _quarterMonths[q] || [];
+    var monthSel = document.getElementById('monthFilter');
+    if (monthSel) {
+        Array.from(monthSel.options).forEach(function(opt) {
+            if (!opt.value) { opt.hidden = false; return; }
+            opt.hidden = validMonths.indexOf(opt.value) === -1;
+        });
+        if (monthSel.value && validMonths.indexOf(monthSel.value) === -1) {
+            monthSel.value = '';
+        }
+    }
 }
 
 function cascadePeriodFilters(source) {
