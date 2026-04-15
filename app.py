@@ -10404,8 +10404,8 @@ VERIFILE_CHECK_MAP = {
     # Correct Verifile CheckTypeId values (from GET /metadata/checktypes)
     "DBS Check": "UKCriminalRecordBasicEnglandWales",
     "Identity Verification": "UKOnlineIDCheck",
-    "Right to Work": "UKRightToWorkAudit",
-    # Address History ("Activity") is candidate-entry only — excluded from client-entry orders
+    "Right to Work": "UKRightToWorkDigitalConditional",
+    "Address History": "Activity",
     "Employment History": "EmploymentHistoryUK",
     "References": "CharacterProfessionalReferenceUK",
     "Qualifications": "AcademicQualificationUK",
@@ -10485,75 +10485,33 @@ def _verifile_headers():
     }
 
 def verifile_place_order(name: str, email: str, candidate_id: int, check_types: list) -> str:
-    """Place a client-entry order with Verifile.
+    """Place a candidate-entry order with Verifile.
 
-    POST /orders/cliententry — sends all candidate data upfront.
-    Verifile starts processing immediately without contacting the candidate.
+    POST /orders/candidateentry — sends basic candidate info.
+    Verifile emails the candidate to complete the rest on their portal.
     Returns the Verifile order ID.
     """
     headers = _verifile_headers()
+    parts = (name or "").strip().split(None, 1)
+    first_name = parts[0] if parts else "Unknown"
+    last_name = parts[1] if len(parts) > 1 else ""
 
-    # Load full candidate + profile data
-    from associate_portal import _ensure_models, _portal_model
-    _ensure_models()
-    AssociateProfile = _portal_model("AssociateProfile")
-
-    with Session(engine) as prof_s:
-        cand = prof_s.get(Candidate, candidate_id)
-        profile = None
-        if AssociateProfile:
-            profile = prof_s.scalar(
-                select(AssociateProfile).where(AssociateProfile.candidate_id == candidate_id)
-            )
-
-        first_name = (getattr(profile, 'first_name', '') or '').strip() if profile else ''
-        last_name = (getattr(profile, 'surname', '') or '').strip() if profile else ''
-        if not first_name and cand:
-            parts = (cand.name or "").strip().split(None, 1)
-            first_name = parts[0] if parts else "Unknown"
-            last_name = parts[1] if len(parts) > 1 else ""
-
-        dob = getattr(profile, 'dob', None) if profile else None
-        gender = (getattr(profile, 'gender', '') or '').strip() if profile else ''
-        ni_number = (getattr(profile, 'national_insurance_number', '') or '').strip() if profile else ''
-
-        # Address
-        address = {}
-        if profile:
-            addr_line1 = (getattr(profile, 'address_line1', '') or '').strip()
-            if addr_line1:
-                address = {
-                    "HouseNumber": addr_line1.split(' ')[0] if ' ' in addr_line1 else "",
-                    "StreetName": ' '.join(addr_line1.split(' ')[1:]) if ' ' in addr_line1 else addr_line1,
-                    "Town": (getattr(profile, 'city', '') or '').strip(),
-                    "Postcode": (getattr(profile, 'postcode', '') or '').strip(),
-                    "Country": "GB",
-                }
-
-        # Passport
-        passport = {}
-        if profile and getattr(profile, 'passport_number', ''):
-            passport = {
-                "PassportIssuingCountry": getattr(profile, 'passport_issuing_country', 'GB') or 'GB',
-                "PassportNumber": getattr(profile, 'passport_number', ''),
-            }
-            if getattr(profile, 'passport_issue_date', None):
-                passport["PassportIssueDate"] = profile.passport_issue_date.strftime('%Y-%m-%d')
-            if getattr(profile, 'passport_expiry_date', None):
-                passport["PassportExpiryDate"] = profile.passport_expiry_date.strftime('%Y-%m-%d')
-            if dob:
-                passport["PassportDateOfBirth"] = dob.strftime('%Y-%m-%d')
-
-        # Driving licence
-        driving = {}
-        if profile and getattr(profile, 'driving_licence_number', ''):
-            driving = {
-                "DriverLicenseType": "Photo",
-                "DriverLicenseIssuingCountry": getattr(profile, 'driving_licence_issuing_country', 'GB') or 'GB',
-                "DriverLicenseNumber": getattr(profile, 'driving_licence_number', ''),
-            }
-            if getattr(profile, 'driving_licence_issue_date', None):
-                driving["DriverLicenseDate"] = profile.driving_licence_issue_date.strftime('%Y-%m-%d')
+    # Load DOB from profile if available
+    dob_str = None
+    try:
+        from associate_portal import _portal_model
+        AP = _portal_model("AssociateProfile")
+        if AP:
+            with Session(engine) as ps:
+                prof = ps.scalar(select(AP).where(AP.candidate_id == candidate_id))
+                if prof and getattr(prof, 'dob', None):
+                    dob_str = prof.dob.strftime('%Y-%m-%d')
+                if prof and getattr(prof, 'first_name', ''):
+                    first_name = prof.first_name
+                if prof and getattr(prof, 'surname', ''):
+                    last_name = prof.surname
+    except Exception:
+        pass
 
     import uuid as _uuid
     check_groups = []
@@ -10565,72 +10523,30 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
     if not check_groups:
         raise RuntimeError("No valid Verifile check types to submit")
 
-    # Build candidate object
-    candidate_obj = {
-        "CurrentName": {
-            "FirstName": first_name,
-            "LastName": last_name,
-            "IsFromBirth": True,
-        },
-        "PersonalInfo": {
-            "ApplicantType": "Candidate",
-            "CandidateEmail": email,
-        },
-    }
-
-    # Add optional fields
-    if gender and gender.lower() in ('male', 'female'):
-        candidate_obj["PersonalInfo"]["Gender"] = gender
-    if dob:
-        candidate_obj["PersonalInfo"]["DateOfBirth"] = dob.strftime('%Y-%m-%d')
-
-    # Address list
-    if address:
-        candidate_obj["AddressList"] = [{
-            "Address": address,
-            "IsCurrentAddress": True,
-            "DateMovedToThisAddress": "2020-01-01",
-        }]
-
-    # Identity documents
-    identity = {}
-    if passport:
-        identity["PassportDocument"] = passport
-    if driving:
-        identity["DrivingDocument"] = driving
-    if ni_number:
-        identity["NationalInsuranceNumberDocument"] = {
-            "NationalInsuranceNumber": ni_number.replace(' ', ''),
-        }
-    if identity:
-        candidate_obj["Identity"] = identity
-
     payload = {
         "UniqueKey": str(_uuid.uuid4()),
         "CheckGroups": check_groups,
-        "Candidate": candidate_obj,
+        "Candidate": {
+            "CurrentName": {
+                "FirstName": first_name,
+                "LastName": last_name,
+            },
+            "PersonalInfo": {
+                "ApplicantType": "Candidate",
+                "CandidateEmail": email,
+            }
+        }
     }
 
-    import json as _json
-    print(f"[Verifile] Placing client-entry order: {_json.dumps(payload, indent=2)}")
+    # Add DOB if available
+    if dob_str:
+        payload["Candidate"]["PersonalInfo"]["DateOfBirth"] = dob_str
 
-    # Validate first
-    val_resp = _requests_lib.post(
-        f"{VERIFILE_BASE_URL}/orders/cliententry/validate",
-        json=payload,
-        headers=headers,
-        timeout=30,
-    )
-    if val_resp.status_code == 200:
-        val_data = val_resp.json()
-        if not val_data.get("isValid", True):
-            errors = val_data.get("validationErrors", [])
-            error_msgs = [e.get("message", "") + f" ({e.get('fieldPath', '')})" for e in errors]
-            print(f"[Verifile] Validation failed: {error_msgs}")
-            raise RuntimeError(f"Verifile validation: {'; '.join(error_msgs)}")
+    import json as _json
+    print(f"[Verifile] Placing candidate-entry order: {_json.dumps(payload, indent=2)}")
 
     resp = _requests_lib.post(
-        f"{VERIFILE_BASE_URL}/orders/cliententry",
+        f"{VERIFILE_BASE_URL}/orders/candidateentry",
         json=payload,
         headers=headers,
         timeout=30,
@@ -10640,7 +10556,7 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
     resp.raise_for_status()
     data = resp.json()
     order_id = str(data.get("Id") or data.get("id") or "")
-    print(f"[Verifile] Client-entry order placed: {order_id} for candidate {candidate_id} with {len(check_groups)} checks")
+    print(f"[Verifile] Candidate-entry order placed: {order_id} for candidate {candidate_id} with {len(check_groups)} checks")
     return order_id
 
 
