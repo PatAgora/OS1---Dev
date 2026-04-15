@@ -490,8 +490,12 @@ def _validate_password(password: str) -> tuple:
 
 def _upload_dir() -> str:
     """Return the absolute upload directory for associate docs, creating it if needed."""
-    root = current_app.root_path
-    d = os.path.join(root, "static", "uploads", "associate_docs")
+    # Use /data/uploads on Railway (persistent volume) or static/uploads for dev
+    if os.path.isdir("/data"):
+        d = "/data/uploads/associate_docs"
+    else:
+        root = current_app.root_path
+        d = os.path.join(root, "static", "uploads", "associate_docs")
     os.makedirs(d, exist_ok=True)
     return d
 

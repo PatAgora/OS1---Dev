@@ -69,7 +69,11 @@ except Exception:
 
 SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///ats.db")
-UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "uploads"))
+# Use /data/uploads on Railway (persistent volume) or local uploads/ for dev
+if os.path.isdir("/data"):
+    UPLOAD_FOLDER = "/data/uploads"
+else:
+    UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "uploads"))
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 SECRET_KEY   = os.getenv("FLASK_SECRET_KEY", "dev-secret")
@@ -5339,37 +5343,46 @@ def currency_fmt(n: int) -> str:
 
 def _doc_file_path(doc: "Document") -> str:
     """Absolute path to a stored candidate document.
-    
-    Handles multiple storage patterns:
-    1. filename = "uploads/cvs/xxx.pdf" (stored in static/uploads/cvs/)
-    2. filename = "xxx.pdf" (stored in uploads/cvs/)
+
+    Checks multiple storage locations in priority order:
+    1. /data/uploads/ (Railway persistent volume)
+    2. static/uploads/ (legacy app-relative)
+    3. uploads/ (UPLOAD_FOLDER config)
     """
     filename = doc.filename or ""
-    
-    # If filename contains path prefix like "uploads/cvs/", look in static folder
-    if filename.startswith("uploads/"):
-        static_path = os.path.join(os.path.dirname(__file__), "static", filename)
-        if os.path.exists(static_path):
-            return static_path
-    
-    # Try the standard uploads folder path
-    # Handle case where filename already has "uploads/cvs/" prefix
-    if filename.startswith("uploads/cvs/"):
-        clean_filename = filename.replace("uploads/cvs/", "")
-    else:
-        clean_filename = filename
-    
-    standard_path = os.path.join(app.config["UPLOAD_FOLDER"], "cvs", clean_filename)
-    if os.path.exists(standard_path):
-        return standard_path
-    
-    # Fallback to static/uploads/cvs with clean filename
-    static_fallback = os.path.join(os.path.dirname(__file__), "static", "uploads", "cvs", clean_filename)
-    if os.path.exists(static_fallback):
-        return static_fallback
-    
-    # Return the standard path even if it doesn't exist (for error handling upstream)
-    return standard_path
+
+    # Strip leading path prefixes to get the relative part
+    rel = filename
+    for prefix in ("uploads/associate_docs/", "uploads/cvs/", "uploads/"):
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+            break
+
+    # Check locations in priority order
+    candidates = []
+
+    # 1. Railway persistent volume
+    if os.path.isdir("/data"):
+        candidates.append(os.path.join("/data", filename))
+        candidates.append(os.path.join("/data/uploads/associate_docs", rel))
+        candidates.append(os.path.join("/data/uploads/cvs", rel))
+
+    # 2. Static folder (legacy)
+    app_root = os.path.dirname(__file__)
+    candidates.append(os.path.join(app_root, "static", filename))
+    candidates.append(os.path.join(app_root, "static", "uploads", "associate_docs", rel))
+    candidates.append(os.path.join(app_root, "static", "uploads", "cvs", rel))
+
+    # 3. UPLOAD_FOLDER config
+    candidates.append(os.path.join(UPLOAD_FOLDER, "cvs", rel))
+    candidates.append(os.path.join(UPLOAD_FOLDER, rel))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # Return first candidate path for error handling
+    return candidates[0] if candidates else filename
 
 def _truncate_for_ai(text: str, limit: int = 12000) -> str:
     """Light truncation to keep prompts reasonable."""

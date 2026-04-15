@@ -177,6 +177,23 @@
           </div>
           {% endif %}
 
+          <h6 class="text-muted mb-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Referencing</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <div class="d-flex align-items-center gap-2">
+                {% if cand.current_employer_contact_ok %}
+                  <span class="badge bg-success"><i class="fas fa-check me-1"></i>Can contact current employer</span>
+                {% else %}
+                  <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Do not contact current employer</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Most Recent Employer</label>
+              <input type="text" class="form-control form-control-sm" value="{{ profile.most_recent_employer if profile and profile.most_recent_employer else '' }}" readonly>
+            </div>
+          </div>
+
           <div class="col-12 mb-3">
             <label class="form-label">About / Notes</label>
             <textarea name="about" class="form-control form-control-sm" rows="2">{{ cand.about or '' }}</textarea>
