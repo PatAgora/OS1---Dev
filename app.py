@@ -5071,41 +5071,21 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""You are a senior financial services recruiter at a specialist consultancy.
-Summarise this candidate's CV for a hiring manager reviewing shortlisted candidates.
+            prompt = f"""Summarise this CV in under 150 words for a recruiter. Be concise — bullet points only, no waffle.
 {jd_section}
-Output these sections using bullet points (no waffle, recruiter shorthand is fine):
+**Summary:** 2-3 bullet points — current/most recent role, years of experience, key sector
+**Key Skills:** 3-5 bullet points — specific skills, tools, certifications, clearance levels
+**Concerns:** 1-2 bullet points — gaps, short tenures, missing skills (or "None identified")
 
-**Suitability Rating:** One line — Strong Fit / Good Fit / Partial Fit / Weak Fit, with a one-sentence reason.
+ONLY use information explicitly in the CV. Never fabricate details.
+If the CV is unreadable, respond: "Unable to retrieve information from CV."
 
-**Key Strengths:**
-• 3-4 bullets: what makes this candidate stand out (sector experience, certifications, clearance, specific tools)
-
-**Relevant Experience:**
-• 3-5 bullets: most relevant roles with approximate tenure, sector (banking/insurance/asset mgmt), and key responsibilities
-
-**Gaps / Concerns:**
-• 1-3 bullets: missing skills, short tenures, sector mismatch, anything a hiring manager should probe at interview
-
-**Availability & Rate:**
-• If mentioned in CV: notice period, day rate, IR35 preference, location/remote flexibility
-• If not mentioned: state "Not specified in CV"
-
-Focus on financial services relevance: KYC, AML, CDD, SAR reporting, FCA/PRA regulation, risk, compliance, audit, remediation.
-Be specific — name tools, systems, and regulatory frameworks. No generic filler.
-
-CRITICAL RULES:
-- ONLY use information that is explicitly stated in the CV text below.
-- NEVER fabricate, invent, or assume any details not present in the CV.
-- If the CV text is garbled, empty, or unreadable, respond with EXACTLY: "Unable to retrieve information from CV."
-- If information for a section is not in the CV, state "Not found in CV" for that section.
-
-CANDIDATE CV:
+CV TEXT:
 {text}
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                max_output_tokens=2500,
+                max_output_tokens=800,
                 temperature=0.3,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
