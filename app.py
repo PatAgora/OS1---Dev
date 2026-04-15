@@ -10404,8 +10404,8 @@ VERIFILE_CHECK_MAP = {
     # Correct Verifile CheckTypeId values (from GET /metadata/checktypes)
     "DBS Check": "UKCriminalRecordBasicEnglandWales",
     "Identity Verification": "UKOnlineIDCheck",
-    "Right to Work": "UKRightToWorkDigitalConditional",
-    "Address History": "Activity",
+    "Right to Work": "UKRightToWorkAudit",
+    # Address History ("Activity") is candidate-entry only — excluded from client-entry orders
     "Employment History": "EmploymentHistoryUK",
     "References": "CharacterProfessionalReferenceUK",
     "Qualifications": "AcademicQualificationUK",
