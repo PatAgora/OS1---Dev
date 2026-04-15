@@ -11042,6 +11042,28 @@ def api_vetting_trigger_referencing(cand_id):
     """Start Referencing only: set References and Employment History checks to In Progress.
     Sends reference requests respecting contact permission flags."""
     REFERENCE_CHECKS = ["References", "Employment History"]
+
+    # Check if employment reference declaration has been signed
+    force = request.form.get("force") == "1" or request.args.get("force") == "1"
+    if not force:
+        try:
+            from associate_portal import _ensure_models, _portal_model
+            _ensure_models()
+            DeclarationRecord = _portal_model("DeclarationRecord")
+            if DeclarationRecord:
+                with Session(engine) as check_s:
+                    decl = check_s.scalar(
+                        select(DeclarationRecord).where(DeclarationRecord.candidate_id == cand_id)
+                    )
+                    if not decl or not decl.signed_date:
+                        return jsonify({
+                            "ok": False,
+                            "error": "The applicant has not yet signed the Employment Reference Declaration. Referencing cannot start until this is completed.",
+                            "declaration_missing": True
+                        }), 400
+        except Exception:
+            pass
+
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
