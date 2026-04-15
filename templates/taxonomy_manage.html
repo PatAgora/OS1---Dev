@@ -704,31 +704,67 @@
     <input type="hidden" name="template_name" value="reference_request">
 
     <h6 class="fw-bold mb-3"><i class="fas fa-user-check me-2"></i>Reference Request Email</h6>
+    <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to referees when requesting a reference. Use the tags below to automatically insert the candidate's details.</p>
 
     <div class="mb-3">
-      <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Subject Line</label>
-      <input type="text" name="subject" class="form-control form-control-sm"
+      <label class="form-label fw-semibold mb-1">Email Subject</label>
+      <input type="text" name="subject" class="form-control"
              value="{{ email_template_ref.subject if email_template_ref else 'Reference Request — {candidate_name}' }}"
              placeholder="Reference Request — {candidate_name}">
     </div>
 
     <div class="mb-3">
-      <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Email Body (HTML)</label>
-      <textarea name="body" class="form-control form-control-sm" rows="14" style="font-family: monospace; font-size: 0.8rem;"
-                placeholder="Enter email HTML body...">{{ email_template_ref.body if email_template_ref else '' }}</textarea>
+      <label class="form-label fw-semibold mb-1">Email Message</label>
+      <textarea name="body" class="form-control" rows="12"
+                placeholder="Dear {referee_name},
+
+We are writing to request a reference for {candidate_name} who has listed your organisation ({company_name}) as a previous employer.
+
+Their role was {job_title} from {start_date} to {end_date}.
+
+Please could you confirm the dates of employment, job title, reason for leaving, and any other relevant information.
+
+Please reply directly to this email with the reference details.
+
+Thank you for your assistance.
+
+Regards,
+Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '' }}</textarea>
     </div>
 
-    <div class="mb-3 p-2 rounded" style="background: #eff6ff; border: 1px solid #bfdbfe;">
-      <small class="fw-semibold text-primary d-block mb-1"><i class="fas fa-info-circle me-1"></i>Available Merge Fields</small>
-      <small class="text-muted">
-        Use these placeholders in the subject or body. They will be replaced with actual values when the email is sent:<br>
-        <code>{candidate_name}</code> &mdash; Associate's full name<br>
-        <code>{company_name}</code> &mdash; Employer / company being referenced<br>
-        <code>{job_title}</code> &mdash; Job title from employment history<br>
-        <code>{start_date}</code> &mdash; Employment start date<br>
-        <code>{end_date}</code> &mdash; Employment end date<br>
-        <code>{referee_name}</code> &mdash; Referee's name (defaults to "Sir/Madam" if not set)
-      </small>
+    <div class="mb-3 p-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+      <p class="fw-semibold mb-2" style="font-size: 0.85rem;"><i class="fas fa-tags me-2 text-primary"></i>Auto-fill Tags</p>
+      <p class="text-muted mb-2" style="font-size: 0.8rem;">Type these tags anywhere in your email and they'll be replaced with the candidate's actual details:</p>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{candidate_name}</code>
+            <small class="text-muted">Candidate's name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{company_name}</code>
+            <small class="text-muted">Employer name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{referee_name}</code>
+            <small class="text-muted">Referee's name</small>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{job_title}</code>
+            <small class="text-muted">Job title held</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{start_date}</code>
+            <small class="text-muted">Start date</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{end_date}</code>
+            <small class="text-muted">End date</small>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center">

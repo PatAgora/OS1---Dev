@@ -13147,11 +13147,16 @@ def send_reference(cand_id: int):
             email_tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "reference_request"))
             if email_tpl:
                 email_subject = email_tpl.subject
-                html_body = email_tpl.body
+                body_text = email_tpl.body
                 # Replace merge fields
                 for field, value in merge_fields.items():
                     email_subject = email_subject.replace("{" + field + "}", value)
-                    html_body = html_body.replace("{" + field + "}", value)
+                    body_text = body_text.replace("{" + field + "}", value)
+                # Convert plain text to HTML if no HTML tags present
+                if "<p>" not in body_text and "<br" not in body_text and "<h" not in body_text:
+                    html_body = "<p>" + body_text.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
+                else:
+                    html_body = body_text
             else:
                 # Hardcoded fallback
                 email_subject = f"Reference Request — {cand.name}"
