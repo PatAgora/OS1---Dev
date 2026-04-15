@@ -11338,6 +11338,48 @@ def api_vetting_trigger(cand_id):
 
     return jsonify({"ok": True, "message": result_msg})
 
+
+@app.route("/api/vetting/reset/<int:cand_id>", methods=["POST"])
+@login_required
+def api_vetting_reset(cand_id):
+    """Reset all vetting checks for a candidate back to NOT STARTED."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"ok": False, "error": "Candidate not found"}), 404
+
+        checks = s.scalars(
+            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+        ).all()
+
+        reset_count = 0
+        for vc in checks:
+            vc.status = "NOT STARTED"
+            vc.external_ref = ""
+            vc.external_provider = ""
+            vc.external_result = ""
+            vc.completed_at = None
+            vc.qc_status = ""
+            vc.qc_reviewed_by = None
+            vc.qc_reviewed_at = None
+            vc.qc_notes = ""
+            reset_count += 1
+
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=current_user.email if current_user.is_authenticated else "System",
+            note_type="system",
+            content=f"Vetting reset: {reset_count} checks set to Not Started."
+        ))
+
+        log_audit_event('update', 'vetting',
+                        f'Vetting reset for {cand.name}: {reset_count} checks',
+                        'candidate', cand_id)
+        s.commit()
+
+    return jsonify({"ok": True, "message": f"{reset_count} checks reset to Not Started."})
+
+
 @app.route("/api/vetting/toggle-automation/<int:check_id>", methods=["POST"])
 @login_required
 def api_vetting_toggle_automation(check_id):

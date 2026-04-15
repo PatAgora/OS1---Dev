@@ -801,6 +801,9 @@
               <button class="btn btn-warning btn-sm flex-fill" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting">
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>
+              <button class="btn btn-outline-danger btn-sm" onclick="resetVetting({{ cand.id }})" title="Reset all vetting checks to Not Started">
+                <i class="fas fa-undo me-1"></i> Reset
+              </button>
             </div>
           </div>
           {% if vetting_checks %}
@@ -1720,6 +1723,24 @@ function triggerFullVetting(candidateId) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) { alert(data.message || data.msg || 'Full vetting started'); location.reload(); }
+    else { alert(data.error || 'Failed'); }
+  })
+  .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+function resetVetting(candidateId) {
+  if (!confirm('Reset ALL vetting checks to Not Started? This will clear all progress.')) return;
+  fetch('/api/vetting/reset/' + candidateId, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': _csrfToken()
+    },
+    credentials: 'same-origin'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) { alert(data.message || 'Vetting reset'); location.reload(); }
     else { alert(data.error || 'Failed'); }
   })
   .catch(function(e) { alert('Error: ' + e.message); });
