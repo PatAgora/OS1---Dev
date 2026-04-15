@@ -2078,6 +2078,17 @@ def references():
     return redirect(url_for("associate.references_employment"))
 
 
+@associate_bp.route("/secondary-job-declaration", methods=["GET"])
+@_require_login
+def secondary_job_declaration():
+    """Secondary Job Declaration — embedded Signable widget."""
+    widget_url = os.getenv("SIGNABLE_SECONDARY_JOB_WIDGET_URL", "")
+    return render_template(
+        "associate/secondary_job_declaration.html",
+        widget_url=widget_url,
+    )
+
+
 @associate_bp.route("/references/employment", methods=["GET"])
 @_require_login
 def references_employment():

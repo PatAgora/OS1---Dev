@@ -1,0 +1,30 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'vetting_progress' %}
+
+{% block page_title %}Secondary Job Declaration{% endblock %}
+{% block header_title %}Secondary Job Declaration{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Summary</a></li>
+<li class="breadcrumb-item"><a href="/portal/vetting-progress">Vetting</a></li>
+<li class="breadcrumb-item active">Secondary Job Declaration</li>
+{% endblock %}
+
+{% block content %}
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-briefcase me-2"></i>Secondary Job Declaration</h3>
+    </div>
+    <div class="portal-card-body">
+        <p class="text-muted mb-3">If you currently hold any other employment, directorships, or business interests, please complete this declaration. This is only required if applicable to your circumstances.</p>
+        {% if widget_url %}
+        <iframe src="{{ widget_url }}" frameborder="0" style="border:0; width:100%; height:100vh;" scrolling="yes"></iframe>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            The secondary job declaration form is not yet configured. Please contact your Compliance Analyst if you need to make a declaration.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
