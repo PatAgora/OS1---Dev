@@ -1220,10 +1220,10 @@ def dashboard():
             })
         if completeness.get("checks_pct", 0) < 100:
             next_actions.append({
-                "icon": "clipboard-check",
-                "title": "Complete Vetting Checks",
-                "description": "Submit required documents and references.",
-                "url": "/portal/intro-to-vetting"
+                "icon": "folder-open",
+                "title": "Upload Documentation to Support Vetting",
+                "description": "Upload documents such as ID, proof of address, and qualifications.",
+                "url": "/portal/documents"
             })
 
         # Recent activity from candidate notes
