@@ -1204,9 +1204,13 @@ function recalcSummaryTiles() {
     pipelineRows.forEach(row => {
       pipelineCount++;
       const val = parseFloat(row.dataset.value) || 0;
-      const prob = parseFloat(row.dataset.probability) || 50;
+      const stage = (row.dataset.stage || '').toLowerCase();
       totalValue += val;
-      weightedValue += val * prob / 100;
+      // Weighted value excludes Closed Won/Lost — those are confirmed, not forecasted
+      if (stage !== 'closed won' && stage !== 'closed lost') {
+        const prob = parseFloat(row.dataset.probability) || 0;
+        weightedValue += val * prob / 100;
+      }
     });
     var el;
     el = document.getElementById('tile-pipeline-count'); if (el) el.textContent = pipelineCount;

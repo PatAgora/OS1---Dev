@@ -8834,10 +8834,11 @@ def projects():
         total_pipeline = len(active_pipeline_opps)
         total_value = sum(opp.est_value or 0 for opp in active_pipeline_opps)
 
-        # Weighted value: sum of (est_value * probability/100)
+        # Weighted value: forecasted income (excludes Closed Won/Lost — those are confirmed)
         weighted_value = sum(
-            (opp.est_value or 0) * (getattr(opp, 'probability', 50) or 50) / 100
+            (opp.est_value or 0) * (getattr(opp, 'probability', 0) or 0) / 100
             for opp in active_pipeline_opps
+            if (opp.stage or "").strip().lower() not in ("closed won", "closed lost")
         )
         
         # Get unique roles from engagement plans
