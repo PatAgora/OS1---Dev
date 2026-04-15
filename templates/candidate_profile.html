@@ -1565,34 +1565,39 @@ function revertToApplied() {
 }
 
 function triggerReferencing(candidateId) {
-  if (!confirm('Start referencing for this associate? Reference requests will be sent (respecting contact preferences).')) return;
+  if (!confirm('Start referencing for this associate?')) return;
   fetch('/api/vetting/trigger-referencing/' + candidateId, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-    }
+      'X-CSRFToken': _csrfToken()
+    },
+    credentials: 'same-origin'
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) { alert(data.msg || 'Referencing started'); location.reload(); }
     else { alert(data.error || 'Failed'); }
   })
-  .catch(function() { alert('Network error'); });
+  .catch(function(e) { alert('Error: ' + e.message); });
 }
 
 function triggerFullVetting(candidateId) {
-  if (!confirm('Start FULL vetting? This triggers paid Verifile API checks. Continue?')) return;
+  if (!confirm('Start FULL vetting for this associate?')) return;
   fetch('/api/vetting/trigger/' + candidateId, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'}
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': _csrfToken()
+    },
+    credentials: 'same-origin'
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.ok) { alert(data.msg || 'Full vetting started'); location.reload(); }
+    if (data.ok) { alert(data.message || data.msg || 'Full vetting started'); location.reload(); }
     else { alert(data.error || 'Failed'); }
   })
-  .catch(function() { alert('Network error'); });
+  .catch(function(e) { alert('Error: ' + e.message); });
 }
 
 function issueContractDirect() {
