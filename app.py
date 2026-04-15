@@ -10521,12 +10521,17 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
         }
     }
 
+    import json as _json
+    print(f"[Verifile] Placing order: {_json.dumps(payload, indent=2)}")
+
     resp = _requests_lib.post(
         f"{VERIFILE_BASE_URL}/orders/candidateentry",
         json=payload,
         headers=headers,
         timeout=30,
     )
+    if resp.status_code >= 400:
+        print(f"[Verifile] Order failed ({resp.status_code}): {resp.text}")
     resp.raise_for_status()
     data = resp.json()
     order_id = str(data.get("Id") or data.get("id") or "")
