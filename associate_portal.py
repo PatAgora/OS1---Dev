@@ -1449,21 +1449,35 @@ def upload_cv():
             s.add(doc)
             s.commit()
 
-            # Auto-generate AI summary after CV upload
-            try:
-                from app import extract_cv_text, ai_summarise
-                Candidate = _model("Candidate")
-                cv_text = extract_cv_text(doc)
-                if cv_text and len(cv_text.strip()) > 50:
-                    summary = ai_summarise(cv_text)
-                    if summary and Candidate:
-                        cand_obj = s.get(Candidate, cand_id)
-                        if cand_obj:
-                            cand_obj.ai_summary = summary
-                            s.commit()
-                            current_app.logger.info(f"AI summary auto-generated for candidate {cand_id}")
-            except Exception as e:
-                current_app.logger.warning(f"Auto AI summary failed for candidate {cand_id}: {e}")
+            # Auto-generate AI summary in background thread (don't block the upload)
+            doc_id = doc.id
+            def _bg_summarise(app, cand_id, doc_id):
+                with app.app_context():
+                    try:
+                        from app import extract_cv_text, ai_summarise, engine as app_engine, Document as AppDoc, Candidate as AppCand
+                        from sqlalchemy.orm import Session as BgSession
+                        with BgSession(app_engine) as bg_s:
+                            bg_doc = bg_s.get(AppDoc, doc_id)
+                            if not bg_doc:
+                                return
+                            cv_text = extract_cv_text(bg_doc)
+                            if cv_text and len(cv_text.strip()) > 50:
+                                summary = ai_summarise(cv_text)
+                                if summary:
+                                    bg_cand = bg_s.get(AppCand, cand_id)
+                                    if bg_cand:
+                                        bg_cand.ai_summary = summary
+                                        bg_s.commit()
+                                        print(f"[BG] AI summary generated for candidate {cand_id}")
+                    except Exception as e:
+                        print(f"[BG] AI summary failed for candidate {cand_id}: {e}")
+
+            import threading
+            threading.Thread(
+                target=_bg_summarise,
+                args=(current_app._get_current_object(), cand_id, doc_id),
+                daemon=True
+            ).start()
 
     flash("CV uploaded successfully.", "success")
     return redirect(url_for("associate.personal_details"))
