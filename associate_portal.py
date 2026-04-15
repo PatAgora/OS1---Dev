@@ -1214,8 +1214,8 @@ def dashboard():
         if completeness.get("company_pct", 0) < 100:
             next_actions.append({
                 "icon": "building",
-                "title": "Add Company Details",
-                "description": "Provide your contracting entity details.",
+                "title": "Add Umbrella or Ltd Company Details",
+                "description": "Provide your umbrella or limited company details.",
                 "url": "/portal/company-details"
             })
         if completeness.get("checks_pct", 0) < 100:
