@@ -1313,8 +1313,7 @@ def personal_details():
         if contact_number:
             cand.phone = contact_number
         # Sync contact current employer to Candidate model
-        if hasattr(cand, 'current_employer_contact_ok'):
-            cand.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
+        cand.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
 
         # Update profile fields
         if profile:
@@ -1348,9 +1347,11 @@ def personal_details():
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")
         try:
             s.commit()
-        except Exception:
+            current_app.logger.info(f"Personal details saved for candidate {cand_id}, contact_employer={cand.current_employer_contact_ok}")
+        except Exception as e:
             s.rollback()
-            flash("Failed to save personal details. Please try again.", "danger")
+            current_app.logger.error(f"Personal details save failed for candidate {cand_id}: {e}")
+            flash(f"Failed to save personal details: {e}", "danger")
             return redirect(url_for("associate.personal_details"))
 
     flash("Personal details saved.", "success")
