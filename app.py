@@ -6870,6 +6870,8 @@ def backfill_engagements_for_won():
 @app.route("/opportunity/<int:opp_id>", methods=["GET", "POST"])
 @login_required
 def opportunity_edit(opp_id):
+    # Track where the user came from so Save/Cancel go back there
+    return_url = request.form.get("return_url") or request.referrer or url_for("pipeline")
     # Load the opportunity row
     with Session(engine) as s:
         opp = s.scalar(select(Opportunity).where(Opportunity.id == opp_id))
@@ -6969,7 +6971,10 @@ def opportunity_edit(opp_id):
                 flash(f"Engagement {e.ref} created.", "success")
                 return redirect(url_for("engagement_dashboard", eng_id=e.id))
 
-            return redirect(url_for("opportunity_edit", opp_id=opp_id))
+            # If "Add Note" was clicked, stay on page; otherwise go back
+            if request.form.get("action") == "add_note":
+                return redirect(url_for("opportunity_edit", opp_id=opp_id))
+            return redirect(return_url)
 
     # Req-041: Load timestamped notes for display
     with Session(engine) as s:
@@ -6979,7 +6984,7 @@ def opportunity_edit(opp_id):
             .order_by(OpportunityNote.created_at.desc())
         ).all()
 
-    return render_template("opportunity_edit.html", form=form, opp=opp, opp_notes=opp_notes)
+    return render_template("opportunity_edit.html", form=form, opp=opp, opp_notes=opp_notes, return_url=return_url)
 
 @app.route(
     "/action/onboarding_email/<int:app_id>",

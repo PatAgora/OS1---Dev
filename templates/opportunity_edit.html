@@ -232,28 +232,20 @@
         </div>
         
         <div class="row g-3 mb-4">
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label-modern">
               <i class="fas fa-calendar-alt"></i>
               {{ form.est_start.label.text }}
             </label>
             <input type="date" name="est_start" class="form-control-modern" value="{{ form.est_start.data or '' }}">
-            <div class="form-text small mt-1 ms-1">
-              <i class="fas fa-info-circle me-1"></i>
-              Expected start date
-            </div>
           </div>
 
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label-modern">
               <i class="fas fa-sterling-sign"></i>
               {{ form.est_value.label.text }}
             </label>
             {{ form.est_value(class="form-control-modern", placeholder="e.g., 50000") }}
-            <div class="form-text small mt-1 ms-1">
-              <i class="fas fa-info-circle me-1"></i>
-              Estimated value in GBP
-            </div>
           </div>
 
           {% if form.probability is defined %}
@@ -281,7 +273,7 @@
         <div class="mb-3">
           {{ form.notes(class="form-control-modern w-100", rows="3", placeholder="Type a new note...", value="", style="width: 100%;") }}
           <div class="d-flex justify-content-end mt-2">
-            <button type="submit" class="btn btn-sm btn-primary">Add Note</button>
+            <button type="submit" name="action" value="add_note" class="btn btn-sm btn-primary">Add Note</button>
           </div>
         </div>
 
@@ -314,12 +306,13 @@
         {% endif %}
 
         <!-- Action Buttons -->
+        <input type="hidden" name="return_url" value="{{ return_url }}">
         <div class="d-flex gap-2 pt-3 border-top">
-          <button class="btn btn-modern btn-modern-primary" type="submit">
+          <button class="btn btn-modern btn-modern-primary" type="submit" name="action" value="save">
             <i class="fas fa-save me-2"></i>Save Changes
           </button>
-          <a class="btn btn-modern btn-modern-outline" href="{{ request.referrer or url_for('pipeline') }}">
-            <i class="fas fa-times me-2"></i>Cancel
+          <a class="btn btn-modern btn-modern-outline" href="javascript:history.back()">
+            <i class="fas fa-arrow-left me-2"></i>Back
           </a>
         </div>
       </form>
