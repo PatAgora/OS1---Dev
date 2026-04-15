@@ -3619,6 +3619,7 @@ app.register_blueprint(public_bp)
 
 from associate_portal import associate_bp, _models as _portal_models, _apply_rate_limits
 app.register_blueprint(associate_bp, url_prefix="/portal")
+csrf.exempt(associate_bp)  # Portal uses session auth, not Flask-Login — CSRF tokens lost on session rotation
 _apply_rate_limits(app)
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")  # for session
 
