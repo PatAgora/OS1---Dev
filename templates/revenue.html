@@ -1042,7 +1042,7 @@
             </thead>
             <tbody>
                 {% for client in clients %}
-                <tr onclick="scrollToClient('{{ client.name }}')" style="cursor: pointer;">
+                <tr>
                     <td>
                         <span class="client-color-dot" style="background: {{ loop.cycle('#1e3a8a', '#10b981', '#f59e0b', '#ef4444', '#1e3a8a', '#ec4899', '#1e3a8a', '#84cc16') }};"></span>
                         {{ client.name }}
