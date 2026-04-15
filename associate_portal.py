@@ -1483,6 +1483,14 @@ def upload_cv():
                 daemon=True
             ).start()
 
+    # Add activity note for CV upload
+    try:
+        with SASession(engine) as ns:
+            _add_note(ns, cand_id, f"CV uploaded via Portal: {saved['original_name']}")
+            ns.commit()
+    except Exception:
+        pass
+
     flash("CV uploaded successfully.", "success")
     return redirect(url_for("associate.personal_details"))
 

@@ -11107,22 +11107,25 @@ def api_vetting_trigger_referencing(cand_id):
                     if existing_ref:
                         continue
 
-                    # Check permission: per-entry flag, or global current employer flag
-                    # TODO: Reference consent is now a global toggle on ConsentRecord.reference_consent
-                    # (set via the associate portal consent form). The per-entry permission_to_request
-                    # column is retained but no longer written to by the associate portal.
-                    # Staff-side logic should be updated to check ConsentRecord.reference_consent instead.
-                    perm = getattr(emp, 'permission_to_request', 'yes') or 'yes'
-                    is_current = (i == 0)  # most recent entry
+                    # Check per-entry permission_to_request (Boolean or string)
+                    perm_raw = getattr(emp, 'permission_to_request', True)
+                    if perm_raw is None:
+                        perm_ok = True
+                    elif isinstance(perm_raw, bool):
+                        perm_ok = perm_raw
+                    else:
+                        perm_ok = str(perm_raw).lower() not in ('no', 'false', '0')
+
+                    is_current = (i == 0)
                     contact_ok = getattr(cand, 'current_employer_contact_ok', True)
                     if contact_ok is None:
                         contact_ok = True
 
                     hold = False
                     hold_reason = ""
-                    if perm.lower() == 'no':
+                    if not perm_ok:
                         hold = True
-                        hold_reason = getattr(emp, 'no_permission_reason', '') or 'Associate declined reference contact'
+                        hold_reason = getattr(emp, 'permission_delay_reason', '') or 'Associate declined reference contact'
                     elif is_current and not contact_ok:
                         hold = True
                         hold_reason = "Associate requested: do not contact current employer"
