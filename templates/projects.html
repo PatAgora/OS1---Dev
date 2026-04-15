@@ -1351,11 +1351,73 @@ function applyPipelineFilters() {
 
   // Recalculate summary tiles (item 1)
   recalcSummaryTiles();
+
+  // Cascade: hide irrelevant options in other dropdowns
+  cascadePipelineFilters();
+}
+
+function cascadePipelineFilters() {
+  // Build relationship from kanban cards: which clients appear in which stages
+  var cards = document.querySelectorAll('.project-card');
+  var stageFilter = getSelectedValues('opp-stage-dropdown');
+  var clientFilter = getSelectedValues('opp-client-dropdown');
+
+  // Valid clients based on selected stages
+  var validClients = new Set();
+  // Valid stages based on selected clients
+  var validStages = new Set();
+  cards.forEach(function(card) {
+    var client = card.dataset.client || '';
+    var stage = card.dataset.stage || '';
+    if (stageFilter.length === 0 || stageFilter.includes(stage)) {
+      if (client) validClients.add(client);
+    }
+    if (clientFilter.length === 0 || clientFilter.includes(client)) {
+      if (stage) validStages.add(stage);
+    }
+  });
+
+  // Hide client options not in validClients
+  var clientDropdown = document.getElementById('opp-client-dropdown');
+  if (clientDropdown) {
+    clientDropdown.querySelectorAll('.dropdown-multiselect-item').forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (!cb) return;
+      var val = cb.value;
+      item.hidden = stageFilter.length > 0 && !validClients.has(val);
+      if (item.hidden && cb.checked) {
+        cb.checked = false;
+        item.classList.remove('selected');
+      }
+    });
+    updateDropdownText('opp-client-dropdown');
+  }
+
+  // Hide stage options not in validStages
+  var stageDropdown = document.getElementById('opp-stage-dropdown');
+  if (stageDropdown) {
+    stageDropdown.querySelectorAll('.dropdown-multiselect-item').forEach(function(item) {
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (!cb) return;
+      var val = cb.value;
+      item.hidden = clientFilter.length > 0 && !validStages.has(val);
+      if (item.hidden && cb.checked) {
+        cb.checked = false;
+        item.classList.remove('selected');
+      }
+    });
+    updateDropdownText('opp-stage-dropdown');
+  }
 }
 
 function clearPipelineFilters() {
   clearDropdown('opp-client-dropdown');
   clearDropdown('opp-stage-dropdown');
+  // Unhide all cascade-hidden items
+  ['opp-client-dropdown', 'opp-stage-dropdown'].forEach(function(id) {
+    var dd = document.getElementById(id);
+    if (dd) dd.querySelectorAll('.dropdown-multiselect-item').forEach(function(item) { item.hidden = false; });
+  });
   const sf = document.querySelector('input[name="opp_start_from"]');
   const st = document.querySelector('input[name="opp_start_to"]');
   if (sf) sf.value = '';
