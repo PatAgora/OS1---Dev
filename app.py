@@ -3701,6 +3701,27 @@ def ensure_schema():
             conn.execute(text("ALTER TABLE jobs ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
         except Exception:
             pass
+        # DBS vetting criteria (migration 010). Self-healing ALTERs so the
+        # Job model's new columns exist even if the migration hasn't been
+        # run against this environment's DB yet.
+        for coldef in [
+            "dbs_level VARCHAR(20) DEFAULT 'Basic'",
+            "dbs_sector VARCHAR(100) DEFAULT ''",
+            "dbs_purpose VARCHAR(100) DEFAULT ''",
+            "dbs_position_applied_for VARCHAR(60) DEFAULT ''",
+            "dbs_employer_name VARCHAR(60) DEFAULT ''",
+            "dbs_job_role VARCHAR(200) DEFAULT ''",
+            "dbs_working_with_children BOOLEAN DEFAULT FALSE",
+            "dbs_working_with_vulnerable_adults BOOLEAN DEFAULT FALSE",
+            "dbs_children_in_environment BOOLEAN DEFAULT FALSE",
+            "dbs_vulnerable_adults_in_environment BOOLEAN DEFAULT FALSE",
+            "dbs_is_volunteer BOOLEAN DEFAULT FALSE",
+            "dbs_working_from_home BOOLEAN DEFAULT FALSE",
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE jobs ADD COLUMN {coldef}"))
+            except Exception:
+                pass
         try:
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)"))
         except Exception:
