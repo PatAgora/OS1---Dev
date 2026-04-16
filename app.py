@@ -2282,6 +2282,8 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
             # declares them:
             #   1 work_restrictions, 2 criminal_convictions, 3 ccj_debt,
             #   4 bankruptcy, 5 dismissed, 6 referencing_issues
+            # Also extract the free-text "Open Disclosure" notes field
+            # (the Signable form has a text input above the Full Name slot).
             try:
                 fields_list = envelope_fields
                 # Fall back to the live request only if no list was passed in.
@@ -2318,16 +2320,48 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
                         answer = dropdowns[idx] == "yes"
                         if hasattr(rec, attr):
                             setattr(rec, attr, answer)
-                    # Store the full dropdown list for audit — disclosure_text
-                    # is a free-form text column already on the model.
-                    if hasattr(rec, "disclosure_text"):
-                        rec.disclosure_text = (
-                            "Signable answers (positional): "
-                            + ", ".join(
+                    # Positional mapping breadcrumb → logs only. Do NOT
+                    # write it into disclosure_text (that's reserved for
+                    # the candidate's actual free-text open disclosure).
+                    try:
+                        current_app.logger.info(
+                            "Declaration mapping cand=%s: %s",
+                            cand.id,
+                            ", ".join(
                                 f"{attr}={('Yes' if idx < len(dropdowns) and dropdowns[idx] == 'yes' else 'No')}"
                                 for idx, attr in enumerate(model_order)
-                            )
+                            ),
                         )
+                    except Exception:
+                        pass
+
+                    # Open Disclosure notes: the first text field on the
+                    # form that isn't a person-name (letters/spaces/hyphens
+                    # matching the name regex). Signable puts the notes
+                    # input above the Full Name input, so there should be
+                    # at most one text field that doesn't look like a name.
+                    import re as _re
+                    _name_re = _re.compile(
+                        r"^[A-Za-z][A-Za-z\-']*( [A-Za-z][A-Za-z\-']*)+$"
+                    )
+                    notes_value = ""
+                    for f in fields_list:
+                        if not isinstance(f, dict):
+                            continue
+                        if (f.get("field_type") or "").lower() != "text":
+                            continue
+                        v = (f.get("field_value") or "").strip()
+                        if not v:
+                            continue
+                        if _name_re.match(v):
+                            continue  # this is the Full Name field
+                        notes_value = v
+                        break
+                    if hasattr(rec, "disclosure_text"):
+                        # Overwrite on every signing so later edits win.
+                        # Empty string is the correct default if the
+                        # candidate didn't enter notes.
+                        rec.disclosure_text = notes_value
             except Exception as decl_exc:
                 current_app.logger.warning(
                     "declaration field mapping failed: %s", decl_exc
