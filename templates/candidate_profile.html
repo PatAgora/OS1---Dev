@@ -1525,22 +1525,33 @@
             </div>
           {% endif %}
 
-          {# When the candidate is on an umbrella we DON'T have a Signable
-             template for, prompt the recruiter to confirm they've sent
-             the Assignment Schedule manually. Paystream has its own "Send
-             Paystream Contract" button elsewhere — skip it here. #}
+          {# Manual-send confirmation: appears when we DON'T have a
+             Signable template wired up for this contracting entity.
+             Paystream umbrellas get the "Send Paystream Contract" flow
+             on the Umbrella / Company Details tile instead. Everything
+             else — non-Paystream umbrellas, Limited Companies — needs
+             the recruiter to send the schedule out-of-band and confirm. #}
           {% set _umb = (company_details.umbrella_company_name if company_details else '') %}
           {% set _is_umbrella = company_details and company_details.contracting_type == 'umbrella' %}
+          {% set _is_limited = company_details and company_details.contracting_type == 'limited' %}
           {% set _is_paystream = _umb and 'paystream' in _umb|lower %}
-          {% if _is_umbrella and not _is_paystream and _umb %}
+          {% set _ltd_name = (company_details.company_name if company_details else '') %}
+          {% set _show_manual = (_is_umbrella and not _is_paystream and _umb) or _is_limited %}
+          {% if _show_manual %}
           <div class="mt-3 p-2 rounded" style="background:#fffbeb; border:1px solid #fde68a;">
             <div class="fw-semibold small mb-1">
               <i class="fas fa-exclamation-triangle text-warning me-1"></i>
-              The Assignment Schedule for <strong>{{ _umb }}</strong> must be sent manually
-              (no Signable template configured for this umbrella).
+              {% if _is_umbrella %}
+                The Assignment Schedule for <strong>{{ _umb }}</strong> must be sent manually
+                (no Signable template configured for this umbrella).
+              {% else %}
+                The Assignment Schedule for the candidate's limited company
+                {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
+                must be sent manually (no Signable template for Ltd Co contracts).
+              {% endif %}
             </div>
             <div class="text-muted small mb-2">
-              Has the Assignment Schedule been sent to the umbrella?
+              Has the Assignment Schedule been sent?
               {% if cand.umbrella_assignment_sent is not none %}
                 Currently recorded as
                 <strong>{{ 'Yes' if cand.umbrella_assignment_sent else 'No' }}</strong>
