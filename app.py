@@ -2269,6 +2269,56 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
                 rec.legal_name = signer_name or cand.name or ""
             if hasattr(rec, "signable_envelope_id"):
                 rec.signable_envelope_id = envelope_fp
+
+            # Map the 6 Yes/No dropdowns from the Signable envelope onto the
+            # DeclarationRecord booleans BY POSITION. Signable gives us only
+            # "Untitled" field_name metadata, so we rely on the form being
+            # designed to ask the questions in the same order as the model
+            # declares them:
+            #   1 work_restrictions, 2 criminal_convictions, 3 ccj_debt,
+            #   4 bankruptcy, 5 dismissed, 6 referencing_issues
+            try:
+                from flask import request as _req
+                raw_fields = (_req.form.get("envelope_fields") or "").strip()
+                fields_list = None
+                if raw_fields.startswith("["):
+                    fields_list = json.loads(raw_fields)
+                if isinstance(fields_list, list):
+                    dropdowns = [
+                        (f.get("field_value") or "").strip().lower()
+                        for f in fields_list
+                        if isinstance(f, dict)
+                        and (f.get("field_type") or "").lower() == "dropdown"
+                    ]
+                    model_order = [
+                        "work_restrictions",
+                        "criminal_convictions",
+                        "ccj_debt",
+                        "bankruptcy",
+                        "dismissed",
+                        "referencing_issues",
+                    ]
+                    for idx, attr in enumerate(model_order):
+                        if idx >= len(dropdowns):
+                            break
+                        answer = dropdowns[idx] == "yes"
+                        if hasattr(rec, attr):
+                            setattr(rec, attr, answer)
+                    # Store the full dropdown list for audit — disclosure_text
+                    # is a free-form text column already on the model.
+                    if hasattr(rec, "disclosure_text"):
+                        rec.disclosure_text = (
+                            "Signable answers (positional): "
+                            + ", ".join(
+                                f"{attr}={('Yes' if idx < len(dropdowns) and dropdowns[idx] == 'yes' else 'No')}"
+                                for idx, attr in enumerate(model_order)
+                            )
+                        )
+            except Exception as decl_exc:
+                current_app.logger.warning(
+                    "declaration field mapping failed: %s", decl_exc
+                )
+
             s.flush()
             return f"DeclarationRecord {'inserted' if is_new else 'updated'} (id={rec.id})"
     except Exception as exc:
