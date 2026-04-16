@@ -2229,12 +2229,20 @@ def admin_webhook_events_test():
     }
     target = url_for("webhook_esign", _external=True)
     try:
-        _rq.post(target, json=payload, timeout=5)
-        flash(
-            f"Test payload POSTed to {target}. "
-            "Refresh this page — a new entry should appear at the top.",
-            "success",
-        )
+        resp = _rq.post(target, json=payload, timeout=10)
+        snippet = (resp.text or "")[:300]
+        if 200 <= resp.status_code < 300:
+            flash(
+                f"Test payload POSTed to {target} — status {resp.status_code}. "
+                "Refresh this page, a new entry should appear.",
+                "success",
+            )
+        else:
+            flash(
+                f"Test POST returned status {resp.status_code}. "
+                f"Response body: {snippet}",
+                "warning",
+            )
     except Exception as exc:
         current_app.logger.exception("test webhook POST failed")
         flash(f"Could not POST test payload: {exc}", "danger")
@@ -12700,28 +12708,31 @@ def webhook_esign():
     content_type = request.headers.get("Content-Type", "")
     event_type_raw = (payload.get("event") if isinstance(payload, dict) else None) or "unknown"
 
-    with Session(engine) as s:
-        # Always persist a row first so the admin page has evidence of the
-        # hit, even if downstream processing fails.
-        diag_body = {
-            "_meta": {
-                "method": request.method,
-                "content_type": content_type,
-                "remote_addr": request.remote_addr,
-                "raw_body_len": len(raw_body),
-                "header_count": len(list(request.headers)),
-            },
-            "payload": payload if isinstance(payload, dict) else {"_raw": raw_body[:4000]},
-        }
-        try:
-            s.add(WebhookEvent(
+    # Persist the diagnostic row in its OWN session so a commit here is
+    # durable regardless of what downstream processing does. Without this
+    # an exception later on was rolling the inserted row back.
+    diag_body = {
+        "_meta": {
+            "method": request.method,
+            "content_type": content_type,
+            "remote_addr": request.remote_addr,
+            "raw_body_len": len(raw_body),
+            "header_count": len(list(request.headers)),
+        },
+        "payload": payload if isinstance(payload, dict) else {"_raw": raw_body[:4000]},
+    }
+    try:
+        with Session(engine) as _diag_s:
+            _diag_s.add(WebhookEvent(
                 source="esign",
                 event_type=str(event_type_raw),
                 payload=json.dumps(diag_body)[:39999],
             ))
-            s.flush()
-        except Exception:
-            current_app.logger.exception("webhook_esign: failed to persist inbound event")
+            _diag_s.commit()
+    except Exception:
+        current_app.logger.exception("webhook_esign: failed to persist inbound event")
+
+    with Session(engine) as s:
 
         # --- Signable webhook auto-processing ---
         # Signable sends POST with {"envelope_fingerprint": "...", "envelope_status": "signed", ...}
