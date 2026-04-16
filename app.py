@@ -2502,13 +2502,15 @@ def _create_paystream_envelope(
             missing_fields, list(merge_map.keys()),
         )
 
-    # Resolve party_id (just the first party on the template)
+    # Resolve party_id and party_name (just the first party on the template)
     template_data = _signable_api_call(
         "GET", f"/templates/{SIGNABLE_PAYSTREAM_FINGERPRINT}"
     )
     if not template_data or not template_data.get("template_parties"):
         return False, "Couldn't resolve Paystream template parties."
-    party_id = str(template_data["template_parties"][0].get("party_id") or "")
+    first_party = template_data["template_parties"][0]
+    party_id = str(first_party.get("party_id") or "")
+    party_name = (first_party.get("party_name") or "Signer 1").strip() or "Signer 1"
     if not party_id:
         return False, "Paystream template has no signer party."
 
@@ -2535,6 +2537,7 @@ def _create_paystream_envelope(
         "envelope_parties": [
             {
                 "party_id": party_id,
+                "party_name": party_name,
                 "contact_email": umbrella_email,
                 "contact_name": umbrella_name or "Umbrella Company",
                 "party_merge_fields": party_merge_fields,
