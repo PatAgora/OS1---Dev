@@ -1695,7 +1695,36 @@ def company_details():
                     if doc:
                         company_docs[dtype] = doc
 
-            return render_template("associate/company_details.html", company=comp, umbrella_options=umbrella_options, allow_limited=allow_limited, company_docs=company_docs)
+            # Conduct Regulations 2003 state — displayed inline so the
+            # associate can opt-in/opt-out on the same page.
+            Candidate = _model("Candidate")
+            conduct_current_choice = None
+            conduct_decision_at = None
+            conduct_signed_name = ""
+            conduct_portal_name = ""
+            if Candidate:
+                _cand = s.get(Candidate, cand_id)
+                if _cand:
+                    _opted = getattr(_cand, "conduct_regs_opted_in", None)
+                    if _opted is True:
+                        conduct_current_choice = "opt_in"
+                    elif _opted is False:
+                        conduct_current_choice = "opt_out"
+                    conduct_decision_at = getattr(_cand, "conduct_regs_decision_at", None)
+                    conduct_signed_name = (getattr(_cand, "conduct_regs_signed_name", "") or "").strip()
+                    conduct_portal_name = (getattr(_cand, "name", "") or "").strip()
+
+            return render_template(
+                "associate/company_details.html",
+                company=comp,
+                umbrella_options=umbrella_options,
+                allow_limited=allow_limited,
+                company_docs=company_docs,
+                conduct_current_choice=conduct_current_choice,
+                conduct_decision_at=conduct_decision_at,
+                conduct_signed_name=conduct_signed_name,
+                conduct_portal_name=conduct_portal_name,
+            )
 
     # Diagnostic: record what the POST actually contained, so if the save
     # silently no-ops we can see exactly why in Railway logs.
@@ -2612,14 +2641,22 @@ def conduct_regulations():
         return redirect(url_for("associate.login"))
 
     if request.method == "POST":
+        # Let callers route the redirect back to their own page (e.g.
+        # the Company Details page embeds the same form inline).
+        return_to = (request.form.get("return_to") or "").strip()
+        def _redir_back():
+            if return_to == "company_details":
+                return redirect(url_for("associate.company_details"))
+            return redirect(url_for("associate.conduct_regulations"))
+
         choice = (request.form.get("opt_choice") or "").strip().lower()
         legal_name = _sanitise(request.form.get("legal_name") or "").strip()
         if choice not in ("opt_in", "opt_out"):
             flash("Please select opt in or opt out before submitting.", "warning")
-            return redirect(url_for("associate.conduct_regulations"))
+            return _redir_back()
         if not legal_name:
             flash("Please type your full name to confirm your choice.", "warning")
-            return redirect(url_for("associate.conduct_regulations"))
+            return _redir_back()
         try:
             with SASession(engine) as s:
                 cand = s.get(Candidate, cand_id)
@@ -2641,7 +2678,7 @@ def conduct_regulations():
                 "conduct_regulations save failed for candidate %s", cand_id
             )
             flash("Could not save your preference. Please try again.", "danger")
-        return redirect(url_for("associate.conduct_regulations"))
+        return _redir_back()
 
     # GET — read current state
     current_choice = None
