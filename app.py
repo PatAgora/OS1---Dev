@@ -12986,14 +12986,18 @@ def webhook_esign():
                         # completion calc reads. Without this, widget-based
                         # signings leave the portal at 0% and re-show the
                         # iframe on next visit.
+                        upsert_outcome = "no-op (unhandled doc_label)"
                         try:
                             from associate_portal import _portal_model as _pm
                             if doc_label == "Consent Form":
                                 ConsentRecordCls = _pm("ConsentRecord")
-                                if ConsentRecordCls is not None:
+                                if ConsentRecordCls is None:
+                                    upsert_outcome = "ConsentRecord class not resolvable"
+                                else:
                                     consent = s.query(ConsentRecordCls).filter_by(
                                         candidate_id=cand.id
                                     ).first()
+                                    is_new = consent is None
                                     if consent is None:
                                         consent = ConsentRecordCls(candidate_id=cand.id)
                                         s.add(consent)
@@ -13005,12 +13009,16 @@ def webhook_esign():
                                         consent.signable_envelope_id = envelope_fp
                                     if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
                                         consent.ip_address = request.remote_addr or ""
+                                    upsert_outcome = f"ConsentRecord {'inserted' if is_new else 'updated'} (id={consent.id}, consent_given=True)"
                             elif doc_label == "Declaration Form":
                                 DeclarationRecordCls = _pm("DeclarationRecord")
-                                if DeclarationRecordCls is not None:
+                                if DeclarationRecordCls is None:
+                                    upsert_outcome = "DeclarationRecord class not resolvable"
+                                else:
                                     decl = s.query(DeclarationRecordCls).filter_by(
                                         candidate_id=cand.id
                                     ).first()
+                                    is_new = decl is None
                                     if decl is None:
                                         decl = DeclarationRecordCls(candidate_id=cand.id)
                                         s.add(decl)
@@ -13020,11 +13028,39 @@ def webhook_esign():
                                         decl.signed_date = datetime.datetime.utcnow()
                                     if hasattr(decl, "signable_envelope_id"):
                                         decl.signable_envelope_id = envelope_fp
+                                    upsert_outcome = f"DeclarationRecord {'inserted' if is_new else 'updated'} (id={decl.id})"
+                            elif doc_label == "Secondary Job Declaration":
+                                upsert_outcome = "Candidate.secondary_job_declaration_signed flipped"
+                            elif is_emp_ref:
+                                upsert_outcome = "Candidate.employment_ref_declaration_signed flipped"
                         except Exception as upsert_exc:
                             current_app.logger.warning(
                                 "webhook upsert failed for %s / cand %s: %s",
                                 doc_label, cand.id, upsert_exc,
                             )
+                            upsert_outcome = f"exception: {upsert_exc}"
+
+                        # Success breadcrumb — visible on /admin/webhook-events
+                        # in its own session so it's durable even if the outer
+                        # session's commit later fails.
+                        try:
+                            with Session(engine) as _ns:
+                                _ns.add(WebhookEvent(
+                                    source="esign",
+                                    event_type="matched-widget-signing",
+                                    payload=json.dumps({
+                                        "doc_label": doc_label,
+                                        "envelope_title": envelope_title,
+                                        "envelope_fingerprint": envelope_fp,
+                                        "signer_name": signer_name,
+                                        "cand_id": cand.id,
+                                        "cand_name": cand.name,
+                                        "upsert": upsert_outcome,
+                                    })[:39999],
+                                ))
+                                _ns.commit()
+                        except Exception:
+                            current_app.logger.exception("failed to log matched signing")
 
                         # Activity note for ALL signed documents
                         s.add(CandidateNote(
