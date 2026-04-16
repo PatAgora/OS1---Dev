@@ -2227,11 +2227,23 @@ def admin_webhook_events_test():
             {"party_email": "test-webhook@example.com", "party_name": "Test Signer"}
         ],
     }
+    # Railway terminates TLS at the edge and 301s http -> https. requests
+    # follows that redirect with a GET, which hits our GET verification
+    # path ({"ok": True}) and never reaches the POST handler. Force https
+    # and disable redirect-follow so we surface the real response.
     target = url_for("webhook_esign", _external=True)
+    if target.startswith("http://"):
+        target = "https://" + target[len("http://"):]
     try:
-        resp = _rq.post(target, json=payload, timeout=10)
+        resp = _rq.post(target, json=payload, timeout=10, allow_redirects=False)
         snippet = (resp.text or "")[:300]
-        if 200 <= resp.status_code < 300:
+        if resp.status_code in (301, 302, 303, 307, 308):
+            flash(
+                f"Test POST was redirected to {resp.headers.get('Location', '(no Location)')}"
+                f" (status {resp.status_code}). Handler never ran. Tell support.",
+                "warning",
+            )
+        elif 200 <= resp.status_code < 300:
             flash(
                 f"Test payload POSTed to {target} — status {resp.status_code}. "
                 "Refresh this page, a new entry should appear.",
