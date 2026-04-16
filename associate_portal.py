@@ -1706,22 +1706,78 @@ def company_details():
         cand_id, bool(CompanyDetails), entity_type_raw, umbrella_raw,
     )
 
+    # Pre-compute sanitised values so both the ORM and the raw-SQL
+    # fallback path use the same inputs.
+    _values = {
+        "cid": cand_id,
+        "contracting_type": _sanitise(entity_type_raw),
+        "company_name": _sanitise(request.form.get("company_name", "")),
+        "registration_number": _sanitise(request.form.get("company_reg_number", "")),
+        "vat_registered": (request.form.get("vat_registered") == "yes"),
+        "vat_number": _sanitise(request.form.get("vat_number", "")),
+        "bank_account_number": _sanitise(request.form.get("bank_account_number", "")),
+        "bank_sort_code": _sanitise(request.form.get("bank_sort_code", "")),
+        "umbrella_company_name": _sanitise(umbrella_raw),
+    }
+
     with SASession(engine) as s:
         comp = s.query(CompanyDetails).filter_by(candidate_id=cand_id).first() if CompanyDetails else None
         was_new = comp is None
+
+        # If the ORM class couldn't be resolved on this worker (partial
+        # model init), persist via raw SQL so the Save still works.
+        if CompanyDetails is None:
+            try:
+                existing = s.execute(
+                    text("SELECT id FROM company_details WHERE candidate_id = :cid"),
+                    {"cid": cand_id},
+                ).first()
+                if existing:
+                    s.execute(text("""
+                        UPDATE company_details SET
+                          contracting_type = :contracting_type,
+                          company_name = :company_name,
+                          registration_number = :registration_number,
+                          vat_registered = :vat_registered,
+                          vat_number = :vat_number,
+                          bank_account_number = :bank_account_number,
+                          bank_sort_code = :bank_sort_code,
+                          umbrella_company_name = :umbrella_company_name,
+                          updated_at = CURRENT_TIMESTAMP
+                        WHERE candidate_id = :cid
+                    """), _values)
+                else:
+                    s.execute(text("""
+                        INSERT INTO company_details (
+                          candidate_id, contracting_type, company_name,
+                          registration_number, vat_registered, vat_number,
+                          bank_account_number, bank_sort_code,
+                          umbrella_company_name, created_at, updated_at
+                        ) VALUES (
+                          :cid, :contracting_type, :company_name,
+                          :registration_number, :vat_registered, :vat_number,
+                          :bank_account_number, :bank_sort_code,
+                          :umbrella_company_name, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                    """), _values)
+            except Exception as raw_exc:
+                current_app.logger.exception(
+                    "company_details raw-SQL upsert failed: %s", raw_exc,
+                )
+
         if not comp and CompanyDetails:
             comp = CompanyDetails(candidate_id=cand_id)
             s.add(comp)
 
         if comp:
-            comp.contracting_type = _sanitise(entity_type_raw)
-            comp.company_name = _sanitise(request.form.get("company_name", ""))
-            comp.registration_number = _sanitise(request.form.get("company_reg_number", ""))
-            comp.vat_registered = request.form.get("vat_registered") == "yes"
-            comp.vat_number = _sanitise(request.form.get("vat_number", ""))
-            comp.bank_account_number = _sanitise(request.form.get("bank_account_number", ""))
-            comp.bank_sort_code = _sanitise(request.form.get("bank_sort_code", ""))
-            comp.umbrella_company_name = _sanitise(umbrella_raw)
+            comp.contracting_type = _values["contracting_type"]
+            comp.company_name = _values["company_name"]
+            comp.registration_number = _values["registration_number"]
+            comp.vat_registered = _values["vat_registered"]
+            comp.vat_number = _values["vat_number"]
+            comp.bank_account_number = _values["bank_account_number"]
+            comp.bank_sort_code = _values["bank_sort_code"]
+            comp.umbrella_company_name = _values["umbrella_company_name"]
             # contact_email is owned by staff on the candidate card in the
             # app; the associate-side form does not collect it. Do not
             # overwrite an existing staff-entered value on save.
@@ -1759,14 +1815,36 @@ def company_details():
             return redirect(url_for("associate.company_details"))
 
         # Diagnostic: re-read the row and log what's actually persisted.
-        verify = s.query(CompanyDetails).filter_by(candidate_id=cand_id).first() if CompanyDetails else None
-        persisted_entity = getattr(verify, "contracting_type", None)
-        persisted_umbrella = getattr(verify, "umbrella_company_name", None)
-        persisted_company = getattr(verify, "company_name", None)
-        row_id = getattr(verify, "id", None)
+        # Use the ORM class if available, else raw SQL — so the "no row"
+        # warning only fires if the DB genuinely doesn't have a matching
+        # row, not because the class failed to resolve.
+        persisted_entity = persisted_umbrella = persisted_company = None
+        row_id = None
+        if CompanyDetails is not None:
+            verify = s.query(CompanyDetails).filter_by(candidate_id=cand_id).first()
+            if verify:
+                persisted_entity = getattr(verify, "contracting_type", None)
+                persisted_umbrella = getattr(verify, "umbrella_company_name", None)
+                persisted_company = getattr(verify, "company_name", None)
+                row_id = getattr(verify, "id", None)
+        else:
+            raw_row = s.execute(
+                text("""
+                    SELECT id, contracting_type, umbrella_company_name, company_name
+                    FROM company_details
+                    WHERE candidate_id = :cid
+                """),
+                {"cid": cand_id},
+            ).first()
+            if raw_row:
+                row_id = raw_row.id
+                persisted_entity = raw_row.contracting_type
+                persisted_umbrella = raw_row.umbrella_company_name
+                persisted_company = raw_row.company_name
         current_app.logger.info(
-            "company_details POST done | cand_id=%s | was_new=%s | persisted_entity=%r | persisted_umbrella=%r | row_id=%s",
-            cand_id, was_new, persisted_entity, persisted_umbrella, row_id,
+            "company_details POST done | cand_id=%s | was_new=%s | orm=%s | row_id=%s | entity=%r | umbrella=%r",
+            cand_id, was_new, bool(CompanyDetails),
+            row_id, persisted_entity, persisted_umbrella,
         )
 
     # Echo what landed in the DB so the user can spot a silent no-op without
