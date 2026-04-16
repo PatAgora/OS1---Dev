@@ -13893,6 +13893,26 @@ def candidate_profile(cand_id: int):
                         "missing_data": _missing_for_check(check_type),
                     })
             
+            # Enrich vetting cards with portal-side context so the recruiter
+            # sees flags they'd otherwise have to drill into the associate
+            # portal to find. Currently:
+            #   - Employment History: gap count from employment_history
+            #     rows where is_gap=true (flagged in the associate portal).
+            try:
+                gap_count = s.scalar(text(
+                    "SELECT COUNT(*) FROM employment_history "
+                    "WHERE candidate_id = :cid AND is_gap = TRUE"
+                ).bindparams(cid=cand_id)) or 0
+            except Exception:
+                gap_count = 0
+            for vc in vetting_checks:
+                if vc.get("type") == "Employment History" and gap_count:
+                    vc["portal_flags"] = [
+                        f"{gap_count} employment gap"
+                        + ("s" if gap_count != 1 else "")
+                        + " flagged in Associate Portal"
+                    ]
+
             # Calculate summary
             for vc in vetting_checks:
                 status = (vc["status"] or "").upper()
