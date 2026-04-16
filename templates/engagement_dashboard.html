@@ -1059,7 +1059,8 @@
     </div>
     <div class="delivery-modal-body">
       <div class="associate-search">
-        <input type="text" id="associateSearch" placeholder="Search associates...">
+        <input type="text" id="associateSearch" placeholder="Search associates by name...">
+        <div id="associateSearchCount" class="text-muted small mt-1">&nbsp;</div>
       </div>
       
       <div class="bulk-actions-bar" id="bulkActionsBar">
@@ -1168,100 +1169,99 @@
   
   let currentModalType = '';
   let selectedAssociates = new Set();
-  
+  // Snapshot of the associates currently shown in the modal. The search
+  // filter rebuilds the list from this array on every keystroke —
+  // completely independent of DOM attributes, so it can't be broken by
+  // rendering quirks.
+  let currentModalAssociates = [];
+
+  // Target-tile (Delivery Target by Role) data is rendered server-side
+  // as a flat list. Serialise it once as structured data so the search
+  // can filter it the same way.
+  const targetRolesData = [
+    {% for role in display_roles %}
+      {% set m = role_metrics.get(role, {}) %}
+      {
+        id: 'role-{{ loop.index }}',
+        name: {{ role|tojson }},
+        role: {{ role|tojson }},
+        planned: {{ m.get('planned', 0) }},
+        signed: {{ m.get('signed', 0) }},
+        kind: 'target'
+      }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  function renderAssociateList(items) {
+    const list = document.getElementById('associateList');
+    const countEl = document.getElementById('associateSearchCount');
+    if (!list) return;
+
+    if (!items || items.length === 0) {
+      list.innerHTML = '<li class="associate-item"><div class="associate-info"><div class="associate-name">No associates found</div></div></li>';
+      if (countEl) countEl.textContent = 'No matches';
+      return;
+    }
+
+    const html = items.map(a => {
+      if (a.kind === 'target') {
+        return `<li class="associate-item">
+          <div class="associate-info">
+            <div class="associate-name">${a.name}</div>
+            <div class="associate-role">Target: ${a.planned} • Filled: ${a.signed}</div>
+          </div>
+        </li>`;
+      }
+      const sub = a.ai_score !== undefined
+        ? `${a.role || 'No role'} • AI Score: ${a.ai_score}`
+        : `${a.role || 'No role'} • Stage: ${a.status || 'Unknown'}`;
+      return `<li class="associate-item">
+        <div class="associate-info">
+          <div class="associate-name">${a.name || 'Unknown'}</div>
+          <div class="associate-role">${sub}</div>
+        </div>
+        <div class="associate-actions">
+          <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
+            <i class="fas fa-user"></i> View Profile
+          </a>
+        </div>
+      </li>`;
+    }).join('');
+
+    list.innerHTML = html;
+    if (countEl) {
+      countEl.textContent = `Showing ${items.length} of ${currentModalAssociates.length}`;
+    }
+  }
+
   function showDeliveryModal(type) {
     currentModalType = type;
     selectedAssociates.clear();
     updateBulkActionsBar();
-    
+
     const modal = document.getElementById('deliveryModal');
     const title = document.getElementById('modalTitle');
-    const list = document.getElementById('associateList');
-    
+    const search = document.getElementById('associateSearch');
+
     const titles = {
       'target': 'Delivery Target by Role',
       'on_contract': 'On-Contract Associates',
       'scheduled': 'Scheduled Starters',
       'left_to_fill': 'Left to Fill - Ready to Contract'
     };
-    
     title.textContent = titles[type] || 'Associates';
-    
-    let html = '';
-    const associates = associatesData[type] || [];
-    
-    if (type === 'on_contract' && associates.length > 0) {
-      associates.forEach((a, idx) => {
-        html += `
-          <li class="associate-item" data-name="${(a.name || '').toLowerCase()}" data-role="${(a.role || '').toLowerCase()}">
-            <div class="associate-info">
-              <div class="associate-name">${a.name || 'Unknown'}</div>
-              <div class="associate-role">${a.role || 'No role'} • AI Score: ${a.ai_score || 0}</div>
-            </div>
-            <div class="associate-actions">
-              <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
-                <i class="fas fa-user"></i> View Profile
-              </a>
-            </div>
-          </li>
-        `;
-      });
-    } else if (type === 'scheduled' && associates.length > 0) {
-      associates.forEach((a, idx) => {
-        html += `
-          <li class="associate-item" data-name="${(a.name || '').toLowerCase()}" data-role="${(a.role || '').toLowerCase()}">
-            <div class="associate-info">
-              <div class="associate-name">${a.name || 'Unknown'}</div>
-              <div class="associate-role">${a.role || 'No role'} • Stage: ${a.status || 'Unknown'}</div>
-            </div>
-            <div class="associate-actions">
-              <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
-                <i class="fas fa-user"></i> View Profile
-              </a>
-            </div>
-          </li>
-        `;
-      });
-    } else if (type === 'target') {
-      // Show roles breakdown — include data attrs so the search box
-      // can match against role name.
-      {% for role in display_roles %}
-      {% set m = role_metrics.get(role, {}) %}
-      html += `
-        <li class="associate-item"
-            data-name="{{ role|lower }}"
-            data-role="{{ role|lower }}">
-          <div class="associate-info">
-            <div class="associate-name">{{ role }}</div>
-            <div class="associate-role">Target: {{ m.get('planned', 0) }} • Filled: {{ m.get('signed', 0) }}</div>
-          </div>
-        </li>
-      `;
-      {% endfor %}
-    } else if (type === 'left_to_fill' && associates.length > 0) {
-      // Left-to-fill: same render as scheduled + on_contract so the
-      // modal isn't blank and the search box works.
-      associates.forEach((a, idx) => {
-        html += `
-          <li class="associate-item" data-name="${(a.name || '').toLowerCase()}" data-role="${(a.role || '').toLowerCase()}">
-            <div class="associate-info">
-              <div class="associate-name">${a.name || 'Unknown'}</div>
-              <div class="associate-role">${a.role || 'No role'} • Stage: ${a.status || 'Unknown'}</div>
-            </div>
-            <div class="associate-actions">
-              <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
-                <i class="fas fa-user"></i> View Profile
-              </a>
-            </div>
-          </li>
-        `;
-      });
+
+    // Build the data snapshot for this modal.
+    if (type === 'target') {
+      currentModalAssociates = targetRolesData;
+    } else {
+      currentModalAssociates = (associatesData[type] || []).slice();
     }
-    if (!html) {
-      html = '<li class="associate-item"><div class="associate-info"><div class="associate-name">No associates found</div></div></li>';
-    }
-    
-    list.innerHTML = html;
+
+    // Reset the search box and render the full list.
+    if (search) search.value = '';
+    renderAssociateList(currentModalAssociates);
+
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
   }
@@ -1277,38 +1277,26 @@
   function filterAssociates() {
     const input = document.getElementById('associateSearch');
     const query = (input && input.value ? input.value : '').toLowerCase().trim();
-    const items = document.querySelectorAll('#associateList .associate-item');
-
-    items.forEach(item => {
-      if (!query) {
-        item.style.display = '';
-        return;
-      }
-      // Match against data attrs AND the visible text so the search
-      // box works even on rows where only one attr is populated.
-      const name = (item.dataset.name || '').toLowerCase();
-      const role = (item.dataset.role || '').toLowerCase();
-      const text = (item.textContent || '').toLowerCase();
-      const matches = name.includes(query) || role.includes(query) || text.includes(query);
-      item.style.display = matches ? '' : 'none';
-    });
-  }
-
-  // Wire the search listener. The <script> block is placed after the
-  // modal HTML, so the input element already exists in the DOM by the
-  // time this runs. We attach directly (no DOMContentLoaded wait) and
-  // cover both input + keyup events to catch every platform quirk.
-  (function wireAssociateSearch() {
-    const searchInput = document.getElementById('associateSearch');
-    if (!searchInput) {
-      console.warn('[search] #associateSearch not found at script runtime');
+    if (!query) {
+      renderAssociateList(currentModalAssociates);
       return;
     }
+    const filtered = currentModalAssociates.filter(a => {
+      const name = (a.name || '').toLowerCase();
+      const role = (a.role || '').toLowerCase();
+      return name.includes(query) || role.includes(query);
+    });
+    renderAssociateList(filtered);
+  }
+
+  // Wire the search listener. Script runs after the modal HTML so the
+  // input already exists in the DOM — attach directly, cover both
+  // input + keyup events for cross-browser reliability.
+  (function wireAssociateSearch() {
+    const searchInput = document.getElementById('associateSearch');
+    if (!searchInput) return;
     searchInput.addEventListener('input', filterAssociates);
     searchInput.addEventListener('keyup', filterAssociates);
-    // Also re-filter whenever the modal opens, in case the list
-    // changed underneath a previously-typed query.
-    window.__associateSearchWired = true;
   })();
   
   function toggleAssociateSelection(id, checkbox) {
