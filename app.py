@@ -2151,6 +2151,42 @@ def mark_umbrella_assignment_sent(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/action/umbrella-assignment-signed/<int:cand_id>", methods=["POST"])
+@login_required
+def mark_umbrella_assignment_signed(cand_id: int):
+    """Follow-up to mark_umbrella_assignment_sent: staff confirm that
+    the signed document has come back from the umbrella / Ltd Co."""
+    choice = (request.form.get("signed") or "").strip().lower()
+    if choice not in ("yes", "no"):
+        flash("Pick Yes or No.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        was = getattr(cand, "umbrella_assignment_signed", None)
+        cand.umbrella_assignment_signed = (choice == "yes")
+        cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=(
+                f"Umbrella Assignment Schedule marked as "
+                f"{'SIGNED' if choice == 'yes' else 'NOT signed yet'} "
+                f"(was {'signed' if was else 'not signed' if was is False else 'not recorded'})."
+            ),
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+    flash(
+        f"Assignment Schedule recorded as {'signed' if choice == 'yes' else 'not signed yet'}.",
+        "success",
+    )
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
 @login_required
 def send_umbrella_contract(cand_id: int):
@@ -2414,6 +2450,12 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
     if is_emp_ref and hasattr(cand, "employment_ref_declaration_signed"):
         cand.employment_ref_declaration_signed = True
         cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+    if doc_label == "Umbrella Assignment (Paystream)":
+        if hasattr(cand, "umbrella_assignment_signed"):
+            cand.umbrella_assignment_signed = True
+        if hasattr(cand, "umbrella_assignment_signed_at"):
+            cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
+        return "Candidate.umbrella_assignment_signed flipped (Paystream auto)"
     if doc_label == "Secondary Job Declaration":
         # Parse incoming fields (same approach as Declaration Form) so we
         # can capture the Yes/No, free-text job title, and signed name.
@@ -4079,6 +4121,11 @@ class Candidate(Base):
     # staff said no.
     umbrella_assignment_sent = Column(Boolean, nullable=True)
     umbrella_assignment_sent_at = Column(DateTime, nullable=True)
+    # Follow-up tracking once the manually-sent assignment schedule has
+    # been signed by the umbrella / limited company. NULL = not asked,
+    # TRUE = signed confirmed, FALSE = not yet signed.
+    umbrella_assignment_signed = Column(Boolean, nullable=True)
+    umbrella_assignment_signed_at = Column(DateTime, nullable=True)
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -5339,6 +5386,8 @@ try:
             "ALTER TABLE candidates ADD COLUMN conduct_regs_signed_name VARCHAR(300) DEFAULT ''",
             "ALTER TABLE candidates ADD COLUMN umbrella_assignment_sent BOOLEAN",
             "ALTER TABLE candidates ADD COLUMN umbrella_assignment_sent_at TIMESTAMP",
+            "ALTER TABLE candidates ADD COLUMN umbrella_assignment_signed BOOLEAN",
+            "ALTER TABLE candidates ADD COLUMN umbrella_assignment_signed_at TIMESTAMP",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather
@@ -13678,7 +13727,15 @@ def webhook_esign():
                     # otherwise be caught by the generic employment +
                     # declaration rule and mis-labelled as Employment
                     # Reference Declaration.
-                    if "secondary" in title_lower and (
+                    if "paystream" in title_lower and (
+                        "assignment" in title_lower or "schedule" in title_lower
+                    ):
+                        # Paystream umbrella assignment schedule — auto-flip
+                        # the candidate's umbrella_assignment_signed flag
+                        # below when we can resolve the candidate.
+                        doc_label = "Umbrella Assignment (Paystream)"
+                        is_emp_ref = False
+                    elif "secondary" in title_lower and (
                         "job" in title_lower or "employment" in title_lower
                     ):
                         doc_label = "Secondary Job Declaration"
@@ -13732,6 +13789,23 @@ def webhook_esign():
                                 match_reason = f"envelope_meta cand_id={envelope_meta_raw}"
                         except Exception:
                             cand = None
+                    # Paystream assignment — signer is the umbrella's
+                    # contact, not the candidate. Match candidate via
+                    # CompanyDetails.contact_email where umbrella contains
+                    # "paystream".
+                    if (cand is None and signer_email
+                            and doc_label == "Umbrella Assignment (Paystream)"):
+                        umbrella_row = s.execute(text(
+                            "SELECT candidate_id FROM company_details "
+                            "WHERE LOWER(contact_email) = :email "
+                            "  AND LOWER(contracting_type) = 'umbrella' "
+                            "  AND LOWER(COALESCE(umbrella_company_name, '')) LIKE '%paystream%' "
+                            "ORDER BY updated_at DESC NULLS LAST LIMIT 1"
+                        ).bindparams(email=signer_email.lower())).first()
+                        if umbrella_row and umbrella_row.candidate_id:
+                            cand = s.get(Candidate, int(umbrella_row.candidate_id))
+                            if cand:
+                                match_reason = f"paystream contact_email={signer_email}"
                     if cand is None and signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
