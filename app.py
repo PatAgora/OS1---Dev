@@ -2538,8 +2538,10 @@ def _create_paystream_envelope(
             {
                 "party_id": party_id,
                 "party_name": party_name,
+                "party_email": umbrella_email,
                 "contact_email": umbrella_email,
                 "contact_name": umbrella_name or "Umbrella Company",
+                "party_title": umbrella_name or "Umbrella Company",
                 "party_merge_fields": party_merge_fields,
             }
         ],
