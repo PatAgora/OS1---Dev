@@ -2514,7 +2514,8 @@ def _create_paystream_envelope(
 
     eng_name = (engagement.name if engagement else "Optimus assignment")
     envelope_title = f"Optimus Assignment Schedule — {cand.name or 'candidate'} ({eng_name})"
-    # Signable expects envelope fields at the top level — not wrapped.
+    # Signable expects envelope fields at the top level — not wrapped —
+    # and uses the envelope_ prefix on the list keys too.
     payload = {
         "envelope_title": envelope_title,
         "envelope_subject": envelope_title,
@@ -2525,8 +2526,8 @@ def _create_paystream_envelope(
         ),
         "envelope_showTitle": "1",
         "envelope_language": "en",
-        "fingerprints": [SIGNABLE_PAYSTREAM_FINGERPRINT],
-        "parties": [
+        "envelope_fingerprints": [SIGNABLE_PAYSTREAM_FINGERPRINT],
+        "envelope_parties": [
             {
                 "party_id": party_id,
                 "contact_email": umbrella_email,
