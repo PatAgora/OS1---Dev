@@ -13685,6 +13685,351 @@ def action_request_updated_cv(app_id):
     flash("CV update request sent", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
+def _compute_verifile_preflight(s, cand_id: int, engagement=None):
+    """Per-check-type readiness report for Verifile submission.
+
+    Returns a list of dicts, one per vetting check type relevant to this
+    candidate's engagement:
+        {
+            "check_type": "DBS Check",
+            "required_by_engagement": True/False,
+            "dbs_level": "Standard" | ...,    # only for DBS Check
+            "status": "ok" | "warnings" | "blocked",
+            "blocking": [ "Mother's maiden name", ...],
+            "warnings": [ "Driving licence expiry date missing", ... ],
+            "satisfied": [ "Current address", "NI number", ... ],
+        }
+
+    Blocking = missing a field Verifile's API will reject with a
+    validation error (money not spent, but the order won't place).
+    Warnings = fields that might cause the candidate's Verifile-side
+    data-entry step to stall or the check to come back incomplete.
+    """
+    cand = s.get(Candidate, cand_id)
+    if not cand:
+        return []
+
+    # Which checks does the engagement require?
+    required_types = set()
+    if engagement is not None:
+        raw = getattr(engagement, "vetting_requirements", "") or ""
+        try:
+            import json as _j
+            parsed = _j.loads(raw) if raw else []
+            if isinstance(parsed, list):
+                required_types = {str(x) for x in parsed}
+        except Exception:
+            required_types = set()
+
+    # Pull all portal-side data in one pass.
+    from associate_portal import _portal_model as _pm
+    AssocProfile = _pm("AssociateProfile")
+    AddressHistory = _pm("AddressHistory")
+    EmploymentHistory = _pm("EmploymentHistory")
+    ConsentRecord = _pm("ConsentRecord")
+    QualificationRecord = _pm("QualificationRecord")
+    ProfRegistration = _pm("ProfessionalRegistration")
+
+    profile = s.query(AssocProfile).filter_by(candidate_id=cand_id).first() if AssocProfile else None
+    addresses = s.query(AddressHistory).filter_by(candidate_id=cand_id).all() if AddressHistory else []
+    employments = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).filter_by(is_gap=False).all() if EmploymentHistory else []
+    consent = s.query(ConsentRecord).filter_by(candidate_id=cand_id).first() if ConsentRecord else None
+    qualifications = s.query(QualificationRecord).filter_by(candidate_id=cand_id).all() if QualificationRecord else []
+    prof_regs = s.query(ProfRegistration).filter_by(candidate_id=cand_id).all() if ProfRegistration else []
+
+    # Documents on file.
+    rtw_doc_count = s.scalar(text(
+        "SELECT COUNT(*) FROM documents WHERE candidate_id = :cid AND doc_type = 'right_to_work'"
+    ).bindparams(cid=cand_id)) or 0
+    id_doc_count = s.scalar(text(
+        "SELECT COUNT(*) FROM documents WHERE candidate_id = :cid AND doc_type = 'proof_of_identity'"
+    ).bindparams(cid=cand_id)) or 0
+    addr_doc_count = s.scalar(text(
+        "SELECT COUNT(*) FROM documents WHERE candidate_id = :cid AND doc_type = 'proof_of_address'"
+    ).bindparams(cid=cand_id)) or 0
+
+    # Convenience accessors with sensible defaults.
+    def _p(attr, default=""):
+        return (getattr(profile, attr, None) if profile else None) or default
+
+    def _nonblank(v):
+        return bool((v or "").strip()) if isinstance(v, str) else bool(v)
+
+    # Total continuous address-history days.
+    total_addr_days = 0
+    if addresses:
+        today_ = datetime.date.today()
+        for a in addresses:
+            fd = getattr(a, "from_date", None)
+            td = getattr(a, "to_date", None) or (today_ if getattr(a, "is_current", False) else None)
+            if fd and td:
+                try:
+                    total_addr_days += max(0, (td - fd).days)
+                except Exception:
+                    pass
+
+    # Total employment-history days (non-gap).
+    total_emp_days = 0
+    for e in employments:
+        fd = getattr(e, "start_date", None)
+        td = getattr(e, "end_date", None)
+        if fd and td:
+            try:
+                total_emp_days += max(0, (td - fd).days)
+            except Exception:
+                pass
+
+    # Job for DBS settings (take the most recent application's job).
+    latest_app = s.scalar(
+        select(Application).where(Application.candidate_id == cand_id).order_by(Application.created_at.desc())
+    )
+    latest_job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+
+    # ----- Per-check-type checklists -----
+    report = []
+
+    def add(check_type, blocking=None, warnings=None, satisfied=None, extra=None):
+        blocking = blocking or []
+        warnings = warnings or []
+        status = "blocked" if blocking else ("warnings" if warnings else "ok")
+        rec = {
+            "check_type": check_type,
+            "required_by_engagement": (not required_types) or (check_type in required_types),
+            "status": status,
+            "blocking": blocking,
+            "warnings": warnings,
+            "satisfied": satisfied or [],
+        }
+        if extra:
+            rec.update(extra)
+        report.append(rec)
+
+    # Common candidate-entry minimum
+    name_parts = (_p("first_name"), _p("surname"))
+    has_name = _nonblank(name_parts[0]) and _nonblank(name_parts[1])
+    has_dob = bool(_p("dob", None))
+    has_email = _nonblank(getattr(cand, "email", ""))
+
+    # --- Right to Work ---
+    blk, wrn, sat = [], [], []
+    if not has_name: blk.append("Legal name (first + surname)")
+    else: sat.append("Legal name")
+    if not has_dob: blk.append("Date of birth")
+    else: sat.append("Date of birth")
+    if not has_email: blk.append("Candidate email address")
+    else: sat.append("Candidate email")
+    if rtw_doc_count == 0: wrn.append("No Right to Work document uploaded")
+    else: sat.append("Right to Work document on file")
+    add("Right to Work", blk, wrn, sat)
+
+    # --- Identity Verification ---
+    blk, wrn, sat = [], [], []
+    if not has_name: blk.append("Legal name")
+    else: sat.append("Legal name")
+    if not has_dob: blk.append("Date of birth")
+    else: sat.append("Date of birth")
+    has_passport = _nonblank(_p("passport_number"))
+    has_dl = _nonblank(_p("driving_licence_number"))
+    if not has_passport and not has_dl:
+        blk.append("Passport OR driving licence number")
+    else:
+        sat.append("Passport or driving licence")
+    if id_doc_count == 0:
+        wrn.append("No ID proof document uploaded")
+    else:
+        sat.append("ID document uploaded")
+    add("Identity Verification", blk, wrn, sat)
+
+    # --- Address History ---
+    blk, wrn, sat = [], [], []
+    if not addresses:
+        blk.append("No address history entries in Portal")
+    else:
+        years = total_addr_days / 365.0
+        if years < 5:
+            blk.append(f"Only {years:.1f} yrs of address history (need 5)")
+        else:
+            sat.append(f"{years:.1f} yrs of address history")
+    if addr_doc_count == 0:
+        wrn.append("No proof of address document uploaded")
+    else:
+        sat.append("Proof of address uploaded")
+    add("Address History", blk, wrn, sat)
+
+    # --- DBS Check ---
+    blk, wrn, sat = [], [], []
+    if not has_name: blk.append("Legal name")
+    if not has_dob: blk.append("Date of birth")
+    if not _nonblank(_p("gender")): blk.append("Gender")
+    else: sat.append("Gender")
+    if not has_passport and not has_dl:
+        blk.append("Passport OR driving licence number")
+    ni = _nonblank(_p("national_insurance_number"))
+    if not ni and not has_passport and not has_dl:
+        blk.append("NI number (or passport/licence)")
+    elif ni:
+        sat.append("NI number")
+    if not _nonblank(_p("country_of_birth")):
+        blk.append("Country of birth")
+    else:
+        sat.append("Country of birth")
+    if not _nonblank(_p("town_of_birth")):
+        blk.append("Town of birth")
+    else:
+        sat.append("Town of birth")
+    if not _nonblank(_p("mother_maiden_name")):
+        wrn.append("Mother's maiden name (required for Standard/Enhanced)")
+    else:
+        sat.append("Mother's maiden name")
+    # Job-level DBS fields
+    if latest_job is None:
+        wrn.append("Candidate has no application — DBS will have no job context")
+    else:
+        if not _nonblank(getattr(latest_job, "dbs_level", "")):
+            blk.append("Job: DBS Level")
+        else:
+            sat.append(f"Job DBS Level: {latest_job.dbs_level}")
+        if not _nonblank(getattr(latest_job, "dbs_sector", "")):
+            blk.append("Job: DBS Sector")
+        else:
+            sat.append(f"Job DBS Sector: {latest_job.dbs_sector}")
+        if not _nonblank(getattr(latest_job, "dbs_purpose", "")):
+            wrn.append("Job: DBS Purpose of Check")
+        if not _nonblank(getattr(latest_job, "dbs_position_applied_for", "")):
+            wrn.append("Job: DBS Position Applied For")
+        if not _nonblank(getattr(latest_job, "dbs_employer_name", "")):
+            wrn.append("Job: DBS Employer Name")
+        # Standard/Enhanced only
+        if (getattr(latest_job, "dbs_level", "") or "").lower() in ("standard", "enhanced"):
+            if not _nonblank(getattr(latest_job, "dbs_job_role", "")):
+                blk.append(f"Job: DBS Job Role (required for {latest_job.dbs_level})")
+    if total_addr_days < 5 * 365:
+        blk.append("DBS requires 5 yrs of address history")
+    add("DBS Check", blk, wrn, sat,
+        extra={"dbs_level": getattr(latest_job, "dbs_level", "") if latest_job else ""})
+
+    # --- Employment History ---
+    blk, wrn, sat = [], [], []
+    if not employments:
+        blk.append("No employment history entries in Portal")
+    else:
+        eyrs = total_emp_days / 365.0
+        target = (getattr(engagement, "reference_period_years", 3) or 3) if engagement else 3
+        if eyrs < target:
+            wrn.append(f"Only {eyrs:.1f} yrs employment (engagement wants {target})")
+        else:
+            sat.append(f"{eyrs:.1f} yrs employment history")
+        # Any entry missing referee email?
+        missing_ref = sum(1 for e in employments if not _nonblank(getattr(e, "referee_email", "")))
+        if missing_ref:
+            wrn.append(f"{missing_ref} employment entr{'ies' if missing_ref != 1 else 'y'} missing referee email")
+        else:
+            sat.append("All employment entries have referee emails")
+    add("Employment History", blk, wrn, sat)
+
+    # --- References ---
+    blk, wrn, sat = [], [], []
+    ref_entries = [e for e in employments if _nonblank(getattr(e, "referee_email", ""))]
+    if not ref_entries:
+        blk.append("No referee email addresses captured")
+    else:
+        sat.append(f"{len(ref_entries)} referee contact{'s' if len(ref_entries) != 1 else ''}")
+    if consent and getattr(consent, "reference_consent", False):
+        sat.append("Reference consent given")
+    else:
+        wrn.append("Reference consent not confirmed on consent form")
+    add("References", blk, wrn, sat)
+
+    # --- Qualifications ---
+    blk, wrn, sat = [], [], []
+    if not qualifications:
+        wrn.append("No qualifications in Portal (skip if not applicable)")
+    else:
+        sat.append(f"{len(qualifications)} qualification entr{'ies' if len(qualifications) != 1 else 'y'}")
+        for q in qualifications:
+            if not _nonblank(getattr(q, "institution", "")):
+                wrn.append(f"Qualification #{q.id}: institution missing")
+            if not _nonblank(getattr(q, "institution_country", "")):
+                wrn.append(f"Qualification #{q.id}: institution country missing")
+    add("Qualifications", blk, wrn, sat)
+
+    # --- Professional Registration ---
+    blk, wrn, sat = [], [], []
+    if not prof_regs:
+        wrn.append("No professional registrations added (skip if not applicable)")
+    else:
+        sat.append(f"{len(prof_regs)} registration{'s' if len(prof_regs) != 1 else ''}")
+    add("Professional Registration", blk, wrn, sat)
+
+    # --- Credit Check ---
+    blk, wrn, sat = [], [], []
+    if not has_name: blk.append("Legal name")
+    if not has_dob: blk.append("Date of birth")
+    if not addresses: blk.append("At least one current address")
+    elif total_addr_days < 6 * 365:
+        wrn.append(f"Credit check prefers 6 yrs of address history (have {total_addr_days/365:.1f} yrs)")
+    else:
+        sat.append("6+ yrs of address history")
+    add("Credit Check", blk, wrn, sat)
+
+    # --- Directorship / Disqualification ---
+    add("Directorship / Disqualification",
+        [] if has_name and has_dob else ["Name + DOB"], [], ["Name + DOB"] if has_name and has_dob else [])
+
+    # --- Sanctions / PEP ---
+    add("Sanctions / PEP",
+        [] if has_name and has_dob else ["Name + DOB"], [], ["Name + DOB"] if has_name and has_dob else [])
+
+    # --- Social Media Review ---
+    add("Social Media Review",
+        [] if has_name else ["Candidate name"], [], ["Candidate name"] if has_name else [])
+
+    # Filter to engagement-required checks if we know them; otherwise show all.
+    if required_types:
+        report = [r for r in report if r["check_type"] in required_types]
+
+    return report
+
+
+@app.route("/candidate/<int:cand_id>/vetting-preflight")
+@login_required
+def vetting_preflight(cand_id: int):
+    """Render the Verifile pre-flight readiness report for a candidate."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        # Get the engagement via latest application's job
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        engagement = None
+        job = None
+        if latest_app and latest_app.job_id:
+            job = s.get(Job, latest_app.job_id)
+            if job and job.engagement_id:
+                engagement = s.get(Engagement, job.engagement_id)
+
+        report = _compute_verifile_preflight(s, cand_id, engagement)
+
+        summary = {
+            "total": len(report),
+            "ok": sum(1 for r in report if r["status"] == "ok"),
+            "warnings": sum(1 for r in report if r["status"] == "warnings"),
+            "blocked": sum(1 for r in report if r["status"] == "blocked"),
+        }
+
+        return render_template(
+            "vetting_preflight.html",
+            cand=cand,
+            engagement=engagement,
+            job=job,
+            report=report,
+            summary=summary,
+        )
+
+
 @app.route("/candidate/<int:cand_id>")
 @login_required
 def candidate_profile(cand_id: int):

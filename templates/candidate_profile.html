@@ -933,6 +933,11 @@
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
+              <a href="{{ url_for('vetting_preflight', cand_id=cand.id) }}"
+                 class="btn btn-outline-info btn-sm flex-fill"
+                 title="Pre-flight: check every Verifile requirement before submitting">
+                <i class="fas fa-clipboard-check me-1"></i> Pre-flight
+              </a>
               <button class="btn btn-warning btn-sm flex-fill" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting">
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>

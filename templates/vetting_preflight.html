@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Verifile Pre-flight — {{ cand.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="fw-bold mb-1">
+        Verifile Pre-flight — {{ cand.name }}
+      </h2>
+      <div class="text-muted">
+        Readiness check before submitting vetting to Verifile. Blocking items will cause the order to be rejected; warnings may leave the check incomplete.
+      </div>
+    </div>
+    <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i> Back to profile
+    </a>
+  </div>
+
+  {% if engagement %}
+  <div class="alert alert-info">
+    <strong>Engagement:</strong> {{ engagement.name }}
+    {% if job %} · <strong>Job:</strong> {{ job.title }} ({{ job.role_type or '—' }}){% endif %}
+    {% if job and job.dbs_level %} · <strong>DBS Level:</strong> {{ job.dbs_level }}{% endif %}
+    {% if job and job.dbs_sector %} · <strong>DBS Sector:</strong> {{ job.dbs_sector }}{% endif %}
+  </div>
+  {% else %}
+  <div class="alert alert-warning">
+    Candidate has no application linked yet — running preflight against the generic 12-check set. Apply them to a job first for the DBS section to use the job-specific fields.
+  </div>
+  {% endif %}
+
+  <!-- Summary tiles -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-success">
+        <div class="card-body text-center">
+          <div class="display-6 fw-bold text-success">{{ summary.ok }}</div>
+          <div class="text-muted">Ready</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-warning">
+        <div class="card-body text-center">
+          <div class="display-6 fw-bold text-warning">{{ summary.warnings }}</div>
+          <div class="text-muted">Warnings</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-danger">
+        <div class="card-body text-center">
+          <div class="display-6 fw-bold text-danger">{{ summary.blocked }}</div>
+          <div class="text-muted">Blocked</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <div class="display-6 fw-bold">{{ summary.total }}</div>
+          <div class="text-muted">Checks in scope</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if summary.blocked == 0 and summary.warnings == 0 %}
+  <div class="alert alert-success">
+    <i class="fas fa-check-circle me-2"></i>
+    <strong>All clear.</strong> Every check-type's Verifile-required fields are present. Safe to click <em>Start Full Vetting</em>.
+  </div>
+  {% elif summary.blocked %}
+  <div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{{ summary.blocked }} check{{ 's' if summary.blocked != 1 else '' }} would be rejected.</strong>
+    Resolve the blocking items below before submitting — Verifile will not accept the order.
+  </div>
+  {% else %}
+  <div class="alert alert-warning">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    <strong>{{ summary.warnings }} check{{ 's' if summary.warnings != 1 else '' }} have warnings.</strong>
+    The order will place but these gaps may cause the check to come back incomplete.
+  </div>
+  {% endif %}
+
+  <!-- Per-check-type cards -->
+  <div class="row g-3">
+    {% for r in report %}
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="fw-semibold">
+            {% if r.status == 'ok' %}
+              <i class="fas fa-check-circle text-success me-1"></i>
+            {% elif r.status == 'warnings' %}
+              <i class="fas fa-exclamation-circle text-warning me-1"></i>
+            {% else %}
+              <i class="fas fa-times-circle text-danger me-1"></i>
+            {% endif %}
+            {{ r.check_type }}
+            {% if r.check_type == 'DBS Check' and r.dbs_level %}
+              <span class="badge bg-secondary ms-1">{{ r.dbs_level }}</span>
+            {% endif %}
+          </div>
+          <span class="badge
+            {% if r.status == 'ok' %}bg-success
+            {% elif r.status == 'warnings' %}bg-warning text-dark
+            {% else %}bg-danger{% endif %}">
+            {{ r.status.title() }}
+          </span>
+        </div>
+        <div class="card-body">
+          {% if r.blocking %}
+          <div class="mb-2">
+            <div class="fw-semibold text-danger small mb-1">Blocking ({{ r.blocking|length }})</div>
+            <ul class="small mb-0">
+              {% for b in r.blocking %}
+                <li>{{ b }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+          {% if r.warnings %}
+          <div class="mb-2">
+            <div class="fw-semibold text-warning small mb-1">Warnings ({{ r.warnings|length }})</div>
+            <ul class="small mb-0">
+              {% for w in r.warnings %}
+                <li>{{ w }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+          {% if r.satisfied %}
+          <details class="mt-2">
+            <summary class="fw-semibold text-success small">Satisfied ({{ r.satisfied|length }})</summary>
+            <ul class="small mb-0 mt-1">
+              {% for s_ in r.satisfied %}
+                <li>{{ s_ }}</li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-4 text-muted small">
+    <strong>How to read this:</strong> <em>Blocking</em> items will fail Verifile's <code>/orders/validate</code>
+    or cause rejection at place-order time. <em>Warnings</em> won't prevent submission but are likely to
+    pause the check mid-flow (Verifile will email the candidate to supply the missing data, extending turnaround).
+  </div>
+</div>
+{% endblock %}
