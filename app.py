@@ -2194,7 +2194,13 @@ def admin_reset_signing(cand_id: int, form_key: str):
                     cand.secondary_job_declaration_signed = False
                 if hasattr(cand, "secondary_job_declaration_signed_at"):
                     cand.secondary_job_declaration_signed_at = None
-                cleared.append("secondary_job_declaration flags")
+                if hasattr(cand, "secondary_job_has_secondary"):
+                    cand.secondary_job_has_secondary = False
+                if hasattr(cand, "secondary_job_title"):
+                    cand.secondary_job_title = ""
+                if hasattr(cand, "secondary_job_signed_name"):
+                    cand.secondary_job_signed_name = ""
+                cleared.append("secondary_job_declaration flags + captured fields")
         except Exception:
             current_app.logger.exception("reset-signing failed")
             flash("Reset failed — see server logs.", "danger")
@@ -2232,11 +2238,68 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
         cand.employment_ref_declaration_signed = True
         cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
     if doc_label == "Secondary Job Declaration":
+        # Parse incoming fields (same approach as Declaration Form) so we
+        # can capture the Yes/No, free-text job title, and signed name.
+        _fields_sj = envelope_fields
+        if _fields_sj is None:
+            try:
+                from flask import request as _req
+                _raw_sj = (_req.form.get("envelope_fields") or "").strip()
+                if not _raw_sj:
+                    _body_sj = _req.get_json(silent=True)
+                    if isinstance(_body_sj, dict):
+                        _raw_sj = (_body_sj.get("envelope_fields") or "").strip()
+                if _raw_sj.startswith("["):
+                    _fields_sj = json.loads(_raw_sj)
+            except Exception:
+                _fields_sj = None
+
+        has_secondary = False
+        title_value = ""
+        signed_name = ""
+        if isinstance(_fields_sj, list):
+            # First dropdown → Yes/No on "engaging in secondary employment".
+            for f in _fields_sj:
+                if not isinstance(f, dict):
+                    continue
+                if (f.get("field_type") or "").lower() == "dropdown":
+                    has_secondary = (f.get("field_value") or "").strip().lower() == "yes"
+                    break
+            # Text fields: first non-name → job title, last name-pattern → legal name.
+            import re as _re_sj
+            _name_re_sj = _re_sj.compile(
+                r"^[A-Za-z][A-Za-z\-']*( [A-Za-z][A-Za-z\-']*)+$"
+            )
+            for f in _fields_sj:
+                if not isinstance(f, dict):
+                    continue
+                if (f.get("field_type") or "").lower() != "text":
+                    continue
+                v = (f.get("field_value") or "").strip()
+                if not v:
+                    continue
+                if _name_re_sj.match(v):
+                    signed_name = v  # last-matching wins since we keep iterating
+                elif not title_value:
+                    title_value = v
+
         if hasattr(cand, "secondary_job_declaration_signed"):
             cand.secondary_job_declaration_signed = True
         if hasattr(cand, "secondary_job_declaration_signed_at"):
             cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
-        return "Candidate.secondary_job_declaration_signed flipped"
+        if hasattr(cand, "secondary_job_has_secondary"):
+            cand.secondary_job_has_secondary = has_secondary
+        if hasattr(cand, "secondary_job_title"):
+            # Store blank if the answer was No — don't retain stale title
+            # from a previous "Yes" signing.
+            cand.secondary_job_title = title_value if has_secondary else ""
+        if hasattr(cand, "secondary_job_signed_name") and signed_name:
+            cand.secondary_job_signed_name = signed_name
+        return (
+            "Secondary Job flipped: "
+            f"has_secondary={'Yes' if has_secondary else 'No'}, "
+            f"title={title_value!r}, signed_name={signed_name!r}"
+        )
 
     try:
         from associate_portal import _portal_model as _pm
@@ -3799,6 +3862,13 @@ class Candidate(Base):
     # employment-ref declaration pattern (no dedicated model).
     secondary_job_declaration_signed = Column(Boolean, default=False)
     secondary_job_declaration_signed_at = Column(DateTime, nullable=True)
+    # Structured capture from the Secondary Job Declaration form:
+    #  - has_secondary: Yes/No they will engage in secondary employment
+    #  - title: free-text role title of the secondary employment (if Yes)
+    #  - signed_name: legal name the candidate typed into the form (audit)
+    secondary_job_has_secondary = Column(Boolean, default=False)
+    secondary_job_title = Column(String(500), default="")
+    secondary_job_signed_name = Column(String(300), default="")
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -5051,6 +5121,9 @@ try:
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed_at TIMESTAMP",
             "ALTER TABLE candidates ADD COLUMN secondary_job_declaration_signed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN secondary_job_declaration_signed_at TIMESTAMP",
+            "ALTER TABLE candidates ADD COLUMN secondary_job_has_secondary BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE candidates ADD COLUMN secondary_job_title VARCHAR(500) DEFAULT ''",
+            "ALTER TABLE candidates ADD COLUMN secondary_job_signed_name VARCHAR(300) DEFAULT ''",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather

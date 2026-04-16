@@ -771,6 +771,45 @@
         </div>
       </div>
 
+      <!-- Secondary Job Declaration -->
+      <div class="modern-card mt-4 fade-in-up stagger-2">
+        <div class="card-body p-4">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-briefcase"></i>
+              Secondary Job Declaration
+            </div>
+            <div class="section-subtitle">
+              {% if cand.secondary_job_declaration_signed %}
+                Signed{% if cand.secondary_job_declaration_signed_at %} on {{ cand.secondary_job_declaration_signed_at.strftime('%d %b %Y') }}{% endif %}
+              {% else %}
+                Not signed
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-3 row g-3">
+            <div class="col-md-6">
+              <div class="text-muted small text-uppercase">Engaging in Secondary Employment?</div>
+              <div class="fw-semibold">
+                {% if cand.secondary_job_declaration_signed %}
+                  {{ 'Yes' if cand.secondary_job_has_secondary else 'No' }}
+                {% else %}—{% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted small text-uppercase">Secondary Role Title</div>
+              <div class="fw-semibold">{{ cand.secondary_job_title or '—' }}</div>
+            </div>
+            {% if cand.secondary_job_signed_name %}
+            <div class="col-12">
+              <div class="text-muted small text-uppercase">Signed Name</div>
+              <div class="fw-semibold">{{ cand.secondary_job_signed_name }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
       <!-- Testing: Reset Signable Signings -->
       <div class="modern-card mt-4 fade-in-up stagger-2" style="border-left: 3px solid #eab308;">
         <div class="card-body p-4">
