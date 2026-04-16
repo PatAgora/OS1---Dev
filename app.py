@@ -2106,6 +2106,69 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
 
 
+@app.route("/admin/reset-signing/<int:cand_id>/<string:form_key>", methods=["POST"])
+@login_required
+def admin_reset_signing(cand_id: int, form_key: str):
+    """Developer/test action — wipe a candidate's Signable signing for a
+    given form so the portal re-presents the iframe and can be tested
+    end-to-end. Logs what was cleared via CandidateNote for audit."""
+    form_key = (form_key or "").lower().strip()
+    allowed = {"consent", "declaration", "secondary_job"}
+    if form_key not in allowed:
+        flash("Unknown form key.", "danger")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+    cleared = []
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        try:
+            from associate_portal import _portal_model as _pm
+
+            if form_key == "consent":
+                ConsentRecordCls = _pm("ConsentRecord")
+                if ConsentRecordCls is not None:
+                    rows = s.query(ConsentRecordCls).filter_by(candidate_id=cand_id).all()
+                    for r in rows:
+                        s.delete(r)
+                    cleared.append(f"{len(rows)} ConsentRecord row(s)")
+
+            elif form_key == "declaration":
+                DeclarationRecordCls = _pm("DeclarationRecord")
+                if DeclarationRecordCls is not None:
+                    rows = s.query(DeclarationRecordCls).filter_by(candidate_id=cand_id).all()
+                    for r in rows:
+                        s.delete(r)
+                    cleared.append(f"{len(rows)} DeclarationRecord row(s)")
+
+            elif form_key == "secondary_job":
+                if hasattr(cand, "secondary_job_declaration_signed"):
+                    cand.secondary_job_declaration_signed = False
+                if hasattr(cand, "secondary_job_declaration_signed_at"):
+                    cand.secondary_job_declaration_signed_at = None
+                cleared.append("secondary_job_declaration flags")
+        except Exception:
+            current_app.logger.exception("reset-signing failed")
+            flash("Reset failed — see server logs.", "danger")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        # Audit note (note_type='activity' so it shows in the staff feed)
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=f"[TEST] Reset {form_key} signing — cleared: {', '.join(cleared) if cleared else 'nothing'}.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+
+    flash(f"{form_key.replace('_', ' ').title()} signing reset for this candidate.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/admin/webhook-events")
 @login_required
 def admin_webhook_events():

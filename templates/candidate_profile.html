@@ -751,6 +751,42 @@
         </div>
       </div>
 
+      <!-- Testing: Reset Signable Signings -->
+      <div class="modern-card mt-4 fade-in-up stagger-2" style="border-left: 3px solid #eab308;">
+        <div class="card-body p-4">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-vial"></i>
+              Testing — Reset Signings
+            </div>
+            <div class="section-subtitle">Clears a signing so the portal re-presents the form. Staff only.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <form method="POST" action="{{ url_for('admin_reset_signing', cand_id=cand.id, form_key='consent') }}"
+                  onsubmit="return confirm('Reset Consent Form signing for this candidate?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-undo me-1"></i> Reset Consent
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_reset_signing', cand_id=cand.id, form_key='declaration') }}"
+                  onsubmit="return confirm('Reset Declaration Form signing for this candidate?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-undo me-1"></i> Reset Declaration
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_reset_signing', cand_id=cand.id, form_key='secondary_job') }}"
+                  onsubmit="return confirm('Reset Secondary Job Declaration signing for this candidate?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-undo me-1"></i> Reset Secondary Job
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <!-- General Notes Card -->
       <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
