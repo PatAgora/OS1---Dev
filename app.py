@@ -3724,6 +3724,9 @@ class Job(Base):
     status = Column(String(50), default="Open")
     public_token = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    # IR35 status of the role. Staff-editable on job create / edit;
+    # rendered on the public job advert so candidates know up front.
+    ir35_status = Column(String(20), default="Inside")  # Inside | Outside
 
     # DBS vetting criteria — staff-entered, never rendered on the public advert.
     # Fed into Verifile's /orders/candidateentry CheckSpecificData.
@@ -5152,6 +5155,7 @@ try:
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather
             # than in ensure_schema().
+            "ALTER TABLE jobs ADD COLUMN ir35_status VARCHAR(20) DEFAULT 'Inside'",
             "ALTER TABLE jobs ADD COLUMN dbs_level VARCHAR(20) DEFAULT 'Basic'",
             "ALTER TABLE jobs ADD COLUMN dbs_sector VARCHAR(100) DEFAULT ''",
             "ALTER TABLE jobs ADD COLUMN dbs_purpose VARCHAR(100) DEFAULT ''",
@@ -10346,6 +10350,9 @@ def job_new():
             # the right value. The separate sector dropdown was removed
             # from the UI; DBS Sector is now the single source of truth.
             sector = (request.form.get("dbs_sector") or "").strip()
+            # IR35 status — defaults to Inside if not provided or invalid.
+            ir35_raw = (request.form.get("ir35_status") or "").strip().title()
+            ir35_status = ir35_raw if ir35_raw in ("Inside", "Outside") else "Inside"
 
             job = Job(
                 title=title,
@@ -10357,6 +10364,7 @@ def job_new():
                 salary_range=salary_range,
                 engagement_id=engagement_id,
                 created_at=datetime.datetime.utcnow(),
+                ir35_status=ir35_status,
                 dbs_level=dbs_level,
                 dbs_sector=request.form.get("dbs_sector") or "",
                 dbs_purpose=request.form.get("dbs_purpose") or "",
@@ -10405,6 +10413,11 @@ def job_edit(job_id):
             if _dbs_sector_new:
                 job.sector = _dbs_sector_new
             job.salary_range = request.form.get("salary_range") or job.salary_range
+            # IR35 status — validated against the fixed set, defaults to
+            # existing value if the form didn't submit one.
+            _ir35_new = (request.form.get("ir35_status") or "").strip().title()
+            if _ir35_new in ("Inside", "Outside"):
+                job.ir35_status = _ir35_new
             job.status = request.form.get("status") or job.status
 
             job.dbs_level = request.form.get("dbs_level") or job.dbs_level or "Basic"

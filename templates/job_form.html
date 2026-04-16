@@ -37,6 +37,16 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">IR35 Status</label>
+        {% set current_ir35 = (job.ir35_status if job and job.ir35_status else 'Inside') %}
+        <select name="ir35_status" class="form-select">
+          {% for s in ['Inside', 'Outside'] %}
+          <option value="{{ s }}" {{ 'selected' if current_ir35 == s else '' }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Shown on the public job advert.</div>
+      </div>
       {# The generic Sector field was removed — the DBS Sector below is
          now the single source of truth. The Job.sector column stays in
          the DB for backwards compatibility but is no longer captured
