@@ -411,6 +411,12 @@
         {{ job.salary_range }}
       </div>
       {% endif %}
+      {% if job.ir35_status %}
+      <div class="job-meta-item">
+        <i class="fas fa-balance-scale"></i>
+        IR35: {{ job.ir35_status }}
+      </div>
+      {% endif %}
       <span class="status-badge">
         <i class="fas fa-circle-check"></i> Accepting Applications
       </span>
