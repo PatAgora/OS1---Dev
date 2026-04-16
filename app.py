@@ -2092,7 +2092,7 @@ def admin_workflow_stages():
 def admin_audit_log():
     """Audit log page - shows all system activity"""
     # Audit log: viewing audit log (meta, but useful)
-    
+
     with Session(engine) as s:
         # Get real audit log entries
         try:
@@ -2104,6 +2104,38 @@ def admin_audit_log():
         except:
             audit_entries = []
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
+
+
+@app.route("/admin/webhook-events")
+@login_required
+def admin_webhook_events():
+    """Inbound webhook inspection — shows what Signable / Verifile have
+    actually POSTed to us. Essential for diagnosing sync gaps without
+    chasing Railway logs or provider UIs."""
+    source_filter = (request.args.get("source") or "").strip().lower()
+    with Session(engine) as s:
+        q = select(WebhookEvent).order_by(WebhookEvent.received_at.desc()).limit(100)
+        if source_filter in ("esign", "verifile"):
+            q = select(WebhookEvent).where(WebhookEvent.source == source_filter).order_by(WebhookEvent.received_at.desc()).limit(100)
+        rows = s.scalars(q).all()
+        events = []
+        for r in rows:
+            try:
+                pretty = json.dumps(json.loads(r.payload or "{}"), indent=2)
+            except Exception:
+                pretty = r.payload or ""
+            events.append({
+                "id": r.id,
+                "source": r.source,
+                "event_type": r.event_type,
+                "received_at": r.received_at,
+                "payload": pretty,
+            })
+    return render_template(
+        "admin_webhook_events.html",
+        events=events,
+        source_filter=source_filter,
+    )
 
 # ========== Timesheet Configuration ==========
 
