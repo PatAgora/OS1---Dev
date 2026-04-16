@@ -234,6 +234,19 @@
                         <option value="Prefer not to say" {% if profile and profile.gender == 'Prefer not to say' %}selected{% endif %}>Prefer not to say</option>
                     </select>
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label">Country of Birth</label>
+                    <input type="text" name="country_of_birth" class="form-control" value="{{ profile.country_of_birth if profile and profile.country_of_birth else 'United Kingdom' }}" placeholder="United Kingdom">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Town of Birth</label>
+                    <input type="text" name="town_of_birth" class="form-control" value="{{ profile.town_of_birth if profile and profile.town_of_birth else '' }}" placeholder="e.g. London">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Mother's Maiden Name</label>
+                    <input type="text" name="mother_maiden_name" class="form-control" value="{{ profile.mother_maiden_name if profile and profile.mother_maiden_name else '' }}" placeholder="">
+                    <small class="text-muted">Required for DBS Scotland checks</small>
+                </div>
             </div>
         </div>
     </div>

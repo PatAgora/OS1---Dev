@@ -166,6 +166,9 @@ def _ensure_models():
         driving_licence_number = Column(String(20), default="")
         driving_licence_issuing_country = Column(String(10), default="GB")
         driving_licence_issue_date = Column(Date, nullable=True)
+        country_of_birth = Column(String(100), default="")
+        town_of_birth = Column(String(100), default="")
+        mother_maiden_name = Column(String(100), default="")
         created_at = Column(DateTime, default=datetime.utcnow)
         updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -255,10 +258,25 @@ def _ensure_models():
         qualification_type = Column(String(100), default="")
         grade = Column(String(100), default="")
         institution = Column(String(300), default="")
+        level = Column(String(100), default="")  # Verifile: CheckAcademicLevelOfQualification
+        institution_street = Column(String(300), default="")  # Verifile: institution address street
+        institution_town = Column(String(200), default="")  # Verifile: institution address town
+        institution_country = Column(String(10), default="GB")  # Verifile: institution address country
         start_date = Column(Date, nullable=True)
         end_date = Column(Date, nullable=True)
         permission_to_request = Column(Boolean, default=True)
         permission_delay_reason = Column(Text, default="")
+        created_at = Column(DateTime, default=datetime.utcnow)
+
+    class ProfessionalRegistration(Base):
+        """Professional membership / registration records for Verifile ProfessionalMembershipQualificationUK."""
+        __tablename__ = "professional_registrations"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+        association_name = Column(String(300), default="")
+        membership_number = Column(String(100), default="")
+        membership_level = Column(String(100), default="")
+        membership_status = Column(String(50), default="Current")  # Current/Lapsed/Expired/etc
         created_at = Column(DateTime, default=datetime.utcnow)
 
     class ReferenceContact(Base):
@@ -745,6 +763,20 @@ def _create_portal_tables():
                 "ALTER TABLE associate_profiles ADD COLUMN driving_licence_number VARCHAR(20) DEFAULT ''",
                 "ALTER TABLE associate_profiles ADD COLUMN driving_licence_issuing_country VARCHAR(10) DEFAULT 'GB'",
                 "ALTER TABLE associate_profiles ADD COLUMN driving_licence_issue_date DATE",
+                "ALTER TABLE associate_profiles ADD COLUMN country_of_birth VARCHAR(100) DEFAULT ''",
+                "ALTER TABLE associate_profiles ADD COLUMN town_of_birth VARCHAR(100) DEFAULT ''",
+                "ALTER TABLE associate_profiles ADD COLUMN mother_maiden_name VARCHAR(100) DEFAULT ''",
+            ]:
+                try:
+                    conn.execute(text(col_stmt))
+                except Exception:
+                    pass
+        # Ensure new qualification columns exist for Verifile integration
+            for col_stmt in [
+                "ALTER TABLE qualification_records ADD COLUMN level VARCHAR(100) DEFAULT ''",
+                "ALTER TABLE qualification_records ADD COLUMN institution_street VARCHAR(300) DEFAULT ''",
+                "ALTER TABLE qualification_records ADD COLUMN institution_town VARCHAR(200) DEFAULT ''",
+                "ALTER TABLE qualification_records ADD COLUMN institution_country VARCHAR(10) DEFAULT 'GB'",
             ]:
                 try:
                     conn.execute(text(col_stmt))
@@ -1384,6 +1416,9 @@ def personal_details():
             profile.driving_licence_number = _sanitise(request.form.get("driving_licence_number", ""))
             profile.driving_licence_issuing_country = _sanitise(request.form.get("driving_licence_issuing_country", "GB"))
             profile.driving_licence_issue_date = _parse_date(request.form.get("driving_licence_issue_date", ""))
+            profile.country_of_birth = _sanitise(request.form.get("country_of_birth", ""))
+            profile.town_of_birth = _sanitise(request.form.get("town_of_birth", ""))
+            profile.mother_maiden_name = _sanitise(request.form.get("mother_maiden_name", ""))
             profile.most_recent_employer = _sanitise(request.form.get("most_recent_employer", ""))
             # contact_current_employer saved on Candidate model (line above), not profile
             profile.unsubscribed = request.form.get("unsubscribed") == "1"
@@ -2246,21 +2281,28 @@ def references_employment():
 @associate_bp.route("/references/vetting-checks", methods=["GET"])
 @_require_login
 def references_vetting_checks():
-    """Vetting checks sub-page: qualifications and other vetting items."""
+    """Vetting checks sub-page: qualifications, professional registrations, and other vetting items."""
     QualificationRecord = _portal_model("QualificationRecord")
+    ProfessionalRegistration = _portal_model("ProfessionalRegistration")
     engine = _engine()
     cand_id = _get_associate_id()
 
     qualifications = []
+    professional_registrations = []
     with SASession(engine) as s:
         if QualificationRecord:
             qualifications = s.query(QualificationRecord).filter_by(candidate_id=cand_id).order_by(
                 QualificationRecord.start_date.desc().nullslast()
             ).all()
+        if ProfessionalRegistration:
+            professional_registrations = s.query(ProfessionalRegistration).filter_by(candidate_id=cand_id).order_by(
+                ProfessionalRegistration.created_at.desc()
+            ).all()
 
     return render_template(
         "associate/references_vetting_checks.html",
         qualifications=qualifications,
+        professional_registrations=professional_registrations,
     )
 
 
@@ -2555,6 +2597,10 @@ def references_add_qualification():
             qualification_type=_sanitise(request.form.get("qual_type", "")),
             grade=_sanitise(request.form.get("grade", "")),
             institution=_sanitise(request.form.get("institution", "")),
+            level=_sanitise(request.form.get("qual_level", "")),
+            institution_street=_sanitise(request.form.get("institution_street", "")),
+            institution_town=_sanitise(request.form.get("institution_town", "")),
+            institution_country=_sanitise(request.form.get("institution_country", "GB")),
             start_date=_parse_date(request.form.get("start_date", "")),
             end_date=_parse_date(request.form.get("end_date", "")),
             permission_to_request=perm,
@@ -2609,6 +2655,62 @@ def references_delete_qualification(qual_id):
         name = qual.qualification_name
         s.delete(qual)
         _add_note(s, cand_id, f"Qualification deleted: {name}.")
+        s.commit()
+
+    return jsonify({"success": True})
+
+
+@associate_bp.route("/references/add-professional-registration", methods=["POST"])
+@_require_login
+def references_add_professional_registration():
+    """Form handler: add a professional registration record."""
+    ProfessionalRegistration = _portal_model("ProfessionalRegistration")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not ProfessionalRegistration:
+        flash("Professional registrations not available.", "danger")
+        return redirect(url_for("associate.references_vetting_checks"))
+
+    assoc_name = _sanitise(request.form.get("association_name", "")).strip()
+    if not assoc_name:
+        flash("Association name is required.", "danger")
+        return redirect(url_for("associate.references_vetting_checks"))
+
+    with SASession(engine) as s:
+        reg = ProfessionalRegistration(
+            candidate_id=cand_id,
+            association_name=assoc_name,
+            membership_number=_sanitise(request.form.get("membership_number", "")),
+            membership_level=_sanitise(request.form.get("membership_level", "")),
+            membership_status=_sanitise(request.form.get("membership_status", "Current")),
+        )
+        s.add(reg)
+        _add_note(s, cand_id, f"Professional registration added: {assoc_name}.")
+        s.commit()
+
+    flash("Professional registration added successfully.", "success")
+    return redirect(url_for("associate.references_vetting_checks"))
+
+
+@associate_bp.route("/references/delete-professional-registration/<int:reg_id>", methods=["DELETE"])
+@_require_login
+def references_delete_professional_registration(reg_id):
+    """AJAX: delete a professional registration record."""
+    ProfessionalRegistration = _portal_model("ProfessionalRegistration")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not ProfessionalRegistration:
+        return jsonify({"success": False, "error": "Not available"}), 500
+
+    with SASession(engine) as s:
+        reg = s.query(ProfessionalRegistration).filter_by(id=reg_id, candidate_id=cand_id).first()
+        if not reg:
+            return jsonify({"success": False, "error": "Registration not found"}), 404
+        name = reg.association_name
+        s.delete(reg)
+        _add_note(s, cand_id, f"Professional registration deleted: {name}.")
         s.commit()
 
     return jsonify({"success": True})

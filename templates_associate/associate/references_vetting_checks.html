@@ -23,9 +23,10 @@
                 <thead>
                     <tr>
                         <th>Qualification</th>
-                        <th>Type</th>
+                        <th>Level</th>
                         <th>Grade</th>
                         <th>Institution</th>
+                        <th>Location</th>
                         <th>Dates</th>
                         <th>Actions</th>
                     </tr>
@@ -34,9 +35,10 @@
                     {% for qual in qualifications %}
                     <tr>
                         <td>{{ qual.qualification_name }}</td>
-                        <td>{{ qual.qualification_type if qual.qualification_type else '-' }}</td>
+                        <td>{{ qual.level if qual.level else (qual.qualification_type if qual.qualification_type else '-') }}</td>
                         <td>{{ qual.grade if qual.grade else '-' }}</td>
                         <td>{{ qual.institution if qual.institution else '-' }}</td>
+                        <td>{{ qual.institution_town if qual.institution_town else '-' }}</td>
                         <td>
                             {{ qual.start_date.strftime('%b %Y') if qual.start_date else '' }} -
                             {{ qual.end_date.strftime('%b %Y') if qual.end_date else 'Present' }}
@@ -63,11 +65,31 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label" for="qual_name">Qualification Name <span class="text-danger">*</span></label>
-                    <input type="text" id="qual_name" name="name" class="form-control" placeholder="e.g. Computer Science" required>
+                <div class="col-md-6">
+                    <label class="form-label" for="qual_name">Qualification Title <span class="text-danger">*</span></label>
+                    <input type="text" id="qual_name" name="name" class="form-control" placeholder="e.g. BSc Computer Science" required>
+                    <small class="text-muted">The name/title of your qualification</small>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label class="form-label" for="qual_level">Level of Qualification</label>
+                    <select id="qual_level" name="qual_level" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="GCSE">GCSE</option>
+                        <option value="A-Level">A-Level</option>
+                        <option value="BTEC">BTEC</option>
+                        <option value="HNC">HNC</option>
+                        <option value="HND">HND</option>
+                        <option value="Foundation Degree">Foundation Degree</option>
+                        <option value="Bachelor's Degree">Bachelor's Degree</option>
+                        <option value="Master's Degree">Master's Degree</option>
+                        <option value="Doctorate / PhD">Doctorate / PhD</option>
+                        <option value="Professional Certification">Professional Certification</option>
+                        <option value="Diploma">Diploma</option>
+                        <option value="NVQ">NVQ</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label" for="qual_type">Type</label>
                     <select id="qual_type" name="qual_type" class="form-select">
                         <option value="">Select...</option>
@@ -84,21 +106,50 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label" for="qual_grade">Grade</label>
                     <input type="text" id="qual_grade" name="grade" class="form-control" placeholder="e.g. First Class, 2:1, Distinction">
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label" for="qual_institution">Institution <span class="text-danger">*</span></label>
+                <div class="col-md-5">
+                    <label class="form-label" for="qual_institution">Institution Name <span class="text-danger">*</span></label>
                     <input type="text" id="qual_institution" name="institution" class="form-control" placeholder="University or institution name" required>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label" for="qual_start_date">Start Date</label>
-                    <input type="date" id="qual_start_date" name="start_date" class="form-control">
+
+                <!-- Institution address fields for Verifile -->
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_institution_street">Institution Street Address</label>
+                    <input type="text" id="qual_institution_street" name="institution_street" class="form-control" placeholder="e.g. Gower Street">
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label" for="qual_end_date">End Date</label>
-                    <input type="date" id="qual_end_date" name="end_date" class="form-control">
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_institution_town">Institution Town/City</label>
+                    <input type="text" id="qual_institution_town" name="institution_town" class="form-control" placeholder="e.g. London">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="qual_institution_country">Country</label>
+                    <select id="qual_institution_country" name="institution_country" class="form-select">
+                        <option value="GB" selected>United Kingdom</option>
+                        <option value="IE">Ireland</option>
+                        <option value="US">United States</option>
+                        <option value="CA">Canada</option>
+                        <option value="AU">Australia</option>
+                        <option value="NZ">New Zealand</option>
+                        <option value="DE">Germany</option>
+                        <option value="FR">France</option>
+                        <option value="NL">Netherlands</option>
+                        <option value="IN">India</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label" for="qual_start_date">Attendance From</label>
+                    <input type="month" id="qual_start_date" name="start_date" class="form-control">
+                    <small class="text-muted">yyyy-MM</small>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="qual_end_date">Attendance To</label>
+                    <input type="month" id="qual_end_date" name="end_date" class="form-control">
+                    <small class="text-muted">yyyy-MM</small>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Permission to verify?</label>
@@ -123,6 +174,90 @@
         </form>
     </div>
 </div>
+
+<!-- Professional Registration -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <h3><i class="fas fa-id-badge me-2"></i>Professional Registrations</h3>
+    </div>
+    <div class="portal-card-body">
+        {% if professional_registrations and professional_registrations|length > 0 %}
+        <div class="table-responsive mb-4">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Association / Body</th>
+                        <th>Membership Number</th>
+                        <th>Level</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in professional_registrations %}
+                    <tr>
+                        <td>{{ reg.association_name }}</td>
+                        <td>{{ reg.membership_number if reg.membership_number else '-' }}</td>
+                        <td>{{ reg.membership_level if reg.membership_level else '-' }}</td>
+                        <td>
+                            <span class="badge {% if reg.membership_status == 'Current' %}bg-success{% elif reg.membership_status == 'Lapsed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                {{ reg.membership_status }}
+                            </span>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-profreg-btn" data-reg-id="{{ reg.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state mb-4">
+            <i class="fas fa-id-badge"></i>
+            <p>No professional registrations added yet. If you hold any professional memberships, add them below.</p>
+        </div>
+        {% endif %}
+
+        <h6 class="mb-3">Add Professional Registration</h6>
+        <form method="POST" action="/portal/references/add-professional-registration" id="addProfRegForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="profreg_association">Association / Professional Body <span class="text-danger">*</span></label>
+                    <input type="text" id="profreg_association" name="association_name" class="form-control" placeholder="e.g. CISI, ACCA, CFA Institute" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="profreg_number">Membership Number</label>
+                    <input type="text" id="profreg_number" name="membership_number" class="form-control" placeholder="e.g. 12345678">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="profreg_level">Membership Level</label>
+                    <input type="text" id="profreg_level" name="membership_level" class="form-control" placeholder="e.g. Fellow, Chartered, Associate">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="profreg_status">Status</label>
+                    <select id="profreg_status" name="membership_status" class="form-select">
+                        <option value="Current" selected>Current</option>
+                        <option value="Lapsed">Lapsed</option>
+                        <option value="Expired">Expired</option>
+                        <option value="Suspended">Suspended</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i> Add Registration
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -137,6 +272,31 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm('Are you sure you want to delete this qualification?')) return;
 
             fetch('/portal/references/delete-qualification/' + qualId, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function() { alert('Failed to delete. Please try again.'); });
+        });
+    });
+
+    // Delete professional registration handler
+    document.querySelectorAll('.delete-profreg-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var regId = this.getAttribute('data-reg-id');
+            if (!confirm('Are you sure you want to delete this professional registration?')) return;
+
+            fetch('/portal/references/delete-professional-registration/' + regId, {
                 method: 'DELETE',
                 headers: {
                     'X-CSRFToken': csrfToken,

@@ -10489,6 +10489,141 @@ def _verifile_headers():
         "Accept": "application/json",
     }
 
+
+# Checks that can be placed as client-entry (we supply the data, no candidate portal needed)
+CLIENT_ENTRY_CHECKS = {
+    "Sanctions / PEP",              # GlobalFraudandSanctionsSearch — just name + DOB
+    "Directorship / Disqualification",  # UKInvestigativeDirectorshipsSearch — just name
+    "Social Media Review",          # ClassicSocialMediaSearch — just name
+    "Credit Check",                 # UKCreditCheckExperian — name + address + DOB
+    "Identity Verification",        # UKOnlineIDCheck — name + address + DOB
+    "Employment History",           # EmploymentHistoryUK — built from portal data
+    "References",                   # CharacterProfessionalReferenceUK — built from portal data
+    "Qualifications",               # AcademicQualificationUK — built from portal data
+    "Professional Registration",    # ProfessionalMembershipQualificationUK — built from portal data
+}
+
+# Checks requiring candidate-entry (candidate fills in details via Verifile portal)
+CANDIDATE_ENTRY_CHECKS = {
+    "DBS Check", "Right to Work", "Address History",
+}
+
+# Data-rich client-entry checks that need per-check Checks array instead of CheckGroups.
+# If portal data is not available for these, they fall back to candidate-entry.
+DATA_RICH_CLIENT_ENTRY_CHECKS = {
+    "Employment History", "References", "Qualifications", "Professional Registration",
+}
+
+
+def _load_profile_data(candidate_id: int) -> dict | None:
+    """Load associate profile data for Verifile client-entry orders.
+
+    Returns a dict of profile fields, or None if no profile exists.
+    """
+    try:
+        with Session(engine) as s:
+            row = s.execute(text(
+                "SELECT first_name, surname, dob, gender, address_line1, address_line2, city, postcode, "
+                "national_insurance_number, passport_number, passport_issuing_country, passport_issue_date, "
+                "passport_expiry_date, driving_licence_number, driving_licence_issuing_country, "
+                "driving_licence_issue_date, country_of_birth, town_of_birth, mother_maiden_name "
+                "FROM associate_profiles WHERE candidate_id = :cid"
+            ), {"cid": candidate_id}).first()
+            if row:
+                return row._asdict() if hasattr(row, '_asdict') else dict(row._mapping)
+    except Exception as e:
+        print(f"[Verifile] Could not load profile data for candidate {candidate_id}: {e}")
+    return None
+
+
+def _build_client_entry_candidate(profile: dict, email: str) -> dict:
+    """Build the full Candidate object for a Verifile client-entry order."""
+    first_name = profile.get("first_name") or "Unknown"
+    last_name = profile.get("surname") or ""
+    dob = profile.get("dob")
+    dob_str = dob.strftime('%Y-%m-%d') if dob else None
+
+    candidate_obj = {
+        "CurrentName": {
+            "FirstName": first_name,
+            "LastName": last_name,
+            "IsFromBirth": True,
+        },
+        "PersonalInfo": {
+            "ApplicantType": "Candidate",
+            "CandidateEmail": email,
+        }
+    }
+
+    if dob_str:
+        candidate_obj["PersonalInfo"]["DateOfBirth"] = dob_str
+
+    gender = (profile.get("gender") or "").strip()
+    if gender in ("Male", "Female"):
+        candidate_obj["PersonalInfo"]["Gender"] = gender
+
+    # NI number
+    ni = (profile.get("national_insurance_number") or "").strip()
+    if ni:
+        candidate_obj["PersonalInfo"]["NationalInsuranceNumber"] = ni
+
+    # Country and town of birth
+    cob = (profile.get("country_of_birth") or "").strip()
+    if cob:
+        candidate_obj["PersonalInfo"]["CountryOfBirth"] = cob
+    tob = (profile.get("town_of_birth") or "").strip()
+    if tob:
+        candidate_obj["PersonalInfo"]["TownOfBirth"] = tob
+
+    # Mother's maiden name
+    mmn = (profile.get("mother_maiden_name") or "").strip()
+    if mmn:
+        candidate_obj["PersonalInfo"]["MothersMaidenName"] = mmn
+
+    # Current address
+    addr1 = (profile.get("address_line1") or "").strip()
+    if addr1:
+        address = {
+            "AddressLine1": addr1,
+            "Town": (profile.get("city") or "").strip(),
+            "PostCode": (profile.get("postcode") or "").strip(),
+            "Country": "GB",
+        }
+        addr2 = (profile.get("address_line2") or "").strip()
+        if addr2:
+            address["AddressLine2"] = addr2
+        candidate_obj["CurrentAddress"] = address
+
+    # Passport
+    passport_num = (profile.get("passport_number") or "").strip()
+    if passport_num:
+        passport = {
+            "PassportNumber": passport_num,
+            "IssuingCountry": (profile.get("passport_issuing_country") or "GB").strip(),
+        }
+        pp_issue = profile.get("passport_issue_date")
+        if pp_issue:
+            passport["IssueDate"] = pp_issue.strftime('%Y-%m-%d') if hasattr(pp_issue, 'strftime') else str(pp_issue)
+        pp_expiry = profile.get("passport_expiry_date")
+        if pp_expiry:
+            passport["ExpiryDate"] = pp_expiry.strftime('%Y-%m-%d') if hasattr(pp_expiry, 'strftime') else str(pp_expiry)
+        candidate_obj["Passport"] = passport
+
+    # Driving licence
+    dl_num = (profile.get("driving_licence_number") or "").strip()
+    if dl_num:
+        dl = {
+            "DrivingLicenceNumber": dl_num,
+            "IssuingCountry": (profile.get("driving_licence_issuing_country") or "GB").strip(),
+        }
+        dl_issue = profile.get("driving_licence_issue_date")
+        if dl_issue:
+            dl["IssueDate"] = dl_issue.strftime('%Y-%m-%d') if hasattr(dl_issue, 'strftime') else str(dl_issue)
+        candidate_obj["DrivingLicence"] = dl
+
+    return candidate_obj
+
+
 def verifile_place_order(name: str, email: str, candidate_id: int, check_types: list) -> str:
     """Place a candidate-entry order with Verifile.
 
@@ -10501,7 +10636,7 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
     first_name = parts[0] if parts else "Unknown"
     last_name = parts[1] if len(parts) > 1 else ""
 
-    # Load DOB from profile if available
+    # Load DOB and name from profile if available
     dob_str = None
     try:
         from associate_portal import _portal_model
@@ -10598,6 +10733,274 @@ def verifile_place_order(name: str, email: str, candidate_id: int, check_types: 
     return order_id
 
 
+def verifile_place_client_entry_order(email: str, candidate_id: int, check_types: list, profile: dict) -> str:
+    """Place a client-entry order with Verifile.
+
+    POST /orders/cliententry — sends full candidate data so the candidate
+    does NOT need to visit the Verifile portal for these checks.
+    Returns the Verifile order ID.
+    """
+    headers = _verifile_headers()
+    import uuid as _uuid
+
+    check_groups = []
+    for ct in check_types:
+        check_type_id = VERIFILE_CHECK_MAP.get(ct, "")
+        if check_type_id:
+            check_groups.append({"CheckTypeId": check_type_id, "Quantity": 1})
+
+    if not check_groups:
+        raise RuntimeError("No valid Verifile check types for client-entry")
+
+    candidate_obj = _build_client_entry_candidate(profile, email)
+
+    payload = {
+        "UniqueKey": str(_uuid.uuid4()),
+        "CheckGroups": check_groups,
+        "Candidate": candidate_obj,
+    }
+
+    import json as _json
+    print(f"[Verifile] Placing client-entry order: {_json.dumps(payload, indent=2)}")
+
+    resp = _requests_lib.post(
+        f"{VERIFILE_BASE_URL}/orders/cliententry",
+        json=payload,
+        headers=headers,
+        timeout=30,
+    )
+    if resp.status_code >= 400:
+        print(f"[Verifile] Client-entry order failed ({resp.status_code}): {resp.text}")
+    resp.raise_for_status()
+    data = resp.json()
+    order_id = str(data.get("Id") or data.get("id") or "")
+    print(f"[Verifile] Client-entry order placed: {order_id} for candidate {candidate_id} with {len(check_groups)} checks")
+    return order_id
+
+
+def _load_employment_data(candidate_id: int) -> list:
+    """Load employment history entries from the associate portal for Verifile client-entry."""
+    try:
+        with Session(engine) as s:
+            rows = s.execute(text(
+                "SELECT company_name, job_title, start_date, end_date, referee_email, "
+                "permission_to_request, permission_delay_reason "
+                "FROM employment_history WHERE candidate_id = :cid AND is_gap = false"
+            ), {"cid": candidate_id}).fetchall()
+            return [row._asdict() if hasattr(row, '_asdict') else dict(row._mapping) for row in rows]
+    except Exception as e:
+        print(f"[Verifile] Could not load employment data for candidate {candidate_id}: {e}")
+    return []
+
+
+def _load_qualification_data(candidate_id: int) -> list:
+    """Load qualification records from the associate portal for Verifile client-entry."""
+    try:
+        with Session(engine) as s:
+            rows = s.execute(text(
+                "SELECT qualification_name, level, institution, institution_street, "
+                "institution_town, institution_country, start_date "
+                "FROM qualification_records WHERE candidate_id = :cid"
+            ), {"cid": candidate_id}).fetchall()
+            return [row._asdict() if hasattr(row, '_asdict') else dict(row._mapping) for row in rows]
+    except Exception as e:
+        print(f"[Verifile] Could not load qualification data for candidate {candidate_id}: {e}")
+    return []
+
+
+def _load_professional_registration_data(candidate_id: int) -> list:
+    """Load professional registration records from the associate portal for Verifile client-entry."""
+    try:
+        with Session(engine) as s:
+            rows = s.execute(text(
+                "SELECT association_name, membership_number, membership_level, membership_status "
+                "FROM professional_registrations WHERE candidate_id = :cid"
+            ), {"cid": candidate_id}).fetchall()
+            return [row._asdict() if hasattr(row, '_asdict') else dict(row._mapping) for row in rows]
+    except Exception as e:
+        print(f"[Verifile] Could not load professional registration data for candidate {candidate_id}: {e}")
+    return []
+
+
+def _build_data_rich_checks(candidate_id: int, check_types: list) -> tuple:
+    """Build per-check Checks array for data-rich client-entry orders.
+
+    Returns (checks_list, fallback_types):
+      - checks_list: list of Verifile Check objects with full data
+      - fallback_types: list of check type names that had no portal data
+        and must fall back to candidate-entry
+    """
+    checks = []
+    fallback = []
+
+    for ct in check_types:
+        if ct == "Employment History":
+            emp_data = _load_employment_data(candidate_id)
+            if not emp_data:
+                print(f"[Verifile] No employment data for candidate {candidate_id}, falling back to candidate-entry for Employment History")
+                fallback.append(ct)
+                continue
+            for emp in emp_data:
+                start_str = None
+                end_str = None
+                if emp.get("start_date"):
+                    sd = emp["start_date"]
+                    start_str = sd.strftime("%Y-%m-%d") if hasattr(sd, 'strftime') else str(sd)
+                if emp.get("end_date"):
+                    ed = emp["end_date"]
+                    end_str = ed.strftime("%Y-%m-%d") if hasattr(ed, 'strftime') else str(ed)
+
+                permission = emp.get("permission_to_request", True)
+                delay_reason = emp.get("permission_delay_reason", "")
+
+                check_obj = {
+                    "CheckEmploymentStatus": "Employed_directly",
+                    "CheckEmploymentEmployer": emp.get("company_name", ""),
+                    "CheckEmploymentRecentPosition": emp.get("job_title", ""),
+                    "CheckType": "EmploymentHistoryUK",
+                }
+                if start_str:
+                    check_obj["CheckEmploymentStartDate"] = start_str
+                if end_str:
+                    check_obj["CheckEmploymentFinishDate"] = end_str
+                check_obj["CheckEmploymentContactEmployer"] = "immediate" if permission else "No_do_not_contact"
+                if not permission and delay_reason:
+                    check_obj["CheckEmploymentDoNotContactReason"] = delay_reason
+                checks.append(check_obj)
+
+        elif ct == "References":
+            emp_data = _load_employment_data(candidate_id)
+            ref_emails = [e.get("referee_email", "").strip() for e in emp_data if e.get("referee_email", "").strip()]
+            if not ref_emails:
+                print(f"[Verifile] No referee emails for candidate {candidate_id}, falling back to candidate-entry for References")
+                fallback.append(ct)
+                continue
+            for email_addr in ref_emails:
+                checks.append({
+                    "CheckReferenceContactName": {"FirstName": "TBC", "LastName": "TBC"},
+                    "CheckReferenceEMail": email_addr,
+                    "CheckType": "CharacterProfessionalReferenceUK",
+                })
+
+        elif ct == "Qualifications":
+            qual_data = _load_qualification_data(candidate_id)
+            if not qual_data:
+                print(f"[Verifile] No qualification data for candidate {candidate_id}, falling back to candidate-entry for Qualifications")
+                fallback.append(ct)
+                continue
+            for qual in qual_data:
+                check_obj = {
+                    "CheckAcademicInstitution": qual.get("institution", ""),
+                    "CheckAcademicQualification": qual.get("qualification_name", ""),
+                    "CheckType": "AcademicQualificationUK",
+                }
+                level_val = qual.get("level", "")
+                if level_val:
+                    check_obj["CheckAcademicLevelOfQualification"] = level_val
+                # Build institution address if available
+                street = (qual.get("institution_street") or "").strip()
+                town = (qual.get("institution_town") or "").strip()
+                country = (qual.get("institution_country") or "GB").strip()
+                if street or town:
+                    addr = {"Country": country}
+                    if street:
+                        addr["StreetName"] = street
+                    if town:
+                        addr["Town"] = town
+                    check_obj["CheckAcademicInstitutionAddress"] = addr
+                # Attendance from date
+                from_date = qual.get("start_date")
+                if from_date:
+                    from_str = from_date.strftime("%Y-%m") if hasattr(from_date, 'strftime') else str(from_date)[:7]
+                    check_obj["CheckAcademicAttendantFrom"] = from_str
+                checks.append(check_obj)
+
+        elif ct == "Professional Registration":
+            reg_data = _load_professional_registration_data(candidate_id)
+            if not reg_data:
+                print(f"[Verifile] No professional registration data for candidate {candidate_id}, falling back to candidate-entry for Professional Registration")
+                fallback.append(ct)
+                continue
+            for reg in reg_data:
+                check_obj = {
+                    "CheckAssociationName": reg.get("association_name", ""),
+                    "CheckType": "ProfessionalMembershipQualificationUK",
+                }
+                mem_num = (reg.get("membership_number") or "").strip()
+                if mem_num:
+                    check_obj["CheckAssociationMembershipNumber"] = mem_num
+                mem_level = (reg.get("membership_level") or "").strip()
+                if mem_level:
+                    check_obj["CheckAssociationMembershipLevel"] = mem_level
+                mem_status = (reg.get("membership_status") or "Current").strip()
+                check_obj["CheckAssociationMembershipStatus"] = mem_status
+                checks.append(check_obj)
+
+        else:
+            # Unknown data-rich check type — fall back
+            fallback.append(ct)
+
+    return checks, fallback
+
+
+def verifile_place_client_entry_order_with_checks(
+    email: str, candidate_id: int, simple_check_types: list,
+    data_rich_checks: list, profile: dict
+) -> str:
+    """Place a client-entry order with Verifile using a Checks array for data-rich checks.
+
+    Combines simple CheckGroups (for Sanctions, Credit, etc.) with per-check Checks
+    array (for Employment, References, Qualifications, Professional Registration).
+
+    POST /orders/cliententry
+    Returns the Verifile order ID.
+    """
+    headers = _verifile_headers()
+    import uuid as _uuid
+
+    candidate_obj = _build_client_entry_candidate(profile, email)
+
+    payload = {
+        "UniqueKey": str(_uuid.uuid4()),
+        "Candidate": candidate_obj,
+    }
+
+    # If we have simple checks, add CheckGroups
+    check_groups = []
+    for ct in simple_check_types:
+        check_type_id = VERIFILE_CHECK_MAP.get(ct, "")
+        if check_type_id:
+            check_groups.append({"CheckTypeId": check_type_id, "Quantity": 1})
+
+    if data_rich_checks:
+        # Use Checks array for per-check data
+        payload["Checks"] = data_rich_checks
+        # Also add simple checks as individual Check entries if any
+        for cg in check_groups:
+            payload["Checks"].append({"CheckType": cg["CheckTypeId"]})
+    elif check_groups:
+        payload["CheckGroups"] = check_groups
+    else:
+        raise RuntimeError("No valid Verifile check types for client-entry order")
+
+    import json as _json
+    print(f"[Verifile] Placing client-entry order (with checks): {_json.dumps(payload, indent=2)}")
+
+    resp = _requests_lib.post(
+        f"{VERIFILE_BASE_URL}/orders/cliententry",
+        json=payload,
+        headers=headers,
+        timeout=30,
+    )
+    if resp.status_code >= 400:
+        print(f"[Verifile] Client-entry order failed ({resp.status_code}): {resp.text}")
+    resp.raise_for_status()
+    data = resp.json()
+    order_id = str(data.get("Id") or data.get("id") or "")
+    print(f"[Verifile] Client-entry order (with checks) placed: {order_id} for candidate {candidate_id}")
+    return order_id
+
+
 def verifile_poll_order(order_id: str) -> dict:
     """Poll an order status from Verifile.
 
@@ -10648,10 +11051,14 @@ def verifile_poll_order(order_id: str) -> dict:
 
 def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: str,
                                 checks_to_submit: list, session) -> int:
-    """Submit vetting checks to Verifile as a single candidate-entry order.
+    """Submit vetting checks to Verifile using a hybrid client-entry / candidate-entry approach.
 
-    Places one order with all requested checks. Verifile emails the candidate
-    to complete via their portal. Updates VettingCheck rows with the order ID.
+    Simple checks (Sanctions, Directorship, Social Media, Credit, Identity) are placed
+    as a client-entry order with full candidate data from the associate profile.
+    Complex checks (DBS, Employment, References, etc.) are placed as a candidate-entry
+    order where the candidate completes details via the Verifile portal.
+
+    Updates VettingCheck rows with the appropriate order ID.
     Returns count of successfully submitted checks.
     """
     if not VERIFILE_APIM_KEY:
@@ -10681,24 +11088,92 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     if not checks_for_verifile:
         return 0
 
-    try:
-        order_id = verifile_place_order(cand_name, cand_email, candidate_id, checks_for_verifile)
-    except Exception as e:
-        current_app.logger.warning(f"Verifile: failed to place order for candidate #{candidate_id}: {e}")
-        return 0
+    # Split into client-entry and candidate-entry groups
+    client_entry_list = [ct for ct in checks_for_verifile if ct in CLIENT_ENTRY_CHECKS]
+    candidate_entry_list = [ct for ct in checks_for_verifile if ct not in CLIENT_ENTRY_CHECKS]
+
+    print(f"[Verifile] Client-entry checks ({len(client_entry_list)}): {client_entry_list}")
+    print(f"[Verifile] Candidate-entry checks ({len(candidate_entry_list)}): {candidate_entry_list}")
 
     submitted = 0
-    for check_type in checks_for_verifile:
-        vc = session.scalar(
-            select(VettingCheck)
-            .where(VettingCheck.candidate_id == candidate_id)
-            .where(VettingCheck.check_type == check_type)
-        )
-        if vc:
-            vc.external_ref = order_id
-            vc.external_provider = "verifile"
-            vc.status = "In Progress"
-            submitted += 1
+    client_order_id = None
+    candidate_order_id = None
+
+    # --- Client-entry order ---
+    if client_entry_list:
+        profile = _load_profile_data(candidate_id)
+        if profile and (profile.get("first_name") or profile.get("surname")):
+            # Separate data-rich checks (Employment, References, Qualifications, Prof Reg)
+            # from simple checks (Sanctions, Credit, etc.)
+            data_rich_list = [ct for ct in client_entry_list if ct in DATA_RICH_CLIENT_ENTRY_CHECKS]
+            simple_list = [ct for ct in client_entry_list if ct not in DATA_RICH_CLIENT_ENTRY_CHECKS]
+
+            # Build per-check data for data-rich checks
+            data_rich_checks = []
+            fallback_types = []
+            if data_rich_list:
+                data_rich_checks, fallback_types = _build_data_rich_checks(candidate_id, data_rich_list)
+                # Move checks with no portal data to candidate-entry
+                if fallback_types:
+                    print(f"[Verifile] Falling back to candidate-entry for: {fallback_types}")
+                    candidate_entry_list.extend(fallback_types)
+
+            try:
+                if data_rich_checks or simple_list:
+                    client_order_id = verifile_place_client_entry_order_with_checks(
+                        cand_email, candidate_id, simple_list, data_rich_checks, profile
+                    )
+                    print(f"[Verifile] Client-entry order placed: {client_order_id}")
+                    # Mark all successfully submitted client-entry checks
+                    all_client_types = simple_list + [ct for ct in data_rich_list if ct not in (fallback_types if data_rich_list else [])]
+                    for check_type in all_client_types:
+                        vc = session.scalar(
+                            select(VettingCheck)
+                            .where(VettingCheck.candidate_id == candidate_id)
+                            .where(VettingCheck.check_type == check_type)
+                        )
+                        if vc:
+                            vc.external_ref = client_order_id
+                            vc.external_provider = "verifile"
+                            vc.status = "In Progress"
+                            submitted += 1
+            except Exception as e:
+                current_app.logger.warning(
+                    f"Verifile: client-entry order failed for candidate #{candidate_id}: {e}. "
+                    f"Falling back to candidate-entry for these checks."
+                )
+                # Fall back: move client-entry checks to candidate-entry
+                candidate_entry_list.extend(simple_list)
+                candidate_entry_list.extend([ct for ct in data_rich_list if ct not in (fallback_types if data_rich_list else [])])
+                client_entry_list = []
+        else:
+            print(f"[Verifile] No profile data for candidate {candidate_id}, "
+                  f"falling back to candidate-entry for all checks")
+            candidate_entry_list.extend(client_entry_list)
+            client_entry_list = []
+
+    # --- Candidate-entry order for remaining checks ---
+    if candidate_entry_list:
+        try:
+            candidate_order_id = verifile_place_order(
+                cand_name, cand_email, candidate_id, candidate_entry_list
+            )
+            print(f"[Verifile] Candidate-entry order placed: {candidate_order_id}")
+            for check_type in candidate_entry_list:
+                vc = session.scalar(
+                    select(VettingCheck)
+                    .where(VettingCheck.candidate_id == candidate_id)
+                    .where(VettingCheck.check_type == check_type)
+                )
+                if vc:
+                    vc.external_ref = candidate_order_id
+                    vc.external_provider = "verifile"
+                    vc.status = "In Progress"
+                    submitted += 1
+        except Exception as e:
+            current_app.logger.warning(
+                f"Verifile: candidate-entry order failed for candidate #{candidate_id}: {e}"
+            )
 
     return submitted
 
