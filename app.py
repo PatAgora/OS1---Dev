@@ -5107,16 +5107,10 @@ def ai_score_with_explanation(job_desc: str, cv_text: str) -> Dict:
         ai_w, heur_w = 0.7, 0.3
         blended = int(round(ai_w * gemini_score + heur_w * heur["score"]))
 
-    exp_lines = [
-        f"JD length: {jd_wc} words (completeness {int(completeness*100)}%).",
-        f"Weights → Gemini {ai_w:.2f}, Heuristic {heur_w:.2f}.",
-        f"Raw scores → Gemini {gemini_score}, Overlap {heur['score']}."
-    ]
-    if heur["overlap"]:
-        exp_lines.append("Top overlaps: " + ", ".join(sorted(heur["overlap"])[:8]) + ".")
-    if bullets:
-        exp_lines.append("Why: " + " • ".join(bullets))
-    explanation = " ".join(exp_lines)
+    # Recruiter-facing explanation: only the Gemini bullets. Internal metrics
+    # (JD length, weights, raw scores, word overlaps) stay in the returned
+    # dict fields below for debugging but are not surfaced to staff.
+    explanation = (" • ".join(bullets)).strip() if bullets else ""
 
     return {
         "final": blended,
