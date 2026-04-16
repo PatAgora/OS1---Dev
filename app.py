@@ -2527,7 +2527,10 @@ def _create_paystream_envelope(
         "envelope_showTitle": "1",
         "envelope_language": "en",
         "envelope_documents": [
-            {"document_fingerprint": SIGNABLE_PAYSTREAM_FINGERPRINT}
+            {
+                "document_title": "Optimus - Paystream Assignment",
+                "document_fingerprint": SIGNABLE_PAYSTREAM_FINGERPRINT,
+            }
         ],
         "envelope_parties": [
             {
