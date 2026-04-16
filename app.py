@@ -16517,7 +16517,14 @@ def engagement_dashboard(eng_id):
         totals_row['scheduled'] = sum(role_metrics.get(r, {}).get('scheduled', 0) for r in plan_display_roles)
         totals_row['left_to_fill'] = sum(role_metrics.get(r, {}).get('left_to_fill', 0) for r in plan_display_roles)
 
-        # --- Scheduled starters (Offered/Accepted/Ready to Contract) ---
+        # --- Scheduled starters (offered AND accepted for THIS engagement) ---
+        # Only candidates who have actually accepted an offer — either:
+        #   - Application.offer_response = 'accepted' (explicit accept via
+        #     the offer accept/decline flow), OR
+        #   - Application.status = 'Accepted' / 'Ready to Contract'
+        #     (legacy path for engagements that moved the status directly).
+        # "Offered" on its own is NOT included — the candidate hasn't
+        # accepted yet.
         scheduled_associates = []
         sched_apps_q = (
             select(Application, Candidate, Job)
@@ -16525,7 +16532,10 @@ def engagement_dashboard(eng_id):
             .join(Job, Job.id == Application.job_id)
             .where(
                 Job.engagement_id == eng_id,
-                Application.status.in_(['Offered', 'Accepted', 'Ready to Contract'])
+                or_(
+                    Application.status.in_(['Accepted', 'Ready to Contract']),
+                    func.lower(Application.offer_response) == 'accepted',
+                ),
             )
             .order_by(Application.created_at.desc())
         )
@@ -16537,7 +16547,8 @@ def engagement_dashboard(eng_id):
                 'email': cand.email,
                 'role': job.role_type or job.title,
                 'ai_score': app.ai_score or 0,
-                'status': app.status
+                'status': app.status,
+                'start_date': app.offer_start_date.isoformat() if getattr(app, 'offer_start_date', None) else None,
             })
 
         # --- Associates on this engagement (with AI scores) ---
