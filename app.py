@@ -140,13 +140,20 @@ def get_gemini_model():
     """
     Return a configured Google Gemini GenerativeModel instance.
     Returns None if GEMINI_API_KEY is not configured or is a placeholder.
+
+    Model can be swapped at runtime via GEMINI_MODEL env var:
+      - gemini-2.5-flash        (default — latest fast model)
+      - gemini-2.0-flash        (widely available, very fast)
+      - gemini-1.5-flash-8b     (smallest, ~3-5x faster than flash;
+                                 good enough for CV summaries)
     """
     if not GEMINI_API_KEY or GEMINI_API_KEY in ("your_gemini_api_key_here", ""):
         return None
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        return genai.GenerativeModel("gemini-2.5-flash")
+        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+        return genai.GenerativeModel(model_name)
     except Exception as e:
         print(f"Gemini init failed: {e}")
         return None
@@ -5577,7 +5584,9 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     compatibility but deliberately ignored — the summary must describe the
     CV on its own and not reference or compare to any job."""
     _ = job_description  # intentionally unused; summary is job-agnostic now
-    text = _truncate_for_ai(text or "", 4000)  # Send less text = faster response
+    # Cap CV input more aggressively — we only want last 3 years of roles,
+    # so sending more than ~2.5k chars is wasted prompt tokens and latency.
+    text = _truncate_for_ai(text or "", 2500)
     if not text:
         return ""
     model = get_gemini_model()
@@ -5622,29 +5631,30 @@ CV:
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                # 800 tokens ≈ 600 words — ample for 3 roles × 5 bullets
-                # (~250 words total). Smaller budget makes the model stop
-                # faster once it's done, cutting end-to-end latency.
-                max_output_tokens=800,
+                # 500 tokens ≈ 375 words — fits 3 roles × 5 bullets (~200
+                # words) with headroom. Smaller budget = faster response
+                # since the model stops generating sooner.
+                max_output_tokens=500,
                 temperature=0.2,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
-            # Diagnostic: capture finish_reason + safety so a cut-off summary
-            # is traceable. Gemini truncating at MAX_TOKENS or SAFETY looks
-            # identical to "the model just stopped" without this log line.
-            try:
-                cand_meta = getattr(resp, "candidates", None) or []
-                if cand_meta:
-                    finish_reason = getattr(cand_meta[0], "finish_reason", None)
-                    current_app.logger.info(
-                        "ai_summarise finish_reason=%s prompt_chars=%d",
-                        finish_reason, len(prompt),
-                    )
-            except Exception:
-                pass
             if not resp.parts:
                 return "Unable to retrieve information from CV."
             out = (resp.text or "").strip()
+            # Diagnostic: finish_reason + output preview so we can distinguish
+            # "Gemini truncated" (MAX_TOKENS/SAFETY) from "Gemini returned
+            # paragraph despite bullet prompt" (format drift) from "deploy
+            # lag — stale prompt still running" in one glance.
+            try:
+                cand_meta = getattr(resp, "candidates", None) or []
+                finish_reason = getattr(cand_meta[0], "finish_reason", None) if cand_meta else None
+                preview = (out or "").replace("\n", " \\n ")[:200]
+                current_app.logger.info(
+                    "ai_summarise finish_reason=%s chars=%d preview=%r",
+                    finish_reason, len(out), preview,
+                )
+            except Exception:
+                pass
             if "unable to retrieve" in out.lower():
                 return "Unable to retrieve information from CV."
             if out:
