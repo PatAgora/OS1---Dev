@@ -13909,12 +13909,42 @@ def candidate_profile(cand_id: int):
             def _add(check_type, msg):
                 portal_flag_map.setdefault(check_type, []).append(msg)
 
-            # Employment History — gaps + referees without email.
+            # Employment History — count BOTH explicit gap rows (is_gap=TRUE,
+            # added by the candidate to explain a period) AND gaps detected
+            # dynamically between consecutive employment entries (>90 days
+            # between one role's end_date and the next role's start_date).
+            # The associate portal surfaces the dynamic gaps as "Gaps
+            # detected in your employment history" — the recruiter should
+            # see the same flag on the staff profile.
             emp_gaps = _scalar(
                 "SELECT COUNT(*) FROM employment_history "
                 "WHERE candidate_id = :cid AND is_gap = TRUE",
                 cid=cand_id,
             ) or 0
+            # Detect dynamic gaps between consecutive non-gap entries.
+            try:
+                emp_rows = s.execute(
+                    text(
+                        "SELECT start_date, end_date FROM employment_history "
+                        "WHERE candidate_id = :cid AND is_gap = FALSE "
+                        "AND start_date IS NOT NULL AND end_date IS NOT NULL "
+                        "ORDER BY start_date ASC"
+                    ).bindparams(cid=cand_id)
+                ).all()
+                detected_gaps = 0
+                for i in range(len(emp_rows) - 1):
+                    prev_end = emp_rows[i].end_date
+                    next_start = emp_rows[i + 1].start_date
+                    if prev_end and next_start:
+                        try:
+                            if (next_start - prev_end).days > 90:
+                                detected_gaps += 1
+                        except Exception:
+                            pass
+                if detected_gaps:
+                    emp_gaps += detected_gaps
+            except Exception:
+                pass
             if emp_gaps:
                 _add("Employment History",
                      f"{emp_gaps} gap{'s' if emp_gaps != 1 else ''} flagged")
