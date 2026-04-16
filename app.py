@@ -2187,6 +2187,132 @@ def mark_umbrella_assignment_signed(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/candidate/<int:cand_id>/paystream-capture", methods=["GET", "POST"])
+@login_required
+def paystream_capture(cand_id: int):
+    """Capture sheet for the Paystream Assignment Schedule. Opens when
+    staff clicks Send Paystream Contract — pre-fills everything OS1
+    already knows, leaves blank what needs human input (end date, hours
+    per week, supervisor, etc.), and on submit persists the values onto
+    the Application row + sends the umbrella the signing link with full
+    context. When a Signable template fingerprint + field name map is
+    configured, switches to pre-filled envelope creation automatically."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        # Latest application + job + engagement for context
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        if not latest_app:
+            flash("Candidate has no application to contract against.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
+        engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # Umbrella details (raw SQL — tolerant of partial ORM init)
+        cd_row = s.execute(text(
+            "SELECT contracting_type, umbrella_company_name, contact_email "
+            "FROM company_details WHERE candidate_id = :cid"
+        ).bindparams(cid=cand_id)).first()
+        umbrella_name = (getattr(cd_row, "umbrella_company_name", "") or "") if cd_row else ""
+        umbrella_email = (getattr(cd_row, "contact_email", "") or "") if cd_row else ""
+
+        if request.method == "POST":
+            # Persist the captured values onto the Application, then send.
+            def _parse_date(v):
+                if not v: return None
+                try:
+                    return datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                except Exception:
+                    return None
+
+            latest_app.assignment_nature_of_work = (request.form.get("nature_of_work") or "").strip()
+            latest_app.assignment_end_date = _parse_date(request.form.get("end_date"))
+            latest_app.assignment_hours_of_work = (request.form.get("hours_of_work") or "").strip()
+            latest_app.assignment_work_location = (request.form.get("work_location") or "").strip()
+            latest_app.assignment_expenses_payable = (request.form.get("expenses_payable") or "").strip()
+            latest_app.assignment_expenses_detail = (request.form.get("expenses_detail") or "").strip()
+            latest_app.assignment_health_safety_risks = (request.form.get("health_safety_risks") or "").strip()
+            latest_app.assignment_health_safety_detail = (request.form.get("health_safety_detail") or "").strip()
+            latest_app.assignment_vulnerable_person = (request.form.get("vulnerable_person") or "").strip()
+            latest_app.assignment_notice_agency = (request.form.get("notice_agency") or "").strip()
+            latest_app.assignment_notice_paystream = (request.form.get("notice_paystream") or "").strip()
+            latest_app.assignment_invoice_frequency = (request.form.get("invoice_frequency") or "").strip()
+            latest_app.assignment_captured_at = datetime.datetime.utcnow()
+
+            user_email = getattr(current_user, "email", "staff") or "staff"
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=user_email,
+                note_type="activity",
+                content=(
+                    f"Paystream capture sheet saved: "
+                    f"end_date={latest_app.assignment_end_date}, "
+                    f"hours={latest_app.assignment_hours_of_work!r}, "
+                    f"notice_agency={latest_app.assignment_notice_agency!r}, "
+                    f"notice_paystream={latest_app.assignment_notice_paystream!r}, "
+                    f"invoice_freq={latest_app.assignment_invoice_frequency!r}"
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
+            s.commit()
+            # Delegate to the existing send action which emails the
+            # umbrella with full context. If/when a template fingerprint
+            # is wired we'll swap this for an API envelope creation.
+            return redirect(url_for("send_umbrella_contract", cand_id=cand_id))
+
+        # GET — Conduct Regs status (already captured on candidate)
+        if getattr(cand, "conduct_regs_opted_in", None) is True:
+            conduct_regs = "Opt In"
+        elif getattr(cand, "conduct_regs_opted_in", None) is False:
+            conduct_regs = "Opt Out"
+        else:
+            conduct_regs = ""
+
+        # Day rate label: "£XXX / day" or "£XXX / hr"
+        if latest_app.offer_day_rate:
+            rate_unit = (latest_app.offer_rate_type or "day").lower()
+            fee_display = f"£{latest_app.offer_day_rate:.2f} / {rate_unit}"
+        else:
+            fee_display = ""
+
+        return render_template(
+            "paystream_capture.html",
+            cand=cand,
+            appn=latest_app,
+            job=job,
+            engagement=engagement,
+            umbrella_name=umbrella_name,
+            umbrella_email=umbrella_email,
+            captured={
+                # --- OS1 already knows (green / read-only) ---
+                "worker_name": cand.name or "",
+                "hirer_name": engagement.name if engagement else "",
+                "start_date": latest_app.offer_start_date.isoformat() if latest_app.offer_start_date else "",
+                "role_title": latest_app.offer_role_title or (job.title if job else ""),
+                "fee_display": fee_display,
+                "conduct_regs": conduct_regs,
+                # --- Needs staff input (yellow) ---
+                "nature_of_work": latest_app.assignment_nature_of_work or "",
+                "end_date": latest_app.assignment_end_date.isoformat() if latest_app.assignment_end_date else "",
+                "hours_of_work": latest_app.assignment_hours_of_work or "7.5 hours per day, 37.5 hours per week. UK business hours (9am-5pm)",
+                "work_location": latest_app.assignment_work_location or (latest_app.offer_location or (job.location if job else "")),
+                "expenses_payable": latest_app.assignment_expenses_payable or "",
+                "expenses_detail": latest_app.assignment_expenses_detail or "",
+                "health_safety_risks": latest_app.assignment_health_safety_risks or "",
+                "health_safety_detail": latest_app.assignment_health_safety_detail or "",
+                "vulnerable_person": latest_app.assignment_vulnerable_person or "",
+                "notice_agency": latest_app.assignment_notice_agency or "",
+                "notice_paystream": latest_app.assignment_notice_paystream or "",
+                "invoice_frequency": latest_app.assignment_invoice_frequency or "",
+            },
+        )
+
+
 @app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
 @login_required
 def send_umbrella_contract(cand_id: int):
@@ -4288,6 +4414,24 @@ class Application(Base):
     offer_responded_ip = Column(String(50), nullable=True)
     offer_decline_reason = Column(Text, nullable=True)
 
+    # Assignment-schedule capture (Paystream Assignment Schedule template).
+    # Populated when staff reviews the capture sheet before sending the
+    # contract. Field set mirrors the Paystream template exactly — nothing
+    # more, nothing less.
+    assignment_nature_of_work = Column(String(500), default="")
+    assignment_end_date = Column(Date, nullable=True)
+    assignment_hours_of_work = Column(String(300), default="")
+    assignment_work_location = Column(String(300), default="")
+    assignment_expenses_payable = Column(String(10), default="")
+    assignment_expenses_detail = Column(String(500), default="")
+    assignment_health_safety_risks = Column(String(10), default="")
+    assignment_health_safety_detail = Column(String(500), default="")
+    assignment_vulnerable_person = Column(String(10), default="")
+    assignment_notice_agency = Column(String(100), default="")
+    assignment_notice_paystream = Column(String(100), default="")
+    assignment_invoice_frequency = Column(String(50), default="")
+    assignment_captured_at = Column(DateTime, nullable=True)
+
     job = relationship("Job", back_populates="applications")
     candidate = relationship("Candidate")
 
@@ -4654,6 +4798,20 @@ def ensure_schema():
             "offer_responded_at TIMESTAMP",
             "offer_responded_ip VARCHAR(50)",
             "offer_decline_reason TEXT",
+            # Assignment-schedule capture (Paystream Assignment Schedule)
+            "assignment_nature_of_work VARCHAR(500) DEFAULT ''",
+            "assignment_end_date DATE",
+            "assignment_hours_of_work VARCHAR(300) DEFAULT ''",
+            "assignment_work_location VARCHAR(300) DEFAULT ''",
+            "assignment_expenses_payable VARCHAR(10) DEFAULT ''",
+            "assignment_expenses_detail VARCHAR(500) DEFAULT ''",
+            "assignment_health_safety_risks VARCHAR(10) DEFAULT ''",
+            "assignment_health_safety_detail VARCHAR(500) DEFAULT ''",
+            "assignment_vulnerable_person VARCHAR(10) DEFAULT ''",
+            "assignment_notice_agency VARCHAR(100) DEFAULT ''",
+            "assignment_notice_paystream VARCHAR(100) DEFAULT ''",
+            "assignment_invoice_frequency VARCHAR(50) DEFAULT ''",
+            "assignment_captured_at TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE applications ADD COLUMN {coldef}"))

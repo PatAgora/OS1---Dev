@@ -702,14 +702,19 @@
               </div>
               {% if company_details.umbrella_company_name and 'paystream' in company_details.umbrella_company_name|lower %}
               <div class="mt-3">
-                <form method="POST" action="{{ url_for('send_umbrella_contract', cand_id=cand.id) }}"
-                      onsubmit="return confirm('Email the Paystream Assignment Schedule link to {{ company_details.contact_email or 'the umbrella contact' }}?');">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-sm btn-primary"
-                          {% if not company_details.contact_email %}disabled title="Set an umbrella contact email first"{% endif %}>
-                    <i class="fas fa-paper-plane me-1"></i> Send Paystream Contract
-                  </button>
-                </form>
+                <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
+                   class="btn btn-sm btn-primary
+                          {% if not company_details.contact_email %}disabled{% endif %}"
+                   {% if not company_details.contact_email %}
+                     tabindex="-1" aria-disabled="true"
+                     title="Set an umbrella contact email first"
+                   {% endif %}>
+                  <i class="fas fa-paper-plane me-1"></i> Send Paystream Contract
+                </a>
+                <div class="form-text small mt-1">
+                  Opens a capture sheet — review what we already know, fill the
+                  remaining fields, then send to Paystream.
+                </div>
                 {% if not company_details.contact_email %}
                 <div class="form-text text-warning small mt-1">
                   Set an umbrella contact email below before sending.

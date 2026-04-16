@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Paystream Capture — {{ cand.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="fw-bold mb-1">
+        Paystream Assignment Schedule — Capture Sheet
+      </h2>
+      <div class="text-muted">
+        Fields below map one-to-one with the Paystream Assignment Schedule
+        template. Green = already known by OS1, yellow = needs staff input.
+      </div>
+    </div>
+    <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i> Back to profile
+    </a>
+  </div>
+
+  <form method="POST" action="{{ url_for('paystream_capture', cand_id=cand.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Worker & Assignment Details (from Paystream template) -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        <i class="fas fa-user-tie me-1"></i> Worker &amp; Assignment Details
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <!-- Name of Worker (OS1) -->
+          <div class="col-md-6">
+            <label class="form-label small">Name of Worker</label>
+            <input type="text" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.worker_name }}" readonly>
+          </div>
+
+          <!-- Hirer Name (OS1) -->
+          <div class="col-md-6">
+            <label class="form-label small">Hirer Name (end client)</label>
+            <input type="text" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.hirer_name }}" readonly>
+          </div>
+
+          <!-- Position (OS1 role + staff-supplied nature-of-work line) -->
+          <div class="col-md-12">
+            <label class="form-label small">
+              Position and nature of the work
+              <span class="text-danger">*</span>
+            </label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-success-subtle small">
+                {{ captured.role_title or '—' }} —
+              </span>
+              <input type="text" id="nature_of_work" name="nature_of_work"
+                     class="form-control {% if not captured.nature_of_work %}bg-warning-subtle{% endif %}"
+                     value="{{ captured.nature_of_work }}"
+                     placeholder="e.g. Completion of KYC reviews and other adhoc KYC tasks">
+            </div>
+            <div class="form-text">
+              Role title is taken from the job; add one line describing the
+              nature of the work (as per Paystream template).
+            </div>
+          </div>
+
+          <!-- Start Date (OS1) -->
+          <div class="col-md-4">
+            <label class="form-label small">Assignment Start Date</label>
+            <input type="text" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.start_date }}" readonly>
+          </div>
+
+          <!-- End Date (staff) -->
+          <div class="col-md-4">
+            <label for="end_date" class="form-label small">
+              Assignment End Date
+            </label>
+            <input type="date" id="end_date" name="end_date"
+                   class="form-control form-control-sm {% if not captured.end_date %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.end_date }}">
+            <div class="form-text">Leave blank for open-ended.</div>
+          </div>
+
+          <!-- Fee / Rate (OS1) -->
+          <div class="col-md-4">
+            <label class="form-label small">Fee (Agency to PayStream, ex VAT)</label>
+            <input type="text" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.fee_display }}" readonly>
+          </div>
+
+          <!-- Hours of Work (staff) -->
+          <div class="col-md-12">
+            <label for="hours_of_work" class="form-label small">
+              Assignment Hours of Work <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="hours_of_work" name="hours_of_work"
+                   class="form-control form-control-sm bg-warning-subtle"
+                   value="{{ captured.hours_of_work }}"
+                   placeholder="e.g. 7.5 hours per day, 37.5 hours per week. UK business hours (9am-5pm)">
+            <div class="form-text">Default prefilled — edit if different.</div>
+          </div>
+
+          <!-- Place of Work (staff, default from offer) -->
+          <div class="col-md-12">
+            <label for="work_location" class="form-label small">
+              Assignment Place of Work <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="work_location" name="work_location"
+                   class="form-control form-control-sm {% if not captured.work_location %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.work_location }}"
+                   placeholder="Remote / Client site (provide address)">
+          </div>
+
+          <!-- Expenses (staff) -->
+          <div class="col-md-3">
+            <label class="form-label small">
+              Expenses payable by Hirer? <span class="text-danger">*</span>
+            </label>
+            <select name="expenses_payable"
+                    class="form-select form-select-sm {% if not captured.expenses_payable %}bg-warning-subtle{% endif %}">
+              <option value="">—</option>
+              <option value="No" {% if captured.expenses_payable == 'No' %}selected{% endif %}>No</option>
+              <option value="Yes" {% if captured.expenses_payable == 'Yes' %}selected{% endif %}>Yes</option>
+            </select>
+          </div>
+          <div class="col-md-9">
+            <label for="expenses_detail" class="form-label small">If yes, provide detail</label>
+            <input type="text" id="expenses_detail" name="expenses_detail"
+                   class="form-control form-control-sm"
+                   value="{{ captured.expenses_detail }}"
+                   placeholder="e.g. pre-approved travel receipts reimbursed monthly">
+          </div>
+
+          <!-- H&S risks (staff) -->
+          <div class="col-md-3">
+            <label class="form-label small">
+              Known health &amp; safety risks? <span class="text-danger">*</span>
+            </label>
+            <select name="health_safety_risks"
+                    class="form-select form-select-sm {% if not captured.health_safety_risks %}bg-warning-subtle{% endif %}">
+              <option value="">—</option>
+              <option value="No" {% if captured.health_safety_risks == 'No' %}selected{% endif %}>No</option>
+              <option value="Yes" {% if captured.health_safety_risks == 'Yes' %}selected{% endif %}>Yes</option>
+            </select>
+          </div>
+          <div class="col-md-9">
+            <label for="health_safety_detail" class="form-label small">If yes, provide detail</label>
+            <input type="text" id="health_safety_detail" name="health_safety_detail"
+                   class="form-control form-control-sm"
+                   value="{{ captured.health_safety_detail }}">
+          </div>
+
+          <!-- Vulnerable person (staff) -->
+          <div class="col-md-12">
+            <label class="form-label small">
+              Will the engagement involve the Worker working with / caring for /
+              attending any Vulnerable Person? <span class="text-danger">*</span>
+            </label>
+            <select name="vulnerable_person"
+                    class="form-select form-select-sm {% if not captured.vulnerable_person %}bg-warning-subtle{% endif %}"
+                    style="max-width: 160px;">
+              <option value="">—</option>
+              <option value="No" {% if captured.vulnerable_person == 'No' %}selected{% endif %}>No</option>
+              <option value="Yes" {% if captured.vulnerable_person == 'Yes' %}selected{% endif %}>Yes</option>
+            </select>
+          </div>
+
+          <!-- Conduct Regs (OS1 — from Conduct Regulations tile) -->
+          <div class="col-md-6">
+            <label class="form-label small">Conduct Regulations Status</label>
+            <input type="text"
+                   class="form-control form-control-sm {% if captured.conduct_regs %}bg-success-subtle{% else %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.conduct_regs or 'Not yet captured — ask candidate to complete' }}"
+                   readonly>
+            {% if not captured.conduct_regs %}
+            <div class="form-text text-warning">
+              Candidate has not recorded their Conduct Regs preference yet.
+              Ask them to complete the Conduct Regulations page in their portal.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Invoice Frequency (staff) -->
+          <div class="col-md-6">
+            <label class="form-label small">
+              Invoice Frequency <span class="text-danger">*</span>
+            </label>
+            <select name="invoice_frequency"
+                    class="form-select form-select-sm {% if not captured.invoice_frequency %}bg-warning-subtle{% endif %}">
+              <option value="">—</option>
+              <option value="Weekly" {% if captured.invoice_frequency == 'Weekly' %}selected{% endif %}>Weekly</option>
+              <option value="Monthly" {% if captured.invoice_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
+            </select>
+          </div>
+
+          <!-- Notice period (Agency) -->
+          <div class="col-md-6">
+            <label for="notice_agency" class="form-label small">
+              Notice period (by Agency, without cause) <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="notice_agency" name="notice_agency"
+                   class="form-control form-control-sm {% if not captured.notice_agency %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.notice_agency }}"
+                   placeholder="e.g. 1 week">
+          </div>
+
+          <!-- Notice period (PayStream) -->
+          <div class="col-md-6">
+            <label for="notice_paystream" class="form-label small">
+              Notice period (by PayStream, without cause) <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="notice_paystream" name="notice_paystream"
+                   class="form-control form-control-sm {% if not captured.notice_paystream %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.notice_paystream }}"
+                   placeholder="e.g. 1 week">
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Umbrella recipient -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        <i class="fas fa-building me-1"></i> Recipient
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small">Umbrella company</label>
+            <input type="text" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ umbrella_name }}" readonly>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small">Contact email</label>
+            <input type="email" class="form-control form-control-sm bg-success-subtle"
+                   value="{{ umbrella_email }}" readonly>
+          </div>
+        </div>
+        <div class="form-text mt-2">
+          Edit the umbrella contact email on the <em>Umbrella / Company Details</em>
+          tile of the candidate profile if needed.
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+      <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+        Cancel
+      </a>
+      <button type="submit" class="btn btn-primary"
+              onclick="return confirm('Save these details and email the Paystream Assignment Schedule link to {{ umbrella_email or 'the umbrella contact' }}?');">
+        <i class="fas fa-paper-plane me-1"></i> Save &amp; send to Paystream
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
