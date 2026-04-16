@@ -13393,26 +13393,32 @@ def action_contract_issue(cand_id, eng_id):
             .order_by(Application.created_at.desc())
         )
 
-        # Check vetting is complete before allowing contract issuance
-        vetting_checks = s.scalars(
-            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
-        ).all()
-        if vetting_checks:
-            incomplete = [vc for vc in vetting_checks if vc.status not in (
-                "Complete", "COMPLETE", "N/A", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"
-            )]
-            if incomplete:
-                incomplete_names = ", ".join(vc.check_type for vc in incomplete[:3])
-                remaining = len(incomplete) - 3
-                msg = f"Cannot issue contract — vetting is not complete. Outstanding: {incomplete_names}"
-                if remaining > 0:
-                    msg += f" and {remaining} more"
-                flash(msg, "danger")
+        # Check vetting is complete before allowing contract issuance.
+        # TEMPORARY BYPASS (2026-04-16): user needs to test the Paystream
+        # Assignment Schedule capture-sheet + auto-fill flow without having
+        # to complete vetting first. Flip BYPASS_VETTING_GATE back to False
+        # once Paystream testing is done.
+        BYPASS_VETTING_GATE = True
+        if not BYPASS_VETTING_GATE:
+            vetting_checks = s.scalars(
+                select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+            ).all()
+            if vetting_checks:
+                incomplete = [vc for vc in vetting_checks if vc.status not in (
+                    "Complete", "COMPLETE", "N/A", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"
+                )]
+                if incomplete:
+                    incomplete_names = ", ".join(vc.check_type for vc in incomplete[:3])
+                    remaining = len(incomplete) - 3
+                    msg = f"Cannot issue contract — vetting is not complete. Outstanding: {incomplete_names}"
+                    if remaining > 0:
+                        msg += f" and {remaining} more"
+                    flash(msg, "danger")
+                    return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+            else:
+                # No vetting checks exist at all — vetting hasn't been started
+                flash("Cannot issue contract — vetting has not been started for this candidate.", "danger")
                 return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
-        else:
-            # No vetting checks exist at all — vetting hasn't been started
-            flash("Cannot issue contract — vetting has not been started for this candidate.", "danger")
-            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
         # Parse dates
         start_dt = None

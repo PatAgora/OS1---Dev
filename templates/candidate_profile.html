@@ -1542,9 +1542,24 @@
           {% else %}
             <div class="text-center text-muted py-2" id="issueContractSection">
               <p class="mb-1 small">No contract issued</p>
+              {# TEMPORARY BYPASS (2026-04-16): vetting-completion gate
+                 disabled so the Paystream capture-sheet flow can be
+                 tested end-to-end. Flip bypass_vetting_gate back to
+                 false (and re-enable the server-side check in
+                 issue_contract) once testing is done. #}
+              {% set bypass_vetting_gate = true %}
               {% set vet_total = vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started %}
               {% set vet_done = vetting_summary.complete %}
-              {% if vet_total > 0 and vet_done < vet_total %}
+              {% if bypass_vetting_gate %}
+              <div class="alert alert-info py-1 px-2 mb-2" style="font-size: 0.75rem;">
+                <i class="fas fa-flask me-1"></i>
+                Vetting gate bypassed for testing.
+                {% if vet_total > 0 %}({{ vet_done }}/{{ vet_total }} complete){% endif %}
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
+                <i class="fas fa-file-signature me-1"></i> Issue Contract
+              </button>
+              {% elif vet_total > 0 and vet_done < vet_total %}
               <div class="alert alert-warning py-1 px-2 mb-2" style="font-size: 0.75rem;">
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 Cannot issue contract — vetting not complete ({{ vet_done }}/{{ vet_total }})
@@ -1604,7 +1619,7 @@
               {% endif %}
             </div>
             <div class="mb-1 small fw-semibold">Has assignment been sent?</div>
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}" class="d-flex gap-2 mb-2">
+            <form method="POST" action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}" class="d-flex gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" name="sent" value="yes"
                       class="btn btn-sm {% if cand.umbrella_assignment_sent %}btn-success{% else %}btn-outline-success{% endif %}">
@@ -1615,54 +1630,46 @@
                 <i class="fas fa-times me-1"></i> No — not yet
               </button>
             </form>
-
-            <div class="mb-1 small fw-semibold">Has assignment been signed?</div>
-            <div class="text-muted small mb-2">
-              {% if cand.umbrella_assignment_signed is not none %}
-                Currently recorded as
-                <strong>{{ 'Yes' if cand.umbrella_assignment_signed else 'No' }}</strong>
-                {% if cand.umbrella_assignment_signed_at %}
-                  (updated {{ cand.umbrella_assignment_signed_at.strftime('%d %b %Y at %H:%M') }})
-                {% endif %}.
-              {% else %}
-                Not yet recorded.
-              {% endif %}
-            </div>
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" class="d-flex gap-2">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" name="signed" value="yes"
-                      class="btn btn-sm {% if cand.umbrella_assignment_signed %}btn-success{% else %}btn-outline-success{% endif %}">
-                <i class="fas fa-check-double me-1"></i> Yes — signed
-              </button>
-              <button type="submit" name="signed" value="no"
-                      class="btn btn-sm {% if cand.umbrella_assignment_signed is sameas false %}btn-danger{% else %}btn-outline-danger{% endif %}">
-                <i class="fas fa-times me-1"></i> No — not yet
-              </button>
-            </form>
           </div>
           {% endif %}
 
-          {# Paystream: automated signed tracking via webhook.
-             Shown as a read-only status + manual override buttons. #}
-          {% if _is_umbrella and _is_paystream %}
+          {# Unified "Assignment Schedule Signed" panel.
+             Only appears after the contract has been issued:
+               - Paystream: when the Signable webhook has confirmed signing
+                 (cand.umbrella_assignment_signed == True)
+               - Manual (non-Paystream umbrella / Ltd Co): as soon as the
+                 contract is marked sent (cand.umbrella_assignment_sent == True),
+                 so staff can then record whether it has been signed. #}
+          {% set _show_signed_panel = (
+              (_is_paystream and cand.umbrella_assignment_signed)
+              or (_show_manual and cand.umbrella_assignment_sent)
+          ) %}
+          {% if _show_signed_panel %}
           <div class="mt-3 p-2 rounded" style="background:#f0fdf4; border:1px solid #bbf7d0;">
             <div class="fw-semibold small mb-1">
-              <i class="fas fa-cogs text-success me-1"></i>
-              Paystream Assignment Schedule — automated
+              <i class="fas fa-file-signature text-success me-1"></i>
+              Assignment Schedule Signed
             </div>
             <div class="text-muted small mb-2">
-              Signing is auto-detected from the Signable webhook.
-              {% if cand.umbrella_assignment_signed is not none %}
-                Currently recorded as
-                <strong>{{ 'Yes — signed' if cand.umbrella_assignment_signed else 'No — not signed yet' }}</strong>
+              {% if _is_paystream %}
+                Signing was auto-detected from the Signable webhook
                 {% if cand.umbrella_assignment_signed_at %}
-                  ({{ cand.umbrella_assignment_signed_at.strftime('%d %b %Y at %H:%M') }})
+                  on <strong>{{ cand.umbrella_assignment_signed_at.strftime('%d %b %Y at %H:%M') }}</strong>
                 {% endif %}.
+                <br><span class="text-muted">Manual override below if needed.</span>
               {% else %}
-                No signing recorded yet.
+                Contract was sent
+                {% if cand.umbrella_assignment_sent_at %}on <strong>{{ cand.umbrella_assignment_sent_at.strftime('%d %b %Y at %H:%M') }}</strong>{% endif %}.
+                {% if cand.umbrella_assignment_signed is not none %}
+                  Currently recorded as
+                  <strong>{{ 'Yes — signed' if cand.umbrella_assignment_signed else 'No — not signed yet' }}</strong>
+                  {% if cand.umbrella_assignment_signed_at %}
+                    ({{ cand.umbrella_assignment_signed_at.strftime('%d %b %Y at %H:%M') }})
+                  {% endif %}.
+                {% else %}
+                  Record whether it has been signed:
+                {% endif %}
               {% endif %}
-              <br>
-              <span class="text-muted">Manual override below if needed.</span>
             </div>
             <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" class="d-flex gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
