@@ -12895,6 +12895,18 @@ def candidate_profile(cand_id: int):
             ).all()
         except Exception:
             pass
+
+        # === Contracting entity (from associate portal /portal/company-details) ===
+        company_details = None
+        try:
+            from associate_portal import _portal_model
+            CompanyDetailsCls = _portal_model("CompanyDetails")
+            if CompanyDetailsCls is not None:
+                company_details = s.scalar(
+                    select(CompanyDetailsCls).where(CompanyDetailsCls.candidate_id == cand_id)
+                )
+        except Exception:
+            company_details = None
         
         # === Employment History (from portal) ===
         employment_history = []
@@ -13241,6 +13253,7 @@ def candidate_profile(cand_id: int):
         vetting_checks=vetting_checks,
         vetting_summary=vetting_summary,
         candidate_notes=candidate_notes,
+        company_details=company_details,
         contract_status=contract_status,
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
