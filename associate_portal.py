@@ -2536,18 +2536,30 @@ def secondary_job_declaration():
     cand_id = _get_associate_id()
     engine = _engine()
     portal_name = ""
+    already_signed = False
+    signing_ctx = {}
     try:
         Candidate = _model("Candidate")
         if Candidate and cand_id:
             with SASession(engine) as s:
                 _cand = s.get(Candidate, cand_id)
                 portal_name = (getattr(_cand, "name", None) or "").strip()
+                already_signed = bool(getattr(_cand, "secondary_job_declaration_signed", False))
+                if already_signed:
+                    signing_ctx = {
+                        "signed_at": getattr(_cand, "secondary_job_declaration_signed_at", None),
+                        "has_secondary": bool(getattr(_cand, "secondary_job_has_secondary", False)),
+                        "title": (getattr(_cand, "secondary_job_title", "") or "").strip(),
+                        "signed_name": (getattr(_cand, "secondary_job_signed_name", "") or "").strip(),
+                    }
     except Exception:
         portal_name = ""
     return render_template(
         "associate/secondary_job_declaration.html",
         widget_url=_widget_url_with_meta(widget_url, cand_id),
         portal_name=portal_name,
+        already_signed=already_signed,
+        signing=signing_ctx,
     )
 
 
