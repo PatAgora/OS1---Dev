@@ -2524,7 +2524,15 @@ def references():
 @_require_login
 def secondary_job_declaration():
     """Secondary Job Declaration — embedded Signable widget."""
-    widget_url = os.getenv("SIGNABLE_SECONDARY_JOB_WIDGET_URL", "")
+    # Accept either env var name (historical: SIGNABLE_SECOND_JOB_WIDGET_URL
+    # was the first one set on Railway; later code referred to the clearer
+    # SIGNABLE_SECONDARY_JOB_WIDGET_URL). Prefer SECOND since that's what's
+    # actually configured today.
+    widget_url = (
+        os.getenv("SIGNABLE_SECOND_JOB_WIDGET_URL")
+        or os.getenv("SIGNABLE_SECONDARY_JOB_WIDGET_URL")
+        or ""
+    )
     cand_id = _get_associate_id()
     engine = _engine()
     portal_name = ""
