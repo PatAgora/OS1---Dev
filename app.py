@@ -16566,6 +16566,33 @@ def engagement_dashboard(eng_id):
                 'status': 'On Contract'
             })
 
+        # --- Applicants / "Left to Fill" pool ---
+        # Anyone who's applied to a job on this engagement but hasn't yet
+        # signed a contract. Surfaced in the Left to Fill modal so staff
+        # can search for applicants by name.
+        left_to_fill_associates = []
+        signed_cand_ids = {a['id'] for a in associates_on_engagement}
+        applicants_q = (
+            select(Application, Candidate, Job)
+            .join(Candidate, Candidate.id == Application.candidate_id)
+            .join(Job, Job.id == Application.job_id)
+            .where(Job.engagement_id == eng_id)
+            .order_by(Application.created_at.desc())
+        )
+        seen_applicant_ids = set()
+        for app, cand, job in s.execute(applicants_q).all():
+            if cand.id in signed_cand_ids or cand.id in seen_applicant_ids:
+                continue  # already on contract, or already counted once
+            seen_applicant_ids.add(cand.id)
+            left_to_fill_associates.append({
+                'id': cand.id,
+                'name': cand.name,
+                'email': cand.email,
+                'role': job.role_type or job.title,
+                'ai_score': app.ai_score or 0,
+                'status': app.status or 'Applied',
+            })
+
         # --- existing job roles (for auto-create button in Delivery Plan table) ---
         existing_job_roles_set = set(s.scalars(
             select(Job.role_type)
@@ -16607,6 +16634,7 @@ def engagement_dashboard(eng_id):
             tile_vetting_complete=tile_vetting_complete,
             associates_on_engagement=associates_on_engagement,
             scheduled_associates=scheduled_associates,
+            left_to_fill_associates=left_to_fill_associates,
             rate_data=rate_data,
             intake_by_role=intake_by_role,
         )

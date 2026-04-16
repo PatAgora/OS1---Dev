@@ -1163,7 +1163,7 @@
   const associatesData = {
     on_contract: {{ associates_on_engagement | tojson if associates_on_engagement else '[]' }},
     scheduled: {{ scheduled_associates | tojson if scheduled_associates else '[]' }},
-    left_to_fill: [],
+    left_to_fill: {{ left_to_fill_associates | tojson if left_to_fill_associates else '[]' }},
     target: []
   };
   
