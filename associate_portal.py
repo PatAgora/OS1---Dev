@@ -1681,16 +1681,9 @@ def company_details():
             comp.bank_account_number = _sanitise(request.form.get("bank_account_number", ""))
             comp.bank_sort_code = _sanitise(request.form.get("bank_sort_code", ""))
             comp.umbrella_company_name = _sanitise(umbrella_raw)
-            # Pick the email from whichever section matches the chosen entity.
-            _entity = (entity_type_raw or "").lower().strip()
-            if _entity == "umbrella":
-                _email_raw = request.form.get("umbrella_contact_email", "")
-            elif _entity == "limited":
-                _email_raw = request.form.get("limited_contact_email", "")
-            else:
-                _email_raw = (request.form.get("umbrella_contact_email", "")
-                              or request.form.get("limited_contact_email", ""))
-            comp.contact_email = _sanitise(_email_raw).strip().lower()
+            # contact_email is owned by staff on the candidate card in the
+            # app; the associate-side form does not collect it. Do not
+            # overwrite an existing staff-entered value on save.
 
         # Handle Ltd Co document uploads
         Document = _model("Document")

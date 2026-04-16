@@ -2106,6 +2106,45 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
 
 
+@app.route("/action/company-details/email/<int:cand_id>", methods=["POST"])
+@login_required
+def staff_set_company_email(cand_id: int):
+    """Staff-editable contracting entity contact email. Stored on the same
+    CompanyDetails row the associate portal writes to (contact_email col).
+    Creates the row if the candidate hasn't filled out the portal form yet
+    so the email can be captured independently."""
+    email_raw = (request.form.get("contact_email") or "").strip()
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        try:
+            from associate_portal import _portal_model as _pm
+            CompanyDetailsCls = _pm("CompanyDetails")
+            if CompanyDetailsCls is None:
+                flash("Company details model not available.", "danger")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+            comp = s.query(CompanyDetailsCls).filter_by(candidate_id=cand_id).first()
+            if comp is None:
+                comp = CompanyDetailsCls(candidate_id=cand_id)
+                s.add(comp)
+            comp.contact_email = email_raw.lower()
+            user_email = getattr(current_user, "email", "staff") or "staff"
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=user_email,
+                note_type="activity",
+                content=f"Contracting contact email set to '{email_raw}'.",
+                created_at=datetime.datetime.utcnow(),
+            ))
+            s.commit()
+            flash("Contact email saved.", "success")
+        except Exception:
+            current_app.logger.exception("staff_set_company_email failed")
+            flash("Could not save contact email.", "danger")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/admin/reset-signing/<int:cand_id>/<string:form_key>", methods=["POST"])
 @login_required
 def admin_reset_signing(cand_id: int, form_key: str):
