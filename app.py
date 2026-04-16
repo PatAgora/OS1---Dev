@@ -2412,6 +2412,14 @@ def send_umbrella_contract(cand_id: int):
             flash(f"Couldn't send the email: {mail_exc}", "danger")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
 
+        # Mark "sent" on the Candidate so the profile tile can track
+        # progression (Paystream: signed-state from webhook, others:
+        # staff-updated). Only set if not already True to avoid
+        # overwriting an earlier timestamp.
+        if not getattr(cand, "umbrella_assignment_sent", False):
+            cand.umbrella_assignment_sent = True
+            cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
+
         user_email = getattr(current_user, "email", "staff") or "staff"
         s.add(CandidateNote(
             candidate_id=cand_id,

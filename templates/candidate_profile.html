@@ -700,28 +700,10 @@
                   <div class="fw-semibold">{{ company_details.umbrella_company_name or '—' }}</div>
                 </div>
               </div>
-              {% if company_details.umbrella_company_name and 'paystream' in company_details.umbrella_company_name|lower %}
-              <div class="mt-3">
-                <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
-                   class="btn btn-sm btn-primary
-                          {% if not company_details.contact_email %}disabled{% endif %}"
-                   {% if not company_details.contact_email %}
-                     tabindex="-1" aria-disabled="true"
-                     title="Set an umbrella contact email first"
-                   {% endif %}>
-                  <i class="fas fa-paper-plane me-1"></i> Send Paystream Contract
-                </a>
-                <div class="form-text small mt-1">
-                  Opens a capture sheet — review what we already know, fill the
-                  remaining fields, then send to Paystream.
-                </div>
-                {% if not company_details.contact_email %}
-                <div class="form-text text-warning small mt-1">
-                  Set an umbrella contact email below before sending.
-                </div>
-                {% endif %}
-              </div>
-              {% endif %}
+              {# Issuing the contract is driven from the "Issue Contract"
+                 button in the CONTRACT tile. For Paystream candidates
+                 that button opens the capture sheet and sends via
+                 Signable automatically — no separate button here. #}
             </div>
           {% elif company_details and company_details.contracting_type == 'limited' %}
             <div class="mt-3">
@@ -1525,6 +1507,17 @@
           </div>
           {% endif %}
 
+          {# Contracting-entity flags — referenced by the Issue Contract
+             dispatcher below AND the "Assignment Schedule Signed" panel
+             further down, so they live at Contract-card scope. #}
+          {% set _umb = (company_details.umbrella_company_name if company_details else '') %}
+          {% set _is_umbrella = company_details and company_details.contracting_type == 'umbrella' %}
+          {% set _is_limited = company_details and company_details.contracting_type == 'limited' %}
+          {% set _is_paystream = _umb and 'paystream' in _umb|lower %}
+          {% set _ltd_name = (company_details.company_name if company_details else '') %}
+          {% set _show_manual = (_is_umbrella and not _is_paystream and _umb) or _is_limited %}
+          {% set _has_entity = company_details and company_details.contracting_type %}
+
           {% if contract_status and contract_status not in ['Retracted'] %}
             <div class="p-2 rounded" style="background: {% if contract_status in ['signed', 'completed'] %}#f0fdf4{% else %}#fffbeb{% endif %}; border-left: 3px solid {% if contract_status in ['signed', 'completed'] %}#10b981{% else %}#f59e0b{% endif %};">
               <div class="fw-semibold" style="font-size: 0.85rem;">
@@ -1550,87 +1543,97 @@
               {% set bypass_vetting_gate = true %}
               {% set vet_total = vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started %}
               {% set vet_done = vetting_summary.complete %}
+              {% set _vetting_ok = bypass_vetting_gate or (vet_total > 0 and vet_done >= vet_total) %}
+
               {% if bypass_vetting_gate %}
               <div class="alert alert-info py-1 px-2 mb-2" style="font-size: 0.75rem;">
                 <i class="fas fa-flask me-1"></i>
                 Vetting gate bypassed for testing.
                 {% if vet_total > 0 %}({{ vet_done }}/{{ vet_total }} complete){% endif %}
               </div>
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
-                <i class="fas fa-file-signature me-1"></i> Issue Contract
-              </button>
               {% elif vet_total > 0 and vet_done < vet_total %}
               <div class="alert alert-warning py-1 px-2 mb-2" style="font-size: 0.75rem;">
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 Cannot issue contract — vetting not complete ({{ vet_done }}/{{ vet_total }})
               </div>
-              <button class="btn btn-sm btn-outline-secondary" disabled>
-                <i class="fas fa-file-signature me-1"></i> Issue Contract
-              </button>
               {% elif vet_total == 0 %}
               <div class="alert alert-warning py-1 px-2 mb-2" style="font-size: 0.75rem;">
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 Cannot issue contract — vetting has not been started
               </div>
-              <button class="btn btn-sm btn-outline-secondary" disabled>
-                <i class="fas fa-file-signature me-1"></i> Issue Contract
-              </button>
-              {% else %}
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="issueContractDirect()">
-                <i class="fas fa-file-signature me-1"></i> Issue Contract
-              </button>
               {% endif %}
-            </div>
-          {% endif %}
 
-          {# Manual-send confirmation: appears when we DON'T have a
-             Signable template wired up for this contracting entity.
-             Paystream umbrellas get the "Send Paystream Contract" flow
-             on the Umbrella / Company Details tile instead. Everything
-             else — non-Paystream umbrellas, Limited Companies — needs
-             the recruiter to send the schedule out-of-band and confirm. #}
-          {% set _umb = (company_details.umbrella_company_name if company_details else '') %}
-          {% set _is_umbrella = company_details and company_details.contracting_type == 'umbrella' %}
-          {% set _is_limited = company_details and company_details.contracting_type == 'limited' %}
-          {% set _is_paystream = _umb and 'paystream' in _umb|lower %}
-          {% set _ltd_name = (company_details.company_name if company_details else '') %}
-          {% set _show_manual = (_is_umbrella and not _is_paystream and _umb) or _is_limited %}
-          {% if _show_manual %}
-          <div class="mt-3 p-2 rounded" style="background:#fffbeb; border:1px solid #fde68a;">
-            <div class="fw-semibold small mb-1">
-              <i class="fas fa-exclamation-triangle text-warning me-1"></i>
-              {% if _is_umbrella %}
-                The Assignment Schedule for <strong>{{ _umb }}</strong> must be sent manually
-                (no Signable template configured for this umbrella).
+              {% if not _vetting_ok %}
+                {# Vetting gate blocks all flows — disabled button #}
+                <button class="btn btn-sm btn-outline-secondary" disabled>
+                  <i class="fas fa-file-signature me-1"></i> Issue Contract
+                </button>
+
+              {% elif not _has_entity %}
+                {# Associate hasn't chosen umbrella/Ltd yet — can't issue #}
+                <div class="alert alert-info py-1 px-2 mb-2 small text-start">
+                  <i class="fas fa-info-circle me-1"></i>
+                  Candidate must complete the <em>Umbrella / Company Details</em>
+                  page before a contract can be issued.
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" disabled>
+                  <i class="fas fa-file-signature me-1"></i> Issue Contract
+                </button>
+
+              {% elif _is_paystream %}
+                {# Paystream: capture sheet opens, then auto-sends via Signable. #}
+                <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
+                   class="btn btn-sm btn-primary
+                          {% if not company_details.contact_email %}disabled{% endif %}"
+                   {% if not company_details.contact_email %}
+                     tabindex="-1" aria-disabled="true"
+                     title="Set an umbrella contact email on the Umbrella / Company Details tile first"
+                   {% endif %}>
+                  <i class="fas fa-file-signature me-1"></i> Issue Contract
+                </a>
+                <div class="text-muted small mt-1 text-start">
+                  Opens the Paystream Assignment Schedule capture sheet — review
+                  what OS1 already knows, fill in the remaining fields, then we'll
+                  auto-send it to the umbrella via Signable.
+                </div>
+                {% if not company_details.contact_email %}
+                <div class="text-warning small mt-1 text-start">
+                  <i class="fas fa-exclamation-triangle me-1"></i>
+                  Set an umbrella contact email on the
+                  <em>Umbrella / Company Details</em> tile first.
+                </div>
+                {% endif %}
+
               {% else %}
-                The Assignment Schedule for the candidate's limited company
-                {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
-                must be sent manually (no Signable template for Ltd Co contracts).
+                {# Non-Paystream umbrella or Limited Company — must be sent
+                   manually. Clicking Issue Contract records the sent state
+                   and flips the UI into the signed-tracking panel below. #}
+                <div class="alert alert-warning py-2 px-2 mb-2 small text-start">
+                  <i class="fas fa-exclamation-triangle me-1"></i>
+                  <strong>Assignment Schedule must be sent manually.</strong><br>
+                  {% if _is_umbrella %}
+                    No Signable template is configured for <strong>{{ _umb }}</strong>.
+                    Send the Assignment Schedule to this umbrella out-of-band,
+                    then click the button below to record it as issued.
+                  {% else %}
+                    No Signable template for Limited Company
+                    {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
+                    contracts. Send the Assignment Schedule to the candidate's
+                    Ltd Co out-of-band, then click the button below to record it
+                    as issued.
+                  {% endif %}
+                </div>
+                <form method="POST"
+                      action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}"
+                      onsubmit="return confirm('Confirm that you have sent the Assignment Schedule manually?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="sent" value="yes">
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-check me-1"></i> Issue Contract — mark as sent manually
+                  </button>
+                </form>
               {% endif %}
             </div>
-            <div class="text-muted small mb-2">
-              Has the Assignment Schedule been sent?
-              {% if cand.umbrella_assignment_sent is not none %}
-                Currently recorded as
-                <strong>{{ 'Yes' if cand.umbrella_assignment_sent else 'No' }}</strong>
-                {% if cand.umbrella_assignment_sent_at %}
-                  (updated {{ cand.umbrella_assignment_sent_at.strftime('%d %b %Y at %H:%M') }})
-                {% endif %}.
-              {% endif %}
-            </div>
-            <div class="mb-1 small fw-semibold">Has assignment been sent?</div>
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}" class="d-flex gap-2">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" name="sent" value="yes"
-                      class="btn btn-sm {% if cand.umbrella_assignment_sent %}btn-success{% else %}btn-outline-success{% endif %}">
-                <i class="fas fa-check me-1"></i> Yes — sent
-              </button>
-              <button type="submit" name="sent" value="no"
-                      class="btn btn-sm {% if cand.umbrella_assignment_sent is sameas false %}btn-danger{% else %}btn-outline-danger{% endif %}">
-                <i class="fas fa-times me-1"></i> No — not yet
-              </button>
-            </form>
-          </div>
           {% endif %}
 
           {# Unified "Assignment Schedule Signed" panel.
