@@ -12744,6 +12744,64 @@ def webhook_esign():
     except Exception:
         current_app.logger.exception("webhook_esign: failed to persist inbound event")
 
+    # Normalise the real Signable payload (form-encoded; uses `action` not
+    # `envelope_status`; `envelope_documents` is a JSON string we must parse
+    # to get the document title). Back-fill the keys the rest of the
+    # handler expects so older logic keeps working unchanged.
+    if isinstance(payload, dict) and payload.get("action") and not payload.get("envelope_status"):
+        action_raw = (payload.get("action") or "").lower()
+        action_to_status = {
+            "signed-envelope-complete": "completed",
+            "envelope-completed": "completed",
+            "signed-envelope-partial": "signed",
+            "envelope-signed": "signed",
+            "cancelled-envelope": "cancelled",
+            "envelope-cancelled": "cancelled",
+            "declined-envelope": "declined",
+            "envelope-declined": "declined",
+            "expired-envelope": "expired",
+            "envelope-expired": "expired",
+        }
+        payload["envelope_status"] = action_to_status.get(action_raw, action_raw)
+
+        # envelope_documents may be a JSON string — extract first title.
+        docs_raw = payload.get("envelope_documents")
+        if isinstance(docs_raw, str) and docs_raw.strip().startswith("["):
+            try:
+                docs_list = json.loads(docs_raw)
+                if isinstance(docs_list, list) and docs_list:
+                    payload["envelope_title"] = (docs_list[0].get("document_title") or "").strip()
+            except Exception:
+                pass
+        elif isinstance(docs_raw, list) and docs_raw:
+            try:
+                payload["envelope_title"] = (docs_raw[0].get("document_title") or "").strip()
+            except Exception:
+                pass
+
+        # envelope_fields may be a JSON string — scan for a name to use as signer.
+        fields_raw = payload.get("envelope_fields")
+        fields_list = None
+        if isinstance(fields_raw, str) and fields_raw.strip().startswith("["):
+            try:
+                fields_list = json.loads(fields_raw)
+            except Exception:
+                fields_list = None
+        elif isinstance(fields_raw, list):
+            fields_list = fields_raw
+        if isinstance(fields_list, list):
+            # Signable puts signed signer name in a text field; pick the
+            # first text field that looks like a person's name (two words
+            # or more) if nothing else nominates a signer.
+            for f in fields_list:
+                if not isinstance(f, dict):
+                    continue
+                if (f.get("field_type") or "").lower() == "text":
+                    v = (f.get("field_value") or "").strip()
+                    if v and len(v.split()) >= 2:
+                        payload.setdefault("signer_name", v)
+                        break
+
     with Session(engine) as s:
 
         # --- Signable webhook auto-processing ---
@@ -12830,7 +12888,10 @@ def webhook_esign():
                         doc_label = envelope_title or "Signable Document"
                         is_emp_ref = False
 
-                    # Try to pull a signer name from the Signable parties list
+                    # Try to pull a signer name from parties first, then the
+                    # normalised signer_name we derived from envelope_fields,
+                    # then as a last resort the tail of the document title
+                    # ("... - Ademola Owoeye").
                     signer_name = ""
                     if isinstance(parties, list):
                         for party in parties:
@@ -12838,75 +12899,92 @@ def webhook_esign():
                                 signer_name = (party.get("party_name") or "").strip()
                                 if signer_name:
                                     break
+                    if not signer_name:
+                        signer_name = (payload.get("signer_name") or "").strip()
+                    if not signer_name and " - " in envelope_title:
+                        signer_name = envelope_title.rsplit(" - ", 1)[-1].strip()
 
+                    # Find the candidate. Prefer email match if we have one;
+                    # otherwise fall back to exact name match (Signable's
+                    # form-encoded widget payload carries no email).
+                    cand = None
                     if signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
                         )
-                        if cand:
-                            # Set employment ref flag if applicable
-                            if is_emp_ref:
-                                cand.employment_ref_declaration_signed = True
-                                cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
-                            # Secondary Job Declaration — track on Candidate
-                            if doc_label == "Secondary Job Declaration":
-                                if hasattr(cand, "secondary_job_declaration_signed"):
-                                    cand.secondary_job_declaration_signed = True
-                                if hasattr(cand, "secondary_job_declaration_signed_at"):
-                                    cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
+                    if cand is None and signer_name:
+                        cand = s.scalar(
+                            select(Candidate).where(
+                                func.lower(Candidate.name) == signer_name.lower()
+                            )
+                        )
 
-                            # Upsert the record that the Associate Portal's
-                            # completion calc reads. Without this, widget-based
-                            # signings leave the portal at 0% and re-show the
-                            # iframe on next visit.
-                            try:
-                                from associate_portal import _portal_model as _pm
-                                if doc_label == "Consent Form":
-                                    ConsentRecordCls = _pm("ConsentRecord")
-                                    if ConsentRecordCls is not None:
-                                        consent = s.query(ConsentRecordCls).filter_by(
-                                            candidate_id=cand.id
-                                        ).first()
-                                        if consent is None:
-                                            consent = ConsentRecordCls(candidate_id=cand.id)
-                                            s.add(consent)
-                                        consent.consent_given = True
-                                        consent.signed_date = datetime.datetime.utcnow()
-                                        if not (consent.legal_name or "").strip():
-                                            consent.legal_name = signer_name or cand.name or ""
-                                        if hasattr(consent, "signable_envelope_id"):
-                                            consent.signable_envelope_id = envelope_fp
-                                        if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
-                                            consent.ip_address = request.remote_addr or ""
-                                elif doc_label == "Declaration Form":
-                                    DeclarationRecordCls = _pm("DeclarationRecord")
-                                    if DeclarationRecordCls is not None:
-                                        decl = s.query(DeclarationRecordCls).filter_by(
-                                            candidate_id=cand.id
-                                        ).first()
-                                        if decl is None:
-                                            decl = DeclarationRecordCls(candidate_id=cand.id)
-                                            s.add(decl)
-                                        if hasattr(decl, "legal_name") and not (decl.legal_name or "").strip():
-                                            decl.legal_name = signer_name or cand.name or ""
-                                        if hasattr(decl, "signed_date"):
-                                            decl.signed_date = datetime.datetime.utcnow()
-                                        if hasattr(decl, "signable_envelope_id"):
-                                            decl.signable_envelope_id = envelope_fp
-                            except Exception as upsert_exc:
-                                current_app.logger.warning(
-                                    "webhook upsert failed for %s / cand %s: %s",
-                                    doc_label, cand.id, upsert_exc,
-                                )
+                    if cand:
+                        # Stash the effective identifier for logging.
+                        signer_email = signer_email or f"(matched by name: {signer_name})"
+                        # Set employment ref flag if applicable
+                        if is_emp_ref:
+                            cand.employment_ref_declaration_signed = True
+                            cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+                        # Secondary Job Declaration — track on Candidate
+                        if doc_label == "Secondary Job Declaration":
+                            if hasattr(cand, "secondary_job_declaration_signed"):
+                                cand.secondary_job_declaration_signed = True
+                            if hasattr(cand, "secondary_job_declaration_signed_at"):
+                                cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
 
-                            # Activity note for ALL signed documents
-                            s.add(CandidateNote(
-                                candidate_id=cand.id,
-                                user_email="Signable",
-                                note_type="system",
-                                content=f"{doc_label} signed via Signable."
-                            ))
-                            print(f"[Webhook] {doc_label} signed by {signer_email} (candidate {cand.id})")
+                        # Upsert the record that the Associate Portal's
+                        # completion calc reads. Without this, widget-based
+                        # signings leave the portal at 0% and re-show the
+                        # iframe on next visit.
+                        try:
+                            from associate_portal import _portal_model as _pm
+                            if doc_label == "Consent Form":
+                                ConsentRecordCls = _pm("ConsentRecord")
+                                if ConsentRecordCls is not None:
+                                    consent = s.query(ConsentRecordCls).filter_by(
+                                        candidate_id=cand.id
+                                    ).first()
+                                    if consent is None:
+                                        consent = ConsentRecordCls(candidate_id=cand.id)
+                                        s.add(consent)
+                                    consent.consent_given = True
+                                    consent.signed_date = datetime.datetime.utcnow()
+                                    if not (consent.legal_name or "").strip():
+                                        consent.legal_name = signer_name or cand.name or ""
+                                    if hasattr(consent, "signable_envelope_id"):
+                                        consent.signable_envelope_id = envelope_fp
+                                    if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
+                                        consent.ip_address = request.remote_addr or ""
+                            elif doc_label == "Declaration Form":
+                                DeclarationRecordCls = _pm("DeclarationRecord")
+                                if DeclarationRecordCls is not None:
+                                    decl = s.query(DeclarationRecordCls).filter_by(
+                                        candidate_id=cand.id
+                                    ).first()
+                                    if decl is None:
+                                        decl = DeclarationRecordCls(candidate_id=cand.id)
+                                        s.add(decl)
+                                    if hasattr(decl, "legal_name") and not (decl.legal_name or "").strip():
+                                        decl.legal_name = signer_name or cand.name or ""
+                                    if hasattr(decl, "signed_date"):
+                                        decl.signed_date = datetime.datetime.utcnow()
+                                    if hasattr(decl, "signable_envelope_id"):
+                                        decl.signable_envelope_id = envelope_fp
+                        except Exception as upsert_exc:
+                            current_app.logger.warning(
+                                "webhook upsert failed for %s / cand %s: %s",
+                                doc_label, cand.id, upsert_exc,
+                            )
+
+                        # Activity note for ALL signed documents
+                        s.add(CandidateNote(
+                            candidate_id=cand.id,
+                            user_email="Signable",
+                            note_type="system",
+                            content=f"{doc_label} signed via Signable."
+                        ))
+                        print(f"[Webhook] {doc_label} signed by {signer_email} (candidate {cand.id})")
 
         s.commit()
     return jsonify({"ok": True})
