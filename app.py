@@ -13200,17 +13200,29 @@ def webhook_esign():
         elif isinstance(fields_raw, list):
             fields_list = fields_raw
         if isinstance(fields_list, list):
-            # Signable puts signed signer name in a text field; pick the
-            # first text field that looks like a person's name (two words
-            # or more) if nothing else nominates a signer.
-            for f in fields_list:
+            # Find the signer name. Signable forms typically place the
+            # Full Name field just before the Signature field, so we scan
+            # text fields in REVERSE order and require the value to look
+            # like a real person's name — alphabetic words (letters,
+            # hyphens, apostrophes), 2+ words, no digits, no stray
+            # punctuation. This stops free-text notes like "Test - Yes"
+            # from being mistaken for the signer.
+            import re as _re
+            _name_re = _re.compile(
+                r"^[A-Za-z][A-Za-z\-']*( [A-Za-z][A-Za-z\-']*)+$"
+            )
+            _signer = None
+            for f in reversed(fields_list):
                 if not isinstance(f, dict):
                     continue
-                if (f.get("field_type") or "").lower() == "text":
-                    v = (f.get("field_value") or "").strip()
-                    if v and len(v.split()) >= 2:
-                        payload.setdefault("signer_name", v)
-                        break
+                if (f.get("field_type") or "").lower() != "text":
+                    continue
+                v = (f.get("field_value") or "").strip()
+                if v and _name_re.match(v):
+                    _signer = v
+                    break
+            if _signer:
+                payload.setdefault("signer_name", _signer)
 
     with Session(engine) as s:
 
