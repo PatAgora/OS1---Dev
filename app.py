@@ -5583,30 +5583,38 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     model = get_gemini_model()
     if model:
         try:
-            prompt = f"""Write a short paragraph summarising this CV for a UK
-recruiter. Describe the candidate on the merits of their CV alone — do not
-reference, compare to, or assume any job description.
+            prompt = f"""Summarise this CV for a UK recruiter. Work in REVERSE
+CHRONOLOGICAL order (most recent first) through every role the candidate has
+held in the LAST 3 YEARS. Ignore any role whose end date is older than 3
+years from today.
 
-Focus on the candidate's most recent 1-2 years of work. Ignore older roles
-unless nothing else is available.
+For each role inside that 3-year window, output EXACTLY this shape:
 
-Weave the following into a single flowing paragraph (NOT a list):
-- current or most recent role, employer, and tenure (or start date);
-- what they have actually been doing day-to-day in the last 1-2 years;
-- headline achievements, sectors, and any regulatory or technical
-  specialisms visible from this window;
-- any concerns worth flagging (very short tenure, employment gap,
-  contract ending soon).
+Role - <Job Title> at <Employer Name> (<Start Month Year> - <End Month Year or Present>)
+- <short bullet>
+- <short bullet>
+- <short bullet>
+- <short bullet>
+- <short bullet>
+
+Then a blank line between roles.
+
+Content rules for the 4-5 bullets per role:
+1. Day-to-day scope / responsibilities.
+2. One headline achievement or outcome.
+3. Specialisms, regulations, sector, or technologies visible in this role.
+4. Team size, clients served, budget, or scale (if stated).
+5. Reason for leaving or current status (if stated).
 
 Hard rules:
-- Output ONE paragraph of 3-5 full sentences, roughly 90-120 words.
-- Write in plain prose. No bullet characters, no hyphens as list markers,
-  no headings, no markdown, no numbered lists.
-- The paragraph must be COMPLETE — start with a capital letter, end with
-  a full stop. Do not stop mid-sentence or mid-date.
-- Only state facts that appear in the CV. Do not invent, infer, or
-  speculate.
-- Do not restate, quote, or echo these instructions.
+- Each bullet is ONE short line (max ~15 words).
+- Hyphen-prefixed bullets, one per line. No other markdown.
+- Use ONLY facts in the CV. Do not invent, infer, or speculate.
+- If fewer than 5 bullets can be substantiated for a role, output only as
+  many as the CV supports (minimum 3) — never pad.
+- Do not include any role older than 3 years.
+- Do not output any preamble, headings, summary lines, or commentary outside
+  the role blocks.
 - If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
 
 CV:
@@ -5614,9 +5622,10 @@ CV:
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                # 1500 tokens is ~1100 words of headroom — far more than a
-                # 120-word summary needs. Stops any truncation mid-sentence.
-                max_output_tokens=1500,
+                # 800 tokens ≈ 600 words — ample for 3 roles × 5 bullets
+                # (~250 words total). Smaller budget makes the model stop
+                # faster once it's done, cutting end-to-end latency.
+                max_output_tokens=800,
                 temperature=0.2,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
@@ -6886,21 +6895,53 @@ def candidate_regenerate_summary():
         except Exception:
             cv_text = ""
 
-        # Build summary
-        summary = ""
-        try:
-            if ai_summarise and callable(ai_summarise):
-                summary = ai_summarise(cv_text or "") or ""
-        except Exception as e:
-            current_app.logger.exception("ai_summarise failed: %s", e)
-
-        # Persist summary on latest application (and mirror to Candidate.ai_summary if present)
+        # Resolve target application + job up front so we can fire summary
+        # and score in PARALLEL rather than sequentially.
         latest_app = s.execute(
             select(Application)
             .where(Application.candidate_id == cand_id)
             .order_by(Application.created_at.desc())
             .limit(1)
         ).scalar_one_or_none()
+        target_job = None
+        if job_id:
+            target_job = s.get(Job, job_id)
+        elif latest_app:
+            target_job = s.get(Job, getattr(latest_app, "job_id", None))
+
+        # Pre-compute score inputs outside the pool so we don't hit SQLAlchemy
+        # sessions from worker threads.
+        score_jd = ""
+        if target_job:
+            score_jd = _job_text(target_job)
+
+        import time as _time
+        from concurrent.futures import ThreadPoolExecutor
+        _t0 = _time.time()
+        summary = ""
+        score_payload = None
+
+        with ThreadPoolExecutor(max_workers=2) as _pool:
+            s_future = _pool.submit(ai_summarise, cv_text or "") if ai_summarise else None
+            sc_future = None
+            if target_job and ai_score_with_explanation and score_jd and (cv_text or "").strip():
+                sc_future = _pool.submit(ai_score_with_explanation, score_jd, cv_text)
+            if s_future is not None:
+                try:
+                    summary = s_future.result() or ""
+                except Exception as e:
+                    current_app.logger.exception("ai_summarise failed: %s", e)
+            if sc_future is not None:
+                try:
+                    score_payload = sc_future.result() or {}
+                except Exception as e:
+                    current_app.logger.exception("ai_score_with_explanation failed: %s", e)
+                    score_payload = None
+        current_app.logger.info(
+            "regenerate_summary AI block: %.2fs cand=%s job=%s",
+            _time.time() - _t0, cand_id, getattr(target_job, "id", None),
+        )
+
         if latest_app and hasattr(latest_app, "ai_summary"):
             latest_app.ai_summary = summary
         if hasattr(cand, "ai_summary"):
@@ -6936,32 +6977,22 @@ def candidate_regenerate_summary():
             # preserve order & uniqueness
             cand.skills = ", ".join(dict.fromkeys(tag_names))
 
-        # --- Scoring against job (if any)
-        # Prefer explicit job_id from form, else use job on latest application
-        target_job = None
-        if job_id:
-            target_job = s.get(Job, job_id)
-        elif latest_app:
-            target_job = s.get(Job, getattr(latest_app, "job_id", None))
+        # --- Apply score computed in parallel with the summary above ---
+        if target_job and score_payload is not None:
+            try:
+                score = score_payload.get("final")
+                if latest_app is not None and hasattr(latest_app, "ai_score"):
+                    latest_app.ai_score = int(score) if score is not None else None
+                if hasattr(cand, "ai_score"):
+                    cand.ai_score = int(score) if score is not None else None
+                if latest_app is not None and hasattr(latest_app, "ai_explanation"):
+                    latest_app.ai_explanation = score_payload.get("explanation")
+                if score is not None:
+                    _log_ai_score_activity(s, cand.id, int(score), target_job)
+            except Exception as e:
+                current_app.logger.exception("apply score_payload failed: %s", e)
 
         if target_job:
-            job_txt = _job_text(target_job)
-            if ai_score_with_explanation and job_txt and (cv_text or "").strip():
-                try:
-                    payload = ai_score_with_explanation(job_txt, cv_text) or {}
-                    # Write to Application and Candidate if fields exist
-                    score = payload.get("final")
-                    if latest_app is not None and hasattr(latest_app, "ai_score"):
-                        latest_app.ai_score = int(score) if score is not None else None
-                    if hasattr(cand, "ai_score"):
-                        cand.ai_score = int(score) if score is not None else None
-                    if hasattr(latest_app, "ai_explanation"):
-                        latest_app.ai_explanation = payload.get("explanation")
-                    if score is not None:
-                        _log_ai_score_activity(s, cand.id, int(score), target_job)
-                except Exception as e:
-                    current_app.logger.exception("ai_score_with_explanation failed: %s", e)
-
             # Ensure shortlist if model/table exists
             if Shortlist is not None:
                 try:
