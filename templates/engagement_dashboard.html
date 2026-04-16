@@ -1166,6 +1166,12 @@
     left_to_fill: {{ left_to_fill_associates | tojson if left_to_fill_associates else '[]' }},
     target: []
   };
+
+  // Wider pool — every Candidate in the DB. Used as a fallback when
+  // the tile-specific list has no name match, so the search box can
+  // find any associate the staff types, regardless of which tile
+  // they opened.
+  const allCandidatesSlim = {{ all_candidates_slim | tojson if all_candidates_slim else '[]' }};
   
   let currentModalType = '';
   let selectedAssociates = new Set();
@@ -1281,12 +1287,21 @@
       renderAssociateList(currentModalAssociates);
       return;
     }
-    const filtered = currentModalAssociates.filter(a => {
+    // First pass: tile-specific matches (Left to Fill, Scheduled etc.).
+    const localMatches = currentModalAssociates.filter(a => {
       const name = (a.name || '').toLowerCase();
       const role = (a.role || '').toLowerCase();
       return name.includes(query) || role.includes(query);
     });
-    renderAssociateList(filtered);
+    // Second pass: anyone else in the DB, deduped by id, for staff
+    // who just want to locate any associate by name from this view.
+    const localIds = new Set(localMatches.map(a => a.id));
+    const widerMatches = allCandidatesSlim.filter(a => {
+      if (localIds.has(a.id)) return false;
+      const name = (a.name || '').toLowerCase();
+      return name.includes(query);
+    });
+    renderAssociateList(localMatches.concat(widerMatches));
   }
 
   // Wire the search listener. Script runs after the modal HTML so the

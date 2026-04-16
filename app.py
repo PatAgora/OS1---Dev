@@ -16566,6 +16566,25 @@ def engagement_dashboard(eng_id):
                 'status': 'On Contract'
             })
 
+        # --- All candidates (for the modal "search any associate" feature) ---
+        # Lightweight projection of every Candidate in the DB so the
+        # delivery-plan modal search box can find people across the
+        # whole database, not just those on this engagement.
+        all_candidates_slim = [
+            {
+                'id': c.id,
+                'name': c.name or '',
+                'email': c.email or '',
+                'role': '',
+                'status': 'In DB',
+            }
+            for c in s.scalars(
+                select(Candidate)
+                .where(Candidate.name.isnot(None), Candidate.name != '')
+                .order_by(Candidate.name.asc())
+            ).all()
+        ]
+
         # --- Applicants / "Left to Fill" pool ---
         # Anyone who's applied to a job on this engagement but hasn't yet
         # signed a contract. Surfaced in the Left to Fill modal so staff
@@ -16635,6 +16654,7 @@ def engagement_dashboard(eng_id):
             associates_on_engagement=associates_on_engagement,
             scheduled_associates=scheduled_associates,
             left_to_fill_associates=left_to_fill_associates,
+            all_candidates_slim=all_candidates_slim,
             rate_data=rate_data,
             intake_by_role=intake_by_role,
         )
