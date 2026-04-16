@@ -2485,14 +2485,14 @@ def _create_paystream_envelope(
         )
 
     values = _build_paystream_field_values(cand, latest_app, job, engagement, conduct_regs)
-    party_merge_fields = []
+    document_fields = []
     missing_fields = []
     for merge_name, field_value in values.items():
         fid = merge_map.get(merge_name)
         if not fid:
             missing_fields.append(merge_name)
             continue
-        party_merge_fields.append({
+        document_fields.append({
             "field_id": fid,
             "field_value": field_value or "",
         })
@@ -2532,6 +2532,7 @@ def _create_paystream_envelope(
             {
                 "document_title": "Optimus - Paystream Assignment",
                 "document_template_fingerprint": SIGNABLE_PAYSTREAM_FINGERPRINT,
+                "document_fields": document_fields,
             }
         ],
         "envelope_parties": [
@@ -2542,7 +2543,6 @@ def _create_paystream_envelope(
                 "contact_email": umbrella_email,
                 "contact_name": umbrella_name or "Umbrella Company",
                 "party_title": umbrella_name or "Umbrella Company",
-                "party_merge_fields": party_merge_fields,
             }
         ],
     }
