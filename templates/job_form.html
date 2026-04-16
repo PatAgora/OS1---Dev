@@ -26,15 +26,6 @@
         <input type="text" name="location" class="form-control" value="{{ job.location if job else '' }}" placeholder="e.g. London, UK">
       </div>
       <div class="col-md-4">
-        <label class="form-label fw-semibold">Sector</label>
-        <select name="sector" class="form-select">
-          <option value="">Select sector...</option>
-          {% for s in ['FINANCIAL AND INSURANCE','RECRUITMENT AND HR','INFORMATION AND COMMUNICATION','PROFESSIONAL, TECHNICAL','ADMINISTRATIVE AND SUPPORT','NHS','CENTRAL GOVERNMENT','LOCAL GOVERNMENT','PUBLIC SECTOR- OTHER','CONSTRUCTION','MANUFACTURING','RETAIL','REAL ESTATE ACTIVITIES','TRANSPORTATION AND STORAGE','ACCOMMODATION AND FOOD SERVICE','SOCIAL CARE','LAW ENFORCEMENT AND SECURITY','PRIVATE HEALTHCARE','ARTS AND ENTERTAINMENT','LEISURE, SPORT AND TOURISM','VOLUNTARY/CHARITY','PRESCHOOL EDUCATION','PRIMARY EDUCATION','SECONDARY EDUCATION','ACADEMY EDUCATION','FURTHER EDUCATION','HIGHER EDUCATION','INDEPENDENT EDUCATION','FOSTER/ADOPTION','CHILD CARE','DRIVERS','ENERGY AND AIR CONDITIONING','WATER AND WASTE MANAGEMENT','AGRICULTURE, FORESTRY AND FISHING','MINING AND QUARRYING','TRADE OR REPAIR OF VEHICLES'] %}
-          <option value="{{ s }}" {{ 'selected' if job and job.sector == s else '' }}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
         <label class="form-label fw-semibold">Salary / Rate</label>
         <input type="text" name="salary_range" class="form-control" value="{{ job.salary_range if job else '' }}" placeholder="e.g. £250/day">
       </div>
@@ -46,6 +37,10 @@
           {% endfor %}
         </select>
       </div>
+      {# The generic Sector field was removed — the DBS Sector below is
+         now the single source of truth. The Job.sector column stays in
+         the DB for backwards compatibility but is no longer captured
+         on this form. #}
     </div>
 
     <hr class="my-4">
@@ -75,11 +70,14 @@
         <label class="form-label fw-semibold">DBS Sector</label>
         <select name="dbs_sector" class="form-select">
           <option value="">Select sector...</option>
+          {# FINANCIAL AND INSURANCE pinned at the top as the most
+             frequently selected sector; the rest follow alphabetically. #}
           {% set dbs_sectors = [
+            'FINANCIAL AND INSURANCE',
             'ACADEMY EDUCATION','ACCOMMODATION AND FOOD SERVICE','ADMINISTRATIVE AND SUPPORT',
             'AGRICULTURE, FORESTRY AND FISHING','ARTS AND ENTERTAINMENT','CENTRAL GOVERNMENT',
             'CHILD CARE','CONSTRUCTION','DRIVERS','ENERGY AND AIR CONDITIONING',
-            'FINANCIAL AND INSURANCE','FOSTER/ADOPTION','FURTHER EDUCATION','HIGHER EDUCATION',
+            'FOSTER/ADOPTION','FURTHER EDUCATION','HIGHER EDUCATION',
             'INDEPENDENT EDUCATION','INFORMATION AND COMMUNICATION','LAW ENFORCEMENT AND SECURITY',
             'LEISURE, SPORT AND TOURISM','LOCAL GOVERNMENT','MANUFACTURING','MINING AND QUARRYING',
             'NHS','PRESCHOOL EDUCATION','PRIMARY EDUCATION','PRIVATE HEALTHCARE',

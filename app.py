@@ -10336,12 +10336,16 @@ def job_new():
             description = request.form.get("description") or ""
             status = request.form.get("status") or "Open"
             location = request.form.get("location") or ""
-            sector = request.form.get("sector") or ""
             salary_range = request.form.get("salary_range") or ""
             engagement_id = request.form.get("engagement_id") or None
 
             dbs_level = request.form.get("dbs_level") or "Basic"
             dbs_position = (request.form.get("dbs_position_applied_for") or "").strip() or title[:60]
+            # Legacy Job.sector column — mirror whatever the staff pick
+            # for DBS Sector so anything still reading Job.sector sees
+            # the right value. The separate sector dropdown was removed
+            # from the UI; DBS Sector is now the single source of truth.
+            sector = (request.form.get("dbs_sector") or "").strip()
 
             job = Job(
                 title=title,
@@ -10394,7 +10398,12 @@ def job_edit(job_id):
             job.role_type = request.form.get("role") or job.role_type
             job.description = request.form.get("description") or job.description
             job.location = request.form.get("location") or job.location
-            job.sector = request.form.get("sector") or getattr(job, 'sector', '') or ''
+            # Sector: form field removed; mirror DBS Sector so legacy code
+            # reading Job.sector still gets a value. Preserve the existing
+            # value when staff haven't touched DBS Sector.
+            _dbs_sector_new = (request.form.get("dbs_sector") or "").strip()
+            if _dbs_sector_new:
+                job.sector = _dbs_sector_new
             job.salary_range = request.form.get("salary_range") or job.salary_range
             job.status = request.form.get("status") or job.status
 
