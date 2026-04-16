@@ -1059,7 +1059,7 @@
     </div>
     <div class="delivery-modal-body">
       <div class="associate-search">
-        <input type="text" id="associateSearch" placeholder="Search associates..." oninput="filterAssociates()">
+        <input type="text" id="associateSearch" placeholder="Search associates...">
       </div>
       
       <div class="bulk-actions-bar" id="bulkActionsBar">
@@ -1275,16 +1275,33 @@
   }
   
   function filterAssociates() {
-    const query = document.getElementById('associateSearch').value.toLowerCase();
+    const query = (document.getElementById('associateSearch').value || '').toLowerCase().trim();
     const items = document.querySelectorAll('#associateList .associate-item');
-    
+
     items.forEach(item => {
-      const name = item.dataset.name || '';
-      const role = item.dataset.role || '';
-      const matches = name.includes(query) || role.includes(query);
+      if (!query) {
+        item.style.display = '';
+        return;
+      }
+      // Match against data attrs AND the visible text so the search
+      // box works even on rows where only one attr is populated.
+      const name = (item.dataset.name || '').toLowerCase();
+      const role = (item.dataset.role || '').toLowerCase();
+      const text = (item.textContent || '').toLowerCase();
+      const matches = name.includes(query) || role.includes(query) || text.includes(query);
       item.style.display = matches ? '' : 'none';
     });
   }
+
+  // Attach the search handler programmatically. CSP blocks inline
+  // oninput="..." attributes under nonce-based script-src, so the
+  // attribute form was silently ignored.
+  document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('associateSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', filterAssociates);
+    }
+  });
   
   function toggleAssociateSelection(id, checkbox) {
     if (checkbox.checked) {
