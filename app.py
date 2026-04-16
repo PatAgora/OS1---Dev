@@ -3913,6 +3913,12 @@ class Candidate(Base):
     secondary_job_has_secondary = Column(Boolean, default=False)
     secondary_job_title = Column(String(500), default="")
     secondary_job_signed_name = Column(String(300), default="")
+
+    # Conduct of Employment Agencies Regulations 2003 — opt-in / opt-out
+    # preference captured in the Associate Portal. NULL = not yet decided.
+    conduct_regs_opted_in = Column(Boolean, nullable=True)
+    conduct_regs_decision_at = Column(DateTime, nullable=True)
+    conduct_regs_signed_name = Column(String(300), default="")
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -5168,6 +5174,9 @@ try:
             "ALTER TABLE candidates ADD COLUMN secondary_job_has_secondary BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN secondary_job_title VARCHAR(500) DEFAULT ''",
             "ALTER TABLE candidates ADD COLUMN secondary_job_signed_name VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE candidates ADD COLUMN conduct_regs_opted_in BOOLEAN",
+            "ALTER TABLE candidates ADD COLUMN conduct_regs_decision_at TIMESTAMP",
+            "ALTER TABLE candidates ADD COLUMN conduct_regs_signed_name VARCHAR(300) DEFAULT ''",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather

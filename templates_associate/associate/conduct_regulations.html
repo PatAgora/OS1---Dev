@@ -1,0 +1,90 @@
+{% extends "associate/base.html" %}
+{% set active_page = 'vetting_progress' %}
+
+{% block page_title %}Conduct Regulations{% endblock %}
+{% block header_title %}Conduct of Employment Agencies Regulations{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/portal/dashboard">Summary</a></li>
+<li class="breadcrumb-item"><a href="/portal/vetting-progress">Vetting</a></li>
+<li class="breadcrumb-item active">Conduct Regulations</li>
+{% endblock %}
+
+{% block content %}
+<div class="portal-card mb-4">
+  <div class="portal-card-header">
+    <h3><i class="fas fa-balance-scale me-2"></i>Conduct of Employment Agencies and Employment Businesses Regulations 2003</h3>
+    {% if current_choice == 'opt_in' %}
+      <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>Opted In</span>
+    {% elif current_choice == 'opt_out' %}
+      <span class="badge bg-secondary fs-6"><i class="fas fa-ban me-1"></i>Opted Out</span>
+    {% endif %}
+  </div>
+  <div class="portal-card-body">
+    <p>
+      Before your assignment gets underway, we need to confirm your preference regarding the
+      Conduct of Employment Agencies and Employment Businesses Regulations 2003.
+    </p>
+    <p>
+      These regulations set out a number of rules and protections that apply to agency workers
+      and the businesses that place them. You can read them in full here:
+      <a href="https://www.legislation.gov.uk/uksi/2003/3319/contents" target="_blank" rel="noopener noreferrer">
+        https://www.legislation.gov.uk/uksi/2003/3319/contents
+      </a>.
+    </p>
+
+    {% if current_choice and decision_at %}
+    <div class="alert alert-info mt-3">
+      <i class="fas fa-info-circle me-2"></i>
+      You recorded your preference as
+      <strong>{{ 'Opted In' if current_choice == 'opt_in' else 'Opted Out' }}</strong>
+      on <strong>{{ decision_at.strftime('%d %B %Y at %H:%M') }}</strong>
+      {% if signed_name %}by <strong>{{ signed_name }}</strong>{% endif %}.
+      You may update your choice below at any time.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('associate.conduct_regulations') }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="opt_choice" id="opt_in" value="opt_in"
+                 {% if current_choice == 'opt_in' %}checked{% endif %}>
+          <label for="opt_in" class="form-check-label">
+            <strong>Opt In</strong> — I wish to be covered by the Conduct Regulations.
+          </label>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="radio" name="opt_choice" id="opt_out" value="opt_out"
+                 {% if current_choice == 'opt_out' %}checked{% endif %}>
+          <label for="opt_out" class="form-check-label">
+            <strong>Opt Out</strong> — I choose to opt out of the Conduct Regulations.
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group mb-3">
+        <label for="legal_name" class="form-label fw-semibold">
+          Full legal name <span class="required">*</span>
+        </label>
+        <input type="text" id="legal_name" name="legal_name" class="form-input"
+               placeholder="Type your full name exactly as it appears on your Portal profile"
+               value="{{ signed_name or portal_name }}" required>
+        {% if portal_name %}
+        <small class="text-muted d-block mt-1">
+          Your Portal profile name: <strong>{{ portal_name }}</strong>
+        </small>
+        {% endif %}
+      </div>
+
+      <div class="btn-group">
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-save me-1"></i> Save preference
+        </button>
+        <a href="/portal/dashboard" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

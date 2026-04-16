@@ -2598,6 +2598,80 @@ def references():
     return redirect(url_for("associate.references_employment"))
 
 
+@associate_bp.route("/conduct-regulations", methods=["GET", "POST"])
+@_require_login
+def conduct_regulations():
+    """Opt-in / opt-out of the Conduct of Employment Agencies and
+    Employment Businesses Regulations 2003. Stored on Candidate so both
+    the portal and staff profile can render the preference."""
+    cand_id = _get_associate_id()
+    engine = _engine()
+    Candidate = _model("Candidate")
+    if not Candidate or not cand_id:
+        flash("Session expired. Please log in again.", "warning")
+        return redirect(url_for("associate.login"))
+
+    if request.method == "POST":
+        choice = (request.form.get("opt_choice") or "").strip().lower()
+        legal_name = _sanitise(request.form.get("legal_name") or "").strip()
+        if choice not in ("opt_in", "opt_out"):
+            flash("Please select opt in or opt out before submitting.", "warning")
+            return redirect(url_for("associate.conduct_regulations"))
+        if not legal_name:
+            flash("Please type your full name to confirm your choice.", "warning")
+            return redirect(url_for("associate.conduct_regulations"))
+        try:
+            with SASession(engine) as s:
+                cand = s.get(Candidate, cand_id)
+                if cand is None:
+                    flash("Candidate record not found.", "danger")
+                    return redirect(url_for("associate.dashboard"))
+                cand.conduct_regs_opted_in = (choice == "opt_in")
+                cand.conduct_regs_decision_at = datetime.utcnow()
+                cand.conduct_regs_signed_name = legal_name
+                _add_note(
+                    s, cand_id,
+                    f"Conduct Regulations 2003: {'opted IN' if choice == 'opt_in' else 'opted OUT'} "
+                    f"by '{legal_name}'.",
+                )
+                s.commit()
+            flash("Your Conduct Regulations preference has been saved.", "success")
+        except Exception:
+            current_app.logger.exception(
+                "conduct_regulations save failed for candidate %s", cand_id
+            )
+            flash("Could not save your preference. Please try again.", "danger")
+        return redirect(url_for("associate.conduct_regulations"))
+
+    # GET — read current state
+    current_choice = None
+    decision_at = None
+    signed_name = ""
+    portal_name = ""
+    try:
+        with SASession(engine) as s:
+            cand = s.get(Candidate, cand_id)
+            if cand:
+                opted = getattr(cand, "conduct_regs_opted_in", None)
+                if opted is True:
+                    current_choice = "opt_in"
+                elif opted is False:
+                    current_choice = "opt_out"
+                decision_at = getattr(cand, "conduct_regs_decision_at", None)
+                signed_name = (getattr(cand, "conduct_regs_signed_name", "") or "").strip()
+                portal_name = (getattr(cand, "name", None) or "").strip()
+    except Exception:
+        pass
+
+    return render_template(
+        "associate/conduct_regulations.html",
+        current_choice=current_choice,
+        decision_at=decision_at,
+        signed_name=signed_name,
+        portal_name=portal_name,
+    )
+
+
 @associate_bp.route("/secondary-job-declaration", methods=["GET"])
 @_require_login
 def secondary_job_declaration():
