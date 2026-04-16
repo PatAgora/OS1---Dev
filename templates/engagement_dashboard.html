@@ -1223,11 +1223,14 @@
         `;
       });
     } else if (type === 'target') {
-      // Show roles breakdown
+      // Show roles breakdown — include data attrs so the search box
+      // can match against role name.
       {% for role in display_roles %}
       {% set m = role_metrics.get(role, {}) %}
       html += `
-        <li class="associate-item">
+        <li class="associate-item"
+            data-name="{{ role|lower }}"
+            data-role="{{ role|lower }}">
           <div class="associate-info">
             <div class="associate-name">{{ role }}</div>
             <div class="associate-role">Target: {{ m.get('planned', 0) }} • Filled: {{ m.get('signed', 0) }}</div>
@@ -1235,7 +1238,26 @@
         </li>
       `;
       {% endfor %}
-    } else if (associates.length === 0) {
+    } else if (type === 'left_to_fill' && associates.length > 0) {
+      // Left-to-fill: same render as scheduled + on_contract so the
+      // modal isn't blank and the search box works.
+      associates.forEach((a, idx) => {
+        html += `
+          <li class="associate-item" data-name="${(a.name || '').toLowerCase()}" data-role="${(a.role || '').toLowerCase()}">
+            <div class="associate-info">
+              <div class="associate-name">${a.name || 'Unknown'}</div>
+              <div class="associate-role">${a.role || 'No role'} • Stage: ${a.status || 'Unknown'}</div>
+            </div>
+            <div class="associate-actions">
+              <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
+                <i class="fas fa-user"></i> View Profile
+              </a>
+            </div>
+          </li>
+        `;
+      });
+    }
+    if (!html) {
       html = '<li class="associate-item"><div class="associate-info"><div class="associate-name">No associates found</div></div></li>';
     }
     
