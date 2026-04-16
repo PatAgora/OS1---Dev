@@ -12951,14 +12951,28 @@ def webhook_esign():
                         )
                         if cand:
                             match_reason = f"email={signer_email}"
+                    ambiguous_ids = []
                     if cand is None and signer_name:
-                        cand = s.scalar(
+                        # Count all name matches first so two people sharing a
+                        # name (e.g. two Alan Smiths) never get silently merged.
+                        name_matches = s.scalars(
                             select(Candidate).where(
                                 func.lower(Candidate.name) == signer_name.lower()
                             )
-                        )
-                        if cand:
-                            match_reason = f"exact name={signer_name}"
+                        ).all()
+                        if len(name_matches) == 1:
+                            cand = name_matches[0]
+                            match_reason = f"exact name={signer_name} (unique)"
+                        elif len(name_matches) > 1:
+                            # Ambiguous — refuse to auto-assign. cand stays
+                            # None so we fall through to the unmatched branch;
+                            # the breadcrumb below logs all matching ids so
+                            # staff can link the signing manually.
+                            ambiguous_ids = [c.id for c in name_matches]
+                            match_reason = (
+                                f"AMBIGUOUS: {len(name_matches)} candidates share "
+                                f"name {signer_name!r} (ids={ambiguous_ids})"
+                            )
 
                     # Always drop a WebhookEvent-style breadcrumb saying what
                     # we did (or didn't). Invaluable for diagnosing portal
@@ -12974,18 +12988,32 @@ def webhook_esign():
                     if cand is None:
                         # Record unmatched widget signings so the admin page
                         # can expose them even when no candidate got updated.
+                        is_ambiguous = bool(ambiguous_ids)
                         try:
                             with Session(engine) as _ns:
                                 _ns.add(WebhookEvent(
                                     source="esign",
-                                    event_type="unmatched-widget-signing",
+                                    event_type=(
+                                        "ambiguous-widget-signing"
+                                        if is_ambiguous
+                                        else "unmatched-widget-signing"
+                                    ),
                                     payload=json.dumps({
                                         "doc_label": doc_label,
                                         "envelope_title": envelope_title,
                                         "envelope_fingerprint": envelope_fp,
                                         "signer_name": signer_name,
                                         "signer_email": signer_email,
-                                        "hint": "No Candidate row matched. Check name spelling in the DB vs Signable field.",
+                                        "match_reason": match_reason,
+                                        "ambiguous_candidate_ids": ambiguous_ids,
+                                        "hint": (
+                                            "Multiple candidates share this name. "
+                                            "Use the staff tool on /admin/webhook-events "
+                                            "to link this signing to the correct candidate."
+                                            if is_ambiguous
+                                            else "No Candidate row matched. Check name "
+                                                 "spelling in the DB vs Signable field."
+                                        ),
                                     })[:39999],
                                 ))
                                 _ns.commit()
