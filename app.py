@@ -5550,50 +5550,66 @@ def _smart_truncate(txt: str, limit: int) -> str:
     return cut.rstrip() + " …"
 
 def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") -> str:
+    """Standalone CV summary. job_description is accepted for backward
+    compatibility but deliberately ignored — the summary must describe the
+    CV on its own and not reference or compare to any job."""
+    _ = job_description  # intentionally unused; summary is job-agnostic now
     text = _truncate_for_ai(text or "", 4000)  # Send less text = faster response
     if not text:
         return ""
     model = get_gemini_model()
     if model:
         try:
-            jd_section = ""
-            if job_description and job_description.strip():
-                jd_section = f"""
-JOB DESCRIPTION (score the candidate against this):
-{_truncate_for_ai(job_description, 3000)}
-
-"""
-            prompt = f"""Summarise the CV below for a UK recruiter as a single
-flowing paragraph (no bullets, no headings, no markdown).
+            prompt = f"""Write a short paragraph summarising this CV for a UK
+recruiter. Describe the candidate on the merits of their CV alone — do not
+reference, compare to, or assume any job description.
 
 Focus on the candidate's most recent 1-2 years of work. Ignore older roles
 unless nothing else is available.
 
-Cover, in this order, weaving them into the paragraph naturally:
-1. Their current or most recent role, employer, and tenure (or start date).
-2. What they have actually been doing day-to-day in the last 1-2 years.
-3. Headline achievements, sectors they operate in, and any regulatory or
-   technical specialisms visible from this window.
-4. Any concerns (very short tenure, employment gap, contract ending).
+Weave the following into a single flowing paragraph (NOT a list):
+- current or most recent role, employer, and tenure (or start date);
+- what they have actually been doing day-to-day in the last 1-2 years;
+- headline achievements, sectors, and any regulatory or technical
+  specialisms visible from this window;
+- any concerns worth flagging (very short tenure, employment gap,
+  contract ending soon).
 
 Hard rules:
-- Output a paragraph of 3-5 full sentences, around 90-110 words total.
-- Only state facts that appear in the CV. Do not invent or infer.
-- Do not use bullet characters, hyphens, numbered lists, or markdown.
-- Do not restate, quote, or echo the instructions above.
+- Output ONE paragraph of 3-5 full sentences, roughly 90-120 words.
+- Write in plain prose. No bullet characters, no hyphens as list markers,
+  no headings, no markdown, no numbered lists.
+- The paragraph must be COMPLETE — start with a capital letter, end with
+  a full stop. Do not stop mid-sentence or mid-date.
+- Only state facts that appear in the CV. Do not invent, infer, or
+  speculate.
+- Do not restate, quote, or echo these instructions.
 - If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
-{jd_section}
+
 CV:
 {text}
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                # 800 tokens is ~600 words of headroom so a 110-word summary
-                # cannot be cut off mid-sentence (as happened at "Jun 20").
-                max_output_tokens=800,
+                # 1500 tokens is ~1100 words of headroom — far more than a
+                # 120-word summary needs. Stops any truncation mid-sentence.
+                max_output_tokens=1500,
                 temperature=0.2,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
+            # Diagnostic: capture finish_reason + safety so a cut-off summary
+            # is traceable. Gemini truncating at MAX_TOKENS or SAFETY looks
+            # identical to "the model just stopped" without this log line.
+            try:
+                cand_meta = getattr(resp, "candidates", None) or []
+                if cand_meta:
+                    finish_reason = getattr(cand_meta[0], "finish_reason", None)
+                    current_app.logger.info(
+                        "ai_summarise finish_reason=%s prompt_chars=%d",
+                        finish_reason, len(prompt),
+                    )
+            except Exception:
+                pass
             if not resp.parts:
                 return "Unable to retrieve information from CV."
             out = (resp.text or "").strip()
