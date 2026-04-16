@@ -3229,6 +3229,11 @@ class Candidate(Base):
     esign_status = Column(String(50), default=None)
     employment_ref_declaration_signed = Column(Boolean, default=False)
     employment_ref_declaration_signed_at = Column(DateTime, nullable=True)
+    # Secondary Job Declaration — signed via Signable widget on the
+    # associate portal. Kept as Candidate-level flags to mirror the
+    # employment-ref declaration pattern (no dedicated model).
+    secondary_job_declaration_signed = Column(Boolean, default=False)
+    secondary_job_declaration_signed_at = Column(DateTime, nullable=True)
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -4479,6 +4484,8 @@ try:
         for _stmt in [
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed_at TIMESTAMP",
+            "ALTER TABLE candidates ADD COLUMN secondary_job_declaration_signed BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE candidates ADD COLUMN secondary_job_declaration_signed_at TIMESTAMP",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather
@@ -12608,6 +12615,12 @@ def webhook_esign():
                             if is_emp_ref:
                                 cand.employment_ref_declaration_signed = True
                                 cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+                            # Secondary Job Declaration — track on Candidate
+                            if doc_label == "Secondary Job Declaration":
+                                if hasattr(cand, "secondary_job_declaration_signed"):
+                                    cand.secondary_job_declaration_signed = True
+                                if hasattr(cand, "secondary_job_declaration_signed_at"):
+                                    cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
 
                             # Upsert the record that the Associate Portal's
                             # completion calc reads. Without this, widget-based

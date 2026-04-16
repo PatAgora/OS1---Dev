@@ -2002,6 +2002,80 @@ def consent_mark_signed():
     return redirect(url_for("associate.consent_form"))
 
 
+@associate_bp.route("/declaration-form/mark-signed", methods=["POST"])
+@_require_login
+def declaration_mark_signed():
+    """Associate-triggered fallback for the Declaration Form Signable widget.
+    Upserts a DeclarationRecord so the portal / completion calc treat it as
+    signed, without waiting on the Signable webhook."""
+    DeclarationRecord = _portal_model("DeclarationRecord")
+    Candidate = _model("Candidate")
+    if DeclarationRecord is None:
+        flash("Declaration record model not available — cannot mark as signed.", "danger")
+        return redirect(url_for("associate.declaration_form"))
+    cand_id = _get_associate_id()
+    engine = _engine()
+    try:
+        with SASession(engine) as s:
+            decl = s.query(DeclarationRecord).filter_by(candidate_id=cand_id).first()
+            if decl is None:
+                decl = DeclarationRecord(candidate_id=cand_id)
+                s.add(decl)
+            if hasattr(decl, "signed_date"):
+                decl.signed_date = datetime.utcnow()
+            if hasattr(decl, "legal_name") and not (decl.legal_name or "").strip():
+                cand = s.get(Candidate, cand_id) if Candidate else None
+                decl.legal_name = (getattr(cand, "name", None) or "").strip()
+            _add_note(
+                s, cand_id,
+                "Declaration form marked as signed by the candidate "
+                "(Signable widget manual confirmation).",
+            )
+            s.commit()
+        flash("Declaration form marked as signed. Thank you.", "success")
+    except Exception:
+        current_app.logger.exception(
+            "declaration_mark_signed failed for candidate %s", cand_id
+        )
+        flash("Could not mark declaration as signed. Please try again.", "danger")
+    return redirect(url_for("associate.declaration_form"))
+
+
+@associate_bp.route("/secondary-job-declaration/mark-signed", methods=["POST"])
+@_require_login
+def secondary_job_mark_signed():
+    """Associate-triggered fallback for Secondary Job Declaration."""
+    Candidate = _model("Candidate")
+    if Candidate is None:
+        flash("Candidate model not available — cannot mark as signed.", "danger")
+        return redirect(url_for("associate.secondary_job_declaration"))
+    cand_id = _get_associate_id()
+    engine = _engine()
+    try:
+        with SASession(engine) as s:
+            cand = s.get(Candidate, cand_id)
+            if cand is None:
+                flash("Candidate record not found.", "danger")
+                return redirect(url_for("associate.secondary_job_declaration"))
+            if hasattr(cand, "secondary_job_declaration_signed"):
+                cand.secondary_job_declaration_signed = True
+            if hasattr(cand, "secondary_job_declaration_signed_at"):
+                cand.secondary_job_declaration_signed_at = datetime.utcnow()
+            _add_note(
+                s, cand_id,
+                "Secondary Job Declaration marked as signed by the candidate "
+                "(Signable widget manual confirmation).",
+            )
+            s.commit()
+        flash("Secondary Job Declaration marked as signed. Thank you.", "success")
+    except Exception:
+        current_app.logger.exception(
+            "secondary_job_mark_signed failed for candidate %s", cand_id
+        )
+        flash("Could not mark the declaration as signed. Please try again.", "danger")
+    return redirect(url_for("associate.secondary_job_declaration"))
+
+
 @associate_bp.route("/declaration")
 @_require_login
 def declaration_redirect():
