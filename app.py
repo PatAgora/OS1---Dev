@@ -12914,14 +12914,24 @@ def webhook_esign():
                     if not signer_name and " - " in envelope_title:
                         signer_name = envelope_title.rsplit(" - ", 1)[-1].strip()
 
-                    # Find the candidate. Prefer email match if we have one;
-                    # otherwise require an exact (case-insensitive) name
-                    # match — no fuzzy fallback. If the name typed into
-                    # Signable doesn't exactly match Candidate.name, the
-                    # signing is logged as unmatched (see below).
+                    # Find the candidate. Preference order:
+                    #   1. envelope_meta carrying a numeric candidate id
+                    #      (set by our portal when it renders the widget URL)
+                    #   2. email match
+                    #   3. exact (case-insensitive) name match
+                    # If nothing matches, the signing is logged as
+                    # unmatched-widget-signing for later diagnosis.
                     cand = None
                     match_reason = ""
-                    if signer_email:
+                    envelope_meta_raw = (payload.get("envelope_meta") or "").strip()
+                    if envelope_meta_raw.isdigit():
+                        try:
+                            cand = s.get(Candidate, int(envelope_meta_raw))
+                            if cand:
+                                match_reason = f"envelope_meta cand_id={envelope_meta_raw}"
+                        except Exception:
+                            cand = None
+                    if cand is None and signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
                         )

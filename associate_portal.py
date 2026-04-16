@@ -445,6 +445,23 @@ def _sanitise(value: str) -> str:
         return (value or "").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _widget_url_with_meta(base_url: str, cand_id) -> str:
+    """Append envelope_meta=<cand_id> to a Signable widget URL so the
+    webhook payload carries the candidate id back and we don't rely on
+    fragile name-based matching."""
+    if not base_url or cand_id is None:
+        return base_url or ""
+    try:
+        from urllib.parse import urlparse, urlencode, parse_qsl, urlunparse
+        parsed = urlparse(base_url)
+        existing = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        existing["envelope_meta"] = str(cand_id)
+        return urlunparse(parsed._replace(query=urlencode(existing)))
+    except Exception:
+        sep = "&" if "?" in base_url else "?"
+        return f"{base_url}{sep}envelope_meta={cand_id}"
+
+
 def _portal_signer():
     """Timed serializer for magic link tokens."""
     from itsdangerous import URLSafeTimedSerializer
@@ -1832,7 +1849,9 @@ def consent_form():
                     consent=consent,
                     already_signed=consent is not None,
                     reference_consent=reference_consent,
-                    signable_consent_widget_url=os.getenv("SIGNABLE_CONSENT_WIDGET_URL", ""),
+                    signable_consent_widget_url=_widget_url_with_meta(
+                        os.getenv("SIGNABLE_CONSENT_WIDGET_URL", ""), cand_id
+                    ),
                     portal_name=portal_name,
                 )
         except Exception:
@@ -2314,7 +2333,9 @@ def declaration_form():
                 "associate/declaration_form.html",
                 declaration=decl,
                 already_signed=decl is not None,
-                signable_declaration_widget_url=os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""),
+                signable_declaration_widget_url=_widget_url_with_meta(
+                    os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""), cand_id
+                ),
                 portal_name=portal_name,
             )
 
@@ -2517,7 +2538,7 @@ def secondary_job_declaration():
         portal_name = ""
     return render_template(
         "associate/secondary_job_declaration.html",
-        widget_url=widget_url,
+        widget_url=_widget_url_with_meta(widget_url, cand_id),
         portal_name=portal_name,
     )
 
