@@ -2208,6 +2208,127 @@ def admin_reset_signing(cand_id: int, form_key: str):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
+                          envelope_fp: str, ip_address: str = "") -> str:
+    """Shared widget-signing upsert, used by both the webhook auto-match path
+    and the staff manual-link admin action. Returns a short description of
+    what was persisted for audit / breadcrumb purposes."""
+    if not cand:
+        return "no candidate"
+    is_emp_ref = doc_label == "Employment Reference Declaration"
+    if is_emp_ref and hasattr(cand, "employment_ref_declaration_signed"):
+        cand.employment_ref_declaration_signed = True
+        cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+    if doc_label == "Secondary Job Declaration":
+        if hasattr(cand, "secondary_job_declaration_signed"):
+            cand.secondary_job_declaration_signed = True
+        if hasattr(cand, "secondary_job_declaration_signed_at"):
+            cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
+        return "Candidate.secondary_job_declaration_signed flipped"
+
+    try:
+        from associate_portal import _portal_model as _pm
+        if doc_label == "Consent Form":
+            Cls = _pm("ConsentRecord")
+            if Cls is None:
+                return "ConsentRecord class not resolvable"
+            rec = s.query(Cls).filter_by(candidate_id=cand.id).first()
+            is_new = rec is None
+            if rec is None:
+                rec = Cls(candidate_id=cand.id)
+                s.add(rec)
+            rec.consent_given = True
+            rec.signed_date = datetime.datetime.utcnow()
+            if not (rec.legal_name or "").strip():
+                rec.legal_name = signer_name or cand.name or ""
+            if hasattr(rec, "signable_envelope_id"):
+                rec.signable_envelope_id = envelope_fp
+            if hasattr(rec, "ip_address") and not (rec.ip_address or ""):
+                rec.ip_address = ip_address or ""
+            s.flush()
+            return f"ConsentRecord {'inserted' if is_new else 'updated'} (id={rec.id})"
+        if doc_label == "Declaration Form":
+            Cls = _pm("DeclarationRecord")
+            if Cls is None:
+                return "DeclarationRecord class not resolvable"
+            rec = s.query(Cls).filter_by(candidate_id=cand.id).first()
+            is_new = rec is None
+            if rec is None:
+                rec = Cls(candidate_id=cand.id)
+                s.add(rec)
+            if hasattr(rec, "signed_date"):
+                rec.signed_date = datetime.datetime.utcnow()
+            if hasattr(rec, "legal_name") and not (rec.legal_name or "").strip():
+                rec.legal_name = signer_name or cand.name or ""
+            if hasattr(rec, "signable_envelope_id"):
+                rec.signable_envelope_id = envelope_fp
+            s.flush()
+            return f"DeclarationRecord {'inserted' if is_new else 'updated'} (id={rec.id})"
+    except Exception as exc:
+        return f"exception: {exc}"
+    if is_emp_ref:
+        return "Candidate.employment_ref_declaration_signed flipped"
+    return f"no-op (unhandled doc_label={doc_label!r})"
+
+
+@app.route("/admin/webhook-events/<int:event_id>/link-candidate", methods=["POST"])
+@login_required
+def admin_webhook_link_candidate(event_id: int):
+    """Staff manual-resolution for ambiguous/unmatched widget signings.
+    Reads the cand_id the staff selected, re-runs the upsert against that
+    candidate, logs the resolution on both the audit trail and the
+    original WebhookEvent row."""
+    try:
+        cand_id = int(request.form.get("cand_id") or 0)
+    except Exception:
+        cand_id = 0
+    if cand_id <= 0:
+        flash("A valid candidate id is required.", "danger")
+        return redirect(url_for("admin_webhook_events"))
+
+    with Session(engine) as s:
+        evt = s.get(WebhookEvent, event_id)
+        if not evt:
+            flash("Webhook event not found.", "danger")
+            return redirect(url_for("admin_webhook_events"))
+        try:
+            raw = json.loads(evt.payload or "{}")
+        except Exception:
+            raw = {}
+        # Unwrap the diagnostic envelope used on inbound payloads.
+        inner = raw.get("payload") if isinstance(raw, dict) else {}
+        meta_payload = raw if raw.get("doc_label") else (inner if isinstance(inner, dict) else raw)
+        doc_label = (meta_payload.get("doc_label") or "").strip() or "Signable Document"
+        envelope_fp = (meta_payload.get("envelope_fingerprint") or "").strip()
+        signer_name = (meta_payload.get("signer_name") or "").strip()
+
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            flash(f"Candidate {cand_id} not found.", "danger")
+            return redirect(url_for("admin_webhook_events"))
+
+        outcome = _apply_widget_signing(s, cand, doc_label, signer_name, envelope_fp)
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=(
+                f"Manually linked Signable {doc_label} envelope "
+                f"{envelope_fp or '(no fingerprint)'} to this candidate. "
+                f"Upsert: {outcome}."
+            ),
+            created_at=datetime.datetime.utcnow(),
+        ))
+        # Mark the source event as resolved so the admin page shows it visually.
+        if evt.event_type and not evt.event_type.endswith("-resolved"):
+            evt.event_type = f"{evt.event_type}-resolved"
+        s.commit()
+
+    flash(f"Linked webhook event {event_id} to candidate {cand_id}: {outcome}", "success")
+    return redirect(url_for("admin_webhook_events"))
+
+
 @app.route("/admin/webhook-events/test", methods=["POST"])
 @login_required
 def admin_webhook_events_test():
@@ -2276,15 +2397,46 @@ def admin_webhook_events():
         events = []
         for r in rows:
             try:
-                pretty = json.dumps(json.loads(r.payload or "{}"), indent=2)
+                raw_dict = json.loads(r.payload or "{}")
+            except Exception:
+                raw_dict = {}
+            try:
+                pretty = json.dumps(raw_dict or {}, indent=2)
             except Exception:
                 pretty = r.payload or ""
+
+            # Enrich ambiguous/unmatched events so staff can pick a candidate
+            # to link against without leaving the page.
+            candidates = []
+            is_ambiguous = r.event_type == "ambiguous-widget-signing"
+            is_unmatched = r.event_type == "unmatched-widget-signing"
+            inner = raw_dict.get("payload") if isinstance(raw_dict, dict) else None
+            meta = raw_dict if raw_dict.get("doc_label") else (inner if isinstance(inner, dict) else {})
+            if is_ambiguous:
+                for cid in (meta.get("ambiguous_candidate_ids") or []):
+                    try:
+                        cobj = s.get(Candidate, int(cid))
+                        if cobj:
+                            candidates.append({
+                                "id": cobj.id,
+                                "name": cobj.name,
+                                "email": cobj.email,
+                            })
+                    except Exception:
+                        pass
+
             events.append({
                 "id": r.id,
                 "source": r.source,
                 "event_type": r.event_type,
                 "received_at": r.received_at,
                 "payload": pretty,
+                "is_ambiguous": is_ambiguous,
+                "is_unmatched": is_unmatched,
+                "is_resolvable": (is_ambiguous or is_unmatched) and not (r.event_type or "").endswith("-resolved"),
+                "candidates": candidates,
+                "signer_name": meta.get("signer_name") or "",
+                "doc_label": meta.get("doc_label") or "",
             })
     return render_template(
         "admin_webhook_events.html",
