@@ -2394,11 +2394,23 @@ def _signable_paystream_merge_map() -> dict[str, str]:
 
 
 def _build_paystream_field_values(cand, latest_app, job, engagement, conduct_regs: str) -> dict[str, str]:
-    """Assemble the 18 Paystream field values from the Application +
-    sourced data. Override columns on Application take precedence.
-    Keys match the field_merge names in the Paystream template."""
+    """Assemble the 15 Paystream merge-field values from the Application
+    + sourced data. Override columns on Application take precedence.
+    Keys match the field_merge names the user has tagged on the
+    Paystream template in Signable."""
     def _or(override, source):
         return (override or "").strip() or (source or "")
+
+    def _yn_detail(yn: str, detail: str) -> str:
+        """Paystream rows like 'expenses' / 'health_safety' collapse to
+        a single line: 'Yes — <detail>' or 'No' or '' when unset."""
+        yn = (yn or "").strip()
+        detail = (detail or "").strip()
+        if yn.lower() == "yes":
+            return f"Yes — {detail}" if detail else "Yes"
+        if yn.lower() == "no":
+            return "No"
+        return ""
 
     worker_name = _or(latest_app.assignment_worker_name, cand.name or "")
     hirer_name = _or(latest_app.assignment_hirer_name, engagement.name if engagement else "")
@@ -2406,10 +2418,10 @@ def _build_paystream_field_values(cand, latest_app, job, engagement, conduct_reg
         latest_app.assignment_role_title,
         latest_app.offer_role_title or (job.title if job else ""),
     )
-    start_date = (
-        latest_app.assignment_start_date
-        or latest_app.offer_start_date
-    )
+    nature = (latest_app.assignment_nature_of_work or "").strip()
+    position = f"{role_title} — {nature}" if (role_title and nature) else (role_title or nature)
+
+    start_date = latest_app.assignment_start_date or latest_app.offer_start_date
     start_date_s = start_date.strftime("%d %b %Y") if start_date else ""
     end_date_s = (
         latest_app.assignment_end_date.strftime("%d %b %Y")
@@ -2427,22 +2439,25 @@ def _build_paystream_field_values(cand, latest_app, job, engagement, conduct_reg
 
     return {
         "worker_name": worker_name,
+        "position": position,
         "hirer_name": hirer_name,
-        "role_title": role_title,
-        "nature_of_work": latest_app.assignment_nature_of_work or "",
         "start_date": start_date_s,
         "end_date": end_date_s,
-        "fee": fee,
         "hours_of_work": latest_app.assignment_hours_of_work or "",
         "work_location": latest_app.assignment_work_location or (latest_app.offer_location or ""),
-        "expenses_payable": latest_app.assignment_expenses_payable or "",
-        "expenses_detail": latest_app.assignment_expenses_detail or "",
-        "health_safety_risks": latest_app.assignment_health_safety_risks or "",
-        "health_safety_detail": latest_app.assignment_health_safety_detail or "",
+        "expenses": _yn_detail(
+            latest_app.assignment_expenses_payable,
+            latest_app.assignment_expenses_detail,
+        ),
+        "health_safety": _yn_detail(
+            latest_app.assignment_health_safety_risks,
+            latest_app.assignment_health_safety_detail,
+        ),
         "vulnerable_person": latest_app.assignment_vulnerable_person or "",
         "conduct_regs": conduct_regs,
         "notice_agency": latest_app.assignment_notice_agency or "",
         "notice_paystream": latest_app.assignment_notice_paystream or "",
+        "fee": fee,
         "invoice_frequency": latest_app.assignment_invoice_frequency or "",
     }
 
