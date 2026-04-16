@@ -1724,9 +1724,12 @@ def company_details():
     # needing access to server logs. Entity and umbrella/company name come
     # straight from the row we just verified after commit.
     if row_id is None:
+        # Diagnostic: expose the two most likely root causes directly so we
+        # don't need to mine Railway logs for them.
         flash(
-            "Save attempt reached the server but no company row exists yet — "
-            "please refresh and try again, or contact support.",
+            "Save attempt reached the server but no company row exists yet "
+            f"(cand_id={cand_id!r}, model_resolved={bool(CompanyDetails)}). "
+            "Please screenshot this and send to support.",
             "warning",
         )
     else:

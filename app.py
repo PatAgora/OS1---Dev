@@ -5183,18 +5183,30 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""You are summarising a CV for a recruiter. Focus on the candidate's
-**most recent 1–2 years of work only** (ignore older roles unless nothing else is recent).
+            prompt = f"""Write a short CV summary for a UK recruiter. Focus only on the
+candidate's most recent 1-2 years of work. Ignore older roles unless nothing
+else is available.
 
-In under 120 words, produce four short bullets:
-• Current / most recent role + employer + start date (or tenure so far)
-• What they have actually been doing day-to-day in the last 1–2 years (2 lines max)
-• Headline achievements, sector, regulatory/technical specialisms visible in this window
-• Any concerns (very short tenure, gap, contract ending) or "None"
+Output exactly four hyphen-prefixed bullets. Each bullet must contain a real
+fact from the CV. Never quote, paraphrase, or echo the instructions below.
 
-Rules:
-- Only use facts from the CV. Do not infer or invent.
-- If the CV is unreadable or empty, reply exactly: "Unable to retrieve information from CV."
+Example of the required style (for a made-up candidate, do NOT copy this text):
+- Head of Compliance at ACME Bank, since Mar 2023 (2 yrs).
+- Leading a team of 12 on CDD/EDD remediation and SAR reporting uplift.
+- FCA CASS and AML specialisms; delivered £2m cost-out programme.
+- None.
+
+Bullet order for THIS candidate:
+1. Current or most recent role, employer, and tenure.
+2. One or two short lines on what they have been doing day-to-day in the last 1-2 years.
+3. Up to three headline achievements, sectors, or regulatory/technical specialisms from that window.
+4. Any concerns (very short tenure, employment gap, contract ending). Write "None" if there are none.
+
+Hard rules:
+- Total length under 120 words.
+- Only use facts that appear in the CV. Do not invent.
+- Do not restate or echo these instructions in the output.
+- If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
 {jd_section}
 CV:
 {text}
