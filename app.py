@@ -2335,10 +2335,206 @@ def paystream_capture(cand_id: int):
         )
 
 
+# ---------------------------------------------------------------------------
+# Signable API helpers — used by the Paystream auto-populated envelope flow.
+# ---------------------------------------------------------------------------
+SIGNABLE_API_BASE = os.getenv("SIGNABLE_API_BASE", "https://api.signable.co.uk/v1")
+SIGNABLE_PAYSTREAM_FINGERPRINT = os.getenv(
+    "SIGNABLE_PAYSTREAM_FINGERPRINT", "d06f94de5d7de36db806bc65fd5d7016"
+)
+
+
+def _signable_api_call(method: str, path: str, json_body: dict | None = None) -> dict | None:
+    """Call Signable REST API with HTTP Basic auth (API key as username,
+    empty password). Returns parsed JSON on success, None on failure —
+    caller logs and surfaces the error to the user."""
+    api_key = os.getenv("SIGNABLE_API_KEY", "").strip()
+    if not api_key:
+        current_app.logger.warning("SIGNABLE_API_KEY not configured — cannot call %s %s", method, path)
+        return None
+    url = f"{SIGNABLE_API_BASE}{path}"
+    try:
+        import requests
+        resp = requests.request(
+            method.upper(),
+            url,
+            auth=(api_key, ""),
+            json=json_body if json_body is not None else None,
+            timeout=20,
+        )
+        if resp.status_code >= 400:
+            current_app.logger.error(
+                "Signable %s %s returned %s: %s",
+                method, path, resp.status_code, resp.text[:500],
+            )
+            return None
+        return resp.json() if resp.content else {}
+    except Exception as exc:
+        current_app.logger.exception("Signable %s %s failed: %s", method, path, exc)
+        return None
+
+
+def _signable_paystream_merge_map() -> dict[str, str]:
+    """Return {field_merge_name: field_id} for the Paystream template.
+    Empty dict means the template has no merge fields yet, or the API
+    call failed — caller falls back to the widget-link flow."""
+    data = _signable_api_call(
+        "GET", f"/templates/{SIGNABLE_PAYSTREAM_FINGERPRINT}"
+    )
+    if not data:
+        return {}
+    merge_map = {}
+    for party in (data.get("template_parties") or []):
+        for f in (party.get("party_merge_fields") or []):
+            name = (f.get("field_merge") or "").strip()
+            fid = str(f.get("field_id") or "").strip()
+            if name and fid:
+                merge_map[name] = fid
+    return merge_map
+
+
+def _build_paystream_field_values(cand, latest_app, job, engagement, conduct_regs: str) -> dict[str, str]:
+    """Assemble the 18 Paystream field values from the Application +
+    sourced data. Override columns on Application take precedence.
+    Keys match the field_merge names in the Paystream template."""
+    def _or(override, source):
+        return (override or "").strip() or (source or "")
+
+    worker_name = _or(latest_app.assignment_worker_name, cand.name or "")
+    hirer_name = _or(latest_app.assignment_hirer_name, engagement.name if engagement else "")
+    role_title = _or(
+        latest_app.assignment_role_title,
+        latest_app.offer_role_title or (job.title if job else ""),
+    )
+    start_date = (
+        latest_app.assignment_start_date
+        or latest_app.offer_start_date
+    )
+    start_date_s = start_date.strftime("%d %b %Y") if start_date else ""
+    end_date_s = (
+        latest_app.assignment_end_date.strftime("%d %b %Y")
+        if latest_app.assignment_end_date else ""
+    )
+
+    # Fee — use override if set, else compute from offer_day_rate
+    if (latest_app.assignment_fee or "").strip():
+        fee = latest_app.assignment_fee
+    elif latest_app.offer_day_rate:
+        rate_unit = (latest_app.offer_rate_type or "day").lower()
+        fee = f"£{latest_app.offer_day_rate:.2f} / {rate_unit}"
+    else:
+        fee = ""
+
+    return {
+        "worker_name": worker_name,
+        "hirer_name": hirer_name,
+        "role_title": role_title,
+        "nature_of_work": latest_app.assignment_nature_of_work or "",
+        "start_date": start_date_s,
+        "end_date": end_date_s,
+        "fee": fee,
+        "hours_of_work": latest_app.assignment_hours_of_work or "",
+        "work_location": latest_app.assignment_work_location or (latest_app.offer_location or ""),
+        "expenses_payable": latest_app.assignment_expenses_payable or "",
+        "expenses_detail": latest_app.assignment_expenses_detail or "",
+        "health_safety_risks": latest_app.assignment_health_safety_risks or "",
+        "health_safety_detail": latest_app.assignment_health_safety_detail or "",
+        "vulnerable_person": latest_app.assignment_vulnerable_person or "",
+        "conduct_regs": conduct_regs,
+        "notice_agency": latest_app.assignment_notice_agency or "",
+        "notice_paystream": latest_app.assignment_notice_paystream or "",
+        "invoice_frequency": latest_app.assignment_invoice_frequency or "",
+    }
+
+
+def _create_paystream_envelope(
+    s,
+    cand_id: int,
+    cand,
+    latest_app,
+    job,
+    engagement,
+    umbrella_name: str,
+    umbrella_email: str,
+    conduct_regs: str,
+) -> tuple[bool, str]:
+    """Create a pre-populated Paystream envelope via the Signable API.
+    Returns (ok, message). On success the message is a brief
+    confirmation; on failure it's a user-facing error reason."""
+    merge_map = _signable_paystream_merge_map()
+    if not merge_map:
+        return False, (
+            "Signable template has no merge fields defined yet — add text "
+            "merge fields to the Paystream template (see OS1 docs) before "
+            "using API-based envelope creation."
+        )
+
+    values = _build_paystream_field_values(cand, latest_app, job, engagement, conduct_regs)
+    party_merge_fields = []
+    missing_fields = []
+    for merge_name, field_value in values.items():
+        fid = merge_map.get(merge_name)
+        if not fid:
+            missing_fields.append(merge_name)
+            continue
+        party_merge_fields.append({
+            "field_id": fid,
+            "field_value": field_value or "",
+        })
+    if missing_fields:
+        current_app.logger.warning(
+            "Paystream template missing merge fields: %s (present: %s)",
+            missing_fields, list(merge_map.keys()),
+        )
+
+    # Resolve party_id (just the first party on the template)
+    template_data = _signable_api_call(
+        "GET", f"/templates/{SIGNABLE_PAYSTREAM_FINGERPRINT}"
+    )
+    if not template_data or not template_data.get("template_parties"):
+        return False, "Couldn't resolve Paystream template parties."
+    party_id = str(template_data["template_parties"][0].get("party_id") or "")
+    if not party_id:
+        return False, "Paystream template has no signer party."
+
+    eng_name = (engagement.name if engagement else "Optimus assignment")
+    envelope_title = f"Optimus Assignment Schedule — {cand.name or 'candidate'} ({eng_name})"
+    payload = {
+        "envelope": {
+            "envelope_title": envelope_title,
+            "envelope_emailSubject": envelope_title,
+            "envelope_emailMessage": (
+                f"Please sign the Paystream Assignment Schedule for "
+                f"{cand.name or 'candidate'} — all details have been "
+                f"pre-populated by Optimus Solutions."
+            ),
+            "envelope_showTitle": "1",
+            "envelope_language": "en",
+        },
+        "fingerprints": [SIGNABLE_PAYSTREAM_FINGERPRINT],
+        "parties": [
+            {
+                "party_id": party_id,
+                "contact_email": umbrella_email,
+                "contact_name": umbrella_name or "Umbrella Company",
+                "party_merge_fields": party_merge_fields,
+            }
+        ],
+    }
+
+    resp = _signable_api_call("POST", "/envelopes", json_body=payload)
+    if not resp:
+        return False, "Signable API rejected the envelope creation — see server logs for details."
+
+    env_id = resp.get("envelope_id") or (resp.get("envelope") or {}).get("envelope_id")
+    return True, f"Envelope #{env_id} created and sent to {umbrella_email}."
+
+
 def _send_umbrella_assignment_email(cand_id: int) -> None:
-    """Email the umbrella company a Signable link to sign the Assignment
-    Schedule. Used by both the direct POST route and the Paystream
-    capture-sheet submission.
+    """Email the umbrella company the Assignment Schedule. When the
+    umbrella is Paystream AND the Signable API + merge fields are
+    configured, creates a pre-populated envelope via the API. Otherwise
+    falls back to emailing the template widget URL directly.
 
     Flashes user-facing messages (success or warning/error) and
     records the activity note. Does not return anything — caller is
@@ -2391,7 +2587,8 @@ def _send_umbrella_assignment_email(cand_id: int) -> None:
 
         widget_url = umbrella_templates[umbrella_key]
 
-        # Pull the latest application context for the email body.
+        # Pull the latest application context — needed both for the
+        # email body (widget fallback) and for the API envelope path.
         latest_app = s.scalar(
             select(Application).where(Application.candidate_id == cand_id)
             .order_by(Application.created_at.desc())
@@ -2400,40 +2597,85 @@ def _send_umbrella_assignment_email(cand_id: int) -> None:
         role_label = (getattr(job, "title", "") or "").strip() or "Optimus assignment"
         eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
         eng_name = (getattr(eng, "name", "") or "").strip() or "the engagement"
-        start_date_str = ""
-        if latest_app and getattr(latest_app, "offer_start_date", None):
+
+        # Candidate's Conduct Regs preference — fed into the Paystream
+        # envelope as a pre-populated field.
+        if getattr(cand, "conduct_regs_opted_in", None) is True:
+            conduct_regs_label = "Opt In"
+        elif getattr(cand, "conduct_regs_opted_in", None) is False:
+            conduct_regs_label = "Opt Out"
+        else:
+            conduct_regs_label = ""
+
+        # Paystream path — try API-based envelope first (gets all fields
+        # pre-populated). If the API key isn't set, the template has no
+        # merge fields, or the call fails, fall back to emailing the
+        # widget link (old behaviour). Non-Paystream umbrellas always
+        # use the widget fallback.
+        used_api_envelope = False
+        if (
+            umbrella_key == "paystream"
+            and os.getenv("SIGNABLE_API_KEY")
+            and latest_app
+        ):
+            ok, msg = _create_paystream_envelope(
+                s=s, cand_id=cand_id, cand=cand, latest_app=latest_app,
+                job=job, engagement=eng,
+                umbrella_name=umbrella_name, umbrella_email=umbrella_email,
+                conduct_regs=conduct_regs_label,
+            )
+            if ok:
+                used_api_envelope = True
+                flash(
+                    f"Paystream envelope created and sent to {umbrella_email} "
+                    f"— all fields pre-populated.",
+                    "success",
+                )
+            else:
+                current_app.logger.warning(
+                    "Paystream API envelope failed, falling back to widget: %s", msg
+                )
+                flash(
+                    f"API envelope path unavailable ({msg}) — falling back to "
+                    f"widget link. The umbrella will need to fill in fields manually.",
+                    "warning",
+                )
+
+        if not used_api_envelope:
+            start_date_str = ""
+            if latest_app and getattr(latest_app, "offer_start_date", None):
+                try:
+                    start_date_str = latest_app.offer_start_date.strftime("%d %b %Y")
+                except Exception:
+                    start_date_str = ""
+
+            subject = f"Assignment Schedule for {cand.name or 'candidate'} — signature required"
+            html_body = f"""
+            <p>Hello,</p>
+            <p>Please use the link below to sign the Assignment Schedule for the following Optimus Solutions associate:</p>
+            <ul>
+              <li><strong>Associate:</strong> {cand.name or ''}</li>
+              <li><strong>Role:</strong> {role_label}</li>
+              <li><strong>Engagement:</strong> {eng_name}</li>
+              {f'<li><strong>Start date:</strong> {start_date_str}</li>' if start_date_str else ''}
+            </ul>
+            <p>
+              <a href="{widget_url}" style="display:inline-block;padding:10px 20px;background:#1e3a8a;color:#fff;border-radius:6px;text-decoration:none;">
+                Open Assignment Schedule
+              </a>
+            </p>
+            <p>If the button doesn't render, paste the URL below into your browser:<br>
+              <a href="{widget_url}">{widget_url}</a></p>
+            <p>Optimus Solutions will be notified automatically once the document is signed.</p>
+            <p>Thank you,<br>Optimus Solutions</p>
+            """
+
             try:
-                start_date_str = latest_app.offer_start_date.strftime("%d %b %Y")
-            except Exception:
-                start_date_str = ""
-
-        subject = f"Assignment Schedule for {cand.name or 'candidate'} — signature required"
-        html_body = f"""
-        <p>Hello,</p>
-        <p>Please use the link below to sign the Assignment Schedule for the following Optimus Solutions associate:</p>
-        <ul>
-          <li><strong>Associate:</strong> {cand.name or ''}</li>
-          <li><strong>Role:</strong> {role_label}</li>
-          <li><strong>Engagement:</strong> {eng_name}</li>
-          {f'<li><strong>Start date:</strong> {start_date_str}</li>' if start_date_str else ''}
-        </ul>
-        <p>
-          <a href="{widget_url}" style="display:inline-block;padding:10px 20px;background:#1e3a8a;color:#fff;border-radius:6px;text-decoration:none;">
-            Open Assignment Schedule
-          </a>
-        </p>
-        <p>If the button doesn't render, paste the URL below into your browser:<br>
-          <a href="{widget_url}">{widget_url}</a></p>
-        <p>Optimus Solutions will be notified automatically once the document is signed.</p>
-        <p>Thank you,<br>Optimus Solutions</p>
-        """
-
-        try:
-            send_email(umbrella_email, subject, html_body)
-        except Exception as mail_exc:
-            current_app.logger.exception("umbrella contract email failed: %s", mail_exc)
-            flash(f"Couldn't send the email: {mail_exc}", "danger")
-            return
+                send_email(umbrella_email, subject, html_body)
+            except Exception as mail_exc:
+                current_app.logger.exception("umbrella contract email failed: %s", mail_exc)
+                flash(f"Couldn't send the email: {mail_exc}", "danger")
+                return
 
         # Mark "sent" on the Candidate so the profile tile can track
         # progression (Paystream: signed-state from webhook, others:
@@ -2444,18 +2686,23 @@ def _send_umbrella_assignment_email(cand_id: int) -> None:
             cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
 
         user_email = getattr(current_user, "email", "staff") or "staff"
+        activity_suffix = "pre-populated API envelope" if used_api_envelope else "widget link"
         s.add(CandidateNote(
             candidate_id=cand_id,
             user_email=user_email,
             note_type="activity",
             content=(
                 f"Umbrella contract sent to {umbrella_name} ({umbrella_email}) — "
-                f"Signable {umbrella_key.title()} template."
+                f"Signable {umbrella_key.title()} template ({activity_suffix})."
             ),
             created_at=datetime.datetime.utcnow(),
         ))
         s.commit()
-        flash(f"Assignment Schedule link emailed to {umbrella_email}.", "success")
+        # Only flash the generic "link emailed" message for the widget
+        # fallback — the API path already flashed its own success message
+        # with more detail.
+        if not used_api_envelope:
+            flash(f"Assignment Schedule link emailed to {umbrella_email}.", "success")
 
 
 @app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
