@@ -1724,22 +1724,14 @@ def company_details():
     # needing access to server logs. Entity and umbrella/company name come
     # straight from the row we just verified after commit.
     if row_id is None:
-        # Diagnostic: expose the two most likely root causes directly so we
-        # don't need to mine Railway logs for them.
+        # Retained diagnostic for the silent no-op case (no row after commit).
         flash(
-            "Save attempt reached the server but no company row exists yet "
-            f"(cand_id={cand_id!r}, model_resolved={bool(CompanyDetails)}). "
-            "Please screenshot this and send to support.",
+            "Save attempt reached the server but no company row exists yet. "
+            "Please refresh and try again, or contact support.",
             "warning",
         )
     else:
-        if (persisted_entity or "").lower() == "umbrella":
-            detail = f"Umbrella = {persisted_umbrella or '(empty)'}"
-        elif (persisted_entity or "").lower() == "limited":
-            detail = f"Limited Co = {persisted_company or '(empty)'}"
-        else:
-            detail = f"Entity type = {persisted_entity or '(empty)'}"
-        flash(f"Company details saved. ({detail})", "success")
+        flash("Company details saved.", "success")
     return redirect(url_for("associate.company_details"))
 
 
