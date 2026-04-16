@@ -10,7 +10,10 @@
       </h2>
       <div class="text-muted">
         Fields below map one-to-one with the Paystream Assignment Schedule
-        template. Green = already known by OS1, yellow = needs staff input.
+        template. Green = auto-populated from OS1 (editable — amend if you
+        need to), yellow = blank, needs staff input. Any amendments apply
+        to <em>this contract only</em> and won't overwrite the candidate's
+        canonical record.
       </div>
     </div>
     <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
@@ -29,46 +32,49 @@
       <div class="card-body">
         <div class="row g-3">
 
-          <!-- Name of Worker (OS1) -->
+          <!-- Name of Worker (auto-populated, editable) -->
           <div class="col-md-6">
-            <label class="form-label small">Name of Worker</label>
-            <input type="text" class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.worker_name }}" readonly>
+            <label for="worker_name" class="form-label small">Name of Worker</label>
+            <input type="text" id="worker_name" name="worker_name"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.worker_name }}">
           </div>
 
-          <!-- Hirer Name (OS1) -->
+          <!-- Hirer Name (auto-populated, editable) -->
           <div class="col-md-6">
-            <label class="form-label small">Hirer Name (end client)</label>
-            <input type="text" class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.hirer_name }}" readonly>
+            <label for="hirer_name" class="form-label small">Hirer Name (end client)</label>
+            <input type="text" id="hirer_name" name="hirer_name"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.hirer_name }}">
           </div>
 
-          <!-- Position (OS1 role + staff-supplied nature-of-work line) -->
-          <div class="col-md-12">
-            <label class="form-label small">
-              Position and nature of the work
-              <span class="text-danger">*</span>
-            </label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text bg-success-subtle small">
-                {{ captured.role_title or '—' }} —
-              </span>
-              <input type="text" id="nature_of_work" name="nature_of_work"
-                     class="form-control {% if not captured.nature_of_work %}bg-warning-subtle{% endif %}"
-                     value="{{ captured.nature_of_work }}"
-                     placeholder="e.g. Completion of KYC reviews and other adhoc KYC tasks">
-            </div>
-            <div class="form-text">
-              Role title is taken from the job; add one line describing the
-              nature of the work (as per Paystream template).
-            </div>
-          </div>
-
-          <!-- Start Date (OS1) -->
+          <!-- Position (role title auto-populated + nature of work staff-input) -->
           <div class="col-md-4">
-            <label class="form-label small">Assignment Start Date</label>
-            <input type="text" class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.start_date }}" readonly>
+            <label for="role_title" class="form-label small">Role title</label>
+            <input type="text" id="role_title" name="role_title"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.role_title }}">
+          </div>
+          <div class="col-md-8">
+            <label for="nature_of_work" class="form-label small">
+              Nature of the work <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="nature_of_work" name="nature_of_work"
+                   class="form-control form-control-sm {% if not captured.nature_of_work %}bg-warning-subtle{% endif %}"
+                   value="{{ captured.nature_of_work }}"
+                   placeholder="e.g. Completion of KYC reviews and other adhoc KYC tasks">
+            <div class="form-text">
+              One line describing the nature of the work — as per the
+              Paystream template ("Position and nature of the work").
+            </div>
+          </div>
+
+          <!-- Start Date (auto-populated, editable) -->
+          <div class="col-md-4">
+            <label for="start_date" class="form-label small">Assignment Start Date</label>
+            <input type="date" id="start_date" name="start_date"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.start_date }}">
           </div>
 
           <!-- End Date (staff) -->
@@ -82,11 +88,12 @@
             <div class="form-text">Leave blank for open-ended.</div>
           </div>
 
-          <!-- Fee / Rate (OS1) -->
+          <!-- Fee / Rate (auto-populated, editable) -->
           <div class="col-md-4">
-            <label class="form-label small">Fee (Agency to PayStream, ex VAT)</label>
-            <input type="text" class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.fee_display }}" readonly>
+            <label for="fee_display" class="form-label small">Fee (Agency to PayStream, ex VAT)</label>
+            <input type="text" id="fee_display" name="fee_display"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.fee_display }}">
           </div>
 
           <!-- Hours of Work (staff) -->

@@ -2230,6 +2230,15 @@ def paystream_capture(cand_id: int):
                 except Exception:
                     return None
 
+            # Auto-populated fields (overrides — only persisted when
+            # the staff amend the value; empty strings are stored as ""
+            # so the render layer can fall back to the sourced value).
+            latest_app.assignment_worker_name = (request.form.get("worker_name") or "").strip()
+            latest_app.assignment_hirer_name = (request.form.get("hirer_name") or "").strip()
+            latest_app.assignment_role_title = (request.form.get("role_title") or "").strip()
+            latest_app.assignment_start_date = _parse_date(request.form.get("start_date"))
+            latest_app.assignment_fee = (request.form.get("fee_display") or "").strip()
+            # Staff-input fields
             latest_app.assignment_nature_of_work = (request.form.get("nature_of_work") or "").strip()
             latest_app.assignment_end_date = _parse_date(request.form.get("end_date"))
             latest_app.assignment_hours_of_work = (request.form.get("hours_of_work") or "").strip()
@@ -2276,9 +2285,14 @@ def paystream_capture(cand_id: int):
         # Day rate label: "£XXX / day" or "£XXX / hr"
         if latest_app.offer_day_rate:
             rate_unit = (latest_app.offer_rate_type or "day").lower()
-            fee_display = f"£{latest_app.offer_day_rate:.2f} / {rate_unit}"
+            sourced_fee = f"£{latest_app.offer_day_rate:.2f} / {rate_unit}"
         else:
-            fee_display = ""
+            sourced_fee = ""
+
+        # For auto-populated fields, prefer the staff-amended override
+        # on the Application row when one has been saved.
+        def _or(override, source):
+            return override if (override or "").strip() else source
 
         return render_template(
             "paystream_capture.html",
@@ -2289,12 +2303,19 @@ def paystream_capture(cand_id: int):
             umbrella_name=umbrella_name,
             umbrella_email=umbrella_email,
             captured={
-                # --- OS1 already knows (green / read-only) ---
-                "worker_name": cand.name or "",
-                "hirer_name": engagement.name if engagement else "",
-                "start_date": latest_app.offer_start_date.isoformat() if latest_app.offer_start_date else "",
-                "role_title": latest_app.offer_role_title or (job.title if job else ""),
-                "fee_display": fee_display,
+                # --- Auto-populated (editable — override persists) ---
+                "worker_name": _or(latest_app.assignment_worker_name, cand.name or ""),
+                "hirer_name": _or(latest_app.assignment_hirer_name, engagement.name if engagement else ""),
+                "start_date": (
+                    latest_app.assignment_start_date.isoformat()
+                    if latest_app.assignment_start_date
+                    else (latest_app.offer_start_date.isoformat() if latest_app.offer_start_date else "")
+                ),
+                "role_title": _or(
+                    latest_app.assignment_role_title,
+                    latest_app.offer_role_title or (job.title if job else ""),
+                ),
+                "fee_display": _or(latest_app.assignment_fee, sourced_fee),
                 "conduct_regs": conduct_regs,
                 # --- Needs staff input (yellow) ---
                 "nature_of_work": latest_app.assignment_nature_of_work or "",
@@ -4426,6 +4447,17 @@ class Application(Base):
     # Populated when staff reviews the capture sheet before sending the
     # contract. Field set mirrors the Paystream template exactly — nothing
     # more, nothing less.
+    #
+    # The override columns below let staff amend values that OS1
+    # auto-populates (worker name, hirer, role title, start date, fee)
+    # without mutating the canonical Candidate / Job / Engagement rows.
+    # When set, these take precedence over the sourced value at render
+    # time and when submitting to the Paystream Signable template.
+    assignment_worker_name = Column(String(300), default="")
+    assignment_hirer_name = Column(String(300), default="")
+    assignment_role_title = Column(String(300), default="")
+    assignment_start_date = Column(Date, nullable=True)
+    assignment_fee = Column(String(100), default="")
     assignment_nature_of_work = Column(String(500), default="")
     assignment_end_date = Column(Date, nullable=True)
     assignment_hours_of_work = Column(String(300), default="")
@@ -5573,6 +5605,11 @@ try:
             "ALTER TABLE jobs ADD COLUMN dbs_working_from_home BOOLEAN DEFAULT FALSE",
             # Paystream Assignment Schedule capture columns — must run
             # under Gunicorn, not just `python app.py`.
+            "ALTER TABLE applications ADD COLUMN assignment_worker_name VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_hirer_name VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_role_title VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_start_date DATE",
+            "ALTER TABLE applications ADD COLUMN assignment_fee VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN assignment_nature_of_work VARCHAR(500) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN assignment_end_date DATE",
             "ALTER TABLE applications ADD COLUMN assignment_hours_of_work VARCHAR(300) DEFAULT ''",
