@@ -2526,7 +2526,9 @@ def _create_paystream_envelope(
         ),
         "envelope_showTitle": "1",
         "envelope_language": "en",
-        "envelope_fingerprints": [SIGNABLE_PAYSTREAM_FINGERPRINT],
+        "envelope_documents": [
+            {"document_fingerprint": SIGNABLE_PAYSTREAM_FINGERPRINT}
+        ],
         "envelope_parties": [
             {
                 "party_id": party_id,
