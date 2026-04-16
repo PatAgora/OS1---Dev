@@ -1800,12 +1800,16 @@ def consent_form():
                             s.commit()
 
                 reference_consent = getattr(consent, "reference_consent", False) if consent else False
+                Candidate = _model("Candidate")
+                _cand = s.get(Candidate, cand_id) if Candidate else None
+                portal_name = (getattr(_cand, "name", None) or "").strip()
                 return render_template(
                     "associate/consent_form.html",
                     consent=consent,
                     already_signed=consent is not None,
                     reference_consent=reference_consent,
                     signable_consent_widget_url=os.getenv("SIGNABLE_CONSENT_WIDGET_URL", ""),
+                    portal_name=portal_name,
                 )
         except Exception:
             current_app.logger.exception("Error loading consent form for candidate %s.", cand_id)
@@ -2279,7 +2283,16 @@ def declaration_form():
             decl = s.query(DeclarationRecord).filter_by(candidate_id=cand_id).order_by(
                 DeclarationRecord.created_at.desc()
             ).first() if DeclarationRecord else None
-            return render_template("associate/declaration_form.html", declaration=decl, already_signed=decl is not None, signable_declaration_widget_url=os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""))
+            Candidate = _model("Candidate")
+            _cand = s.get(Candidate, cand_id) if Candidate else None
+            portal_name = (getattr(_cand, "name", None) or "").strip()
+            return render_template(
+                "associate/declaration_form.html",
+                declaration=decl,
+                already_signed=decl is not None,
+                signable_declaration_widget_url=os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""),
+                portal_name=portal_name,
+            )
 
     with SASession(engine) as s:
         legal_name = _sanitise(request.form.get("legal_name", "")).strip()
@@ -2467,9 +2480,21 @@ def references():
 def secondary_job_declaration():
     """Secondary Job Declaration — embedded Signable widget."""
     widget_url = os.getenv("SIGNABLE_SECONDARY_JOB_WIDGET_URL", "")
+    cand_id = _get_associate_id()
+    engine = _engine()
+    portal_name = ""
+    try:
+        Candidate = _model("Candidate")
+        if Candidate and cand_id:
+            with SASession(engine) as s:
+                _cand = s.get(Candidate, cand_id)
+                portal_name = (getattr(_cand, "name", None) or "").strip()
+    except Exception:
+        portal_name = ""
     return render_template(
         "associate/secondary_job_declaration.html",
         widget_url=widget_url,
+        portal_name=portal_name,
     )
 
 

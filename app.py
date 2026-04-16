@@ -12915,9 +12915,10 @@ def webhook_esign():
                         signer_name = envelope_title.rsplit(" - ", 1)[-1].strip()
 
                     # Find the candidate. Prefer email match if we have one;
-                    # otherwise fall back to exact, then fuzzy name match
-                    # (Signable's form-encoded widget payload carries no
-                    # email).
+                    # otherwise require an exact (case-insensitive) name
+                    # match — no fuzzy fallback. If the name typed into
+                    # Signable doesn't exactly match Candidate.name, the
+                    # signing is logged as unmatched (see below).
                     cand = None
                     match_reason = ""
                     if signer_email:
@@ -12934,30 +12935,6 @@ def webhook_esign():
                         )
                         if cand:
                             match_reason = f"exact name={signer_name}"
-                    if cand is None and signer_name:
-                        # Fuzzy: any candidate whose name contains the signer
-                        # or the signer contains their name. Picks the most
-                        # recently-active candidate if several hit.
-                        like = f"%{signer_name.lower()}%"
-                        cand = s.scalar(
-                            select(Candidate)
-                            .where(func.lower(Candidate.name).like(like))
-                            .order_by(Candidate.id.desc())
-                        )
-                        if cand is None:
-                            # Try splitting — first/last name contains
-                            parts = [p for p in signer_name.lower().split() if len(p) > 1]
-                            if parts:
-                                last = parts[-1]
-                                cand = s.scalar(
-                                    select(Candidate)
-                                    .where(func.lower(Candidate.name).like(f"%{last}%"))
-                                    .order_by(Candidate.id.desc())
-                                )
-                                if cand:
-                                    match_reason = f"fuzzy (last-name token '{last}') matched {cand.name!r}"
-                        else:
-                            match_reason = f"fuzzy (contains '{signer_name}') matched {cand.name!r}"
 
                     # Always drop a WebhookEvent-style breadcrumb saying what
                     # we did (or didn't). Invaluable for diagnosing portal
