@@ -2113,6 +2113,44 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
 
 
+@app.route("/action/umbrella-assignment-sent/<int:cand_id>", methods=["POST"])
+@login_required
+def mark_umbrella_assignment_sent(cand_id: int):
+    """Record whether staff have manually sent the umbrella its
+    Assignment Schedule. Used for umbrellas we don't have a Signable
+    template for (e.g. Trafalgar) — the recruiter handles the send
+    out-of-band and logs it here for audit."""
+    choice = (request.form.get("sent") or "").strip().lower()
+    if choice not in ("yes", "no"):
+        flash("Pick Yes or No.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        was = getattr(cand, "umbrella_assignment_sent", None)
+        cand.umbrella_assignment_sent = (choice == "yes")
+        cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=(
+                f"Umbrella Assignment Schedule marked as "
+                f"{'SENT' if choice == 'yes' else 'NOT sent'} to the umbrella "
+                f"(was {'SENT' if was else 'NOT sent' if was is False else 'not recorded'})."
+            ),
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+    flash(
+        f"Assignment Schedule recorded as {'sent' if choice == 'yes' else 'not sent'}.",
+        "success",
+    )
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
 @login_required
 def send_umbrella_contract(cand_id: int):
@@ -4034,6 +4072,13 @@ class Candidate(Base):
     conduct_regs_opted_in = Column(Boolean, nullable=True)
     conduct_regs_decision_at = Column(DateTime, nullable=True)
     conduct_regs_signed_name = Column(String(300), default="")
+
+    # Manual-send tracking for umbrella contracts when we don't have a
+    # Signable template wired up for that umbrella (e.g. Trafalgar).
+    # NULL = not asked yet, TRUE = staff confirmed it was sent, FALSE =
+    # staff said no.
+    umbrella_assignment_sent = Column(Boolean, nullable=True)
+    umbrella_assignment_sent_at = Column(DateTime, nullable=True)
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -5292,6 +5337,8 @@ try:
             "ALTER TABLE candidates ADD COLUMN conduct_regs_opted_in BOOLEAN",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_decision_at TIMESTAMP",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_signed_name VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE candidates ADD COLUMN umbrella_assignment_sent BOOLEAN",
+            "ALTER TABLE candidates ADD COLUMN umbrella_assignment_sent_at TIMESTAMP",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather
