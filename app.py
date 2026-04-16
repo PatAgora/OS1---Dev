@@ -2260,9 +2260,104 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
             s.flush()
             return f"ConsentRecord {'inserted' if is_new else 'updated'} (id={rec.id})"
         if doc_label == "Declaration Form":
+            # Parse incoming fields once, upfront, so both the ORM path
+            # and the raw-SQL fallback can use them.
+            _fields_list = envelope_fields
+            if _fields_list is None:
+                try:
+                    from flask import request as _req
+                    _raw_fields = (_req.form.get("envelope_fields") or "").strip()
+                    if not _raw_fields:
+                        _body = _req.get_json(silent=True)
+                        if isinstance(_body, dict):
+                            _raw_fields = (_body.get("envelope_fields") or "").strip()
+                    if _raw_fields.startswith("["):
+                        _fields_list = json.loads(_raw_fields)
+                except Exception:
+                    _fields_list = None
+            _dropdowns = []
+            _notes_value = ""
+            if isinstance(_fields_list, list):
+                _dropdowns = [
+                    (f.get("field_value") or "").strip().lower()
+                    for f in _fields_list
+                    if isinstance(f, dict)
+                    and (f.get("field_type") or "").lower() == "dropdown"
+                ]
+                import re as _re
+                _name_re = _re.compile(
+                    r"^[A-Za-z][A-Za-z\-']*( [A-Za-z][A-Za-z\-']*)+$"
+                )
+                for f in _fields_list:
+                    if not isinstance(f, dict):
+                        continue
+                    if (f.get("field_type") or "").lower() != "text":
+                        continue
+                    v = (f.get("field_value") or "").strip()
+                    if v and not _name_re.match(v):
+                        _notes_value = v
+                        break
+            _model_order = [
+                "work_restrictions", "criminal_convictions", "ccj_debt",
+                "bankruptcy", "dismissed", "referencing_issues",
+            ]
+            _bool_values = [
+                (_dropdowns[i].lower() == "yes") if i < len(_dropdowns) else False
+                for i in range(len(_model_order))
+            ]
+
             Cls = _pm("DeclarationRecord")
             if Cls is None:
-                return "DeclarationRecord class not resolvable"
+                # ORM path unavailable (partial model init on this worker).
+                # Fall back to raw SQL so the signing still persists.
+                try:
+                    existing = s.execute(
+                        text("SELECT id FROM declaration_records WHERE candidate_id = :cid"),
+                        {"cid": cand.id},
+                    ).first()
+                    params = {
+                        "cid": cand.id,
+                        "notes": _notes_value,
+                        "name": signer_name or cand.name or "",
+                        "fp": envelope_fp or "",
+                        "ip": ip_address or "",
+                    }
+                    for i, attr in enumerate(_model_order):
+                        params[attr] = _bool_values[i]
+                    if existing:
+                        s.execute(text("""
+                            UPDATE declaration_records SET
+                              work_restrictions = :work_restrictions,
+                              criminal_convictions = :criminal_convictions,
+                              ccj_debt = :ccj_debt,
+                              bankruptcy = :bankruptcy,
+                              dismissed = :dismissed,
+                              referencing_issues = :referencing_issues,
+                              disclosure_text = :notes,
+                              legal_name = CASE WHEN COALESCE(legal_name,'') = '' THEN :name ELSE legal_name END,
+                              signed_date = CURRENT_TIMESTAMP,
+                              signable_envelope_id = :fp
+                            WHERE candidate_id = :cid
+                        """), params)
+                        return f"DeclarationRecord updated via raw SQL (id={existing.id})"
+                    else:
+                        s.execute(text("""
+                            INSERT INTO declaration_records (
+                              candidate_id, work_restrictions, criminal_convictions,
+                              ccj_debt, bankruptcy, dismissed, referencing_issues,
+                              disclosure_text, legal_name, signed_date,
+                              signable_envelope_id, ip_address, created_at
+                            ) VALUES (
+                              :cid, :work_restrictions, :criminal_convictions,
+                              :ccj_debt, :bankruptcy, :dismissed, :referencing_issues,
+                              :notes, :name, CURRENT_TIMESTAMP,
+                              :fp, :ip, CURRENT_TIMESTAMP
+                            )
+                        """), params)
+                        return "DeclarationRecord inserted via raw SQL"
+                except Exception as raw_exc:
+                    return f"raw SQL Declaration upsert failed: {raw_exc}"
+
             rec = s.query(Cls).filter_by(candidate_id=cand.id).first()
             is_new = rec is None
             if rec is None:
@@ -2274,101 +2369,26 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
                 rec.legal_name = signer_name or cand.name or ""
             if hasattr(rec, "signable_envelope_id"):
                 rec.signable_envelope_id = envelope_fp
-
-            # Map the 6 Yes/No dropdowns from the Signable envelope onto the
-            # DeclarationRecord booleans BY POSITION. Signable gives us only
-            # "Untitled" field_name metadata, so we rely on the form being
-            # designed to ask the questions in the same order as the model
-            # declares them:
-            #   1 work_restrictions, 2 criminal_convictions, 3 ccj_debt,
-            #   4 bankruptcy, 5 dismissed, 6 referencing_issues
-            # Also extract the free-text "Open Disclosure" notes field
-            # (the Signable form has a text input above the Full Name slot).
+            # Apply booleans + disclosure_text from the values we parsed above.
+            for i, attr in enumerate(_model_order):
+                if hasattr(rec, attr):
+                    setattr(rec, attr, _bool_values[i])
+            if hasattr(rec, "disclosure_text"):
+                rec.disclosure_text = _notes_value
             try:
-                fields_list = envelope_fields
-                # Fall back to the live request only if no list was passed in.
-                if fields_list is None:
-                    try:
-                        from flask import request as _req
-                        raw_fields = (_req.form.get("envelope_fields") or "").strip()
-                        if not raw_fields:
-                            _body = _req.get_json(silent=True)
-                            if isinstance(_body, dict):
-                                raw_fields = (_body.get("envelope_fields") or "").strip()
-                        if raw_fields.startswith("["):
-                            fields_list = json.loads(raw_fields)
-                    except Exception:
-                        fields_list = None
-                if isinstance(fields_list, list):
-                    dropdowns = [
-                        (f.get("field_value") or "").strip().lower()
-                        for f in fields_list
-                        if isinstance(f, dict)
-                        and (f.get("field_type") or "").lower() == "dropdown"
-                    ]
-                    model_order = [
-                        "work_restrictions",
-                        "criminal_convictions",
-                        "ccj_debt",
-                        "bankruptcy",
-                        "dismissed",
-                        "referencing_issues",
-                    ]
-                    for idx, attr in enumerate(model_order):
-                        if idx >= len(dropdowns):
-                            break
-                        answer = dropdowns[idx] == "yes"
-                        if hasattr(rec, attr):
-                            setattr(rec, attr, answer)
-                    # Positional mapping breadcrumb → logs only. Do NOT
-                    # write it into disclosure_text (that's reserved for
-                    # the candidate's actual free-text open disclosure).
-                    try:
-                        current_app.logger.info(
-                            "Declaration mapping cand=%s: %s",
-                            cand.id,
-                            ", ".join(
-                                f"{attr}={('Yes' if idx < len(dropdowns) and dropdowns[idx] == 'yes' else 'No')}"
-                                for idx, attr in enumerate(model_order)
-                            ),
-                        )
-                    except Exception:
-                        pass
-
-                    # Open Disclosure notes: the first text field on the
-                    # form that isn't a person-name (letters/spaces/hyphens
-                    # matching the name regex). Signable puts the notes
-                    # input above the Full Name input, so there should be
-                    # at most one text field that doesn't look like a name.
-                    import re as _re
-                    _name_re = _re.compile(
-                        r"^[A-Za-z][A-Za-z\-']*( [A-Za-z][A-Za-z\-']*)+$"
-                    )
-                    notes_value = ""
-                    for f in fields_list:
-                        if not isinstance(f, dict):
-                            continue
-                        if (f.get("field_type") or "").lower() != "text":
-                            continue
-                        v = (f.get("field_value") or "").strip()
-                        if not v:
-                            continue
-                        if _name_re.match(v):
-                            continue  # this is the Full Name field
-                        notes_value = v
-                        break
-                    if hasattr(rec, "disclosure_text"):
-                        # Overwrite on every signing so later edits win.
-                        # Empty string is the correct default if the
-                        # candidate didn't enter notes.
-                        rec.disclosure_text = notes_value
-            except Exception as decl_exc:
-                current_app.logger.warning(
-                    "declaration field mapping failed: %s", decl_exc
+                current_app.logger.info(
+                    "Declaration mapping cand=%s: %s",
+                    cand.id,
+                    ", ".join(
+                        f"{attr}={('Yes' if _bool_values[i] else 'No')}"
+                        for i, attr in enumerate(_model_order)
+                    ),
                 )
-
+            except Exception:
+                pass
             s.flush()
             return f"DeclarationRecord {'inserted' if is_new else 'updated'} (id={rec.id})"
+
     except Exception as exc:
         return f"exception: {exc}"
     if is_emp_ref:
