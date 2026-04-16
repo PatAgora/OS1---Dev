@@ -812,7 +812,7 @@
         </div>
 
         <!-- Vetting Complete -->
-        <div class="delivery-tile">
+        <div class="delivery-tile" onclick="showDeliveryModal('vetting_complete')">
           <div class="delivery-tile-icon" style="background: #dcfce7; color: #166534;">
             <i class="fas fa-shield-alt"></i>
           </div>
@@ -1164,6 +1164,7 @@
     on_contract: {{ associates_on_engagement | tojson if associates_on_engagement else '[]' }},
     scheduled: {{ scheduled_associates | tojson if scheduled_associates else '[]' }},
     left_to_fill: {{ left_to_fill_associates | tojson if left_to_fill_associates else '[]' }},
+    vetting_complete: {{ vetting_complete_associates | tojson if vetting_complete_associates else '[]' }},
     target: []
   };
 
@@ -1261,7 +1262,8 @@
       'target': 'Delivery Target by Role',
       'on_contract': 'On-Contract Associates',
       'scheduled': 'Scheduled Starters',
-      'left_to_fill': 'Left to Fill - Ready to Contract'
+      'left_to_fill': 'Left to Fill - Ready to Contract',
+      'vetting_complete': 'Vetting Complete — Ready to Offer'
     };
     title.textContent = titles[type] || 'Associates';
 

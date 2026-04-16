@@ -16599,6 +16599,47 @@ def engagement_dashboard(eng_id):
             ).all()
         ]
 
+        # --- Vetting Complete associates ---
+        # Candidates on this engagement (any application) who have ALL
+        # required vetting checks in a completed-equivalent status.
+        # Mirrors the tile_vetting_complete count logic above.
+        vetting_complete_associates = []
+        if app_id_list:
+            _VC_DONE = {"COMPLETE", "N/A", "REFERRAL APPROVED", "QC COMPLETE"}
+            _ALL_CHECK_TYPES = [
+                "Right to Work", "Identity Verification", "Address History", "DBS Check",
+                "Employment History", "References", "Qualifications", "Professional Registration",
+                "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review",
+            ]
+            cand_id_to_job_title = {}
+            for _row in s.execute(
+                select(Application.candidate_id, Job.title, Job.role_type)
+                .join(Job, Job.id == Application.job_id)
+                .where(Application.id.in_(app_id_list))
+            ).all():
+                cand_id_to_job_title.setdefault(_row.candidate_id, _row.role_type or _row.title or "")
+            vc_cand_ids_set = list(set(
+                s.execute(
+                    select(Application.candidate_id).where(Application.id.in_(app_id_list))
+                ).scalars().all()
+            ))
+            for _cid in vc_cand_ids_set:
+                checks = {vc.check_type: (vc.status or "").upper() for vc in s.scalars(
+                    select(VettingCheck).where(VettingCheck.candidate_id == _cid)
+                ).all()}
+                done = sum(1 for ct in _ALL_CHECK_TYPES
+                           if checks.get(ct, "NOT STARTED") in _VC_DONE)
+                if done == len(_ALL_CHECK_TYPES):
+                    _cand = s.get(Candidate, _cid)
+                    if _cand:
+                        vetting_complete_associates.append({
+                            'id': _cand.id,
+                            'name': _cand.name or '',
+                            'email': _cand.email or '',
+                            'role': cand_id_to_job_title.get(_cid, ''),
+                            'status': 'Vetting Complete',
+                        })
+
         # --- Applicants / "Left to Fill" pool ---
         # Anyone who's applied to a job on this engagement but hasn't yet
         # signed a contract. Surfaced in the Left to Fill modal so staff
@@ -16668,6 +16709,7 @@ def engagement_dashboard(eng_id):
             associates_on_engagement=associates_on_engagement,
             scheduled_associates=scheduled_associates,
             left_to_fill_associates=left_to_fill_associates,
+            vetting_complete_associates=vetting_complete_associates,
             all_candidates_slim=all_candidates_slim,
             rate_data=rate_data,
             intake_by_role=intake_by_role,
