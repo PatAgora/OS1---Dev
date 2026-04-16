@@ -114,7 +114,9 @@ def _ensure_models():
     global _MODELS_DEFINED
     if _MODELS_DEFINED:
         return
-    _MODELS_DEFINED = True
+    # NOTE: do NOT flip _MODELS_DEFINED here — if a class definition raises
+    # below we'd be stuck without the remaining models ever being registered.
+    # We only set the flag at the very bottom, after all classes succeed.
 
     Base = _base()
 
@@ -125,6 +127,7 @@ def _ensure_models():
             cls = mapper.class_
             if cls.__name__ in ("TimesheetConfig", "TimesheetEntry", "TimesheetExpense"):
                 _models[cls.__name__] = cls
+        _MODELS_DEFINED = True
         return
 
     class AssociateProfile(Base):
@@ -366,17 +369,38 @@ def _ensure_models():
     _models["TimesheetExpense"] = TimesheetExpense
     _models["AddressHistory"] = AddressHistory
 
+    # Only flip the guard once all classes above have successfully been
+    # declared. Any earlier exception will leave _MODELS_DEFINED=False so
+    # the next request can retry rather than being stuck forever.
+    _MODELS_DEFINED = True
+
 
 def _portal_model(name: str):
-    """Get a portal-specific model class by table registration in Base.metadata."""
-    _ensure_models()
-    Base = _base()
-    # Models are registered via Base; find the class in Base._decl_class_registry or via metadata
-    # Since we defined them inside _ensure_models, we need to resolve via the registry
-    for mapper in Base.registry.mappers:
-        cls = mapper.class_
-        if cls.__name__ == name:
-            return cls
+    """Get a portal-specific model class by table registration in Base.metadata.
+
+    If the first lookup fails, reset the init guard and retry once — this
+    self-heals the case where a previous partial init left the flag True
+    without all classes registered.
+    """
+    global _MODELS_DEFINED
+    for attempt in range(2):
+        _ensure_models()
+        Base = _base()
+        for mapper in Base.registry.mappers:
+            cls = mapper.class_
+            if cls.__name__ == name:
+                return cls
+        # Not found — log the mappers we did see and try one retry after
+        # clearing the guard.
+        try:
+            registered = sorted({m.class_.__name__ for m in Base.registry.mappers})
+            current_app.logger.error(
+                "_portal_model('%s') not found on attempt %d. Registered: %s",
+                name, attempt + 1, ", ".join(registered),
+            )
+        except Exception:
+            pass
+        _MODELS_DEFINED = False
     return None
 
 
