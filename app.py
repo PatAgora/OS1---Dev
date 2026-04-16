@@ -2209,7 +2209,7 @@ def paystream_capture(cand_id: int):
         )
         if not latest_app:
             flash("Candidate has no application to contract against.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
         job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
         engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
 
@@ -2269,10 +2269,11 @@ def paystream_capture(cand_id: int):
                 created_at=datetime.datetime.utcnow(),
             ))
             s.commit()
-            # Delegate to the existing send action which emails the
-            # umbrella with full context. If/when a template fingerprint
-            # is wired we'll swap this for an API envelope creation.
-            return redirect(url_for("send_umbrella_contract", cand_id=cand_id))
+            # Send the Signable link to the umbrella inline — we can't
+            # redirect to the POST route because a 302 flips the method
+            # to GET. The helper flashes its own success/error message.
+            _send_umbrella_assignment_email(cand_id)
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         # GET — Conduct Regs status (already captured on candidate)
         if getattr(cand, "conduct_regs_opted_in", None) is True:
@@ -2334,13 +2335,14 @@ def paystream_capture(cand_id: int):
         )
 
 
-@app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
-@login_required
-def send_umbrella_contract(cand_id: int):
-    """Email the umbrella company a Signable link to sign the assignment
-    schedule. Currently scoped to Paystream — template URL comes from
-    SIGNABLE_PAYSTREAM_WIDGET_URL. Extend with a mapping dict if more
-    umbrella-specific templates get added later."""
+def _send_umbrella_assignment_email(cand_id: int) -> None:
+    """Email the umbrella company a Signable link to sign the Assignment
+    Schedule. Used by both the direct POST route and the Paystream
+    capture-sheet submission.
+
+    Flashes user-facing messages (success or warning/error) and
+    records the activity note. Does not return anything — caller is
+    responsible for the final redirect."""
     umbrella_templates = {
         "paystream": os.getenv(
             "SIGNABLE_PAYSTREAM_WIDGET_URL",
@@ -2361,18 +2363,18 @@ def send_umbrella_contract(cand_id: int):
         ).bindparams(cid=cand_id)).first()
         if row is None:
             flash("This candidate has no contracting entity details yet.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
         if (row.contracting_type or "").lower() != "umbrella":
             flash("Candidate's contracting type is not umbrella — no umbrella contract to send.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
         umbrella_name = (row.umbrella_company_name or "").strip()
         umbrella_email = (row.contact_email or "").strip()
         if not umbrella_name:
             flash("Umbrella company not selected on the Associate Portal.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
         if not umbrella_email:
             flash("Umbrella contact email is missing — set it on the Umbrella / Company Details tile first.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         umbrella_key = None
         for key in umbrella_templates:
@@ -2385,7 +2387,7 @@ def send_umbrella_contract(cand_id: int):
                 "Only Paystream is wired up today.",
                 "warning",
             )
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         widget_url = umbrella_templates[umbrella_key]
 
@@ -2431,7 +2433,7 @@ def send_umbrella_contract(cand_id: int):
         except Exception as mail_exc:
             current_app.logger.exception("umbrella contract email failed: %s", mail_exc)
             flash(f"Couldn't send the email: {mail_exc}", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Mark "sent" on the Candidate so the profile tile can track
         # progression (Paystream: signed-state from webhook, others:
@@ -2454,6 +2456,14 @@ def send_umbrella_contract(cand_id: int):
         ))
         s.commit()
         flash(f"Assignment Schedule link emailed to {umbrella_email}.", "success")
+
+
+@app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
+@login_required
+def send_umbrella_contract(cand_id: int):
+    """Thin route wrapper that sends the umbrella Assignment Schedule
+    and redirects back to the candidate profile."""
+    _send_umbrella_assignment_email(cand_id)
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
@@ -2572,7 +2582,7 @@ def admin_reset_signing(cand_id: int, form_key: str):
         except Exception:
             current_app.logger.exception("reset-signing failed")
             flash("Reset failed — see server logs.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Audit note (note_type='activity' so it shows in the staff feed)
         user_email = getattr(current_user, "email", "staff") or "staff"
@@ -7649,7 +7659,7 @@ def candidate_regenerate_summary():
         ).scalar_one_or_none()
         if not doc:
             flash("No CV found for this associate.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Extract text from CV
         cv_text = ""
@@ -7866,7 +7876,7 @@ def action_score_candidate(cand_id: int):
         job = s.get(Job, job_id)
         if not cand or not job:
             flash("Associate or job not found.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Latest app for this candidate (prefer same job if available)
         latest_app = s.execute(
@@ -11568,7 +11578,7 @@ def action_rescore(cand_id):
         latest_job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
         if not latest_app or not latest_job:
             flash("This candidate has no application yet, so there is no job to score against.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
         try:
             _rebuild_ai_summary_and_tags(s, cand, doc=None, job=latest_job, appn=latest_app)
             if latest_app.ai_score is not None:
@@ -13378,7 +13388,7 @@ def retract_contract(cand_id):
         )
         if not esig:
             flash("No active contract to retract.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         old_status = esig.status
         esig.status = "Retracted"
@@ -15813,11 +15823,11 @@ def submit_for_qc(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         if vc.status.upper() not in ("COMPLETE", "IN PROGRESS"):
             flash("Check must be Complete or In Progress before submitting for QC.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         vc.qc_status = "awaiting_qc"
         vc.status = "AWAITING QC"
@@ -15846,11 +15856,11 @@ def qc_approve(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         if vc.assigned_to and vc.assigned_to == current_user.id:
             flash("You cannot QC a check assigned to yourself.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         vc.qc_status = "qc_approved"
         vc.status = "QC COMPLETE"
@@ -15882,11 +15892,11 @@ def qc_reject(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         if vc.assigned_to and vc.assigned_to == current_user.id:
             flash("You cannot QC a check assigned to yourself.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         vc.qc_status = "qc_rejected"
         vc.status = "READY TO START"
@@ -15922,7 +15932,7 @@ def assign_analyst(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         vc.assigned_to = analyst_id
         analyst_name = "Unassigned"
@@ -16199,7 +16209,7 @@ def send_reference(cand_id: int):
 
         if not ref_req.referee_email:
             flash("No referee email address provided.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Build merge field values from the ReferenceRequest + linked EmploymentHistory
         merge_fields = {
@@ -16317,14 +16327,14 @@ def chase_reference(cand_id: int):
         ref_req = s.get(ReferenceRequest, ref_id) if ref_id else None
         if not ref_req or ref_req.candidate_id != cand_id:
             flash("Reference request not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         if ref_req.chase_count >= 3:
             ref_req.status = "on_hold"
             ref_req.colour = "orange"
             s.commit()
             flash(f"Max 3 chases reached for {ref_req.company_name}. Moved to On Hold.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         try:
             html_body = f"""
@@ -16367,7 +16377,7 @@ def receive_reference(cand_id: int):
         ref_req = s.get(ReferenceRequest, ref_id) if ref_id else None
         if not ref_req or ref_req.candidate_id != cand_id:
             flash("Reference request not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         ref_req.status = "received"
         ref_req.received_at = datetime.datetime.utcnow()
@@ -20082,7 +20092,7 @@ def action_esign_candidate(cand_id):
                 s.commit()
             except Exception as e:
                 flash(f"E-sign send failed: {e}", "danger")
-                return redirect(url_for("candidate_profile", cand_id=cand_id))
+                return
         else:
             # No application — just mark status so the card shows activity.
             cand.esign_status = "Sent"
@@ -20109,7 +20119,7 @@ def candidate_summarise(cand_id):
         source_text = cv_text or (cand.skills or "")
         if not source_text:
             flash("No CV or skills text available to summarise.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Write to an actual persisted column
         cand.ai_summary = ai_summarise(source_text) or ""
@@ -20214,7 +20224,7 @@ def action_verifile_candidate(cand_id):
             flash(f"Verifile submission failed: {e}", "danger")
             # even if Verifile API failed, keep local timestamps
             s.commit()
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         s.commit()
 
@@ -20989,7 +20999,7 @@ def download_all_docs(cand_id):
         docs = s.scalars(select(Document).where(Document.candidate_id == cand_id)).all()
         if not docs:
             flash("No documents found for this associate.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         buf = _io.BytesIO()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -21120,12 +21130,12 @@ def referral_approve(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         # Two-step: cannot be approved by the assigned analyst
         if vc.assigned_to and vc.assigned_to == current_user.id:
             flash("Referral Approved requires a different user than the assigned analyst.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         vc.status = "REFERRAL APPROVED"
         vc.referral_approved_by = current_user.id
@@ -21185,7 +21195,7 @@ def hold_reference(cand_id: int):
         ref_req = s.get(ReferenceRequest, ref_id) if ref_id else None
         if not ref_req or ref_req.candidate_id != cand_id:
             flash("Reference not found.", "danger")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+            return
 
         if hold_until_str:
             try:
