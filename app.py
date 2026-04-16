@@ -2798,77 +2798,84 @@ def admin_portal_user_update(cand_id: int):
 @app.route("/admin/portal-users/<int:cand_id>/delete", methods=["POST"])
 @login_required
 def admin_portal_user_delete(cand_id: int):
-    """Delete a portal user and all associated data."""
+    """Delete a portal user and all associated data.
+
+    Uses AUTOCOMMIT for the child-row cleanup: on Postgres, if ANY
+    statement in a regular transaction fails, the whole transaction
+    enters an aborted state and every subsequent statement errors with
+    'current transaction is aborted, commands ignored until end of
+    transaction block'. AUTOCOMMIT makes each DELETE its own unit, so
+    a missing table or unexpected condition on one doesn't poison the
+    rest of the cleanup.
+    """
+    # Resolve the candidate name first for flashing / audit purposes.
+    name = ""
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             flash("Associate not found", "danger")
             return redirect(url_for("admin_portal_users"))
+        name = cand.name or f"id={cand_id}"
+        app_count = s.scalar(
+            select(func.count(Application.id)).where(Application.candidate_id == cand_id)
+        ) or 0
 
-        name = cand.name
-
-        # Clean up all related records — order matters for foreign keys
-        try:
-            app_ids = [aid for (aid,) in s.execute(
-                select(Application.id).where(Application.candidate_id == cand_id)
-            ).all()]
-
-            # ESigRequest (references application_id and candidate_id)
-            s.execute(delete(ESigRequest).where(ESigRequest.candidate_id == cand_id))
-            if app_ids:
-                s.execute(delete(ESigRequest).where(ESigRequest.application_id.in_(app_ids)))
+    # Child-table cleanup — each DELETE independent via AUTOCOMMIT.
+    # Order doesn't strictly matter with AUTOCOMMIT (no FK ordering inside
+    # a single transaction), but we keep it logical for readability.
+    child_deletes = [
+        # Signable + Verifile references by candidate or by application
+        "DELETE FROM esig_requests WHERE candidate_id = :cid",
+        "DELETE FROM esig_requests WHERE application_id IN (SELECT id FROM applications WHERE candidate_id = :cid)",
+        "DELETE FROM trustid_checks WHERE application_id IN (SELECT id FROM applications WHERE candidate_id = :cid)",
+        "DELETE FROM applications WHERE candidate_id = :cid",
+        # Core vetting / staff-side
+        "DELETE FROM vetting_checks WHERE candidate_id = :cid",
+        "DELETE FROM shortlists WHERE candidate_id = :cid",
+        "DELETE FROM candidate_tags WHERE candidate_id = :cid",
+        "DELETE FROM documents WHERE candidate_id = :cid",
+        "DELETE FROM candidate_notes WHERE candidate_id = :cid",
+        "DELETE FROM reference_requests WHERE candidate_id = :cid",
+        # Associate portal tables
+        "DELETE FROM associate_profiles WHERE candidate_id = :cid",
+        "DELETE FROM company_details WHERE candidate_id = :cid",
+        "DELETE FROM employment_history WHERE candidate_id = :cid",
+        "DELETE FROM consent_records WHERE candidate_id = :cid",
+        "DELETE FROM declaration_records WHERE candidate_id = :cid",
+        "DELETE FROM qualification_records WHERE candidate_id = :cid",
+        "DELETE FROM professional_registrations WHERE candidate_id = :cid",
+        "DELETE FROM reference_contacts WHERE candidate_id = :cid",
+        "DELETE FROM address_history WHERE candidate_id = :cid",
+        "DELETE FROM timesheet_configs WHERE candidate_id = :cid",
+        "DELETE FROM timesheet_entries WHERE candidate_id = :cid",
+        "DELETE FROM timesheet_expenses WHERE candidate_id = :cid",
+    ]
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            for stmt in child_deletes:
                 try:
-                    s.execute(delete(TrustIDCheck).where(TrustIDCheck.application_id.in_(app_ids)))
-                except Exception:
-                    pass
-                s.execute(delete(Application).where(Application.id.in_(app_ids)))
+                    conn.execute(text(stmt), {"cid": cand_id})
+                except Exception as child_exc:
+                    current_app.logger.warning(
+                        "portal_user_delete: %s failed: %s", stmt, child_exc,
+                    )
+            # Finally delete the Candidate itself. Must succeed for the
+            # operation to be considered a success.
+            conn.execute(text("DELETE FROM candidates WHERE id = :cid"), {"cid": cand_id})
+    except Exception as exc:
+        current_app.logger.exception("portal_user_delete: candidates DELETE failed")
+        flash(f"Failed to delete user: {exc}", "danger")
+        return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
-            s.execute(delete(VettingCheck).where(VettingCheck.candidate_id == cand_id))
-            s.execute(delete(Shortlist).where(Shortlist.candidate_id == cand_id))
-            s.execute(delete(CandidateTag).where(CandidateTag.candidate_id == cand_id))
-            s.execute(delete(Document).where(Document.candidate_id == cand_id))
-
-            try:
-                s.execute(delete(CandidateNote).where(CandidateNote.candidate_id == cand_id))
-            except Exception:
-                pass
-            try:
-                s.execute(delete(ReferenceRequest).where(ReferenceRequest.candidate_id == cand_id))
-            except Exception:
-                pass
-
-            # Portal tables — every table that has a candidate_id FK must be
-            # cleared before the Candidate row itself can be deleted.
-            # Missing one here surfaces as a Postgres ForeignKeyViolation.
-            for tbl in [
-                'associate_profiles',
-                'company_details',
-                'employment_history',
-                'consent_records',
-                'declaration_records',
-                'qualification_records',
-                'professional_registrations',
-                'reference_contacts',
-                'address_history',
-                'timesheet_configs',
-                'timesheet_entries',
-                'timesheet_expenses',
-            ]:
-                try:
-                    s.execute(text(f"DELETE FROM {tbl} WHERE candidate_id = :cid"), {"cid": cand_id})
-                except Exception:
-                    pass
-
-            log_audit_event('delete', 'data_access', f'Deleted portal user: {name} (id={cand_id})',
-                            details={"candidate_id": cand_id, "applications_deleted": len(app_ids)})
-            s.delete(cand)
-            s.commit()
-        except Exception as e:
-            s.rollback()
-            flash(f"Failed to delete user: {e}", "danger")
-            return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
-        flash(f"Portal user {name} and all associated data deleted", "success")
-
+    try:
+        log_audit_event(
+            'delete', 'data_access',
+            f'Deleted portal user: {name} (id={cand_id})',
+            details={"candidate_id": cand_id, "applications_deleted": int(app_count)},
+        )
+    except Exception:
+        pass
+    flash(f"Portal user {name} and all associated data deleted", "success")
     return redirect(url_for("admin_portal_users"))
 
 @app.route("/change-password", methods=["GET", "POST"])
