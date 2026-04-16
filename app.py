@@ -2328,6 +2328,68 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
     return f"no-op (unhandled doc_label={doc_label!r})"
 
 
+@app.route("/admin/webhook-events/<int:event_id>/replay", methods=["POST"])
+@login_required
+def admin_webhook_replay(event_id: int):
+    """Re-submit a stored webhook payload through the current /webhook/esign
+    handler. Useful when an early delivery was processed by old handler
+    code (e.g. before positional boolean mapping for the Declaration Form)
+    — replaying applies the latest logic without needing the candidate to
+    re-sign. Stored payload is unwrapped from our diagnostic envelope
+    before being POSTed back to our own endpoint."""
+    with Session(engine) as s:
+        evt = s.get(WebhookEvent, event_id)
+        if not evt:
+            flash("Webhook event not found.", "danger")
+            return redirect(url_for("admin_webhook_events"))
+        try:
+            raw = json.loads(evt.payload or "{}")
+        except Exception:
+            raw = {}
+
+    # Unwrap the diagnostic envelope webhook_esign writes on inbound:
+    #   {"_meta": {...}, "payload": {<original signable payload>}}
+    inner = raw
+    if isinstance(raw, dict) and "_meta" in raw and isinstance(raw.get("payload"), dict):
+        inner = raw["payload"]
+    if not isinstance(inner, dict) or not inner:
+        flash("Event payload cannot be replayed (not a JSON object).", "warning")
+        return redirect(url_for("admin_webhook_events"))
+
+    target = url_for("webhook_esign", _external=True)
+    if target.startswith("http://"):
+        target = "https://" + target[len("http://"):]
+
+    try:
+        import requests as _rq
+        import hmac, hashlib
+        body = json.dumps(inner).encode()
+        headers = {"Content-Type": "application/json"}
+        # Compute the signature the handler expects if the secret is set
+        # so the replay passes the same verification a real webhook would.
+        if SIGNABLE_WEBHOOK_SECRET:
+            sig = hmac.new(
+                SIGNABLE_WEBHOOK_SECRET.encode(), body, hashlib.sha256
+            ).hexdigest()
+            headers["X-Signable-Signature"] = sig
+        resp = _rq.post(target, data=body, headers=headers, timeout=15, allow_redirects=False)
+        if 200 <= resp.status_code < 300:
+            flash(
+                f"Replayed event #{event_id} — status {resp.status_code}. "
+                "Refresh to see the new matched/unmatched entry.",
+                "success",
+            )
+        else:
+            flash(
+                f"Replay returned status {resp.status_code}: {(resp.text or '')[:200]}",
+                "warning",
+            )
+    except Exception as exc:
+        current_app.logger.exception("replay failed for event %s", event_id)
+        flash(f"Replay failed: {exc}", "danger")
+    return redirect(url_for("admin_webhook_events"))
+
+
 @app.route("/admin/webhook-events/<int:event_id>/link-candidate", methods=["POST"])
 @login_required
 def admin_webhook_link_candidate(event_id: int):
@@ -2482,6 +2544,23 @@ def admin_webhook_events():
                     except Exception:
                         pass
 
+            # A "real" inbound event has our diagnostic envelope containing
+            # an original Signable payload. Breadcrumbs we write ourselves
+            # (matched-widget-signing / unmatched-widget-signing / etc.)
+            # don't have that shape and aren't useful to replay.
+            inbound_payload = raw_dict.get("payload") if isinstance(raw_dict, dict) else None
+            is_replayable = (
+                isinstance(inbound_payload, dict)
+                and bool(inbound_payload.get("envelope_fingerprint"))
+                and r.event_type not in (
+                    "matched-widget-signing",
+                    "unmatched-widget-signing",
+                    "ambiguous-widget-signing",
+                    "unmatched-widget-signing-resolved",
+                    "ambiguous-widget-signing-resolved",
+                )
+            )
+
             events.append({
                 "id": r.id,
                 "source": r.source,
@@ -2491,6 +2570,7 @@ def admin_webhook_events():
                 "is_ambiguous": is_ambiguous,
                 "is_unmatched": is_unmatched,
                 "is_resolvable": (is_ambiguous or is_unmatched) and not (r.event_type or "").endswith("-resolved"),
+                "is_replayable": is_replayable,
                 "candidates": candidates,
                 "signer_name": meta.get("signer_name") or "",
                 "doc_label": meta.get("doc_label") or "",
