@@ -5563,6 +5563,21 @@ try:
             "ALTER TABLE jobs ADD COLUMN dbs_vulnerable_adults_in_environment BOOLEAN DEFAULT FALSE",
             "ALTER TABLE jobs ADD COLUMN dbs_is_volunteer BOOLEAN DEFAULT FALSE",
             "ALTER TABLE jobs ADD COLUMN dbs_working_from_home BOOLEAN DEFAULT FALSE",
+            # Paystream Assignment Schedule capture columns — must run
+            # under Gunicorn, not just `python app.py`.
+            "ALTER TABLE applications ADD COLUMN assignment_nature_of_work VARCHAR(500) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_end_date DATE",
+            "ALTER TABLE applications ADD COLUMN assignment_hours_of_work VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_work_location VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_expenses_payable VARCHAR(10) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_expenses_detail VARCHAR(500) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_health_safety_risks VARCHAR(10) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_health_safety_detail VARCHAR(500) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_vulnerable_person VARCHAR(10) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_notice_agency VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_notice_paystream VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_invoice_frequency VARCHAR(50) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN assignment_captured_at TIMESTAMP",
         ]:
             try:
                 _mc.execute(text(_stmt))
