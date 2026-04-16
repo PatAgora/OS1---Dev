@@ -13143,6 +13143,31 @@ def candidate_profile(cand_id: int):
                     'details': details,
                 })
 
+            # Applicant Portal activity — every _add_note() call from the
+            # associate portal writes with user_email="associate-portal".
+            # Surface those in the staff-side feed so actions the candidate
+            # takes (company details, personal details, documents, signing,
+            # apply/withdraw, etc.) are visible here.
+            portal_notes = s.scalars(
+                select(CandidateNote)
+                .where(CandidateNote.candidate_id == cand_id)
+                .where(CandidateNote.user_email == "associate-portal")
+                .order_by(CandidateNote.created_at.desc())
+                .limit(40)
+            ).all()
+            for note in portal_notes:
+                content = (note.content or "").strip()
+                if not content:
+                    continue
+                activity_feed.append({
+                    'type': 'note',
+                    'icon': 'fa-user-edit',
+                    'color': '#0891b2',
+                    'title': 'Applicant Portal',
+                    'timestamp': note.created_at,
+                    'details': content[:300],
+                })
+
             # Sort by timestamp descending
             activity_feed.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.datetime.min, reverse=True)
             activity_feed = activity_feed[:30]  # Limit to 30 most recent
