@@ -5178,15 +5178,33 @@ def _rebuild_ai_summary_and_tags(s, cand, doc=None, job=None, appn=None):
     if not cv_text:
         print(f"[AI] No CV text extracted for candidate {cand.id} ({cand.name})")
     else:
+        import time as _time
         from concurrent.futures import ThreadPoolExecutor
         scoring_text = cv_text or (cand.skills or "")
+        parallel_t0 = _time.time()
         with ThreadPoolExecutor(max_workers=2) as _pool:
-            summary_future = _pool.submit(ai_summarise, cv_text)
+            def _timed_summary():
+                t0 = _time.time()
+                result = ai_summarise(cv_text)
+                current_app.logger.info(
+                    "ai_summarise took %.2fs (cv_chars=%d) for cand=%s",
+                    _time.time() - t0, len(cv_text or ""), cand.id,
+                )
+                return result
+
+            def _timed_score(jd, cv):
+                t0 = _time.time()
+                result = ai_score_with_explanation(jd, cv)
+                current_app.logger.info(
+                    "ai_score_with_explanation took %.2fs (jd_chars=%d cv_chars=%d) for cand=%s",
+                    _time.time() - t0, len(jd or ""), len(cv or ""), cand.id,
+                )
+                return result
+
+            summary_future = _pool.submit(_timed_summary)
             score_future = None
             if job and gemini_model_configured:
-                score_future = _pool.submit(
-                    ai_score_with_explanation, job.description or "", scoring_text
-                )
+                score_future = _pool.submit(_timed_score, job.description or "", scoring_text)
             try:
                 summary = summary_future.result() or "Unable to retrieve information from CV."
             except Exception as e:
@@ -5198,6 +5216,11 @@ def _rebuild_ai_summary_and_tags(s, cand, doc=None, job=None, appn=None):
                 except Exception as e:
                     current_app.logger.exception("ai_score_with_explanation failed: %s", e)
                     ai_score_result = None
+        current_app.logger.info(
+            "AI parallel block total: %.2fs for cand=%s (summary+%s)",
+            _time.time() - parallel_t0, cand.id,
+            "score" if score_future else "nothing",
+        )
 
     # Choose target application
     target_app = appn
