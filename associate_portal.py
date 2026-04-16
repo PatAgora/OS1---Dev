@@ -1696,23 +1696,36 @@ def company_details():
                         company_docs[dtype] = doc
 
             # Conduct Regulations 2003 state — displayed inline so the
-            # associate can opt-in/opt-out on the same page.
-            Candidate = _model("Candidate")
+            # associate can opt-in/opt-out on the same page. Resilient to
+            # partial ORM init AND missing columns on prod by falling
+            # back to raw SQL and swallowing any load error.
             conduct_current_choice = None
             conduct_decision_at = None
             conduct_signed_name = ""
             conduct_portal_name = ""
-            if Candidate:
-                _cand = s.get(Candidate, cand_id)
-                if _cand:
-                    _opted = getattr(_cand, "conduct_regs_opted_in", None)
+            try:
+                row = s.execute(text("""
+                    SELECT conduct_regs_opted_in,
+                           conduct_regs_decision_at,
+                           conduct_regs_signed_name,
+                           name
+                    FROM candidates
+                    WHERE id = :cid
+                """).bindparams(cid=cand_id)).first()
+                if row:
+                    _opted = row[0]
                     if _opted is True:
                         conduct_current_choice = "opt_in"
                     elif _opted is False:
                         conduct_current_choice = "opt_out"
-                    conduct_decision_at = getattr(_cand, "conduct_regs_decision_at", None)
-                    conduct_signed_name = (getattr(_cand, "conduct_regs_signed_name", "") or "").strip()
-                    conduct_portal_name = (getattr(_cand, "name", "") or "").strip()
+                    conduct_decision_at = row[1]
+                    conduct_signed_name = (row[2] or "").strip()
+                    conduct_portal_name = (row[3] or "").strip()
+            except Exception:
+                # Column likely missing on this DB — leave defaults.
+                current_app.logger.exception(
+                    "conduct regs preload failed for cand=%s", cand_id
+                )
 
             return render_template(
                 "associate/company_details.html",
