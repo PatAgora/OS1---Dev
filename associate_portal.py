@@ -184,6 +184,10 @@ def _ensure_models():
         bank_account_number = Column(String(20), default="")
         bank_sort_code = Column(String(10), default="")
         umbrella_company_name = Column(String(300), default="")
+        # Contact email for the contracting entity (umbrella's payroll/contracting
+        # contact OR the candidate's own limited-company email) — used when
+        # staff issue contracts so the right mailbox gets the e-sign request.
+        contact_email = Column(String(254), default="")
         created_at = Column(DateTime, default=datetime.utcnow)
         updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -789,6 +793,7 @@ def _create_portal_tables():
                 "ALTER TABLE company_details ADD COLUMN vat_number VARCHAR(50) DEFAULT ''",
                 "ALTER TABLE company_details ADD COLUMN bank_account_number VARCHAR(20) DEFAULT ''",
                 "ALTER TABLE company_details ADD COLUMN bank_sort_code VARCHAR(10) DEFAULT ''",
+                "ALTER TABLE company_details ADD COLUMN contact_email VARCHAR(254) DEFAULT ''",
             ]:
                 try:
                     conn.execute(text(col_stmt))
@@ -1676,6 +1681,16 @@ def company_details():
             comp.bank_account_number = _sanitise(request.form.get("bank_account_number", ""))
             comp.bank_sort_code = _sanitise(request.form.get("bank_sort_code", ""))
             comp.umbrella_company_name = _sanitise(umbrella_raw)
+            # Pick the email from whichever section matches the chosen entity.
+            _entity = (entity_type_raw or "").lower().strip()
+            if _entity == "umbrella":
+                _email_raw = request.form.get("umbrella_contact_email", "")
+            elif _entity == "limited":
+                _email_raw = request.form.get("limited_contact_email", "")
+            else:
+                _email_raw = (request.form.get("umbrella_contact_email", "")
+                              or request.form.get("limited_contact_email", ""))
+            comp.contact_email = _sanitise(_email_raw).strip().lower()
 
         # Handle Ltd Co document uploads
         Document = _model("Document")

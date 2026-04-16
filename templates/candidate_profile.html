@@ -699,6 +699,14 @@
                   <div class="text-muted small text-uppercase">Umbrella Company</div>
                   <div class="fw-semibold">{{ company_details.umbrella_company_name or '—' }}</div>
                 </div>
+                <div class="col-12">
+                  <div class="text-muted small text-uppercase">Contact Email</div>
+                  <div class="fw-semibold">
+                    {% if company_details.contact_email %}
+                      <a href="mailto:{{ company_details.contact_email }}">{{ company_details.contact_email }}</a>
+                    {% else %}—{% endif %}
+                  </div>
+                </div>
               </div>
             </div>
           {% elif company_details and company_details.contracting_type == 'limited' %}
@@ -731,6 +739,14 @@
                 <div class="col-md-6">
                   <div class="text-muted small text-uppercase">Sort Code</div>
                   <div class="fw-semibold">{{ company_details.bank_sort_code or '—' }}</div>
+                </div>
+                <div class="col-12">
+                  <div class="text-muted small text-uppercase">Contact Email</div>
+                  <div class="fw-semibold">
+                    {% if company_details.contact_email %}
+                      <a href="mailto:{{ company_details.contact_email }}">{{ company_details.contact_email }}</a>
+                    {% else %}—{% endif %}
+                  </div>
                 </div>
               </div>
             </div>
