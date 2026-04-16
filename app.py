@@ -16575,8 +16575,11 @@ def engagement_dashboard(eng_id):
                 'id': c.id,
                 'name': c.name or '',
                 'email': c.email or '',
+                # role + status are left empty on wider-pool rows so the
+                # renderer shows just the name / email, no "Stage: In DB".
                 'role': '',
-                'status': 'In DB',
+                'status': '',
+                'kind': 'wider',
             }
             for c in s.scalars(
                 select(Candidate)

@@ -1218,13 +1218,21 @@
           </div>
         </li>`;
       }
-      const sub = a.ai_score !== undefined
-        ? `${a.role || 'No role'} • AI Score: ${a.ai_score}`
-        : `${a.role || 'No role'} • Stage: ${a.status || 'Unknown'}`;
+      // Wider-pool rows: just name + email, no stage/role suffix.
+      let sub;
+      if (a.kind === 'wider') {
+        sub = a.email || '';
+      } else if (a.ai_score !== undefined) {
+        sub = `${a.role || 'No role'} • AI Score: ${a.ai_score}`;
+      } else {
+        const parts = [a.role || 'No role'];
+        if (a.status) parts.push(`Stage: ${a.status}`);
+        sub = parts.join(' • ');
+      }
       return `<li class="associate-item">
         <div class="associate-info">
           <div class="associate-name">${a.name || 'Unknown'}</div>
-          <div class="associate-role">${sub}</div>
+          ${sub ? `<div class="associate-role">${sub}</div>` : ''}
         </div>
         <div class="associate-actions">
           <a href="/candidate/${a.id}" class="btn btn-modern-outline btn-sm">
