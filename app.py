@@ -16518,13 +16518,11 @@ def engagement_dashboard(eng_id):
         totals_row['left_to_fill'] = sum(role_metrics.get(r, {}).get('left_to_fill', 0) for r in plan_display_roles)
 
         # --- Scheduled starters (offered AND accepted for THIS engagement) ---
-        # Only candidates who have actually accepted an offer — either:
-        #   - Application.offer_response = 'accepted' (explicit accept via
-        #     the offer accept/decline flow), OR
-        #   - Application.status = 'Accepted' / 'Ready to Contract'
-        #     (legacy path for engagements that moved the status directly).
-        # "Offered" on its own is NOT included — the candidate hasn't
-        # accepted yet.
+        # Strict definition: an offer was actually issued (offer_made_at
+        # is populated) AND the candidate explicitly accepted it
+        # (offer_response = 'accepted'). Nothing else qualifies —
+        # "Offered" with no response, raw "Accepted" status changes that
+        # didn't go through the offer flow, etc.
         scheduled_associates = []
         sched_apps_q = (
             select(Application, Candidate, Job)
@@ -16532,10 +16530,8 @@ def engagement_dashboard(eng_id):
             .join(Job, Job.id == Application.job_id)
             .where(
                 Job.engagement_id == eng_id,
-                or_(
-                    Application.status.in_(['Accepted', 'Ready to Contract']),
-                    func.lower(Application.offer_response) == 'accepted',
-                ),
+                Application.offer_made_at.isnot(None),
+                func.lower(Application.offer_response) == 'accepted',
             )
             .order_by(Application.created_at.desc())
         )
