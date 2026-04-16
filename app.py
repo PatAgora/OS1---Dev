@@ -2208,6 +2208,39 @@ def admin_reset_signing(cand_id: int, form_key: str):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/admin/webhook-events/test", methods=["POST"])
+@login_required
+def admin_webhook_events_test():
+    """Fire a simulated Signable 'Envelope Signed & Completed' payload at
+    our own /webhook/esign endpoint. If the test appears in the events
+    list afterwards, the receive pipeline is fine and the real issue is
+    that Signable is not delivering."""
+    import uuid as _uuid
+    import requests as _rq
+    fake_fp = f"test-{_uuid.uuid4().hex[:12]}"
+    payload = {
+        "event": "envelope.completed",
+        "envelope_fingerprint": fake_fp,
+        "envelope_status": "completed",
+        "envelope_title": "Consent Form (test)",
+        "envelope_parties": [
+            {"party_email": "test-webhook@example.com", "party_name": "Test Signer"}
+        ],
+    }
+    target = url_for("webhook_esign", _external=True)
+    try:
+        _rq.post(target, json=payload, timeout=5)
+        flash(
+            f"Test payload POSTed to {target}. "
+            "Refresh this page — a new entry should appear at the top.",
+            "success",
+        )
+    except Exception as exc:
+        current_app.logger.exception("test webhook POST failed")
+        flash(f"Could not POST test payload: {exc}", "danger")
+    return redirect(url_for("admin_webhook_events"))
+
+
 @app.route("/admin/webhook-events")
 @login_required
 def admin_webhook_events():
@@ -12643,9 +12676,52 @@ def webhook_esign():
     if request.method == "GET":
         return jsonify({"ok": True, "message": "Webhook endpoint active"}), 200
 
-    payload = request.json or {}
+    # Log EVERY incoming POST before any parsing — some providers send
+    # form-encoded or text bodies; we still want evidence of receipt so
+    # /admin/webhook-events can show "something arrived but was malformed"
+    # rather than nothing at all.
+    raw_body = ""
+    try:
+        raw_body = request.get_data(as_text=True) or ""
+    except Exception:
+        raw_body = ""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        # Fall back to form-encoded bodies; Signable widgets sometimes
+        # post that instead of JSON.
+        try:
+            if request.form:
+                payload = request.form.to_dict(flat=True)
+            else:
+                payload = {}
+        except Exception:
+            payload = {}
+
+    content_type = request.headers.get("Content-Type", "")
+    event_type_raw = (payload.get("event") if isinstance(payload, dict) else None) or "unknown"
+
     with Session(engine) as s:
-        s.add(WebhookEvent(source="esign", event_type=str(payload.get('event','unknown')), payload=json.dumps(payload)[:39999]))
+        # Always persist a row first so the admin page has evidence of the
+        # hit, even if downstream processing fails.
+        diag_body = {
+            "_meta": {
+                "method": request.method,
+                "content_type": content_type,
+                "remote_addr": request.remote_addr,
+                "raw_body_len": len(raw_body),
+                "header_count": len(list(request.headers)),
+            },
+            "payload": payload if isinstance(payload, dict) else {"_raw": raw_body[:4000]},
+        }
+        try:
+            s.add(WebhookEvent(
+                source="esign",
+                event_type=str(event_type_raw),
+                payload=json.dumps(diag_body)[:39999],
+            ))
+            s.flush()
+        except Exception:
+            current_app.logger.exception("webhook_esign: failed to persist inbound event")
 
         # --- Signable webhook auto-processing ---
         # Signable sends POST with {"envelope_fingerprint": "...", "envelope_status": "signed", ...}

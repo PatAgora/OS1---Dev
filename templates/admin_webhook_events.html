@@ -11,13 +11,21 @@
         Use this to verify whether a signing or a check actually reached OS1.
       </div>
     </div>
-    <div class="btn-group" role="group">
-      <a href="{{ url_for('admin_webhook_events') }}"
-         class="btn btn-sm {{ 'btn-primary' if not source_filter else 'btn-outline-secondary' }}">All</a>
-      <a href="{{ url_for('admin_webhook_events', source='esign') }}"
-         class="btn btn-sm {{ 'btn-primary' if source_filter == 'esign' else 'btn-outline-secondary' }}">Signable (e-sign)</a>
-      <a href="{{ url_for('admin_webhook_events', source='verifile') }}"
-         class="btn btn-sm {{ 'btn-primary' if source_filter == 'verifile' else 'btn-outline-secondary' }}">Verifile</a>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="btn-group" role="group">
+        <a href="{{ url_for('admin_webhook_events') }}"
+           class="btn btn-sm {{ 'btn-primary' if not source_filter else 'btn-outline-secondary' }}">All</a>
+        <a href="{{ url_for('admin_webhook_events', source='esign') }}"
+           class="btn btn-sm {{ 'btn-primary' if source_filter == 'esign' else 'btn-outline-secondary' }}">Signable (e-sign)</a>
+        <a href="{{ url_for('admin_webhook_events', source='verifile') }}"
+           class="btn btn-sm {{ 'btn-primary' if source_filter == 'verifile' else 'btn-outline-secondary' }}">Verifile</a>
+      </div>
+      <form method="POST" action="{{ url_for('admin_webhook_events_test') }}" style="margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-warning" title="POSTs a fake Signable consent-completed payload to /webhook/esign">
+          <i class="fas fa-vial me-1"></i> Send test payload
+        </button>
+      </form>
     </div>
   </div>
 
