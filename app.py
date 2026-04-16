@@ -13894,24 +13894,189 @@ def candidate_profile(cand_id: int):
                     })
             
             # Enrich vetting cards with portal-side context so the recruiter
-            # sees flags they'd otherwise have to drill into the associate
-            # portal to find. Currently:
-            #   - Employment History: gap count from employment_history
-            #     rows where is_gap=true (flagged in the associate portal).
+            # can see issues without having to drill into the associate
+            # portal. Each key is a VETTING_CHECK_TYPES entry; each value
+            # is a list of short flag strings rendered as amber badges.
+            portal_flag_map = {}
+
+            def _scalar(sql, **params):
+                """Helper: raw SQL scalar with try/except for missing tables."""
+                try:
+                    return s.scalar(text(sql).bindparams(**params))
+                except Exception:
+                    return None
+
+            def _add(check_type, msg):
+                portal_flag_map.setdefault(check_type, []).append(msg)
+
+            # Employment History — gaps + referees without email.
+            emp_gaps = _scalar(
+                "SELECT COUNT(*) FROM employment_history "
+                "WHERE candidate_id = :cid AND is_gap = TRUE",
+                cid=cand_id,
+            ) or 0
+            if emp_gaps:
+                _add("Employment History",
+                     f"{emp_gaps} gap{'s' if emp_gaps != 1 else ''} flagged")
+            emp_total = _scalar(
+                "SELECT COUNT(*) FROM employment_history "
+                "WHERE candidate_id = :cid AND is_gap = FALSE",
+                cid=cand_id,
+            ) or 0
+            emp_no_email = _scalar(
+                "SELECT COUNT(*) FROM employment_history "
+                "WHERE candidate_id = :cid AND is_gap = FALSE "
+                "AND (referee_email IS NULL OR referee_email = '')",
+                cid=cand_id,
+            ) or 0
+            if emp_total == 0:
+                _add("Employment History", "No employment entries in Portal")
+            elif emp_no_email:
+                _add("Employment History",
+                     f"{emp_no_email} entr{'ies' if emp_no_email != 1 else 'y'} missing referee email")
+
+            # References — flagged if no referee emails AND declaration flags
+            # referencing issues OR dismissal.
+            ref_count = _scalar(
+                "SELECT COUNT(*) FROM employment_history "
+                "WHERE candidate_id = :cid AND is_gap = FALSE "
+                "AND referee_email IS NOT NULL AND referee_email <> ''",
+                cid=cand_id,
+            ) or 0
+            if ref_count == 0:
+                _add("References", "No referees provided in Portal")
+
+            # Qualifications.
+            qual_count = _scalar(
+                "SELECT COUNT(*) FROM qualification_records "
+                "WHERE candidate_id = :cid",
+                cid=cand_id,
+            ) or 0
+            if qual_count == 0:
+                _add("Qualifications", "No qualifications added in Portal")
+
+            # Professional Registration.
+            prof_count = _scalar(
+                "SELECT COUNT(*) FROM professional_registrations "
+                "WHERE candidate_id = :cid",
+                cid=cand_id,
+            ) or 0
+            if prof_count == 0:
+                _add("Professional Registration",
+                     "No professional registrations added in Portal")
+
+            # Address History — flag under 3 years total coverage.
             try:
-                gap_count = s.scalar(text(
-                    "SELECT COUNT(*) FROM employment_history "
-                    "WHERE candidate_id = :cid AND is_gap = TRUE"
-                ).bindparams(cid=cand_id)) or 0
+                addr_rows = s.execute(
+                    text(
+                        "SELECT from_date, to_date, is_current FROM address_history "
+                        "WHERE candidate_id = :cid"
+                    ).bindparams(cid=cand_id)
+                ).all()
+                addr_total_days = 0
+                today_ = datetime.date.today()
+                for r in addr_rows:
+                    fd = getattr(r, "from_date", None)
+                    td = getattr(r, "to_date", None)
+                    if getattr(r, "is_current", False) and not td:
+                        td = today_
+                    if fd and td:
+                        try:
+                            addr_total_days += max(0, (td - fd).days)
+                        except Exception:
+                            pass
+                if addr_rows and addr_total_days < 3 * 365:
+                    years = addr_total_days / 365.0
+                    _add("Address History",
+                         f"Only {years:.1f} yrs covered in Portal (need 3)")
+                elif not addr_rows:
+                    _add("Address History",
+                         "No address history in Portal")
             except Exception:
-                gap_count = 0
+                pass
+
+            # Identity Verification — need a passport OR driving licence.
+            passport_num = _scalar(
+                "SELECT passport_number FROM associate_profiles "
+                "WHERE candidate_id = :cid", cid=cand_id,
+            ) or ""
+            dl_num = _scalar(
+                "SELECT driving_licence_number FROM associate_profiles "
+                "WHERE candidate_id = :cid", cid=cand_id,
+            ) or ""
+            if not passport_num and not dl_num:
+                _add("Identity Verification",
+                     "Neither passport nor driving licence on Portal profile")
+
+            # Right to Work — flag if no RTW document uploaded.
+            rtw_doc = _scalar(
+                "SELECT COUNT(*) FROM documents "
+                "WHERE candidate_id = :cid AND doc_type = 'right_to_work'",
+                cid=cand_id,
+            ) or 0
+            if rtw_doc == 0:
+                _add("Right to Work", "No Right to Work document uploaded")
+
+            # DBS Check — DBS requires specific bio fields on the profile.
+            ni_num = _scalar(
+                "SELECT national_insurance_number FROM associate_profiles "
+                "WHERE candidate_id = :cid", cid=cand_id,
+            ) or ""
+            cob = _scalar(
+                "SELECT country_of_birth FROM associate_profiles "
+                "WHERE candidate_id = :cid", cid=cand_id,
+            ) or ""
+            tob = _scalar(
+                "SELECT town_of_birth FROM associate_profiles "
+                "WHERE candidate_id = :cid", cid=cand_id,
+            ) or ""
+            missing_dbs = []
+            if not ni_num:
+                missing_dbs.append("NI number")
+            if not cob:
+                missing_dbs.append("country of birth")
+            if not tob:
+                missing_dbs.append("town of birth")
+            if missing_dbs:
+                _add("DBS Check",
+                     "Missing for DBS: " + ", ".join(missing_dbs))
+
+            # DeclarationRecord answers → flag the relevant check cards.
+            try:
+                decl_row = s.execute(
+                    text(
+                        "SELECT work_restrictions, criminal_convictions, ccj_debt, "
+                        "bankruptcy, dismissed, referencing_issues "
+                        "FROM declaration_records WHERE candidate_id = :cid"
+                    ).bindparams(cid=cand_id)
+                ).first()
+                if decl_row:
+                    if getattr(decl_row, "work_restrictions", False):
+                        _add("Right to Work",
+                             "Candidate declared work restrictions")
+                    if getattr(decl_row, "criminal_convictions", False):
+                        _add("DBS Check",
+                             "Candidate declared unspent convictions")
+                    if getattr(decl_row, "ccj_debt", False):
+                        _add("Credit Check",
+                             "Candidate declared CCJ / debt relief order")
+                    if getattr(decl_row, "bankruptcy", False):
+                        _add("Credit Check",
+                             "Candidate declared bankruptcy / IVA")
+                    if getattr(decl_row, "dismissed", False):
+                        _add("References",
+                             "Candidate declared prior dismissal")
+                    if getattr(decl_row, "referencing_issues", False):
+                        _add("References",
+                             "Candidate declared referencing issues")
+            except Exception:
+                pass
+
+            # Apply all collected flags to the matching vetting cards.
             for vc in vetting_checks:
-                if vc.get("type") == "Employment History" and gap_count:
-                    vc["portal_flags"] = [
-                        f"{gap_count} employment gap"
-                        + ("s" if gap_count != 1 else "")
-                        + " flagged in Associate Portal"
-                    ]
+                flags = portal_flag_map.get(vc.get("type"))
+                if flags:
+                    vc["portal_flags"] = flags
 
             # Calculate summary
             for vc in vetting_checks:
