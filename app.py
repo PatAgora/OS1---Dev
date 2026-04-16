@@ -2216,10 +2216,15 @@ def admin_reset_signing(cand_id: int, form_key: str):
 
 
 def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
-                          envelope_fp: str, ip_address: str = "") -> str:
+                          envelope_fp: str, ip_address: str = "",
+                          envelope_fields: list = None) -> str:
     """Shared widget-signing upsert, used by both the webhook auto-match path
     and the staff manual-link admin action. Returns a short description of
-    what was persisted for audit / breadcrumb purposes."""
+    what was persisted for audit / breadcrumb purposes.
+
+    envelope_fields: the already-parsed list of Signable field dicts. Passing
+    it in makes the Declaration Yes/No mapping work regardless of whether
+    the original request was form-encoded or JSON (Replay uses JSON)."""
     if not cand:
         return "no candidate"
     is_emp_ref = doc_label == "Employment Reference Declaration"
@@ -2278,11 +2283,20 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
             #   1 work_restrictions, 2 criminal_convictions, 3 ccj_debt,
             #   4 bankruptcy, 5 dismissed, 6 referencing_issues
             try:
-                from flask import request as _req
-                raw_fields = (_req.form.get("envelope_fields") or "").strip()
-                fields_list = None
-                if raw_fields.startswith("["):
-                    fields_list = json.loads(raw_fields)
+                fields_list = envelope_fields
+                # Fall back to the live request only if no list was passed in.
+                if fields_list is None:
+                    try:
+                        from flask import request as _req
+                        raw_fields = (_req.form.get("envelope_fields") or "").strip()
+                        if not raw_fields:
+                            _body = _req.get_json(silent=True)
+                            if isinstance(_body, dict):
+                                raw_fields = (_body.get("envelope_fields") or "").strip()
+                        if raw_fields.startswith("["):
+                            fields_list = json.loads(raw_fields)
+                    except Exception:
+                        fields_list = None
                 if isinstance(fields_list, list):
                     dropdowns = [
                         (f.get("field_value") or "").strip().lower()
@@ -13158,6 +13172,10 @@ def webhook_esign():
     # `envelope_status`; `envelope_documents` is a JSON string we must parse
     # to get the document title). Back-fill the keys the rest of the
     # handler expects so older logic keeps working unchanged.
+    # fields_list is declared here so it's always in scope for the
+    # downstream upsert helper, even if the normalisation branch doesn't
+    # execute (e.g. a JSON payload that already has envelope_status set).
+    fields_list = None
     if isinstance(payload, dict) and payload.get("action") and not payload.get("envelope_status"):
         action_raw = (payload.get("action") or "").lower()
         action_to_status = {
@@ -13421,74 +13439,16 @@ def webhook_esign():
                     if cand:
                         # Stash the effective identifier for logging.
                         signer_email = signer_email or f"(matched by name: {signer_name})"
-                        # Set employment ref flag if applicable
-                        if is_emp_ref:
-                            cand.employment_ref_declaration_signed = True
-                            cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
-                        # Secondary Job Declaration — track on Candidate
-                        if doc_label == "Secondary Job Declaration":
-                            if hasattr(cand, "secondary_job_declaration_signed"):
-                                cand.secondary_job_declaration_signed = True
-                            if hasattr(cand, "secondary_job_declaration_signed_at"):
-                                cand.secondary_job_declaration_signed_at = datetime.datetime.utcnow()
-
-                        # Upsert the record that the Associate Portal's
-                        # completion calc reads. Without this, widget-based
-                        # signings leave the portal at 0% and re-show the
-                        # iframe on next visit.
-                        upsert_outcome = "no-op (unhandled doc_label)"
-                        try:
-                            from associate_portal import _portal_model as _pm
-                            if doc_label == "Consent Form":
-                                ConsentRecordCls = _pm("ConsentRecord")
-                                if ConsentRecordCls is None:
-                                    upsert_outcome = "ConsentRecord class not resolvable"
-                                else:
-                                    consent = s.query(ConsentRecordCls).filter_by(
-                                        candidate_id=cand.id
-                                    ).first()
-                                    is_new = consent is None
-                                    if consent is None:
-                                        consent = ConsentRecordCls(candidate_id=cand.id)
-                                        s.add(consent)
-                                    consent.consent_given = True
-                                    consent.signed_date = datetime.datetime.utcnow()
-                                    if not (consent.legal_name or "").strip():
-                                        consent.legal_name = signer_name or cand.name or ""
-                                    if hasattr(consent, "signable_envelope_id"):
-                                        consent.signable_envelope_id = envelope_fp
-                                    if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
-                                        consent.ip_address = request.remote_addr or ""
-                                    upsert_outcome = f"ConsentRecord {'inserted' if is_new else 'updated'} (id={consent.id}, consent_given=True)"
-                            elif doc_label == "Declaration Form":
-                                DeclarationRecordCls = _pm("DeclarationRecord")
-                                if DeclarationRecordCls is None:
-                                    upsert_outcome = "DeclarationRecord class not resolvable"
-                                else:
-                                    decl = s.query(DeclarationRecordCls).filter_by(
-                                        candidate_id=cand.id
-                                    ).first()
-                                    is_new = decl is None
-                                    if decl is None:
-                                        decl = DeclarationRecordCls(candidate_id=cand.id)
-                                        s.add(decl)
-                                    if hasattr(decl, "legal_name") and not (decl.legal_name or "").strip():
-                                        decl.legal_name = signer_name or cand.name or ""
-                                    if hasattr(decl, "signed_date"):
-                                        decl.signed_date = datetime.datetime.utcnow()
-                                    if hasattr(decl, "signable_envelope_id"):
-                                        decl.signable_envelope_id = envelope_fp
-                                    upsert_outcome = f"DeclarationRecord {'inserted' if is_new else 'updated'} (id={decl.id})"
-                            elif doc_label == "Secondary Job Declaration":
-                                upsert_outcome = "Candidate.secondary_job_declaration_signed flipped"
-                            elif is_emp_ref:
-                                upsert_outcome = "Candidate.employment_ref_declaration_signed flipped"
-                        except Exception as upsert_exc:
-                            current_app.logger.warning(
-                                "webhook upsert failed for %s / cand %s: %s",
-                                doc_label, cand.id, upsert_exc,
-                            )
-                            upsert_outcome = f"exception: {upsert_exc}"
+                        # Delegate to the shared helper so the webhook AND the
+                        # staff manual-link AND replay all use one upsert path.
+                        # The helper handles: emp-ref flag, secondary-job flag,
+                        # ConsentRecord upsert, DeclarationRecord upsert +
+                        # positional Yes/No dropdown mapping.
+                        upsert_outcome = _apply_widget_signing(
+                            s, cand, doc_label, signer_name, envelope_fp,
+                            ip_address=(request.remote_addr or ""),
+                            envelope_fields=fields_list,
+                        )
 
                         # Success breadcrumb — visible on /admin/webhook-events
                         # in its own session so it's durable even if the outer
