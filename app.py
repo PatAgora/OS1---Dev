@@ -2121,6 +2121,7 @@ def staff_set_company_email(cand_id: int):
     Creates the row if the candidate hasn't filled out the portal form yet
     so the email can be captured independently."""
     email_raw = (request.form.get("contact_email") or "").strip()
+    email_lower = email_raw.lower()
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
@@ -2128,14 +2129,30 @@ def staff_set_company_email(cand_id: int):
         try:
             from associate_portal import _portal_model as _pm
             CompanyDetailsCls = _pm("CompanyDetails")
-            if CompanyDetailsCls is None:
-                flash("Company details model not available.", "danger")
-                return redirect(url_for("candidate_profile", cand_id=cand_id))
-            comp = s.query(CompanyDetailsCls).filter_by(candidate_id=cand_id).first()
-            if comp is None:
-                comp = CompanyDetailsCls(candidate_id=cand_id)
-                s.add(comp)
-            comp.contact_email = email_raw.lower()
+            if CompanyDetailsCls is not None:
+                comp = s.query(CompanyDetailsCls).filter_by(candidate_id=cand_id).first()
+                if comp is None:
+                    comp = CompanyDetailsCls(candidate_id=cand_id)
+                    s.add(comp)
+                comp.contact_email = email_lower
+            else:
+                # Partial-init fallback: class not registered on this
+                # worker. UPSERT directly against company_details.
+                existing = s.execute(
+                    text("SELECT id FROM company_details WHERE candidate_id = :cid"),
+                    {"cid": cand_id},
+                ).first()
+                if existing:
+                    s.execute(text(
+                        "UPDATE company_details SET contact_email = :email, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE candidate_id = :cid"
+                    ), {"email": email_lower, "cid": cand_id})
+                else:
+                    s.execute(text(
+                        "INSERT INTO company_details (candidate_id, contact_email, "
+                        "created_at, updated_at) VALUES "
+                        "(:cid, :email, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ), {"cid": cand_id, "email": email_lower})
             user_email = getattr(current_user, "email", "staff") or "staff"
             s.add(CandidateNote(
                 candidate_id=cand_id,
