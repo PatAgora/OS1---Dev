@@ -1297,14 +1297,20 @@
       renderAssociateList(currentModalAssociates);
       return;
     }
-    // First pass: tile-specific matches (Left to Fill, Scheduled etc.).
+    // First pass: tile-specific matches.
     const localMatches = currentModalAssociates.filter(a => {
       const name = (a.name || '').toLowerCase();
       const role = (a.role || '').toLowerCase();
       return name.includes(query) || role.includes(query);
     });
-    // Second pass: anyone else in the DB, deduped by id, for staff
-    // who just want to locate any associate by name from this view.
+    // Second pass: wider pool fallback only applies to the Left to
+    // Fill tile. Strict tiles (On Contract / Scheduled Starters /
+    // Vetting Complete / Target) must never surface candidates who
+    // aren't actually in that bucket.
+    if (currentModalType !== 'left_to_fill') {
+      renderAssociateList(localMatches);
+      return;
+    }
     const localIds = new Set(localMatches.map(a => a.id));
     const widerMatches = allCandidatesSlim.filter(a => {
       if (localIds.has(a.id)) return false;
