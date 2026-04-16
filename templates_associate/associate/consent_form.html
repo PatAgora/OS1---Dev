@@ -90,21 +90,21 @@
         <h3><i class="fas fa-file-signature me-2"></i>Consent Form — E-Signature</h3>
     </div>
     <div class="portal-card-body p-0">
-        <div class="alert alert-warning m-3 mb-0" role="alert" style="border-radius:8px;">
-            <div class="fw-bold mb-2">
+        <div class="alert alert-warning m-3 mb-0" role="alert" style="border-radius:8px; display:flex; flex-direction:column; gap:0.45rem; align-items:flex-start;">
+            <p class="fw-bold mb-0" style="width:100%;">
                 <i class="fas fa-exclamation-triangle me-2"></i>Important
-            </div>
-            <div class="mb-1">
+            </p>
+            <p class="mb-0" style="width:100%;">
                 The full name you enter in the signing form below must <u>exactly match</u> the name on your Associate Portal profile.
-            </div>
+            </p>
             {% if portal_name %}
-            <div class="mb-1">
+            <p class="mb-0" style="width:100%;">
                 Your Portal profile name: <strong>{{ portal_name }}</strong>
-            </div>
+            </p>
             {% endif %}
-            <div class="mb-0">
+            <p class="mb-0" style="width:100%;">
                 If the names don't match, the portal will not register your signature automatically.
-            </div>
+            </p>
         </div>
         <iframe src="{{ signable_consent_widget_url }}" frameborder="0" style="border:0; width:100%; height:100vh;" scrolling="yes"></iframe>
     </div>
