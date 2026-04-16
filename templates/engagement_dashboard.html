@@ -1275,7 +1275,8 @@
   }
   
   function filterAssociates() {
-    const query = (document.getElementById('associateSearch').value || '').toLowerCase().trim();
+    const input = document.getElementById('associateSearch');
+    const query = (input && input.value ? input.value : '').toLowerCase().trim();
     const items = document.querySelectorAll('#associateList .associate-item');
 
     items.forEach(item => {
@@ -1293,15 +1294,22 @@
     });
   }
 
-  // Attach the search handler programmatically. CSP blocks inline
-  // oninput="..." attributes under nonce-based script-src, so the
-  // attribute form was silently ignored.
-  document.addEventListener('DOMContentLoaded', function () {
+  // Wire the search listener. The <script> block is placed after the
+  // modal HTML, so the input element already exists in the DOM by the
+  // time this runs. We attach directly (no DOMContentLoaded wait) and
+  // cover both input + keyup events to catch every platform quirk.
+  (function wireAssociateSearch() {
     const searchInput = document.getElementById('associateSearch');
-    if (searchInput) {
-      searchInput.addEventListener('input', filterAssociates);
+    if (!searchInput) {
+      console.warn('[search] #associateSearch not found at script runtime');
+      return;
     }
-  });
+    searchInput.addEventListener('input', filterAssociates);
+    searchInput.addEventListener('keyup', filterAssociates);
+    // Also re-filter whenever the modal opens, in case the list
+    // changed underneath a previously-typed query.
+    window.__associateSearchWired = true;
+  })();
   
   function toggleAssociateSelection(id, checkbox) {
     if (checkbox.checked) {
