@@ -1765,6 +1765,32 @@ def consent_form():
                 consent = s.query(ConsentRecord).filter_by(candidate_id=cand_id).order_by(
                     ConsentRecord.created_at.desc()
                 ).first()
+
+                # Self-heal: if no ConsentRecord exists but a Signable webhook
+                # has previously logged "Consent Form signed via Signable" for
+                # this candidate, create the record retroactively so the
+                # completion calc and "already signed" view both reflect it.
+                if consent is None:
+                    CandidateNote = _model("CandidateNote")
+                    Candidate = _model("Candidate")
+                    if CandidateNote and Candidate:
+                        signed_note = s.query(CandidateNote).filter(
+                            CandidateNote.candidate_id == cand_id,
+                            CandidateNote.user_email == "Signable",
+                            CandidateNote.content.ilike("%Consent Form signed via Signable%"),
+                        ).order_by(CandidateNote.created_at.desc()).first()
+                        if signed_note:
+                            cand = s.get(Candidate, cand_id)
+                            consent = ConsentRecord(
+                                candidate_id=cand_id,
+                                consent_given=True,
+                                signed_date=signed_note.created_at or datetime.utcnow(),
+                                legal_name=(getattr(cand, "name", None) or ""),
+                                ip_address="",
+                            )
+                            s.add(consent)
+                            s.commit()
+
                 reference_consent = getattr(consent, "reference_consent", False) if consent else False
                 return render_template(
                     "associate/consent_form.html",

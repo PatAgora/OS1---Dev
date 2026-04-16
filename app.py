@@ -12590,6 +12590,15 @@ def webhook_esign():
                         doc_label = envelope_title or "Signable Document"
                         is_emp_ref = False
 
+                    # Try to pull a signer name from the Signable parties list
+                    signer_name = ""
+                    if isinstance(parties, list):
+                        for party in parties:
+                            if isinstance(party, dict):
+                                signer_name = (party.get("party_name") or "").strip()
+                                if signer_name:
+                                    break
+
                     if signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
@@ -12599,6 +12608,50 @@ def webhook_esign():
                             if is_emp_ref:
                                 cand.employment_ref_declaration_signed = True
                                 cand.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
+
+                            # Upsert the record that the Associate Portal's
+                            # completion calc reads. Without this, widget-based
+                            # signings leave the portal at 0% and re-show the
+                            # iframe on next visit.
+                            try:
+                                from associate_portal import _portal_model as _pm
+                                if doc_label == "Consent Form":
+                                    ConsentRecordCls = _pm("ConsentRecord")
+                                    if ConsentRecordCls is not None:
+                                        consent = s.query(ConsentRecordCls).filter_by(
+                                            candidate_id=cand.id
+                                        ).first()
+                                        if consent is None:
+                                            consent = ConsentRecordCls(candidate_id=cand.id)
+                                            s.add(consent)
+                                        consent.consent_given = True
+                                        consent.signed_date = datetime.datetime.utcnow()
+                                        if not (consent.legal_name or "").strip():
+                                            consent.legal_name = signer_name or cand.name or ""
+                                        if hasattr(consent, "signable_envelope_id"):
+                                            consent.signable_envelope_id = envelope_fp
+                                        if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
+                                            consent.ip_address = request.remote_addr or ""
+                                elif doc_label == "Declaration Form":
+                                    DeclarationRecordCls = _pm("DeclarationRecord")
+                                    if DeclarationRecordCls is not None:
+                                        decl = s.query(DeclarationRecordCls).filter_by(
+                                            candidate_id=cand.id
+                                        ).first()
+                                        if decl is None:
+                                            decl = DeclarationRecordCls(candidate_id=cand.id)
+                                            s.add(decl)
+                                        if hasattr(decl, "legal_name") and not (decl.legal_name or "").strip():
+                                            decl.legal_name = signer_name or cand.name or ""
+                                        if hasattr(decl, "signed_date"):
+                                            decl.signed_date = datetime.datetime.utcnow()
+                                        if hasattr(decl, "signable_envelope_id"):
+                                            decl.signable_envelope_id = envelope_fp
+                            except Exception as upsert_exc:
+                                current_app.logger.warning(
+                                    "webhook upsert failed for %s / cand %s: %s",
+                                    doc_label, cand.id, upsert_exc,
+                                )
 
                             # Activity note for ALL signed documents
                             s.add(CandidateNote(
