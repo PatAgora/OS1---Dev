@@ -4480,6 +4480,21 @@ try:
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN employment_ref_declaration_signed_at TIMESTAMP",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
+            # Migration 010 — DBS vetting criteria on jobs. Must run under
+            # Gunicorn (not just `python app.py`), so it lives here rather
+            # than in ensure_schema().
+            "ALTER TABLE jobs ADD COLUMN dbs_level VARCHAR(20) DEFAULT 'Basic'",
+            "ALTER TABLE jobs ADD COLUMN dbs_sector VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE jobs ADD COLUMN dbs_purpose VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE jobs ADD COLUMN dbs_position_applied_for VARCHAR(60) DEFAULT ''",
+            "ALTER TABLE jobs ADD COLUMN dbs_employer_name VARCHAR(60) DEFAULT ''",
+            "ALTER TABLE jobs ADD COLUMN dbs_job_role VARCHAR(200) DEFAULT ''",
+            "ALTER TABLE jobs ADD COLUMN dbs_working_with_children BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN dbs_working_with_vulnerable_adults BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN dbs_children_in_environment BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN dbs_vulnerable_adults_in_environment BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN dbs_is_volunteer BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN dbs_working_from_home BOOLEAN DEFAULT FALSE",
         ]:
             try:
                 _mc.execute(text(_stmt))
