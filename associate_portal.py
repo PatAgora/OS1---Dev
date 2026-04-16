@@ -1960,6 +1960,48 @@ def consent_form():
         return redirect(url_for("associate.consent_form"))
 
 
+@associate_bp.route("/consent-form/mark-signed", methods=["POST"])
+@_require_login
+def consent_mark_signed():
+    """Associate-triggered fallback when the Signable webhook hasn't reached
+    us (webhook misconfigured, delayed, or the envelope was signed outside
+    the embedded widget). Creates or updates a ConsentRecord so the portal
+    and completion calc reflect the signing immediately."""
+    ConsentRecord = _portal_model("ConsentRecord")
+    Candidate = _model("Candidate")
+    if ConsentRecord is None:
+        flash("Consent record model not available — cannot mark as signed.", "danger")
+        return redirect(url_for("associate.consent_form"))
+    cand_id = _get_associate_id()
+    engine = _engine()
+    try:
+        with SASession(engine) as s:
+            consent = s.query(ConsentRecord).filter_by(candidate_id=cand_id).first()
+            if consent is None:
+                consent = ConsentRecord(candidate_id=cand_id)
+                s.add(consent)
+            consent.consent_given = True
+            consent.signed_date = datetime.utcnow()
+            if not (consent.legal_name or "").strip():
+                cand = s.get(Candidate, cand_id) if Candidate else None
+                consent.legal_name = (getattr(cand, "name", None) or "").strip()
+            if hasattr(consent, "ip_address") and not (consent.ip_address or ""):
+                consent.ip_address = request.remote_addr or ""
+            _add_note(
+                s, cand_id,
+                "Consent form marked as signed by the candidate "
+                "(Signable widget manual confirmation).",
+            )
+            s.commit()
+        flash("Consent form marked as signed. Thank you.", "success")
+    except Exception:
+        current_app.logger.exception(
+            "consent_mark_signed failed for candidate %s", cand_id
+        )
+        flash("Could not mark consent as signed. Please try again.", "danger")
+    return redirect(url_for("associate.consent_form"))
+
+
 @associate_bp.route("/declaration")
 @_require_login
 def declaration_redirect():
