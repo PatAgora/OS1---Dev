@@ -2678,9 +2678,23 @@ def admin_portal_user_delete(cand_id: int):
             except Exception:
                 pass
 
-            # Portal tables
-            for tbl in ['associate_profiles', 'employment_history', 'consent_records',
-                        'declaration_records', 'qualification_records', 'address_history']:
+            # Portal tables — every table that has a candidate_id FK must be
+            # cleared before the Candidate row itself can be deleted.
+            # Missing one here surfaces as a Postgres ForeignKeyViolation.
+            for tbl in [
+                'associate_profiles',
+                'company_details',
+                'employment_history',
+                'consent_records',
+                'declaration_records',
+                'qualification_records',
+                'professional_registrations',
+                'reference_contacts',
+                'address_history',
+                'timesheet_configs',
+                'timesheet_entries',
+                'timesheet_expenses',
+            ]:
                 try:
                     s.execute(text(f"DELETE FROM {tbl} WHERE candidate_id = :cid"), {"cid": cand_id})
                 except Exception:
