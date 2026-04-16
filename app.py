@@ -5167,16 +5167,37 @@ def _rebuild_ai_summary_and_tags(s, cand, doc=None, job=None, appn=None):
         except Exception:
             cv_text = ""
 
-    # Generate summary — only from actual CV text, never fabricate
+    # Generate summary + (optional) AI score in PARALLEL — both are Gemini
+    # network calls, each ~3-5s; serialising them used to push the total
+    # past 10s. Thread pool submits them at once so total ≈ max(summary,
+    # score) instead of sum.
+    summary = "Unable to retrieve information from CV."
+    ai_score_result = None  # Filled in below if job provided
+    gemini_model_configured = get_gemini_model() is not None
+
     if not cv_text:
-        summary = "Unable to retrieve information from CV."
         print(f"[AI] No CV text extracted for candidate {cand.id} ({cand.name})")
     else:
-        try:
-            summary = ai_summarise(cv_text)
-        except Exception as e:
-            summary = "Unable to retrieve information from CV."
-            current_app.logger.exception("ai_summarise failed: %s", e)
+        from concurrent.futures import ThreadPoolExecutor
+        scoring_text = cv_text or (cand.skills or "")
+        with ThreadPoolExecutor(max_workers=2) as _pool:
+            summary_future = _pool.submit(ai_summarise, cv_text)
+            score_future = None
+            if job and gemini_model_configured:
+                score_future = _pool.submit(
+                    ai_score_with_explanation, job.description or "", scoring_text
+                )
+            try:
+                summary = summary_future.result() or "Unable to retrieve information from CV."
+            except Exception as e:
+                summary = "Unable to retrieve information from CV."
+                current_app.logger.exception("ai_summarise failed: %s", e)
+            if score_future is not None:
+                try:
+                    ai_score_result = score_future.result()
+                except Exception as e:
+                    current_app.logger.exception("ai_score_with_explanation failed: %s", e)
+                    ai_score_result = None
 
     # Choose target application
     target_app = appn
@@ -5232,43 +5253,42 @@ def _rebuild_ai_summary_and_tags(s, cand, doc=None, job=None, appn=None):
     except Exception as e:
         current_app.logger.warning("retagging failed: %s", e)
 
-    # Optional AI score if a Job provided
+    # Apply AI score if a Job was provided. ai_score_result was computed in
+    # parallel with the summary above; we only do a heuristic fallback here
+    # if the Gemini path didn't return or isn't configured.
     if job and target_app:
-        model = get_gemini_model()
-        if not model:
-            current_app.logger.warning("⚠️  Gemini API key not configured - skipping AI scoring for job %s", job.id)
-            # Use heuristic scoring as fallback
+        if ai_score_result is not None:
+            target_app.ai_score = int(ai_score_result.get("final", 0) or 0)
+            target_app.ai_explanation = (ai_score_result.get("explanation") or "")[:7999]
+            current_app.logger.info(
+                "✓ AI Score: %d/100 (Gemini: %d, Heuristic: %d)",
+                target_app.ai_score,
+                ai_score_result.get("gemini", 0),
+                ai_score_result.get("heuristic", 0),
+            )
+        else:
+            # Either Gemini is not configured or the Gemini call raised —
+            # fall back to keyword-overlap heuristic so the app has some
+            # signal rather than nothing.
             try:
                 heur = _heuristic_components(job.description or "", cv_text or (cand.skills or ""))
                 target_app.ai_score = int(heur.get("score", 0))
                 overlaps = heur.get("overlap", [])
                 top_matches = ", ".join(sorted(overlaps)[:5]) if overlaps else "none"
-                target_app.ai_explanation = f"Keyword matching score (Configure GEMINI_API_KEY for AI-powered scoring). Top matches: {top_matches}"
+                if not gemini_model_configured:
+                    target_app.ai_explanation = (
+                        f"Keyword matching score (Configure GEMINI_API_KEY for AI-powered scoring). "
+                        f"Top matches: {top_matches}"
+                    )
+                else:
+                    target_app.ai_explanation = (
+                        f"AI scoring failed, using keyword matching: {heur.get('score', 0)}/100"
+                    )
                 current_app.logger.info("✓ Using heuristic scoring: %d/100", target_app.ai_score)
             except Exception as e:
                 current_app.logger.warning("Heuristic scoring failed: %s", e)
                 target_app.ai_score = 0
                 target_app.ai_explanation = "Scoring unavailable"
-        else:
-            try:
-                current_app.logger.info("🤖 Computing AI score for candidate %s on job %s", cand.id, job.id)
-                result = ai_score_with_explanation(job.description or "", cv_text or (cand.skills or ""))
-                target_app.ai_score = int(result.get("final", 0) or 0)
-                target_app.ai_explanation = (result.get("explanation") or "")[:7999]
-                current_app.logger.info("✓ AI Score: %d/100 (Gemini: %d, Heuristic: %d)",
-                                      target_app.ai_score,
-                                      result.get("gemini", 0),
-                                      result.get("heuristic", 0))
-            except Exception as e:
-                current_app.logger.exception("❌ ai_score_with_explanation failed: %s", e)
-                # Fallback to heuristic
-                try:
-                    heur = _heuristic_components(job.description or "", cv_text or (cand.skills or ""))
-                    target_app.ai_score = int(heur.get("score", 0))
-                    target_app.ai_explanation = f"AI scoring failed, using keyword matching: {heur.get('score', 0)}/100"
-                except Exception:
-                    target_app.ai_score = 0
-                    target_app.ai_explanation = "Scoring failed"
 
 def parse_date_dmy(s: Optional[str]):
     if not s:
@@ -5543,29 +5563,24 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""Write a short CV summary for a UK recruiter. Focus only on the
-candidate's most recent 1-2 years of work. Ignore older roles unless nothing
-else is available.
+            prompt = f"""Summarise the CV below for a UK recruiter as a single
+flowing paragraph (no bullets, no headings, no markdown).
 
-Output exactly four hyphen-prefixed bullets. Each bullet must contain a real
-fact from the CV. Never quote, paraphrase, or echo the instructions below.
+Focus on the candidate's most recent 1-2 years of work. Ignore older roles
+unless nothing else is available.
 
-Example of the required style (for a made-up candidate, do NOT copy this text):
-- Head of Compliance at ACME Bank, since Mar 2023 (2 yrs).
-- Leading a team of 12 on CDD/EDD remediation and SAR reporting uplift.
-- FCA CASS and AML specialisms; delivered £2m cost-out programme.
-- None.
-
-Bullet order for THIS candidate:
-1. Current or most recent role, employer, and tenure.
-2. One or two short lines on what they have been doing day-to-day in the last 1-2 years.
-3. Up to three headline achievements, sectors, or regulatory/technical specialisms from that window.
-4. Any concerns (very short tenure, employment gap, contract ending). Write "None" if there are none.
+Cover, in this order, weaving them into the paragraph naturally:
+1. Their current or most recent role, employer, and tenure (or start date).
+2. What they have actually been doing day-to-day in the last 1-2 years.
+3. Headline achievements, sectors they operate in, and any regulatory or
+   technical specialisms visible from this window.
+4. Any concerns (very short tenure, employment gap, contract ending).
 
 Hard rules:
-- Total length under 120 words.
-- Only use facts that appear in the CV. Do not invent.
-- Do not restate or echo these instructions in the output.
+- Output a paragraph of 3-5 full sentences, around 90-110 words total.
+- Only state facts that appear in the CV. Do not invent or infer.
+- Do not use bullet characters, hyphens, numbered lists, or markdown.
+- Do not restate, quote, or echo the instructions above.
 - If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
 {jd_section}
 CV:
@@ -5573,7 +5588,9 @@ CV:
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                max_output_tokens=500,
+                # 800 tokens is ~600 words of headroom so a 110-word summary
+                # cannot be cut off mid-sentence (as happened at "Jun 20").
+                max_output_tokens=800,
                 temperature=0.2,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
