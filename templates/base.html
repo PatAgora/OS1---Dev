@@ -461,6 +461,12 @@
             <i class="fas fa-clipboard-list"></i><span>Audit Log</span>
           </a>
           {% endif %}
+          {% if view_exists('admin_webhook_events') %}
+          <a href="{{ url_for('admin_webhook_events') }}"
+             class="{% if request.endpoint == 'admin_webhook_events' %}active{% endif %}">
+            <i class="fas fa-satellite-dish"></i><span>Webhook Events</span>
+          </a>
+          {% endif %}
           {% if view_exists('taxonomy_manage') or view_exists('taxonomy') %}
           <a href="{{ url_for('taxonomy_manage') if view_exists('taxonomy_manage') else url_for('taxonomy') }}"
              class="{% if request.endpoint in [
