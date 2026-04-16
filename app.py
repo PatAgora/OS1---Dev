@@ -12718,7 +12718,17 @@ def webhook_esign():
             payload = {}
 
     content_type = request.headers.get("Content-Type", "")
-    event_type_raw = (payload.get("event") if isinstance(payload, dict) else None) or "unknown"
+    # Signable uses `action`; JSON fallback may use `event`. Prefer whichever
+    # is populated so the admin page shows something meaningful rather than
+    # "unknown" for every real delivery.
+    event_type_raw = "unknown"
+    if isinstance(payload, dict):
+        event_type_raw = (
+            payload.get("action")
+            or payload.get("event")
+            or payload.get("envelope_status")
+            or "unknown"
+        )
 
     # Persist the diagnostic row in its OWN session so a commit here is
     # durable regardless of what downstream processing does. Without this
@@ -12905,19 +12915,81 @@ def webhook_esign():
                         signer_name = envelope_title.rsplit(" - ", 1)[-1].strip()
 
                     # Find the candidate. Prefer email match if we have one;
-                    # otherwise fall back to exact name match (Signable's
-                    # form-encoded widget payload carries no email).
+                    # otherwise fall back to exact, then fuzzy name match
+                    # (Signable's form-encoded widget payload carries no
+                    # email).
                     cand = None
+                    match_reason = ""
                     if signer_email:
                         cand = s.scalar(
                             select(Candidate).where(func.lower(Candidate.email) == signer_email)
                         )
+                        if cand:
+                            match_reason = f"email={signer_email}"
                     if cand is None and signer_name:
                         cand = s.scalar(
                             select(Candidate).where(
                                 func.lower(Candidate.name) == signer_name.lower()
                             )
                         )
+                        if cand:
+                            match_reason = f"exact name={signer_name}"
+                    if cand is None and signer_name:
+                        # Fuzzy: any candidate whose name contains the signer
+                        # or the signer contains their name. Picks the most
+                        # recently-active candidate if several hit.
+                        like = f"%{signer_name.lower()}%"
+                        cand = s.scalar(
+                            select(Candidate)
+                            .where(func.lower(Candidate.name).like(like))
+                            .order_by(Candidate.id.desc())
+                        )
+                        if cand is None:
+                            # Try splitting — first/last name contains
+                            parts = [p for p in signer_name.lower().split() if len(p) > 1]
+                            if parts:
+                                last = parts[-1]
+                                cand = s.scalar(
+                                    select(Candidate)
+                                    .where(func.lower(Candidate.name).like(f"%{last}%"))
+                                    .order_by(Candidate.id.desc())
+                                )
+                                if cand:
+                                    match_reason = f"fuzzy (last-name token '{last}') matched {cand.name!r}"
+                        else:
+                            match_reason = f"fuzzy (contains '{signer_name}') matched {cand.name!r}"
+
+                    # Always drop a WebhookEvent-style breadcrumb saying what
+                    # we did (or didn't). Invaluable for diagnosing portal
+                    # "still not updated" reports.
+                    try:
+                        current_app.logger.info(
+                            "webhook widget signing | doc=%s | signer_name=%r | signer_email=%r | matched=%s | reason=%s",
+                            doc_label, signer_name, signer_email,
+                            bool(cand), match_reason or "no match",
+                        )
+                    except Exception:
+                        pass
+                    if cand is None:
+                        # Record unmatched widget signings so the admin page
+                        # can expose them even when no candidate got updated.
+                        try:
+                            with Session(engine) as _ns:
+                                _ns.add(WebhookEvent(
+                                    source="esign",
+                                    event_type="unmatched-widget-signing",
+                                    payload=json.dumps({
+                                        "doc_label": doc_label,
+                                        "envelope_title": envelope_title,
+                                        "envelope_fingerprint": envelope_fp,
+                                        "signer_name": signer_name,
+                                        "signer_email": signer_email,
+                                        "hint": "No Candidate row matched. Check name spelling in the DB vs Signable field.",
+                                    })[:39999],
+                                ))
+                                _ns.commit()
+                        except Exception:
+                            current_app.logger.exception("failed to log unmatched signing")
 
                     if cand:
                         # Stash the effective identifier for logging.
