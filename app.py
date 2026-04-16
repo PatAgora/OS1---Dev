@@ -2113,6 +2113,121 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
 
 
+@app.route("/action/umbrella-contract/<int:cand_id>", methods=["POST"])
+@login_required
+def send_umbrella_contract(cand_id: int):
+    """Email the umbrella company a Signable link to sign the assignment
+    schedule. Currently scoped to Paystream — template URL comes from
+    SIGNABLE_PAYSTREAM_WIDGET_URL. Extend with a mapping dict if more
+    umbrella-specific templates get added later."""
+    umbrella_templates = {
+        "paystream": os.getenv(
+            "SIGNABLE_PAYSTREAM_WIDGET_URL",
+            "https://sign.signable.app/#/widget/dfSRsWJ5DF",
+        ),
+    }
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        # Resolve umbrella name + contact email via raw SQL (tolerant of
+        # partial ORM init state).
+        row = s.execute(text(
+            "SELECT contracting_type, umbrella_company_name, contact_email "
+            "FROM company_details WHERE candidate_id = :cid"
+        ).bindparams(cid=cand_id)).first()
+        if row is None:
+            flash("This candidate has no contracting entity details yet.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        if (row.contracting_type or "").lower() != "umbrella":
+            flash("Candidate's contracting type is not umbrella — no umbrella contract to send.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        umbrella_name = (row.umbrella_company_name or "").strip()
+        umbrella_email = (row.contact_email or "").strip()
+        if not umbrella_name:
+            flash("Umbrella company not selected on the Associate Portal.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        if not umbrella_email:
+            flash("Umbrella contact email is missing — set it on the Umbrella / Company Details tile first.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        umbrella_key = None
+        for key in umbrella_templates:
+            if key in umbrella_name.lower():
+                umbrella_key = key
+                break
+        if umbrella_key is None:
+            flash(
+                f"No Signable template is configured for the umbrella '{umbrella_name}'. "
+                "Only Paystream is wired up today.",
+                "warning",
+            )
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        widget_url = umbrella_templates[umbrella_key]
+
+        # Pull the latest application context for the email body.
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+        role_label = (getattr(job, "title", "") or "").strip() or "Optimus assignment"
+        eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+        eng_name = (getattr(eng, "name", "") or "").strip() or "the engagement"
+        start_date_str = ""
+        if latest_app and getattr(latest_app, "offer_start_date", None):
+            try:
+                start_date_str = latest_app.offer_start_date.strftime("%d %b %Y")
+            except Exception:
+                start_date_str = ""
+
+        subject = f"Assignment Schedule for {cand.name or 'candidate'} — signature required"
+        html_body = f"""
+        <p>Hello,</p>
+        <p>Please use the link below to sign the Assignment Schedule for the following Optimus Solutions associate:</p>
+        <ul>
+          <li><strong>Associate:</strong> {cand.name or ''}</li>
+          <li><strong>Role:</strong> {role_label}</li>
+          <li><strong>Engagement:</strong> {eng_name}</li>
+          {f'<li><strong>Start date:</strong> {start_date_str}</li>' if start_date_str else ''}
+        </ul>
+        <p>
+          <a href="{widget_url}" style="display:inline-block;padding:10px 20px;background:#1e3a8a;color:#fff;border-radius:6px;text-decoration:none;">
+            Open Assignment Schedule
+          </a>
+        </p>
+        <p>If the button doesn't render, paste the URL below into your browser:<br>
+          <a href="{widget_url}">{widget_url}</a></p>
+        <p>Optimus Solutions will be notified automatically once the document is signed.</p>
+        <p>Thank you,<br>Optimus Solutions</p>
+        """
+
+        try:
+            send_email(umbrella_email, subject, html_body)
+        except Exception as mail_exc:
+            current_app.logger.exception("umbrella contract email failed: %s", mail_exc)
+            flash(f"Couldn't send the email: {mail_exc}", "danger")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=(
+                f"Umbrella contract sent to {umbrella_name} ({umbrella_email}) — "
+                f"Signable {umbrella_key.title()} template."
+            ),
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+        flash(f"Assignment Schedule link emailed to {umbrella_email}.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/company-details/email/<int:cand_id>", methods=["POST"])
 @login_required
 def staff_set_company_email(cand_id: int):
