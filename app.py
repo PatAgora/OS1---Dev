@@ -3073,6 +3073,21 @@ class Job(Base):
     public_token = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    # DBS vetting criteria — staff-entered, never rendered on the public advert.
+    # Fed into Verifile's /orders/candidateentry CheckSpecificData.
+    dbs_level = Column(String(20), default="Basic")  # Basic | Standard | Enhanced
+    dbs_sector = Column(String(100), default="")  # Verifile dbsemploymentsector valueset (Basic)
+    dbs_purpose = Column(String(100), default="")  # Verifile dbscheckpurpose valueset (Basic)
+    dbs_position_applied_for = Column(String(60), default="")  # max 60 per Verifile
+    dbs_employer_name = Column(String(60), default="")  # max 60 per Verifile
+    dbs_job_role = Column(String(200), default="")  # Standard/Enhanced — dbsjobroles valueset label
+    dbs_working_with_children = Column(Boolean, default=False)
+    dbs_working_with_vulnerable_adults = Column(Boolean, default=False)
+    dbs_children_in_environment = Column(Boolean, default=False)
+    dbs_vulnerable_adults_in_environment = Column(Boolean, default=False)
+    dbs_is_volunteer = Column(Boolean, default=False)
+    dbs_working_from_home = Column(Boolean, default=False)
+
     engagement = relationship("Engagement", back_populates="jobs")
     applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
 
@@ -5046,11 +5061,15 @@ def ai_score_with_explanation(job_desc: str, cv_text: str) -> Dict:
     jd_wc, completeness = _jd_completeness_words(job_desc)
     gemini_score, bullets = _gemini_score_and_rationale(job_desc, cv_text)
 
-    ai_w = 0.2 + 0.8 * completeness  # rely more on AI when JD is richer
-    heur_w = 1.0 - ai_w
-    blended = int(round(ai_w * gemini_score + heur_w * heur["score"]))
+    # Heuristic is word-overlap; with a short JD it's structurally capped
+    # (its max score is ~len(jd_words)/10 * 100). Below 25% completeness
+    # trust Gemini alone and cap the blend at 90 to reflect low JD confidence.
     if completeness < 0.25:
-        blended = min(blended, 88)  # cap if JD is extremely short
+        ai_w, heur_w = 1.0, 0.0
+        blended = min(gemini_score, 90)
+    else:
+        ai_w, heur_w = 0.7, 0.3
+        blended = int(round(ai_w * gemini_score + heur_w * heur["score"]))
 
     exp_lines = [
         f"JD length: {jd_wc} words (completeness {int(completeness*100)}%).",
@@ -5074,6 +5093,36 @@ def ai_score_with_explanation(job_desc: str, cv_text: str) -> Dict:
         "bullets": bullets,
         "explanation": explanation,
     }
+
+def _log_ai_score_activity(s, candidate_id: int, score: int, job) -> None:
+    """Write a CandidateNote activity entry capturing an AI score event.
+
+    Picked up by the candidate profile activity-feed builder so staff can
+    see when the score was computed and against which engagement+job.
+    """
+    try:
+        eng_name = ""
+        try:
+            if getattr(job, "engagement_id", None):
+                eng = s.get(Engagement, job.engagement_id)
+                eng_name = (eng.name or "").strip() if eng else ""
+        except Exception:
+            eng_name = ""
+        job_title = (getattr(job, "title", "") or "").strip() or "Untitled job"
+        label = f"{job_title} ({eng_name})" if eng_name else job_title
+        s.add(CandidateNote(
+            candidate_id=candidate_id,
+            user_email="system",
+            note_type="ai_score",
+            content=f"AI Match Score: {int(score)}/100 — {label}",
+            created_at=datetime.datetime.utcnow(),
+        ))
+    except Exception as exc:
+        try:
+            current_app.logger.warning("failed to log ai_score activity: %s", exc)
+        except Exception:
+            pass
+
 
 def _smart_truncate(txt: str, limit: int) -> str:
     """
@@ -5104,12 +5153,18 @@ JOB DESCRIPTION (score the candidate against this):
 {_truncate_for_ai(job_description, 3000)}
 
 """
-            prompt = f"""In under 100 words, summarise this CV for a recruiter:
-• Most recent role and employer
-• Years of experience and sector
-• Top 3 skills
-• Any concerns (gaps, short tenures) or "None"
-Only use facts from the CV. If unreadable, say "Unable to retrieve information from CV."
+            prompt = f"""You are summarising a CV for a recruiter. Focus on the candidate's
+**most recent 1–2 years of work only** (ignore older roles unless nothing else is recent).
+
+In under 120 words, produce four short bullets:
+• Current / most recent role + employer + start date (or tenure so far)
+• What they have actually been doing day-to-day in the last 1–2 years (2 lines max)
+• Headline achievements, sector, regulatory/technical specialisms visible in this window
+• Any concerns (very short tenure, gap, contract ending) or "None"
+
+Rules:
+- Only use facts from the CV. Do not infer or invent.
+- If the CV is unreadable or empty, reply exactly: "Unable to retrieve information from CV."
 {jd_section}
 CV:
 {text}
@@ -6444,6 +6499,8 @@ def candidate_regenerate_summary():
                         cand.ai_score = int(score) if score is not None else None
                     if hasattr(latest_app, "ai_explanation"):
                         latest_app.ai_explanation = payload.get("explanation")
+                    if score is not None:
+                        _log_ai_score_activity(s, cand.id, int(score), target_job)
                 except Exception as e:
                     current_app.logger.exception("ai_score_with_explanation failed: %s", e)
 
@@ -9482,6 +9539,9 @@ def job_new():
             salary_range = request.form.get("salary_range") or ""
             engagement_id = request.form.get("engagement_id") or None
 
+            dbs_level = request.form.get("dbs_level") or "Basic"
+            dbs_position = (request.form.get("dbs_position_applied_for") or "").strip() or title[:60]
+
             job = Job(
                 title=title,
                 role_type=role_type,
@@ -9492,6 +9552,18 @@ def job_new():
                 salary_range=salary_range,
                 engagement_id=engagement_id,
                 created_at=datetime.datetime.utcnow(),
+                dbs_level=dbs_level,
+                dbs_sector=request.form.get("dbs_sector") or "",
+                dbs_purpose=request.form.get("dbs_purpose") or "",
+                dbs_position_applied_for=dbs_position,
+                dbs_employer_name=(request.form.get("dbs_employer_name") or "").strip(),
+                dbs_job_role=(request.form.get("dbs_job_role") or "").strip(),
+                dbs_working_with_children=bool(request.form.get("dbs_working_with_children")),
+                dbs_working_with_vulnerable_adults=bool(request.form.get("dbs_working_with_vulnerable_adults")),
+                dbs_children_in_environment=bool(request.form.get("dbs_children_in_environment")),
+                dbs_vulnerable_adults_in_environment=bool(request.form.get("dbs_vulnerable_adults_in_environment")),
+                dbs_is_volunteer=bool(request.form.get("dbs_is_volunteer")),
+                dbs_working_from_home=bool(request.form.get("dbs_working_from_home")),
             )
             s.add(job)
             s.commit()
@@ -9524,6 +9596,20 @@ def job_edit(job_id):
             job.sector = request.form.get("sector") or getattr(job, 'sector', '') or ''
             job.salary_range = request.form.get("salary_range") or job.salary_range
             job.status = request.form.get("status") or job.status
+
+            job.dbs_level = request.form.get("dbs_level") or job.dbs_level or "Basic"
+            job.dbs_sector = request.form.get("dbs_sector", job.dbs_sector or "")
+            job.dbs_purpose = request.form.get("dbs_purpose", job.dbs_purpose or "")
+            job.dbs_position_applied_for = (request.form.get("dbs_position_applied_for") or "").strip() or (job.title or "")[:60]
+            job.dbs_employer_name = (request.form.get("dbs_employer_name") or "").strip()
+            job.dbs_job_role = (request.form.get("dbs_job_role") or "").strip()
+            job.dbs_working_with_children = bool(request.form.get("dbs_working_with_children"))
+            job.dbs_working_with_vulnerable_adults = bool(request.form.get("dbs_working_with_vulnerable_adults"))
+            job.dbs_children_in_environment = bool(request.form.get("dbs_children_in_environment"))
+            job.dbs_vulnerable_adults_in_environment = bool(request.form.get("dbs_vulnerable_adults_in_environment"))
+            job.dbs_is_volunteer = bool(request.form.get("dbs_is_volunteer"))
+            job.dbs_working_from_home = bool(request.form.get("dbs_working_from_home"))
+
             s.commit()
             flash("Job updated successfully.", "success")
             if job.engagement_id:
@@ -9621,6 +9707,8 @@ def apply(token):
 
             # 6️⃣ Generate AI summary/tags/score immediately
             _rebuild_ai_summary_and_tags(s, cand, doc=doc, job=job, appn=appn)
+            if appn.ai_score is not None:
+                _log_ai_score_activity(s, cand.id, appn.ai_score, job)
 
             s.commit()
             flash("Application submitted. Thank you!", "success")
@@ -10177,9 +10265,43 @@ def action_score(app_id):
         result = ai_score_with_explanation(job.description or "", cv_text)
         appn.ai_score = int(result["final"])
         appn.ai_explanation = (result.get("explanation") or "")[:7999]
+        if job and appn.ai_score is not None:
+            _log_ai_score_activity(s, appn.candidate_id, appn.ai_score, job)
         s.commit()
     flash("AI score updated", "success")
     return redirect(url_for("application_detail", app_id=app_id))
+
+
+@app.route("/action/rescore/<int:cand_id>", methods=["POST"])
+@login_required
+def action_rescore(cand_id):
+    """Rerun AI summary + score against the candidate's most recent
+    application's job, using the latest CV on file. Staff-triggered from the
+    candidate profile."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        latest_app = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        latest_job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+        if not latest_app or not latest_job:
+            flash("This candidate has no application yet, so there is no job to score against.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        try:
+            _rebuild_ai_summary_and_tags(s, cand, doc=None, job=latest_job, appn=latest_app)
+            if latest_app.ai_score is not None:
+                _log_ai_score_activity(s, cand_id, latest_app.ai_score, latest_job)
+            s.commit()
+            flash("AI summary and match score refreshed.", "success")
+        except Exception as exc:
+            s.rollback()
+            current_app.logger.exception("rescore failed: %s", exc)
+            flash("Could not refresh AI — see server logs.", "danger")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 @app.route("/action/summarise/<int:app_id>", methods=["POST"])
 @login_required
@@ -12951,6 +13073,32 @@ def candidate_profile(cand_id: int):
                     'title': 'Stage Change',
                     'timestamp': note.created_at,
                     'details': (note.content[:150] + '...') if note.content and len(note.content) > 150 else (note.content or '')
+                })
+
+            # AI score events (one per CV upload / apply / rescore)
+            score_notes = s.scalars(
+                select(CandidateNote)
+                .where(CandidateNote.candidate_id == cand_id)
+                .where(CandidateNote.note_type == "ai_score")
+                .order_by(CandidateNote.created_at.desc())
+                .limit(20)
+            ).all()
+            for note in score_notes:
+                content = note.content or ""
+                # Format: "AI Match Score: NN/100 — Job Title (Engagement)"
+                title = "AI Match Score Calculated"
+                details = content
+                if " — " in content:
+                    score_part, label_part = content.split(" — ", 1)
+                    title = score_part  # e.g. "AI Match Score: 90/100"
+                    details = label_part
+                activity_feed.append({
+                    'type': 'assessment',
+                    'icon': 'fa-robot',
+                    'color': '#0ea5e9',
+                    'title': title,
+                    'timestamp': note.created_at,
+                    'details': details,
                 })
 
             # Sort by timestamp descending
@@ -18396,9 +18544,18 @@ def candidate_upload_cv(cand_id):
             s.add(doc)
             s.flush()
 
-            # Rebuild AI summary + tags off the new CV
+            # Rebuild AI summary + tags off the new CV, and auto-score against
+            # the candidate's most recent application (if they have one).
+            latest_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand.id)
+                .order_by(Application.created_at.desc())
+            )
+            latest_job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
             try:
-                _rebuild_ai_summary_and_tags(s, cand, doc=doc, job=None, appn=None)
+                _rebuild_ai_summary_and_tags(s, cand, doc=doc, job=latest_job, appn=latest_app)
+                if latest_app and latest_job and latest_app.ai_score is not None:
+                    _log_ai_score_activity(s, cand.id, latest_app.ai_score, latest_job)
             except Exception as e:
                 current_app.logger.warning(f"Post-upload AI/retag failed for cand #{cand.id}: {e}")
 

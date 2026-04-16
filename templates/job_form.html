@@ -47,7 +47,150 @@
         </select>
       </div>
     </div>
-    <div class="mt-3 d-flex gap-2">
+
+    <hr class="my-4">
+
+    {# DBS vetting criteria — staff-only, not shown on the public job advert.
+       Mirrors Verifile /orders/candidateentry CheckSpecificData fields. #}
+    <div class="mb-2">
+      <h5 class="fw-bold mb-1">DBS Vetting Criteria</h5>
+      <p class="text-muted small mb-0">
+        Internal only — used when raising the Verifile background check.
+        This section is not displayed on the public job advert.
+      </p>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">DBS Level</label>
+        <select name="dbs_level" id="dbs_level" class="form-select">
+          {% set current_level = (job.dbs_level if job and job.dbs_level else 'Basic') %}
+          {% for lvl in ['Basic', 'Standard', 'Enhanced'] %}
+          <option value="{{ lvl }}" {{ 'selected' if current_level == lvl else '' }}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">DBS Sector</label>
+        <select name="dbs_sector" class="form-select">
+          <option value="">Select sector...</option>
+          {% set dbs_sectors = [
+            'ACADEMY EDUCATION','ACCOMMODATION AND FOOD SERVICE','ADMINISTRATIVE AND SUPPORT',
+            'AGRICULTURE, FORESTRY AND FISHING','ARTS AND ENTERTAINMENT','CENTRAL GOVERNMENT',
+            'CHILD CARE','CONSTRUCTION','DRIVERS','ENERGY AND AIR CONDITIONING',
+            'FINANCIAL AND INSURANCE','FOSTER/ADOPTION','FURTHER EDUCATION','HIGHER EDUCATION',
+            'INDEPENDENT EDUCATION','INFORMATION AND COMMUNICATION','LAW ENFORCEMENT AND SECURITY',
+            'LEISURE, SPORT AND TOURISM','LOCAL GOVERNMENT','MANUFACTURING','MINING AND QUARRYING',
+            'NHS','PRESCHOOL EDUCATION','PRIMARY EDUCATION','PRIVATE HEALTHCARE',
+            'PROFESSIONAL, TECHNICAL','PUBLIC SECTOR- OTHER','REAL ESTATE ACTIVITIES',
+            'RECRUITMENT AND HR','RETAIL','SECONDARY EDUCATION','SOCIAL CARE',
+            'TRADE OR REPAIR OF VEHICLES','TRANSPORTATION AND STORAGE','VOLUNTARY/CHARITY',
+            'WATER AND WASTE MANAGEMENT'
+          ] %}
+          {% for s in dbs_sectors %}
+          <option value="{{ s }}" {{ 'selected' if job and job.dbs_sector == s else '' }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Purpose of Check</label>
+        <select name="dbs_purpose" class="form-select">
+          {% set current_purpose = (job.dbs_purpose if job and job.dbs_purpose else 'Paid Work in UK') %}
+          {% for p in ['Paid Work in UK','Volunteering in UK','Paid Work outside UK','Volunteering outside UK'] %}
+          <option value="{{ p }}" {{ 'selected' if current_purpose == p else '' }}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Position Applied For</label>
+        <input type="text" name="dbs_position_applied_for" class="form-control"
+               maxlength="60"
+               value="{{ job.dbs_position_applied_for if job and job.dbs_position_applied_for else '' }}"
+               placeholder="As it should appear on the DBS application (max 60 chars)">
+        <div class="form-text">Leave blank to use the job title.</div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Employer Name</label>
+        <input type="text" name="dbs_employer_name" class="form-control"
+               maxlength="60"
+               value="{{ job.dbs_employer_name if job and job.dbs_employer_name else '' }}"
+               placeholder="Max 60 chars — usually the end client">
+      </div>
+
+      {# Standard / Enhanced only #}
+      <div class="col-12 dbs-std-enh" style="display:none;">
+        <label class="form-label fw-semibold">DBS Job Role</label>
+        <input type="text" name="dbs_job_role" class="form-control"
+               value="{{ job.dbs_job_role if job and job.dbs_job_role else '' }}"
+               placeholder="e.g. Nurse in General Hospital">
+        <div class="form-text">Required by DBS for Standard and Enhanced checks.</div>
+      </div>
+
+      <div class="col-12 dbs-std-enh" style="display:none;">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_working_with_children"
+                     name="dbs_working_with_children" value="1"
+                     {{ 'checked' if job and job.dbs_working_with_children else '' }}>
+              <label class="form-check-label" for="dbs_working_with_children">Working with children</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_working_with_vulnerable_adults"
+                     name="dbs_working_with_vulnerable_adults" value="1"
+                     {{ 'checked' if job and job.dbs_working_with_vulnerable_adults else '' }}>
+              <label class="form-check-label" for="dbs_working_with_vulnerable_adults">Working with vulnerable adults</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_children_in_environment"
+                     name="dbs_children_in_environment" value="1"
+                     {{ 'checked' if job and job.dbs_children_in_environment else '' }}>
+              <label class="form-check-label" for="dbs_children_in_environment">Children in work environment</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_vulnerable_adults_in_environment"
+                     name="dbs_vulnerable_adults_in_environment" value="1"
+                     {{ 'checked' if job and job.dbs_vulnerable_adults_in_environment else '' }}>
+              <label class="form-check-label" for="dbs_vulnerable_adults_in_environment">Vulnerable adults in work environment</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_is_volunteer"
+                     name="dbs_is_volunteer" value="1"
+                     {{ 'checked' if job and job.dbs_is_volunteer else '' }}>
+              <label class="form-check-label" for="dbs_is_volunteer">Volunteer position</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="dbs_working_from_home"
+                     name="dbs_working_from_home" value="1"
+                     {{ 'checked' if job and job.dbs_working_from_home else '' }}>
+              <label class="form-check-label" for="dbs_working_from_home">Working from home</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const levelSel = document.getElementById('dbs_level');
+        if (!levelSel) return;
+        const stdEnhRows = document.querySelectorAll('.dbs-std-enh');
+        function sync() {
+          const show = levelSel.value === 'Standard' || levelSel.value === 'Enhanced';
+          stdEnhRows.forEach(el => { el.style.display = show ? '' : 'none'; });
+        }
+        levelSel.addEventListener('change', sync);
+        sync();
+      })();
+    </script>
+
+    <div class="mt-4 d-flex gap-2">
       <button class="btn btn-primary">{{ 'Update' if job else 'Create' }}</button>
       <a href="{{ url_for('engagement_dashboard', eng_id=job.engagement_id) if job and job.engagement_id else url_for('projects') }}" class="btn btn-outline-secondary">Cancel</a>
     </div>

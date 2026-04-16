@@ -782,6 +782,18 @@ def _create_portal_tables():
                     conn.execute(text(col_stmt))
                 except Exception:
                     pass
+            # company_details columns added after the table was first created.
+            # Without these, existing deployments cannot persist umbrella/limited details.
+            for col_stmt in [
+                "ALTER TABLE company_details ADD COLUMN umbrella_company_name VARCHAR(300) DEFAULT ''",
+                "ALTER TABLE company_details ADD COLUMN vat_number VARCHAR(50) DEFAULT ''",
+                "ALTER TABLE company_details ADD COLUMN bank_account_number VARCHAR(20) DEFAULT ''",
+                "ALTER TABLE company_details ADD COLUMN bank_sort_code VARCHAR(10) DEFAULT ''",
+            ]:
+                try:
+                    conn.execute(text(col_stmt))
+                except Exception:
+                    pass
         current_app._associate_tables_created = True
     except Exception as exc:
         current_app.logger.warning("Could not create associate portal tables: %s", exc)
@@ -1516,26 +1528,56 @@ def upload_cv():
             s.add(doc)
             s.commit()
 
-            # Auto-generate AI summary in background thread (don't block the upload)
+            # Auto-generate AI summary + score in background (don't block upload)
             doc_id = doc.id
             def _bg_summarise(app, cand_id, doc_id):
                 with app.app_context():
                     try:
-                        from app import extract_cv_text, ai_summarise, engine as app_engine, Document as AppDoc, Candidate as AppCand
+                        from app import (
+                            extract_cv_text, ai_summarise, ai_score_with_explanation,
+                            _log_ai_score_activity, engine as app_engine,
+                            Document as AppDoc, Candidate as AppCand,
+                            Application as AppApplication, Job as AppJob,
+                        )
                         from sqlalchemy.orm import Session as BgSession
+                        from sqlalchemy import select as bg_select
                         with BgSession(app_engine) as bg_s:
                             bg_doc = bg_s.get(AppDoc, doc_id)
                             if not bg_doc:
                                 return
                             cv_text = extract_cv_text(bg_doc)
-                            if cv_text and len(cv_text.strip()) > 50:
-                                summary = ai_summarise(cv_text)
-                                if summary:
-                                    bg_cand = bg_s.get(AppCand, cand_id)
-                                    if bg_cand:
-                                        bg_cand.ai_summary = summary
-                                        bg_s.commit()
-                                        print(f"[BG] AI summary generated for candidate {cand_id}")
+                            if not cv_text or len(cv_text.strip()) <= 50:
+                                return
+
+                            summary = ai_summarise(cv_text)
+                            bg_cand = bg_s.get(AppCand, cand_id)
+                            if bg_cand and summary:
+                                bg_cand.ai_summary = summary
+
+                            # Score against candidate's most recent application
+                            latest_app = bg_s.scalar(
+                                bg_select(AppApplication)
+                                .where(AppApplication.candidate_id == cand_id)
+                                .order_by(AppApplication.created_at.desc())
+                            )
+                            latest_job = (
+                                bg_s.get(AppJob, latest_app.job_id)
+                                if latest_app and latest_app.job_id else None
+                            )
+                            if latest_app and latest_job:
+                                try:
+                                    result = ai_score_with_explanation(
+                                        latest_job.description or "",
+                                        cv_text or "",
+                                    )
+                                    latest_app.ai_score = int(result.get("final", 0) or 0)
+                                    latest_app.ai_explanation = (result.get("explanation") or "")[:7999]
+                                    _log_ai_score_activity(bg_s, cand_id, latest_app.ai_score, latest_job)
+                                except Exception as score_exc:
+                                    print(f"[BG] AI score failed for candidate {cand_id}: {score_exc}")
+
+                            bg_s.commit()
+                            print(f"[BG] AI summary/score done for candidate {cand_id}")
                     except Exception as e:
                         print(f"[BG] AI summary failed for candidate {cand_id}: {e}")
 
@@ -1609,21 +1651,31 @@ def company_details():
 
             return render_template("associate/company_details.html", company=comp, umbrella_options=umbrella_options, allow_limited=allow_limited, company_docs=company_docs)
 
+    # Diagnostic: record what the POST actually contained, so if the save
+    # silently no-ops we can see exactly why in Railway logs.
+    entity_type_raw = request.form.get("entity_type", "")
+    umbrella_raw = request.form.get("umbrella_company", "")
+    current_app.logger.info(
+        "company_details POST | cand_id=%s | CompanyDetails_resolved=%s | entity_type=%r | umbrella_company=%r",
+        cand_id, bool(CompanyDetails), entity_type_raw, umbrella_raw,
+    )
+
     with SASession(engine) as s:
         comp = s.query(CompanyDetails).filter_by(candidate_id=cand_id).first() if CompanyDetails else None
+        was_new = comp is None
         if not comp and CompanyDetails:
             comp = CompanyDetails(candidate_id=cand_id)
             s.add(comp)
 
         if comp:
-            comp.contracting_type = _sanitise(request.form.get("entity_type", ""))
+            comp.contracting_type = _sanitise(entity_type_raw)
             comp.company_name = _sanitise(request.form.get("company_name", ""))
             comp.registration_number = _sanitise(request.form.get("company_reg_number", ""))
             comp.vat_registered = request.form.get("vat_registered") == "yes"
             comp.vat_number = _sanitise(request.form.get("vat_number", ""))
             comp.bank_account_number = _sanitise(request.form.get("bank_account_number", ""))
             comp.bank_sort_code = _sanitise(request.form.get("bank_sort_code", ""))
-            comp.umbrella_company_name = _sanitise(request.form.get("umbrella_company", ""))
+            comp.umbrella_company_name = _sanitise(umbrella_raw)
 
         # Handle Ltd Co document uploads
         Document = _model("Document")
@@ -1649,9 +1701,42 @@ def company_details():
                     s.add(new_doc)
 
         _add_note(s, cand_id, "Company details updated via Associate Portal.")
-        s.commit()
+        try:
+            s.commit()
+        except Exception as exc:
+            s.rollback()
+            current_app.logger.exception("company_details save failed: %s", exc)
+            flash("We couldn't save your company details. Please try again or contact support.", "danger")
+            return redirect(url_for("associate.company_details"))
 
-    flash("Company details saved.", "success")
+        # Diagnostic: re-read the row and log what's actually persisted.
+        verify = s.query(CompanyDetails).filter_by(candidate_id=cand_id).first() if CompanyDetails else None
+        persisted_entity = getattr(verify, "contracting_type", None)
+        persisted_umbrella = getattr(verify, "umbrella_company_name", None)
+        persisted_company = getattr(verify, "company_name", None)
+        row_id = getattr(verify, "id", None)
+        current_app.logger.info(
+            "company_details POST done | cand_id=%s | was_new=%s | persisted_entity=%r | persisted_umbrella=%r | row_id=%s",
+            cand_id, was_new, persisted_entity, persisted_umbrella, row_id,
+        )
+
+    # Echo what landed in the DB so the user can spot a silent no-op without
+    # needing access to server logs. Entity and umbrella/company name come
+    # straight from the row we just verified after commit.
+    if row_id is None:
+        flash(
+            "Save attempt reached the server but no company row exists yet — "
+            "please refresh and try again, or contact support.",
+            "warning",
+        )
+    else:
+        if (persisted_entity or "").lower() == "umbrella":
+            detail = f"Umbrella = {persisted_umbrella or '(empty)'}"
+        elif (persisted_entity or "").lower() == "limited":
+            detail = f"Limited Co = {persisted_company or '(empty)'}"
+        else:
+            detail = f"Entity type = {persisted_entity or '(empty)'}"
+        flash(f"Company details saved. ({detail})", "success")
     return redirect(url_for("associate.company_details"))
 
 
