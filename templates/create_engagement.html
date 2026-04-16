@@ -83,7 +83,11 @@
         <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="document.querySelectorAll('input[name=vetting_check]').forEach(c=>c.checked=true)">Select All</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.querySelectorAll('input[name=vetting_check]').forEach(c=>c.checked=false)">Clear All</button>
       </div>
-      {{ form.vetting_requirements(type="hidden") }}
+      {# Backing field for the Python form — kept in the DOM for data
+         capture on submit but hidden from staff. #}
+      <div style="display:none;">
+        {{ form.vetting_requirements(type="hidden") }}
+      </div>
     </div>
 
     <div class="mt-4 d-flex gap-2">
