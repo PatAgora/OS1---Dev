@@ -2338,10 +2338,10 @@ def paystream_capture(cand_id: int):
 # ---------------------------------------------------------------------------
 # Signable API helpers — used by the Paystream auto-populated envelope flow.
 # ---------------------------------------------------------------------------
-SIGNABLE_API_BASE = os.getenv("SIGNABLE_API_BASE", "https://api.signable.co.uk/v1")
+SIGNABLE_API_BASE = os.getenv("SIGNABLE_API_BASE", "https://api.signable.co.uk/v1").strip().rstrip("/")
 SIGNABLE_PAYSTREAM_FINGERPRINT = os.getenv(
     "SIGNABLE_PAYSTREAM_FINGERPRINT", "d06f94de5d7de36db806bc65fd5d7016"
-)
+).strip()
 
 
 def _signable_api_call(method: str, path: str, json_body: dict | None = None) -> dict | None:
