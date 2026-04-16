@@ -2159,7 +2159,7 @@ def admin_reset_signing(cand_id: int, form_key: str):
     given form so the portal re-presents the iframe and can be tested
     end-to-end. Logs what was cleared via CandidateNote for audit."""
     form_key = (form_key or "").lower().strip()
-    allowed = {"consent", "declaration", "secondary_job"}
+    allowed = {"consent", "declaration", "secondary_job", "employment_ref"}
     if form_key not in allowed:
         flash("Unknown form key.", "danger")
         return redirect(url_for("candidate_profile", cand_id=cand_id))
@@ -2201,6 +2201,13 @@ def admin_reset_signing(cand_id: int, form_key: str):
                 if hasattr(cand, "secondary_job_signed_name"):
                     cand.secondary_job_signed_name = ""
                 cleared.append("secondary_job_declaration flags + captured fields")
+
+            elif form_key == "employment_ref":
+                if hasattr(cand, "employment_ref_declaration_signed"):
+                    cand.employment_ref_declaration_signed = False
+                if hasattr(cand, "employment_ref_declaration_signed_at"):
+                    cand.employment_ref_declaration_signed_at = None
+                cleared.append("employment_ref_declaration flags")
         except Exception:
             current_app.logger.exception("reset-signing failed")
             flash("Reset failed — see server logs.", "danger")
@@ -2258,13 +2265,30 @@ def _apply_widget_signing(s, cand, doc_label: str, signer_name: str,
         title_value = ""
         signed_name = ""
         if isinstance(_fields_sj, list):
-            # First dropdown → Yes/No on "engaging in secondary employment".
+            # Yes/No can arrive as a dropdown ("Yes"/"No") OR as two
+            # adjacent checkboxes (one for Yes, one for No; the ticked one
+            # has field_value "1", the unticked one is ""). Handle both.
+            dropdown_found = False
             for f in _fields_sj:
                 if not isinstance(f, dict):
                     continue
                 if (f.get("field_type") or "").lower() == "dropdown":
                     has_secondary = (f.get("field_value") or "").strip().lower() == "yes"
+                    dropdown_found = True
                     break
+            if not dropdown_found:
+                # Checkbox pair: assume Yes checkbox precedes No checkbox
+                # (as the form text is "☐ Yes, ... ☐ No, ..."). has_secondary
+                # is True iff the FIRST checkbox is ticked.
+                checkboxes = [
+                    (f.get("field_value") or "").strip()
+                    for f in _fields_sj
+                    if isinstance(f, dict)
+                    and (f.get("field_type") or "").lower() == "checkbox"
+                ]
+                if checkboxes:
+                    has_secondary = checkboxes[0] not in ("", "0", "false", "no")
+
             # Text fields: first non-name → job title, last name-pattern → legal name.
             import re as _re_sj
             _name_re_sj = _re_sj.compile(
@@ -13438,8 +13462,21 @@ def webhook_esign():
                     envelope_title = (payload.get("envelope_title") or payload.get("title") or "").strip()
                     title_lower = envelope_title.lower()
 
-                    # Determine document type for activity feed
-                    if "employment" in title_lower and ("reference" in title_lower or "declaration" in title_lower):
+                    # Determine document type for activity feed.
+                    # ORDER MATTERS: check for "secondary" FIRST, because a
+                    # title like "Secondary Employment Declaration" would
+                    # otherwise be caught by the generic employment +
+                    # declaration rule and mis-labelled as Employment
+                    # Reference Declaration.
+                    if "secondary" in title_lower and (
+                        "job" in title_lower or "employment" in title_lower
+                    ):
+                        doc_label = "Secondary Job Declaration"
+                        is_emp_ref = False
+                    elif "employment" in title_lower and (
+                        "reference" in title_lower
+                        or ("declaration" in title_lower and "secondary" not in title_lower)
+                    ):
                         doc_label = "Employment Reference Declaration"
                         is_emp_ref = True
                     elif "consent" in title_lower:
@@ -13447,9 +13484,6 @@ def webhook_esign():
                         is_emp_ref = False
                     elif "declaration" in title_lower:
                         doc_label = "Declaration Form"
-                        is_emp_ref = False
-                    elif "secondary" in title_lower and "job" in title_lower:
-                        doc_label = "Secondary Job Declaration"
                         is_emp_ref = False
                     else:
                         doc_label = envelope_title or "Signable Document"
