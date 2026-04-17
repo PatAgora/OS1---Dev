@@ -1658,7 +1658,7 @@ def company_details():
     ApprovedUmbrella = _model("ApprovedUmbrella")
     umbrella_options = [
         "Trafalgar Workforce Solutions Ltd",
-        "PayStream My Max 2 Ltd",
+        "Paystream",
     ]  # fallback if model not available
     if ApprovedUmbrella:
         try:

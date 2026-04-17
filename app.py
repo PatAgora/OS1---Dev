@@ -20069,7 +20069,7 @@ def taxonomy_manage():
 
     # Assignment templates — DOCX templates per umbrella company
     assignment_templates = []
-    assignment_umbrella_options = ["PayStream My Max 2 Ltd", "Trafalgar Workforce Solutions Ltd"]
+    assignment_umbrella_options = ["Paystream", "Trafalgar Workforce Solutions Ltd"]
     try:
         with Session(engine) as s_at:
             assignment_templates = s_at.scalars(
