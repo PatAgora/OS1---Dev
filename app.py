@@ -2872,15 +2872,6 @@ def offer_capture(cand_id: int):
             latest_app.offer_made_at = datetime.datetime.utcnow()
             latest_app.status = "Offered"
 
-            # Create ESigRequest with status="offered"
-            esig = ESigRequest(
-                candidate_id=cand_id,
-                application_id=latest_app.id,
-                status="offered",
-                created_at=datetime.datetime.utcnow(),
-            )
-            s.add(esig)
-
             # Activity note
             user_email = getattr(current_user, "email", "staff") or "staff"
             project_name = (request.form.get("project_name") or "").strip()
@@ -6766,6 +6757,12 @@ Optimus Compliance Team"""))
                 _mc.execute(text(_lr_col))
             except Exception:
                 pass
+
+        # Clean up "offered" ESigRequests — offers shouldn't create contract records
+        try:
+            _mc.execute(text("DELETE FROM esign_requests WHERE status = 'offered'"))
+        except Exception:
+            pass
 
         # Seed default leave reasons if table is empty
         try:

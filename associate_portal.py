@@ -3582,8 +3582,6 @@ def offer_accept(application_id):
         # the kanban does (cand.status = 'In Vetting' for the Accepted stage)
         old_status = appn.status
         appn.status = "Accepted"
-        if cand:
-            cand.status = "In Vetting"
 
         # Activity log entry on the candidate's feed (matches existing pattern)
         if CandidateNote:
