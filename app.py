@@ -20890,6 +20890,46 @@ def download_filled_assignment(cand_id, ext):
             ", ".join(sorted(filled_keys)) or "none",
         )
 
+        # Mark the contract as issued / sent so the candidate profile
+        # shows "Contract Status: sent" and the Assignment Schedule
+        # Signed tracking panel becomes active.
+        if not getattr(cand, "umbrella_assignment_sent", False):
+            cand.umbrella_assignment_sent = True
+            cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
+
+        # Create an ESigRequest so the profile's Contract tile shows
+        # a status (the profile reads contract_status from ESigRequest).
+        existing_esig = s.scalar(
+            select(ESigRequest)
+            .where(ESigRequest.candidate_id == cand_id)
+            .where(ESigRequest.status.notin_(["Retracted", "Signed", "Completed"]))
+        )
+        if not existing_esig:
+            esig = ESigRequest(
+                candidate_id=cand_id,
+                status="sent",
+                created_at=datetime.datetime.utcnow(),
+            )
+            if latest_app:
+                esig.application_id = latest_app.id
+            if eng:
+                esig.engagement_id = eng.id
+            s.add(esig)
+
+        # Update application status to reflect contract issuance
+        if latest_app and latest_app.status not in ("Contract Issued", "Contract Sent", "Contract Signed", "Hired"):
+            latest_app.status = "Contract Issued"
+
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=f"Assignment Schedule issued — filled template downloaded for {umbrella_name}.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+
         buf = io.BytesIO()
         doc.save(buf)
         buf.seek(0)
