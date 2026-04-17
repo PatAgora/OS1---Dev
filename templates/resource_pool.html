@@ -1068,57 +1068,38 @@
                 </td>
 
                 <td>
-                  {# Show pipeline status from most recent application, or candidate status if no applications #}
+                  {# Use candidate status as the single source of truth,
+                     matching what shows on the candidate profile header #}
+                  {% set cs = r.cand.status or 'Available' %}
+                  {% if cs == 'Active' or cs == 'On Assignment' %}
+                    <span class="badge bg-primary">On Assignment</span>
+                  {% elif cs == 'On Contract' %}
+                    <span class="badge bg-info">On Contract</span>
+                  {% elif cs == 'On Notice' %}
+                    <span class="badge bg-warning text-dark">On Notice</span>
+                  {% elif cs == 'In Vetting' %}
+                    <span class="badge bg-purple" style="background-color: #8b5cf6;">In Vetting</span>
+                  {% elif cs == 'Placed' %}
+                    <span class="badge bg-success">Placed</span>
+                  {% elif cs == 'Ex-Associate' %}
+                    <span class="badge bg-secondary">Ex-Associate</span>
+                  {% elif cs == 'Unavailable' %}
+                    <span class="badge bg-secondary">Unavailable</span>
+                  {% elif cs == 'DNU' or cs == 'Do Not Use' %}
+                    <span class="badge bg-danger">DNU</span>
+                  {% elif cs == 'Do Not Contact' %}
+                    <span class="badge bg-danger">Do Not Contact</span>
+                  {% elif cs == 'Available' %}
+                    <span class="badge bg-success">Available</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ cs }}</span>
+                  {% endif %}
                   {% if r.all_applications|length > 0 %}
                     {% set latest_app = r.all_applications[0] %}
-                    {% set app_status = latest_app.status %}
-                    {% if app_status == 'Declared' %}
-                      <span class="badge bg-info">Declared</span>
-                    {% elif app_status == 'Shortlist' or app_status == 'Shortlisted' %}
-                      <span class="badge bg-primary">Shortlisted</span>
-                    {% elif app_status == 'Interview' or app_status == 'Interview Scheduled' %}
-                      <span class="badge bg-warning text-dark">Interview</span>
-                    {% elif app_status == 'Vetting' %}
-                      <span class="badge bg-purple" style="background-color: #8b5cf6;">Vetting</span>
-                    {% elif app_status == 'Offer' or app_status == 'Offered' %}
-                      <span class="badge bg-orange" style="background-color: #f59e0b;">Offered</span>
-                    {% elif app_status == 'Contract Issued' or app_status == 'Contract Sent' %}
-                      <span class="badge bg-warning text-dark">Contract Issued</span>
-                    {% elif app_status == 'Hired' or app_status == 'Placed' or app_status == 'Contract Signed' %}
-                      <span class="badge bg-success">Placed</span>
-                    {% elif app_status == 'Rejected' %}
-                      <span class="badge bg-danger">Rejected</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ app_status }}</span>
-                    {% endif %}
                     <br><small class="text-muted">{{ latest_app.job_title }}</small>
                     {% if r.all_applications|length > 1 %}
                       <br><small class="text-muted">+{{ r.all_applications|length - 1 }} other role{{ 's' if r.all_applications|length > 2 else '' }}</small>
                     {% endif %}
-                  {% else %}
-                    {# No applications - show candidate availability status #}
-                    {% set status = r.cand.candidate_status or 'available' %}
-                    {% if status == 'available' %}
-                      <span class="badge bg-success">Available</span>
-                    {% elif status == 'on_assignment' %}
-                      <span class="badge bg-primary">On Assignment</span>
-                    {% elif status == 'on_notice' %}
-                      <span class="badge bg-warning text-dark">On Notice</span>
-                    {% elif status == 'unavailable' %}
-                      <span class="badge bg-secondary">Unavailable</span>
-                    {% elif status == 'do_not_contact' %}
-                      <span class="badge bg-danger">Do Not Contact</span>
-                    {% else %}
-                      <span class="badge bg-light text-dark">{{ status }}</span>
-                    {% endif %}
-                  {% endif %}
-                  
-                  {% if r.cand.available_from %}
-                    <br><small class="text-muted">From: {{ r.cand.available_from.strftime('%d %b %Y') if r.cand.available_from else '' }}</small>
-                  {% endif %}
-                  
-                  {% if r.cand.notice_period_days and r.cand.notice_period_days > 0 %}
-                    <br><small class="text-muted">{{ r.cand.notice_period_days }}d notice</small>
                   {% endif %}
                 </td>
 
