@@ -1580,48 +1580,29 @@
                   <i class="fas fa-file-signature me-1"></i> Issue Contract
                 </button>
 
-              {% elif _is_paystream %}
-                {# Paystream: capture sheet opens, then auto-sends via Signable. #}
+              {% elif _is_umbrella %}
+                {# All umbrella companies: open the capture sheet to fill
+                   assignment details → download filled DOCX template. #}
                 <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
-                   class="btn btn-sm btn-primary
-                          {% if not company_details.contact_email %}disabled{% endif %}"
-                   {% if not company_details.contact_email %}
-                     tabindex="-1" aria-disabled="true"
-                     title="Set an umbrella contact email on the Umbrella / Company Details tile first"
-                   {% endif %}>
+                   class="btn btn-sm btn-primary">
                   <i class="fas fa-file-signature me-1"></i> Issue Contract
                 </a>
                 <div class="text-muted small mt-1 text-start">
-                  Opens the Paystream Assignment Schedule capture sheet — review
-                  what OS1 already knows, fill in the remaining fields, then we'll
-                  auto-send it to the umbrella via Signable.
+                  Opens the Assignment Schedule capture sheet for
+                  <strong>{{ _umb }}</strong> — fill in the details, then
+                  download the filled template.
                 </div>
-                {% if not company_details.contact_email %}
-                <div class="text-warning small mt-1 text-start">
-                  <i class="fas fa-exclamation-triangle me-1"></i>
-                  Set an umbrella contact email on the
-                  <em>Umbrella / Company Details</em> tile first.
-                </div>
-                {% endif %}
 
               {% else %}
-                {# Non-Paystream umbrella or Limited Company — must be sent
-                   manually. Clicking Issue Contract records the sent state
-                   and flips the UI into the signed-tracking panel below. #}
+                {# Limited Company — no capture sheet, just manual send
+                   confirmation. #}
                 <div class="alert alert-warning py-2 px-2 mb-2 small text-start">
                   <i class="fas fa-exclamation-triangle me-1"></i>
                   <strong>Assignment Schedule must be sent manually.</strong><br>
-                  {% if _is_umbrella %}
-                    No Signable template is configured for <strong>{{ _umb }}</strong>.
-                    Send the Assignment Schedule to this umbrella out-of-band,
-                    then click the button below to record it as issued.
-                  {% else %}
-                    No Signable template for Limited Company
-                    {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
-                    contracts. Send the Assignment Schedule to the candidate's
-                    Ltd Co out-of-band, then click the button below to record it
-                    as issued.
-                  {% endif %}
+                  No template for Limited Company
+                  {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
+                  contracts. Send the Assignment Schedule out-of-band,
+                  then click below to record it as issued.
                 </div>
                 <form method="POST"
                       action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}"

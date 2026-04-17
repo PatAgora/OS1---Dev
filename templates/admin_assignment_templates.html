@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Assignment Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="fw-bold mb-1">Assignment Templates</h2>
+      <div class="text-muted">
+        Upload DOCX templates for each umbrella company's Assignment Schedule.
+        Use placeholders like <code>{worker_name}</code> in the document —
+        they'll be replaced with the captured values when a contract is issued.
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload form -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">
+      <i class="fas fa-upload me-1"></i> Upload new template
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin_assignment_template_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="tpl_name" class="form-label small">Template name</label>
+            <input type="text" id="tpl_name" name="name" class="form-control form-control-sm"
+                   placeholder="e.g. Paystream Assignment Schedule" required>
+          </div>
+          <div class="col-md-4">
+            <label for="tpl_umbrella" class="form-label small">Umbrella company</label>
+            <select id="tpl_umbrella" name="umbrella_company" class="form-select form-select-sm" required>
+              <option value="">— select —</option>
+              {% for umb in umbrella_options %}
+              <option value="{{ umb }}">{{ umb }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label for="tpl_file" class="form-label small">DOCX file</label>
+            <input type="file" id="tpl_file" name="template_file" class="form-control form-control-sm"
+                   accept=".docx" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mt-3">
+          <i class="fas fa-upload me-1"></i> Upload
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Placeholder reference -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">
+      <i class="fas fa-code me-1"></i> Available placeholders
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">
+        Place these exact strings in your DOCX template — they'll be replaced
+        with the candidate's captured data when the template is filled.
+      </p>
+      <div class="row">
+        <div class="col-md-4">
+          <code class="d-block small mb-1">{worker_name}</code>
+          <code class="d-block small mb-1">{position}</code>
+          <code class="d-block small mb-1">{hirer_name}</code>
+          <code class="d-block small mb-1">{start_date}</code>
+          <code class="d-block small mb-1">{end_date}</code>
+        </div>
+        <div class="col-md-4">
+          <code class="d-block small mb-1">{hours_of_work}</code>
+          <code class="d-block small mb-1">{work_location}</code>
+          <code class="d-block small mb-1">{expenses}</code>
+          <code class="d-block small mb-1">{health_safety}</code>
+          <code class="d-block small mb-1">{vulnerable_person}</code>
+        </div>
+        <div class="col-md-4">
+          <code class="d-block small mb-1">{conduct_regs}</code>
+          <code class="d-block small mb-1">{notice_agency}</code>
+          <code class="d-block small mb-1">{notice_paystream}</code>
+          <code class="d-block small mb-1">{fee}</code>
+          <code class="d-block small mb-1">{invoice_frequency}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing templates -->
+  <div class="card">
+    <div class="card-header fw-semibold">
+      <i class="fas fa-file-word me-1"></i> Uploaded templates ({{ templates|length }})
+    </div>
+    <div class="card-body p-0">
+      {% if templates %}
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Umbrella Company</th>
+            <th>File</th>
+            <th>Uploaded</th>
+            <th>By</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tpl in templates %}
+          <tr>
+            <td>{{ tpl.name }}</td>
+            <td>{{ tpl.umbrella_company }}</td>
+            <td class="small text-muted">{{ tpl.filename }}</td>
+            <td class="small">{{ tpl.uploaded_at.strftime('%d %b %Y %H:%M') if tpl.uploaded_at else '—' }}</td>
+            <td class="small text-muted">{{ tpl.uploaded_by or '—' }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('admin_assignment_template_delete', tpl_id=tpl.id) }}"
+                    onsubmit="return confirm('Delete this template?');" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center">
+        No assignment templates uploaded yet.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

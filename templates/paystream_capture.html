@@ -1,19 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Paystream Capture — {{ cand.name }}{% endblock %}
+{% block title %}Assignment Capture — {{ cand.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 pt-3 pb-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
       <h2 class="fw-bold mb-1">
-        Paystream Assignment Schedule — Capture Sheet
+        Assignment Schedule — Capture Sheet
       </h2>
       <div class="text-muted">
-        Fields below map one-to-one with the Paystream Assignment Schedule
-        template. Green = auto-populated from OS1 (editable — amend if you
-        need to), yellow = blank, needs staff input. Any amendments apply
-        to <em>this contract only</em> and won't overwrite the candidate's
-        canonical record.
+        Currently selected Umbrella is <strong>{{ umbrella_name or 'not set' }}</strong>.
+        Complete the fields below, then click <em>Save &amp; download</em> to
+        generate a filled Assignment Schedule from the template.
       </div>
     </div>
     <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
@@ -256,9 +254,8 @@
       <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
         Cancel
       </a>
-      <button type="submit" class="btn btn-primary"
-              onclick="return confirm('Save these details and email the Paystream Assignment Schedule link to {{ umbrella_email or 'the umbrella contact' }}?');">
-        <i class="fas fa-paper-plane me-1"></i> Save &amp; send to Paystream
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-download me-1"></i> Save &amp; download filled template
       </button>
     </div>
   </form>

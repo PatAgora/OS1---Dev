@@ -1,6 +1,6 @@
 import os, uuid, datetime, json, mimetypes, re, smtplib, ssl, base64, hashlib, hmac, uuid, json, re, time, requests
 from email.message import EmailMessage
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, jsonify, abort
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -2269,11 +2269,19 @@ def paystream_capture(cand_id: int):
                 created_at=datetime.datetime.utcnow(),
             ))
             s.commit()
-            # Send the Signable link to the umbrella inline — we can't
-            # redirect to the POST route because a 302 flips the method
-            # to GET. The helper flashes its own success/error message.
-            _send_umbrella_assignment_email(cand_id)
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+            # Check if a DOCX assignment template exists for this
+            # umbrella — if so, redirect to the filled download.
+            tpl_exists = s.scalar(
+                select(AssignmentTemplate.id)
+                .where(AssignmentTemplate.umbrella_company == umbrella_name)
+            )
+            if tpl_exists:
+                flash("Assignment details saved. Your filled template is downloading.", "success")
+                return redirect(url_for("download_filled_assignment", cand_id=cand_id, ext="docx"))
+            else:
+                flash("Assignment details saved. No template found for this umbrella — upload one in Admin → Assignment Templates.", "warning")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         # GET — Conduct Regs status (already captured on candidate)
         if getattr(cand, "conduct_regs_opted_in", None) is True:
@@ -4903,6 +4911,22 @@ class CandidateNote(Base):
     note_type = Column(String(50), default="note")  # note, email, activity, system
     content = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class AssignmentTemplate(Base):
+    """Uploadable DOCX templates for umbrella Assignment Schedules.
+    Staff uploads one template per umbrella company via the config page.
+    When issuing a contract the system fills placeholders like {worker_name}
+    with captured values and presents the filled document for download."""
+    __tablename__ = "assignment_templates"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(300), default="")
+    umbrella_company = Column(String(300), default="")
+    filename = Column(String(300), default="")
+    file_path = Column(String(500), default="")
+    uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)
+    uploaded_by = Column(String(200), default="")
+
 
 # ---- Gap plan Batch 5: Staff-side Reference tracking ----
 class ReferenceRequest(Base):
@@ -20529,6 +20553,167 @@ def action_request_updated_cv_candidate(cand_id):
 @app.route("/configuration", methods=["GET"])
 def configuration():
     return redirect(url_for("taxonomy_manage"), code=301)
+
+
+# ---------------------------------------------------------------------------
+# Assignment Templates — upload/manage DOCX templates per umbrella company
+# ---------------------------------------------------------------------------
+@app.route("/admin/assignment-templates", methods=["GET"])
+@login_required
+def admin_assignment_templates():
+    with Session(engine) as s:
+        templates = s.scalars(
+            select(AssignmentTemplate).order_by(AssignmentTemplate.uploaded_at.desc())
+        ).all()
+        # Pull approved umbrella list for the dropdown
+        umbrella_options = ["PayStream My Max 2 Ltd", "Trafalgar Workforce Solutions Ltd"]
+        try:
+            approved = s.scalars(
+                select(ApprovedUmbrella).where(ApprovedUmbrella.is_active == True)
+                .order_by(ApprovedUmbrella.name)
+            ).all()
+            if approved:
+                umbrella_options = [u.name for u in approved]
+        except Exception:
+            pass
+    return render_template(
+        "admin_assignment_templates.html",
+        templates=templates,
+        umbrella_options=umbrella_options,
+    )
+
+
+@app.route("/admin/assignment-templates/upload", methods=["POST"])
+@login_required
+def admin_assignment_template_upload():
+    name = (request.form.get("name") or "").strip()
+    umbrella = (request.form.get("umbrella_company") or "").strip()
+    file = request.files.get("template_file")
+
+    if not name or not umbrella:
+        flash("Template name and umbrella company are required.", "danger")
+        return redirect(url_for("admin_assignment_templates"))
+    if not file or not file.filename:
+        flash("Please select a DOCX file to upload.", "danger")
+        return redirect(url_for("admin_assignment_templates"))
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ("docx",):
+        flash("Only .docx files are supported for assignment templates.", "danger")
+        return redirect(url_for("admin_assignment_templates"))
+
+    import uuid
+    upload_dir = os.path.join("uploads", "assignment_templates")
+    os.makedirs(upload_dir, exist_ok=True)
+    safe_name = f"tpl_{uuid.uuid4().hex[:10]}.docx"
+    dest = os.path.join(upload_dir, safe_name)
+    file.save(dest)
+
+    with Session(engine) as s:
+        tpl = AssignmentTemplate(
+            name=name,
+            umbrella_company=umbrella,
+            filename=file.filename,
+            file_path=dest,
+            uploaded_at=datetime.datetime.utcnow(),
+            uploaded_by=getattr(current_user, "email", "") or "",
+        )
+        s.add(tpl)
+        s.commit()
+    flash(f"Template '{name}' uploaded for {umbrella}.", "success")
+    return redirect(url_for("admin_assignment_templates"))
+
+
+@app.route("/admin/assignment-templates/<int:tpl_id>/delete", methods=["POST"])
+@login_required
+def admin_assignment_template_delete(tpl_id):
+    with Session(engine) as s:
+        tpl = s.get(AssignmentTemplate, tpl_id)
+        if tpl:
+            try:
+                os.remove(tpl.file_path)
+            except OSError:
+                pass
+            s.delete(tpl)
+            s.commit()
+            flash(f"Template '{tpl.name}' deleted.", "success")
+        else:
+            flash("Template not found.", "warning")
+    return redirect(url_for("admin_assignment_templates"))
+
+
+@app.route("/candidate/<int:cand_id>/assignment-filled.<ext>")
+@login_required
+def download_filled_assignment(cand_id, ext):
+    """Generate a filled DOCX from the umbrella's assignment template
+    using the values captured on the capture sheet. Placeholders in the
+    template like {worker_name} are replaced with the stored values."""
+    if ext not in ("docx",):
+        abort(404)
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        cd_row = s.execute(text(
+            "SELECT umbrella_company_name FROM company_details WHERE candidate_id = :cid"
+        ).bindparams(cid=cand_id)).first()
+        umbrella_name = (getattr(cd_row, "umbrella_company_name", "") or "").strip() if cd_row else ""
+        if not umbrella_name:
+            flash("No umbrella company set.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        tpl = s.scalar(
+            select(AssignmentTemplate)
+            .where(AssignmentTemplate.umbrella_company == umbrella_name)
+            .order_by(AssignmentTemplate.uploaded_at.desc())
+        )
+        if not tpl or not os.path.isfile(tpl.file_path):
+            flash(f"No assignment template found for '{umbrella_name}'.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+        eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        if getattr(cand, "conduct_regs_opted_in", None) is True:
+            conduct_label = "Opt In"
+        elif getattr(cand, "conduct_regs_opted_in", None) is False:
+            conduct_label = "Opt Out"
+        else:
+            conduct_label = ""
+
+        vals = _build_paystream_field_values(cand, latest_app, job, eng, conduct_label) if latest_app else {}
+
+        from docx import Document as DocxDocument
+        import io
+        doc = DocxDocument(tpl.file_path)
+        for para in doc.paragraphs:
+            for key, value in vals.items():
+                placeholder = "{" + key + "}"
+                if placeholder in para.text:
+                    for run in para.runs:
+                        if placeholder in run.text:
+                            run.text = run.text.replace(placeholder, value or "")
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        for key, value in vals.items():
+                            placeholder = "{" + key + "}"
+                            if placeholder in para.text:
+                                for run in para.runs:
+                                    if placeholder in run.text:
+                                        run.text = run.text.replace(placeholder, value or "")
+
+        buf = io.BytesIO()
+        doc.save(buf)
+        buf.seek(0)
+        safe_cand = (cand.name or "candidate").replace(" ", "_")
+        download_name = f"Assignment_Schedule_{safe_cand}.docx"
+        return send_file(buf, as_attachment=True, download_name=download_name,
+                         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 @app.route("/admin/job-templates/save", methods=["POST"])
 @login_required
