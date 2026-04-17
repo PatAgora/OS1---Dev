@@ -8196,21 +8196,16 @@ def candidate_regenerate_summary():
         summary = ""
         score_payload = None
 
-        current_app.logger.info(
-            "regenerate_summary: cand=%s cv_chars=%d cv_preview=%r",
-            cand_id, len(cv_text or ""), (cv_text or "")[:300],
-        )
+        print(f"[AI-SUMMARY] cand={cand_id} cv_chars={len(cv_text or '')} cv_preview={repr((cv_text or '')[:300])}", flush=True)
 
         # Summary only — no parallel score recalculation.
         if ai_summarise:
             try:
                 summary = ai_summarise(cv_text or "") or ""
             except Exception as e:
-                current_app.logger.exception("ai_summarise failed: %s", e)
-        current_app.logger.info(
-            "regenerate_summary done: %.2fs cand=%s summary_chars=%d summary_preview=%r",
-            _time.time() - _t0, cand_id, len(summary), summary[:300],
-        )
+                print(f"[AI-SUMMARY] FAILED: {e}", flush=True)
+        elapsed = _time.time() - _t0
+        print(f"[AI-SUMMARY] done in {elapsed:.1f}s cand={cand_id} summary_chars={len(summary)} summary_preview={repr(summary[:300])}", flush=True)
 
         if latest_app and hasattr(latest_app, "ai_summary"):
             latest_app.ai_summary = summary
