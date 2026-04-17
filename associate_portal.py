@@ -4245,7 +4245,8 @@ def timesheets_new():
                 engagement_id = app.job.engagement_id
 
         # Load rates: TimesheetConfig first, then fall back to the
-        # offer day rate on the Application.
+        # assignment fee (from Issue Contract capture sheet), then
+        # offer_day_rate (from the offer).
         day_rate = 0
         overtime_rate = 0
         if engagement_id and TimesheetConfig:
@@ -4255,8 +4256,19 @@ def timesheets_new():
                 overtime_rate = config.overtime_rate or 0
         if not day_rate and Application:
             app_for_rate = s.get(Application, int(assignment_id))
-            if app_for_rate and app_for_rate.offer_day_rate:
-                day_rate = float(app_for_rate.offer_day_rate)
+            if app_for_rate:
+                # assignment_fee is a string like "£500.00 / day" — extract the number
+                fee_str = getattr(app_for_rate, "assignment_fee", "") or ""
+                if fee_str:
+                    import re
+                    nums = re.findall(r"[\d,]+\.?\d*", fee_str.replace(",", ""))
+                    if nums:
+                        try:
+                            day_rate = float(nums[0])
+                        except ValueError:
+                            pass
+                if not day_rate and app_for_rate.offer_day_rate:
+                    day_rate = float(app_for_rate.offer_day_rate)
 
         ts = Timesheet(
             user_id=cand_id,
