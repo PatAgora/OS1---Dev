@@ -1637,10 +1637,18 @@ def admin_approve_timesheet(ts_id):
 @app.route("/admin/approvals/timesheet/<int:ts_id>/reject", methods=["POST"])
 @login_required
 def admin_reject_timesheet(ts_id):
+    reason = (request.form.get("reject_reason") or "").strip()
     with Session(engine) as s:
         ts = s.get(Timesheet, ts_id)
         if ts:
             ts.status = "Rejected"
+            if reason:
+                try:
+                    s.execute(text(
+                        "UPDATE timesheets SET rejection_reason = :reason WHERE id = :tid"
+                    ).bindparams(reason=reason, tid=ts_id))
+                except Exception:
+                    pass
             s.commit()
             flash(f"Timesheet #{ts_id} rejected.", "success")
         else:
@@ -6487,6 +6495,12 @@ Optimus Compliance Team"""))
                 ) sub
                 WHERE esign_requests.id = sub.esig_id
             """))
+        except Exception:
+            pass
+
+        # Timesheet rejection reason column
+        try:
+            _mc.execute(text("ALTER TABLE timesheets ADD COLUMN rejection_reason TEXT DEFAULT ''"))
         except Exception:
             pass
 
