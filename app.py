@@ -6877,25 +6877,27 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     candidate's job history for a UK financial services recruiter."""
     _ = job_description  # intentionally unused; summary is job-agnostic
     text = _truncate_for_ai(text or "", 6000)
-    if not text:
-        return ""
+    if not text or len(text.strip()) < 50:
+        return "Unable to retrieve information from CV — text too short or missing. Try re-uploading the CV."
     model = get_gemini_model()
     if model:
         try:
-            prompt = f"""Looking at the CV below, summarise the candidate's job history into relevant and actionable insights for a UK financial services recruiter.
+            prompt = f"""You are analysing a CV. Summarise the candidate's job history into relevant and actionable insights for a UK financial services recruiter.
 
 For each role (most recent first), include:
 - Job title, employer, and dates
 - Key responsibilities and achievements
 - Relevant specialisms, regulations, or technologies
 
-Keep it concise but comprehensive. Focus on the last 3-5 years.
+Focus on the last 3-5 years. Be concise but comprehensive.
 
-If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
+IMPORTANT: Start your response directly with the first role. Do not include any preamble, introduction, or summary sentence. Do not echo these instructions.
 
-CV:
+If the text below is empty or unreadable, respond with exactly: Unable to retrieve information from CV.
+
+---
 {text}
-"""
+---"""
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
                 max_output_tokens=800,
@@ -8190,30 +8192,21 @@ def candidate_regenerate_summary():
             score_jd = _job_text(target_job)
 
         import time as _time
-        from concurrent.futures import ThreadPoolExecutor
         _t0 = _time.time()
         summary = ""
         score_payload = None
 
-        with ThreadPoolExecutor(max_workers=2) as _pool:
-            s_future = _pool.submit(ai_summarise, cv_text or "") if ai_summarise else None
-            sc_future = None
-            if target_job and ai_score_with_explanation and score_jd and (cv_text or "").strip():
-                sc_future = _pool.submit(ai_score_with_explanation, score_jd, cv_text)
-            if s_future is not None:
-                try:
-                    summary = s_future.result() or ""
-                except Exception as e:
-                    current_app.logger.exception("ai_summarise failed: %s", e)
-            if sc_future is not None:
-                try:
-                    score_payload = sc_future.result() or {}
-                except Exception as e:
-                    current_app.logger.exception("ai_score_with_explanation failed: %s", e)
-                    score_payload = None
+        # Summary only — no parallel score recalculation.
+        # "Recalculate Score" has its own button. Running both here
+        # doubled the Gemini API calls and pushed latency to 15s+.
+        if ai_summarise:
+            try:
+                summary = ai_summarise(cv_text or "") or ""
+            except Exception as e:
+                current_app.logger.exception("ai_summarise failed: %s", e)
         current_app.logger.info(
-            "regenerate_summary AI block: %.2fs cand=%s job=%s",
-            _time.time() - _t0, cand_id, getattr(target_job, "id", None),
+            "regenerate_summary AI block: %.2fs cand=%s chars=%d",
+            _time.time() - _t0, cand_id, len(cv_text or ""),
         )
 
         if latest_app and hasattr(latest_app, "ai_summary"):
