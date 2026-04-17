@@ -1742,6 +1742,8 @@ def admin_create_leave():
                 notice_start_date=_ns,
                 notice_end_date=_ne,
                 last_working_date=_ne,
+                start_date=_ns or datetime.date.today(),
+                end_date=_ne or datetime.date.today(),
                 notes=notes,
                 status="Pending",
                 created_by=getattr(current_user, "email", "") or "staff",
@@ -1752,14 +1754,15 @@ def admin_create_leave():
         flash("Leave request created.", "success")
     except Exception as exc:
         print(f"[LEAVE-CREATE] ERROR: {exc}", flush=True)
-        # Fallback: raw SQL insert using only columns we know exist
+        # Fallback: raw SQL insert — include old NOT NULL columns (start_date, end_date)
         try:
             with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
                 conn.execute(text("""
                     INSERT INTO leave_requests (candidate_id, reason, notice_start_date, notice_end_date,
-                        last_working_date, notes, status, created_by, created_at)
-                    VALUES (:cid, :reason, :ns, :ne, :ne, :notes, 'Pending', :by, CURRENT_TIMESTAMP)
-                """).bindparams(cid=cand_id, reason=reason, ns=_ns, ne=_ne, notes=notes,
+                        last_working_date, start_date, end_date, notes, status, created_by, created_at)
+                    VALUES (:cid, :reason, :ns, :ne, :ne, :ns, :ne, :notes, 'Pending', :by, CURRENT_TIMESTAMP)
+                """).bindparams(cid=cand_id, reason=reason, ns=_ns or datetime.date.today(),
+                               ne=_ne or datetime.date.today(), notes=notes,
                                by=getattr(current_user, "email", "") or "staff"))
             flash("Leave request created.", "success")
         except Exception as exc2:
@@ -5648,6 +5651,9 @@ class LeaveRequest(Base):
     notice_start_date = Column(Date, nullable=True)
     notice_end_date = Column(Date, nullable=True)
     last_working_date = Column(Date, nullable=True)
+    # Legacy columns from the original model — NOT NULL on the DB
+    start_date = Column(Date, nullable=False, default=datetime.date.today)
+    end_date = Column(Date, nullable=False, default=datetime.date.today)
     notice_period = Column(String(100), default="")
     notes = Column(Text, default="")
     status = Column(String(50), default="Pending")
