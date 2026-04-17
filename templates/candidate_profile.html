@@ -1024,17 +1024,21 @@
               </div>
             </div>
             <div class="d-flex gap-2">
+              {% if vetting_summary.in_progress == 0 and vetting_summary.complete == 0 %}
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
+              {% endif %}
               <a href="{{ url_for('vetting_preflight', cand_id=cand.id) }}"
                  class="btn btn-outline-info btn-sm flex-fill"
                  title="Pre-flight: check every Verifile requirement before submitting">
                 <i class="fas fa-clipboard-check me-1"></i> Pre-flight
               </a>
+              {% if vetting_summary.in_progress == 0 and vetting_summary.complete == 0 %}
               <button class="btn btn-warning btn-sm flex-fill" onclick="triggerFullVetting({{ cand.id }})" title="Start Full Vetting">
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>
+              {% endif %}
               <button class="btn btn-outline-danger btn-sm" onclick="resetVetting({{ cand.id }})" title="Reset all vetting checks to Not Started">
                 <i class="fas fa-undo me-1"></i> Reset
               </button>
