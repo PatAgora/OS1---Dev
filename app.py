@@ -2176,14 +2176,24 @@ def mark_umbrella_assignment_signed(cand_id: int):
                 .where(ESigRequest.status.notin_(["Retracted", "Signed", "Completed"]))
                 .order_by(ESigRequest.created_at.desc())
             )
-            if esig:
-                esig.status = "signed"
             # Update Application status
             latest_app = s.scalar(
                 select(Application)
                 .where(Application.candidate_id == cand_id)
                 .order_by(Application.created_at.desc())
             )
+            if esig:
+                esig.status = "signed"
+                esig.signed_at = datetime.datetime.utcnow()
+                # Backfill application_id + engagement_id if missing
+                # (ESigRequests created before this logic was added
+                # may have NULLs, which breaks the placements query)
+                if not esig.application_id and latest_app:
+                    esig.application_id = latest_app.id
+                if not esig.engagement_id and latest_app:
+                    job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
+                    if job and job.engagement_id:
+                        esig.engagement_id = job.engagement_id
             if latest_app and latest_app.status in ("Contract Issued", "Contract Sent", "sent"):
                 latest_app.status = "Placed"
             # Update Candidate status — vetting done + contract signed = Active
