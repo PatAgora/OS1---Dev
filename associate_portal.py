@@ -145,6 +145,7 @@ def _ensure_models():
 
     class AssociateProfile(Base):
         __tablename__ = "associate_profiles"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, unique=True, index=True)
         title = Column(String(20), default="")
@@ -190,6 +191,7 @@ def _ensure_models():
 
     class CompanyDetails(Base):
         __tablename__ = "company_details"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, unique=True, index=True)
         contracting_type = Column(String(20), default="")  # umbrella / limited
@@ -209,6 +211,7 @@ def _ensure_models():
 
     class ConsentRecord(Base):
         __tablename__ = "consent_records"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         consent_given = Column(Boolean, default=False)
@@ -225,6 +228,7 @@ def _ensure_models():
 
     class DeclarationRecord(Base):
         __tablename__ = "declaration_records"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         work_restrictions = Column(Boolean, default=False)
@@ -250,6 +254,7 @@ def _ensure_models():
 
     class EmploymentHistory(Base):
         __tablename__ = "employment_history"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         company_name = Column(String(300), default="")
@@ -272,6 +277,7 @@ def _ensure_models():
 
     class QualificationRecord(Base):
         __tablename__ = "qualification_records"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         qualification_name = Column(String(300), default="")
@@ -291,6 +297,7 @@ def _ensure_models():
     class ProfessionalRegistration(Base):
         """Professional membership / registration records for Verifile ProfessionalMembershipQualificationUK."""
         __tablename__ = "professional_registrations"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         association_name = Column(String(300), default="")
@@ -301,6 +308,7 @@ def _ensure_models():
 
     class ReferenceContact(Base):
         __tablename__ = "reference_contacts"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         company_name = Column(String(300), nullable=False, index=True)
         referee_email = Column(String(300), default="")
@@ -308,6 +316,7 @@ def _ensure_models():
 
     class FlaggedReferenceHouse(Base):
         __tablename__ = "flagged_reference_houses"
+        __table_args__ = {"extend_existing": True}
         id = Column(Integer, primary_key=True, autoincrement=True)
         name = Column(String(300), nullable=False, index=True)
         candidate_count = Column(Integer, default=0)
