@@ -2547,6 +2547,40 @@ def mark_umbrella_assignment_signed(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/candidate/<int:cand_id>/schedule-interview", methods=["POST"])
+@login_required
+def schedule_interview(cand_id: int):
+    date_str = request.form.get("interview_date", "")
+    time_str = request.form.get("interview_time", "")
+    if not date_str or not time_str:
+        flash("Date and time are required.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+    try:
+        scheduled_dt = datetime.datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        flash("Invalid date/time format.", "danger")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+    with Session(engine) as s:
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        if not latest_app:
+            flash("No application found for this candidate.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        latest_app.interview_scheduled_at = scheduled_dt
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=getattr(current_user, "email", "staff") or "staff",
+            note_type="activity",
+            content=f"Interview scheduled for {scheduled_dt.strftime('%d %b %Y at %H:%M')}.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+    flash(f"Interview scheduled for {scheduled_dt.strftime('%d %b %Y at %H:%M')}.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/candidate/<int:cand_id>/test-mark-vetting-complete", methods=["POST"])
 @login_required
 def test_mark_vetting_complete(cand_id: int):
