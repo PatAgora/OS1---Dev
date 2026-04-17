@@ -6016,6 +6016,36 @@ try:
         except Exception:
             pass
 
+        # Fix reference request email template — replace HTML with plain text
+        try:
+            _mc.execute(text("""
+                UPDATE email_templates SET body = :body
+                WHERE name = 'reference_request' AND body LIKE '%<h2>%'
+            """).bindparams(body="""Dear {referee_name},
+
+We are writing to request a reference for {candidate_name} who has listed your organisation ({company_name}) as a previous employer.
+
+Job Title: {job_title}
+Start Date: {start_date}
+End Date: {end_date}
+
+Please could you confirm the following:
+- Dates of employment
+- Job title / role
+- Reason for leaving
+- Any other relevant information
+
+Please reply directly to this email with the reference details.
+
+The candidate's signed consent form is attached for your records.
+
+Thank you for your assistance.
+
+Regards,
+Optimus Compliance Team"""))
+        except Exception:
+            pass
+
         # Backfill ESigRequest.application_id for signed records that
         # have candidate_id but no application_id (created before the
         # linking logic was added). Links to the most recent application.
@@ -10178,7 +10208,9 @@ def placements():
         per_page = 25
     
     with Session(engine) as s:
-        # Base subquery for active placements (signed/completed contracts)
+        # Base subquery for active placements (signed/completed contracts).
+        # Uses outerjoin throughout so ESigRequests with NULL application_id
+        # or Applications with NULL job_id still appear.
         active_placement_base = (
             select(
                 Candidate.id.label('cand_id'),
@@ -10188,11 +10220,12 @@ def placements():
                 Job.title.label('job_title')
             )
             .select_from(ESigRequest)
-            .join(Application, Application.id == ESigRequest.application_id)
-            .join(Candidate, Candidate.id == Application.candidate_id)
-            .join(Job, Job.id == Application.job_id)
-            .outerjoin(Engagement, Engagement.id == Job.engagement_id)
+            .outerjoin(Application, Application.id == ESigRequest.application_id)
+            .outerjoin(Candidate, Candidate.id == func.coalesce(Application.candidate_id, ESigRequest.candidate_id))
+            .outerjoin(Job, Job.id == Application.job_id)
+            .outerjoin(Engagement, Engagement.id == func.coalesce(Job.engagement_id, ESigRequest.engagement_id))
             .where(func.lower(ESigRequest.status).in_(['signed', 'completed']))
+            .where(Candidate.id.isnot(None))
             .subquery()
         )
 
@@ -10243,18 +10276,19 @@ def placements():
                 EngagementPlan
             )
             .select_from(ESigRequest)
-            .join(Application, Application.id == ESigRequest.application_id)
-            .join(Candidate, Candidate.id == Application.candidate_id)
-            .join(Job, Job.id == Application.job_id)
-            .outerjoin(Engagement, Engagement.id == Job.engagement_id)
+            .outerjoin(Application, Application.id == ESigRequest.application_id)
+            .outerjoin(Candidate, Candidate.id == func.coalesce(Application.candidate_id, ESigRequest.candidate_id))
+            .outerjoin(Job, Job.id == Application.job_id)
+            .outerjoin(Engagement, Engagement.id == func.coalesce(Job.engagement_id, ESigRequest.engagement_id))
             .outerjoin(
                 EngagementPlan,
                 and_(
-                    EngagementPlan.engagement_id == Job.engagement_id,
+                    EngagementPlan.engagement_id == Engagement.id,
                     EngagementPlan.role_type == Job.role_type
                 )
             )
             .where(func.lower(ESigRequest.status).in_(['signed', 'completed']))
+            .where(Candidate.id.isnot(None))
         )
         
         # Apply filters (now multi-select)
@@ -20227,25 +20261,28 @@ def taxonomy_manage():
                 select(EmailTemplate).where(EmailTemplate.name == "reference_request")
             )
             if not email_template_ref:
-                default_body = """<h2>Reference Request</h2>
-<p>Dear {referee_name},</p>
-<p>We are writing to request a reference for <strong>{candidate_name}</strong>
-who has listed your organisation (<strong>{company_name}</strong>) as a
-previous employer.</p>
-<p><strong>Job Title:</strong> {job_title}<br>
-<strong>Start Date:</strong> {start_date}<br>
-<strong>End Date:</strong> {end_date}</p>
-<p>Please could you confirm the following:</p>
-<ul>
-    <li>Dates of employment</li>
-    <li>Job title / role</li>
-    <li>Reason for leaving</li>
-    <li>Any other relevant information</li>
-</ul>
-<p>Please reply directly to this email with the reference details.</p>
-<p>The candidate's signed consent form is attached for your records.</p>
-<p>Thank you for your assistance.</p>
-<p>Regards,<br>Optimus Compliance Team</p>"""
+                default_body = """Dear {referee_name},
+
+We are writing to request a reference for {candidate_name} who has listed your organisation ({company_name}) as a previous employer.
+
+Job Title: {job_title}
+Start Date: {start_date}
+End Date: {end_date}
+
+Please could you confirm the following:
+- Dates of employment
+- Job title / role
+- Reason for leaving
+- Any other relevant information
+
+Please reply directly to this email with the reference details.
+
+The candidate's signed consent form is attached for your records.
+
+Thank you for your assistance.
+
+Regards,
+Optimus Compliance Team"""
                 email_template_ref = EmailTemplate(
                     name="reference_request",
                     subject="Reference Request — {candidate_name}",
