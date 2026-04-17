@@ -1734,21 +1734,37 @@ def admin_create_leave():
         return redirect(url_for("admin_approvals"))
     _ns = datetime.datetime.strptime(notice_start, "%Y-%m-%d").date() if notice_start else None
     _ne = datetime.datetime.strptime(notice_end, "%Y-%m-%d").date() if notice_end else None
-    with Session(engine) as s:
-        lr = LeaveRequest(
-            candidate_id=cand_id,
-            reason=reason,
-            notice_start_date=_ns,
-            notice_end_date=_ne,
-            last_working_date=_ne,
-            notes=notes,
-            status="Pending",
-            created_by=getattr(current_user, "email", "") or "staff",
-            created_at=datetime.datetime.utcnow(),
-        )
-        s.add(lr)
-        s.commit()
-    flash("Leave request created.", "success")
+    try:
+        with Session(engine) as s:
+            lr = LeaveRequest(
+                candidate_id=cand_id,
+                reason=reason,
+                notice_start_date=_ns,
+                notice_end_date=_ne,
+                last_working_date=_ne,
+                notes=notes,
+                status="Pending",
+                created_by=getattr(current_user, "email", "") or "staff",
+                created_at=datetime.datetime.utcnow(),
+            )
+            s.add(lr)
+            s.commit()
+        flash("Leave request created.", "success")
+    except Exception as exc:
+        print(f"[LEAVE-CREATE] ERROR: {exc}", flush=True)
+        # Fallback: raw SQL insert using only columns we know exist
+        try:
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.execute(text("""
+                    INSERT INTO leave_requests (candidate_id, reason, notice_start_date, notice_end_date,
+                        last_working_date, notes, status, created_by, created_at)
+                    VALUES (:cid, :reason, :ns, :ne, :ne, :notes, 'Pending', :by, CURRENT_TIMESTAMP)
+                """).bindparams(cid=cand_id, reason=reason, ns=_ns, ne=_ne, notes=notes,
+                               by=getattr(current_user, "email", "") or "staff"))
+            flash("Leave request created.", "success")
+        except Exception as exc2:
+            print(f"[LEAVE-CREATE] RAW SQL ALSO FAILED: {exc2}", flush=True)
+            flash(f"Failed to create leave request: {exc2}", "danger")
     return redirect(url_for("admin_approvals"))
 
 
