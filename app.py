@@ -20749,24 +20749,38 @@ def download_filled_assignment(cand_id, ext):
 
         from docx import Document as DocxDocument
         import io
+
+        def _replace_in_paragraph(para, placeholder, value):
+            """Replace a placeholder that may span multiple Word runs.
+            Word often splits {worker_name} across runs like {worker + _name}.
+            para.text sees the joined string, but no single run contains it.
+            Fix: when the placeholder spans runs, collapse into the first run
+            and clear the rest — preserves the first run's formatting."""
+            full = para.text
+            if placeholder not in full:
+                return
+            # Fast path: placeholder is entirely inside one run
+            for run in para.runs:
+                if placeholder in run.text:
+                    run.text = run.text.replace(placeholder, value or "")
+                    return
+            # Slow path: placeholder spans runs — rebuild
+            new_text = full.replace(placeholder, value or "")
+            if para.runs:
+                para.runs[0].text = new_text
+                for r in para.runs[1:]:
+                    r.text = ""
+
         doc = DocxDocument(tpl_path)
         for para in doc.paragraphs:
             for key, value in vals.items():
-                placeholder = "{" + key + "}"
-                if placeholder in para.text:
-                    for run in para.runs:
-                        if placeholder in run.text:
-                            run.text = run.text.replace(placeholder, value or "")
+                _replace_in_paragraph(para, "{" + key + "}", value)
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for para in cell.paragraphs:
                         for key, value in vals.items():
-                            placeholder = "{" + key + "}"
-                            if placeholder in para.text:
-                                for run in para.runs:
-                                    if placeholder in run.text:
-                                        run.text = run.text.replace(placeholder, value or "")
+                            _replace_in_paragraph(para, "{" + key + "}", value)
 
         buf = io.BytesIO()
         doc.save(buf)
