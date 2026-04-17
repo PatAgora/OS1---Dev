@@ -39,7 +39,7 @@
                 <div class="col-md-6">
                     <small class="text-muted d-block">{{ 'Day Rate' if app.offer_rate_type == 'day' else 'Annual Salary' }}</small>
                     <strong>
-                        {% if app.offer_day_rate is not none %}
+                        {% if app.offer_day_rate %}
                             &pound;{{ '{:,.2f}'.format(app.offer_day_rate) }}{% if app.offer_rate_type == 'day' %}/day{% else %}/year{% endif %}
                         {% else %}—{% endif %}
                     </strong>

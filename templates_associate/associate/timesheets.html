@@ -10,7 +10,6 @@
 
 {% block content %}
 <!-- New Timesheet -->
-{% if not current_ts %}
 <div class="portal-card mb-4">
     <div class="portal-card-header">
         <h2><i class="fas fa-plus-circle me-2"></i>New Timesheet</h2>
@@ -41,11 +40,10 @@
             </div>
         </form>
         {% else %}
-        <p class="text-muted text-center py-3">No active assignments. You need an assignment before creating a timesheet.</p>
+        <p class="text-muted text-center py-3">No active assignments. You need a signed contract before creating a timesheet.</p>
         {% endif %}
     </div>
 </div>
-{% endif %}
 
 <!-- Current Timesheet: Weekly Grid -->
 {% if current_ts %}

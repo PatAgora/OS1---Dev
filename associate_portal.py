@@ -3612,23 +3612,36 @@ def timesheets():
             "placed", "contract signed", "contract issued",
             "contract sent", "active", "hired", "on contract",
         }
-        ESigRequest = _model("ESigRequest")
+        # Also check if the candidate has a signed contract at the
+        # candidate level (umbrella_assignment_signed = True).
+        Candidate = _model("Candidate")
+        cand_has_signed_contract = False
         signed_app_ids = set()
-        if ESigRequest:
-            try:
-                signed_esigs = s.execute(text(
-                    "SELECT application_id FROM esign_requests "
-                    "WHERE candidate_id = :cid AND LOWER(status) IN ('signed', 'completed')"
-                ).bindparams(cid=cand_id)).all()
-                signed_app_ids = {r[0] for r in signed_esigs if r[0]}
-            except Exception:
-                pass
+        try:
+            cand_row = s.execute(text(
+                "SELECT umbrella_assignment_signed FROM candidates WHERE id = :cid"
+            ).bindparams(cid=cand_id)).first()
+            if cand_row and cand_row[0]:
+                cand_has_signed_contract = True
+        except Exception:
+            pass
+        try:
+            signed_esigs = s.execute(text(
+                "SELECT application_id FROM esign_requests "
+                "WHERE candidate_id = :cid AND LOWER(status) IN ('signed', 'completed')"
+            ).bindparams(cid=cand_id)).all()
+            signed_app_ids = {r[0] for r in signed_esigs if r[0]}
+        except Exception:
+            pass
         if Application:
             apps = s.query(Application).filter_by(candidate_id=cand_id).all()
             for app in apps:
                 status_match = (app.status or "").strip().lower() in PLACED_STATUSES
                 esig_match = app.id in signed_app_ids
-                if not status_match and not esig_match:
+                # If candidate has a signed contract, include the most
+                # recent application regardless of its status.
+                cand_match = cand_has_signed_contract and app == apps[0]
+                if not status_match and not esig_match and not cand_match:
                     continue
                 job = app.job if hasattr(app, "job") and app.job else None
                 eng = None
