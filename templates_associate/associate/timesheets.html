@@ -136,6 +136,47 @@
             </div>
             {% endif %}
 
+            <!-- Expenses -->
+            <div style="padding: 16px 20px; border-top: 1px solid var(--color-gray-200);">
+                <div class="fw-semibold mb-2" style="font-size: 13px;"><i class="fas fa-receipt me-1"></i>Expenses</div>
+                <div id="expenseRows">
+                    {% for exp in expenses %}
+                    <div class="row g-2 mb-2 expense-row">
+                        <div class="col-md-3">
+                            <select name="expense_type[]" class="form-select form-select-sm">
+                                <option value="Travel" {% if exp.description == 'Travel' %}selected{% endif %}>Travel</option>
+                                <option value="Accommodation" {% if exp.description == 'Accommodation' %}selected{% endif %}>Accommodation</option>
+                                <option value="Meals" {% if exp.description == 'Meals' %}selected{% endif %}>Meals</option>
+                                <option value="Parking" {% if exp.description == 'Parking' %}selected{% endif %}>Parking</option>
+                                <option value="Equipment" {% if exp.description == 'Equipment' %}selected{% endif %}>Equipment</option>
+                                <option value="Other" {% if exp.description == 'Other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" name="expense_date[]" class="form-control form-control-sm" value="{{ exp.entry_date.strftime('%Y-%m-%d') if exp.entry_date else '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">&pound;</span>
+                                <input type="number" name="expense_amount[]" class="form-control expense-amt" step="0.01" min="0" value="{{ '%.2f'|format(exp.value) if exp.value else '' }}" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.expense-row').remove(); updateExpenseTotal();">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-1" onclick="addExpenseRow()">
+                    <i class="fas fa-plus me-1"></i> Add expense
+                </button>
+                <div class="mt-2 fw-semibold" style="font-size:13px;">
+                    Expenses total: <span id="expenseTotalDisplay">&pound;0.00</span>
+                </div>
+            </div>
+
             <!-- Summary Panel -->
             <div style="padding: 20px; border-top: 2px solid var(--color-gray-200); display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px;">
                 <div>
@@ -153,6 +194,10 @@
                 <div>
                     <div class="text-muted text-xs">OT Amount</div>
                     <div class="font-semibold" id="summaryOTAmount">&pound;{{ "%.2f"|format((current_ts.billable_hours or 0) * (current_ts.overtime_rate or 0)) }}</div>
+                </div>
+                <div>
+                    <div class="text-muted text-xs">Expenses</div>
+                    <div class="font-semibold" id="summaryExpenses">&pound;{{ "%.2f"|format(current_ts.expense_total or 0) }}</div>
                 </div>
                 <div>
                     <div class="text-muted text-xs text-success font-weight-bold">Total Amount</div>
@@ -390,7 +435,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Summary
         var dayAmount = totalDays * dayRate;
         var otAmount = totalHours * otRate;
-        var total = dayAmount + otAmount;
+        var expTotal = calcExpenseTotal();
+        var total = dayAmount + otAmount + expTotal;
 
         var elDays = document.getElementById('totalBillableDays');
         if (elDays) elDays.textContent = totalDays.toFixed(1);
@@ -402,6 +448,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (el) el.textContent = '\u00a3' + dayAmount.toFixed(2);
         el = document.getElementById('summaryOTAmount');
         if (el) el.textContent = '\u00a3' + otAmount.toFixed(2);
+        el = document.getElementById('summaryExpenses');
+        if (el) el.textContent = '\u00a3' + expTotal.toFixed(2);
         el = document.getElementById('summaryTotal');
         if (el) el.textContent = '\u00a3' + total.toFixed(2);
         el = document.getElementById('totalAmount');
@@ -415,5 +463,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
     recalc();
 });
+
+function calcExpenseTotal() {
+    var total = 0;
+    document.querySelectorAll('.expense-amt').forEach(function(inp) {
+        total += parseFloat(inp.value) || 0;
+    });
+    var disp = document.getElementById('expenseTotalDisplay');
+    if (disp) disp.textContent = '\u00a3' + total.toFixed(2);
+    return total;
+}
+
+function updateExpenseTotal() {
+    calcExpenseTotal();
+    var recalcBtn = document.querySelector('.ts-input');
+    if (recalcBtn) recalcBtn.dispatchEvent(new Event('change'));
+}
+
+function addExpenseRow() {
+    var container = document.getElementById('expenseRows');
+    var row = document.createElement('div');
+    row.className = 'row g-2 mb-2 expense-row';
+    row.innerHTML = '<div class="col-md-3">' +
+        '<select name="expense_type[]" class="form-select form-select-sm">' +
+        '<option value="Travel">Travel</option>' +
+        '<option value="Accommodation">Accommodation</option>' +
+        '<option value="Meals">Meals</option>' +
+        '<option value="Parking">Parking</option>' +
+        '<option value="Equipment">Equipment</option>' +
+        '<option value="Other">Other</option>' +
+        '</select></div>' +
+        '<div class="col-md-3"><input type="date" name="expense_date[]" class="form-control form-control-sm"></div>' +
+        '<div class="col-md-3"><div class="input-group input-group-sm">' +
+        '<span class="input-group-text">&pound;</span>' +
+        '<input type="number" name="expense_amount[]" class="form-control expense-amt" step="0.01" min="0" placeholder="0.00" oninput="updateExpenseTotal()">' +
+        '</div></div>' +
+        '<div class="col-md-3"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.expense-row\').remove(); updateExpenseTotal();"><i class="fas fa-times"></i></button></div>';
+    container.appendChild(row);
+}
 </script>
 {% endblock %}

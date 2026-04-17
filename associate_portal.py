@@ -3733,7 +3733,7 @@ def timesheets():
 
         # Load config, entries, and expenses for current timesheet
         config = None
-        time_types = ["Standard Time", "Overtime", "Holiday", "Sickness", "Unplanned Absence"]
+        time_types = ["Standard Time", "Overtime", "Holiday", "Sickness"]
         entries = {}  # {(date_str, time_type): value}
         expenses = []
 
@@ -4273,11 +4273,34 @@ def timesheets_save():
             ts.billable_days = total_days
             ts.billable_hours = total_hours
 
+        # Save expenses
+        expense_total = 0
+        if TimesheetExpense:
+            s.query(TimesheetExpense).filter_by(timesheet_id=ts.id).delete()
+            exp_types = request.form.getlist("expense_type[]")
+            exp_dates = request.form.getlist("expense_date[]")
+            exp_amounts = request.form.getlist("expense_amount[]")
+            for i in range(len(exp_amounts)):
+                try:
+                    amt = float(exp_amounts[i]) if exp_amounts[i] else 0
+                except ValueError:
+                    amt = 0
+                if amt > 0:
+                    exp = TimesheetExpense(
+                        timesheet_id=ts.id,
+                        candidate_id=cand_id,
+                        description=exp_types[i] if i < len(exp_types) else "Other",
+                        amount=amt,
+                        entry_date=_parse_date(exp_dates[i]) if i < len(exp_dates) and exp_dates[i] else None,
+                    )
+                    s.add(exp)
+                    expense_total += amt
+
         # Calculate totals
         day_rate = getattr(ts, "day_rate", 0) or 0
         ot_rate = getattr(ts, "overtime_rate", 0) or 0
         ts.total_amount = (ts.billable_days * day_rate) + (ts.billable_hours * ot_rate)
-        ts.expense_total = getattr(ts, "expense_total", 0) or 0
+        ts.expense_total = expense_total
         ts.grand_total = ts.total_amount + ts.expense_total
 
         ts.status = "Draft"
@@ -4347,11 +4370,35 @@ def timesheets_submit():
             ts.billable_days = total_days
             ts.billable_hours = total_hours
 
+        # Save expenses from the inline expense rows
+        TimesheetExpense = _portal_model("TimesheetExpense")
+        expense_total = 0
+        if TimesheetExpense:
+            s.query(TimesheetExpense).filter_by(timesheet_id=ts.id).delete()
+            exp_types = request.form.getlist("expense_type[]")
+            exp_dates = request.form.getlist("expense_date[]")
+            exp_amounts = request.form.getlist("expense_amount[]")
+            for i in range(len(exp_amounts)):
+                try:
+                    amt = float(exp_amounts[i]) if exp_amounts[i] else 0
+                except ValueError:
+                    amt = 0
+                if amt > 0:
+                    exp = TimesheetExpense(
+                        timesheet_id=ts.id,
+                        candidate_id=cand_id,
+                        description=exp_types[i] if i < len(exp_types) else "Other",
+                        amount=amt,
+                        entry_date=_parse_date(exp_dates[i]) if i < len(exp_dates) and exp_dates[i] else None,
+                    )
+                    s.add(exp)
+                    expense_total += amt
+
         # Calculate totals
         day_rate = getattr(ts, "day_rate", 0) or 0
         ot_rate = getattr(ts, "overtime_rate", 0) or 0
         ts.total_amount = (ts.billable_days * day_rate) + (ts.billable_hours * ot_rate)
-        ts.expense_total = getattr(ts, "expense_total", 0) or 0
+        ts.expense_total = expense_total
         ts.grand_total = ts.total_amount + ts.expense_total
 
         ts.status = "Submitted"
