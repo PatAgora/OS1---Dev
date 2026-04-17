@@ -1062,36 +1062,6 @@ Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '
       </div>
     </form>
 
-    <!-- Placeholder reference -->
-    <details class="mb-4">
-      <summary class="fw-semibold small text-primary" style="cursor:pointer;">
-        <i class="fas fa-code me-1"></i> Available placeholders (click to expand)
-      </summary>
-      <div class="row mt-2">
-        <div class="col-md-4">
-          <code class="d-block small mb-1">{worker_name}</code>
-          <code class="d-block small mb-1">{position}</code>
-          <code class="d-block small mb-1">{hirer_name}</code>
-          <code class="d-block small mb-1">{start_date}</code>
-          <code class="d-block small mb-1">{end_date}</code>
-        </div>
-        <div class="col-md-4">
-          <code class="d-block small mb-1">{hours_of_work}</code>
-          <code class="d-block small mb-1">{work_location}</code>
-          <code class="d-block small mb-1">{expenses}</code>
-          <code class="d-block small mb-1">{health_safety}</code>
-          <code class="d-block small mb-1">{vulnerable_person}</code>
-        </div>
-        <div class="col-md-4">
-          <code class="d-block small mb-1">{conduct_regs}</code>
-          <code class="d-block small mb-1">{notice_agency}</code>
-          <code class="d-block small mb-1">{notice_paystream}</code>
-          <code class="d-block small mb-1">{fee}</code>
-          <code class="d-block small mb-1">{invoice_frequency}</code>
-        </div>
-      </div>
-    </details>
-
     <!-- Existing templates -->
     {% if assignment_templates %}
     <table class="table table-sm table-hover mb-0">
