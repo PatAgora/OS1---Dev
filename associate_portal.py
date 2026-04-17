@@ -447,12 +447,30 @@ def _get_current_associate():
 
 
 def _require_login(f):
-    """Decorator: redirect to associate login if not authenticated."""
+    """Decorator: redirect to associate login if not authenticated.
+    Also enforces 2FA setup — if the associate hasn't set up TOTP yet,
+    redirect them to the setup page before allowing access."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not _get_associate_id():
+        cand_id = _get_associate_id()
+        if not cand_id:
             flash("Please sign in to access the portal.", "warning")
             return redirect(url_for("associate.login", next=request.url))
+        # Enforce 2FA setup — skip if already on the setup page
+        if request.endpoint != "associate.setup_2fa":
+            try:
+                Candidate = _model("Candidate")
+                if Candidate:
+                    engine = _engine()
+                    with SASession(engine) as _s:
+                        _cand = _s.get(Candidate, cand_id)
+                        if _cand and not getattr(_cand, "totp_enabled", False):
+                            session["associate_setup_2fa_id"] = cand_id
+                            session["associate_setup_2fa_ts"] = datetime.utcnow().timestamp()
+                            flash("Please set up two-factor authentication to continue.", "info")
+                            return redirect(url_for("associate.setup_2fa"))
+            except Exception:
+                pass
         return f(*args, **kwargs)
     return decorated
 
