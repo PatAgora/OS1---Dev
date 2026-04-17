@@ -125,18 +125,17 @@
                         {% if app.status == 'Offer Received' %}
                         <span class="badge bg-warning text-dark"><i class="fas fa-bell me-1"></i>Offer Received</span>
                         {% elif app.status == 'Offer Accepted' %}
-                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Accepted</span>
+                        <span class="badge bg-info text-dark"><i class="fas fa-handshake me-1"></i>Offer Accepted</span>
                         {% elif app.status == 'Offer Declined' %}
                         <span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Declined</span>
-                        {% elif app.status in ('Contract Issued', 'Placed') %}
-                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Accepted</span>
+                        {% elif app.status == 'Contract Issued' %}
+                        <span class="badge bg-primary"><i class="fas fa-file-signature me-1"></i>Contract Issued</span>
+                        {% elif app.status == 'Placed' %}
+                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Placed</span>
                         {% elif app.status == 'Unsuccessful' %}
-                        <span class="badge badge-not-started"><i class="fas fa-circle" style="font-size: 6px;"></i> Unsuccessful</span>
+                        <span class="badge bg-danger" style="opacity:0.8;"><i class="fas fa-times-circle me-1"></i>Unsuccessful</span>
                         {% else %}
-                        <span class="badge badge-complete"><i class="fas fa-circle" style="font-size: 6px;"></i> Applied</span>
-                        {% endif %}
-                        {% if app.offer_responded_at and app.status in ('Offer Accepted', 'Offer Declined') %}
-                        <small class="text-muted d-block mt-1">{{ app.offer_responded_at }}</small>
+                        <span class="badge bg-secondary"><i class="fas fa-clock me-1"></i>Applied</span>
                         {% endif %}
                     </td>
                     <td>
@@ -149,9 +148,9 @@
                             </button>
                         </form>
                         {% elif app.status in ('Offer Accepted', 'Contract Issued', 'Placed') %}
-                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Accepted</span>
+                        <span class="text-success small"><i class="fas fa-check-circle me-1"></i>Accepted</span>
                         {% elif app.status == 'Offer Declined' %}
-                        <span class="badge bg-secondary">Declined</span>
+                        <span class="text-muted small"><i class="fas fa-times me-1"></i>Declined</span>
                         {% else %}
                         <span class="text-muted">&mdash;</span>
                         {% endif %}
