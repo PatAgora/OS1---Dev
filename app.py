@@ -8196,17 +8196,20 @@ def candidate_regenerate_summary():
         summary = ""
         score_payload = None
 
+        current_app.logger.info(
+            "regenerate_summary: cand=%s cv_chars=%d cv_preview=%r",
+            cand_id, len(cv_text or ""), (cv_text or "")[:300],
+        )
+
         # Summary only — no parallel score recalculation.
-        # "Recalculate Score" has its own button. Running both here
-        # doubled the Gemini API calls and pushed latency to 15s+.
         if ai_summarise:
             try:
                 summary = ai_summarise(cv_text or "") or ""
             except Exception as e:
                 current_app.logger.exception("ai_summarise failed: %s", e)
         current_app.logger.info(
-            "regenerate_summary AI block: %.2fs cand=%s chars=%d",
-            _time.time() - _t0, cand_id, len(cv_text or ""),
+            "regenerate_summary done: %.2fs cand=%s summary_chars=%d summary_preview=%r",
+            _time.time() - _t0, cand_id, len(summary), summary[:300],
         )
 
         if latest_app and hasattr(latest_app, "ai_summary"):
