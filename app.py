@@ -6005,6 +6005,27 @@ try:
             _mc.execute(text("ALTER TABLE assignment_templates ADD COLUMN file_content BYTEA"))
         except Exception:
             pass
+
+        # Ensure "placed" stage exists in stage_config (added after
+        # the original 9 stages were seeded). Also fix sort_order on
+        # rejected_withdrawn so Placed sits between Contract Sent (7)
+        # and Rejected/Withdrawn (9).
+        try:
+            exists = _mc.execute(text(
+                "SELECT 1 FROM stage_config WHERE stage_id = 'placed'"
+            )).first()
+            if not exists:
+                _mc.execute(text("""
+                    INSERT INTO stage_config
+                        (stage_id, name, short_name, color, icon, sort_order, is_active, is_terminal)
+                    VALUES
+                        ('placed', 'Placed', 'Placed', '#059669', 'fa-check-circle', 8, TRUE, FALSE)
+                """))
+            _mc.execute(text(
+                "UPDATE stage_config SET sort_order = 9 WHERE stage_id = 'rejected_withdrawn' AND sort_order = 8"
+            ))
+        except Exception:
+            pass
 except Exception:
     pass
 
