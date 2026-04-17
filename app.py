@@ -2167,6 +2167,26 @@ def mark_umbrella_assignment_signed(cand_id: int):
         was = getattr(cand, "umbrella_assignment_signed", None)
         cand.umbrella_assignment_signed = (choice == "yes")
         cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
+
+        if choice == "yes":
+            # Update ESigRequest status to "signed"
+            esig = s.scalar(
+                select(ESigRequest)
+                .where(ESigRequest.candidate_id == cand_id)
+                .where(ESigRequest.status.notin_(["Retracted", "Signed", "Completed"]))
+                .order_by(ESigRequest.created_at.desc())
+            )
+            if esig:
+                esig.status = "signed"
+            # Update Application status
+            latest_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            )
+            if latest_app and latest_app.status in ("Contract Issued", "Contract Sent", "sent"):
+                latest_app.status = "Contract Signed"
+
         user_email = getattr(current_user, "email", "staff") or "staff"
         s.add(CandidateNote(
             candidate_id=cand_id,
