@@ -22,7 +22,7 @@ from flask import make_response
 
 from wtforms.validators import DataRequired, Email, Optional as WTOptional
 from werkzeug.utils import secure_filename
-from sqlalchemy import create_engine, select, ForeignKey, func, Column, text, Float
+from sqlalchemy import create_engine, select, ForeignKey, func, Column, text, Float, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship, Session, selectinload
 from sqlalchemy.types import JSON as SA_JSON
 from sqlalchemy import text
@@ -4937,13 +4937,16 @@ class AssignmentTemplate(Base):
     """Uploadable DOCX templates for umbrella Assignment Schedules.
     Staff uploads one template per umbrella company via the config page.
     When issuing a contract the system fills placeholders like {worker_name}
-    with captured values and presents the filled document for download."""
+    with captured values and presents the filled document for download.
+    The file content is stored in the DB (LargeBinary) so it survives
+    Railway's ephemeral filesystem on redeployment."""
     __tablename__ = "assignment_templates"
     id = Column(Integer, primary_key=True)
     name = Column(String(300), default="")
     umbrella_company = Column(String(300), default="")
     filename = Column(String(300), default="")
     file_path = Column(String(500), default="")
+    file_content = Column(LargeBinary, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)
     uploaded_by = Column(String(200), default="")
 
@@ -5954,6 +5957,11 @@ try:
                 _mc.execute(text(_stmt))
             except Exception:
                 pass
+        # assignment_templates — file_content column for DB-stored DOCX
+        try:
+            _mc.execute(text("ALTER TABLE assignment_templates ADD COLUMN file_content BYTEA"))
+        except Exception:
+            pass
 except Exception:
     pass
 
@@ -20669,20 +20677,17 @@ def admin_assignment_template_upload():
         flash("Only .docx files are supported for assignment templates.", "danger")
         return redirect(redir)
 
-    import uuid
-    _app_root = os.path.dirname(os.path.abspath(__file__))
-    upload_dir = os.path.join(_app_root, "uploads", "assignment_templates")
-    os.makedirs(upload_dir, exist_ok=True)
-    safe_name = f"tpl_{uuid.uuid4().hex[:10]}.docx"
-    dest = os.path.join(upload_dir, safe_name)
-    file.save(dest)
+    # Read file content into memory and store in DB so it survives
+    # Railway's ephemeral filesystem across redeployments.
+    file_bytes = file.read()
 
     with Session(engine) as s:
         tpl = AssignmentTemplate(
             name=name,
             umbrella_company=umbrella,
             filename=file.filename,
-            file_path=dest,
+            file_path="",
+            file_content=file_bytes,
             uploaded_at=datetime.datetime.utcnow(),
             uploaded_by=getattr(current_user, "email", "") or "",
         )
@@ -20698,10 +20703,6 @@ def admin_assignment_template_delete(tpl_id):
     with Session(engine) as s:
         tpl = s.get(AssignmentTemplate, tpl_id)
         if tpl:
-            try:
-                os.remove(tpl.file_path)
-            except OSError:
-                pass
             s.delete(tpl)
             s.commit()
             flash(f"Template '{tpl.name}' deleted.", "success")
@@ -20735,19 +20736,8 @@ def download_filled_assignment(cand_id, ext):
             .where(AssignmentTemplate.umbrella_company == umbrella_name)
             .order_by(AssignmentTemplate.uploaded_at.desc())
         )
-        if not tpl:
+        if not tpl or not tpl.file_content:
             flash(f"No assignment template found for '{umbrella_name}'.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
-        # Resolve the stored path relative to the app root
-        tpl_path = tpl.file_path
-        if not os.path.isabs(tpl_path):
-            tpl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), tpl_path)
-        if not os.path.isfile(tpl_path):
-            current_app.logger.error(
-                "Assignment template file not found: stored=%s resolved=%s",
-                tpl.file_path, tpl_path,
-            )
-            flash(f"Template file missing on server — re-upload in Configuration → Assignment Templates.", "danger")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         latest_app = s.scalar(
@@ -20768,6 +20758,8 @@ def download_filled_assignment(cand_id, ext):
 
         from docx import Document as DocxDocument
         import io, re
+        # Load template from DB bytes, not filesystem
+        tpl_stream = io.BytesIO(tpl.file_content)
 
         # Map the label text in the DOCX left column to the captured
         # field key. Matching is case-insensitive with whitespace
@@ -20836,7 +20828,7 @@ def download_filled_assignment(cand_id, ext):
                     for r in para.runs:
                         r.text = ""
 
-        doc = DocxDocument(tpl_path)
+        doc = DocxDocument(tpl_stream)
 
         # Primary approach: find label in left table column, fill the
         # right column with the captured value.
