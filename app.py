@@ -6914,13 +6914,9 @@ If the text below is empty or unreadable, respond with exactly: Unable to retrie
             try:
                 cand_meta = getattr(resp, "candidates", None) or []
                 finish_reason = getattr(cand_meta[0], "finish_reason", None) if cand_meta else None
-                preview = (out or "").replace("\n", " \\n ")[:200]
-                current_app.logger.info(
-                    "ai_summarise finish_reason=%s chars=%d preview=%r",
-                    finish_reason, len(out), preview,
-                )
-            except Exception:
-                pass
+                print(f"[AI-SUMMARISE] finish_reason={finish_reason} out_chars={len(out)} prompt_chars={len(prompt)} full_output={repr(out)}", flush=True)
+            except Exception as diag_exc:
+                print(f"[AI-SUMMARISE] diag error: {diag_exc}", flush=True)
             if "unable to retrieve" in out.lower():
                 return "Unable to retrieve information from CV."
             if out:
