@@ -5957,6 +5957,25 @@ try:
 except Exception:
     pass
 
+# Rename legacy "PayStream My Max 2 Ltd" → "Paystream" in all DB tables.
+# Runs once per boot; UPDATE ... WHERE is a no-op if no rows match.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        for _old_name in ("PayStream My Max 2 Ltd", "PayStream My Max 3 Ltd", "PayStream My Max 3 Limited"):
+            for _tbl, _col in [
+                ("approved_umbrellas", "name"),
+                ("company_details", "umbrella_company_name"),
+                ("assignment_templates", "umbrella_company"),
+            ]:
+                try:
+                    _rc.execute(text(
+                        f"UPDATE {_tbl} SET {_col} = :new WHERE {_col} = :old"
+                    ).bindparams(old=_old_name, new="Paystream"))
+                except Exception:
+                    pass
+except Exception:
+    pass
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
