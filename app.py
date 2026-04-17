@@ -7285,11 +7285,14 @@ def extract_cv_text(doc: "Document") -> str:
 
     return _truncate_for_ai(text)
 
+COMPLIANCE_FROM = os.getenv("COMPLIANCE_FROM_EMAIL", "compliance@optimussolutions.co.uk")
+
 def send_email(
     to_email,
     subject,
     html_body,
     attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+    from_email: Optional[str] = None,
 ) -> bool:
     """
     Send an email. Tries Brevo HTTP API first (works on cloud platforms where
@@ -7299,7 +7302,7 @@ def send_email(
     # --- Microsoft 365 OAuth2 (primary — client's own mailbox) ---
     if (M365_TENANT_ID or "").strip() and (M365_CLIENT_ID or "").strip() and (M365_CLIENT_SECRET or "").strip():
         try:
-            return _send_via_m365_oauth(to_email, subject, html_body, attachments)
+            return _send_via_m365_oauth(to_email, subject, html_body, attachments, from_email=from_email)
         except Exception as e:
             error_msg = f"M365 email failed for {to_email}: {e}"
             print(f"[M365] ERROR: {error_msg}")
@@ -7319,9 +7322,10 @@ def send_email(
     raise RuntimeError(error_msg)
 
 
-def _send_via_m365_oauth(to_email, subject, html_body, attachments=None):
+def _send_via_m365_oauth(to_email, subject, html_body, attachments=None, from_email=None):
     """Send email via Microsoft 365 SMTP with OAuth2 XOAUTH2 authentication."""
-    print(f"[M365] Sending to {to_email}: {subject}")
+    sender = from_email or SMTP_FROM
+    print(f"[M365] Sending to {to_email} from {sender}: {subject}")
 
     # Step 1: Get OAuth2 access token
     token_url = f"https://login.microsoftonline.com/{M365_TENANT_ID}/oauth2/v2.0/token"
@@ -7336,7 +7340,7 @@ def _send_via_m365_oauth(to_email, subject, html_body, attachments=None):
 
     # Step 2: Build email message
     msg = EmailMessage()
-    msg["From"] = SMTP_FROM
+    msg["From"] = sender
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.set_content("This email contains HTML content.")
@@ -7348,6 +7352,9 @@ def _send_via_m365_oauth(to_email, subject, html_body, attachments=None):
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
 
     # Step 3: Connect to SMTP with XOAUTH2
+    # Auth must use the mailbox user (SMTP_FROM) — the From header
+    # can differ if the mailbox has "send as" permission for the
+    # sender address.
     auth_string = f"user={SMTP_FROM}\x01auth=Bearer {access_token}\x01\x01"
     auth_b64 = base64.b64encode(auth_string.encode()).decode()
 
@@ -16299,10 +16306,10 @@ def start_vetting(cand_id: int):
                     <li>Sign the consent and declaration forms</li>
                 </ul>
                 <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
-                <p>If you have any questions, please contact your Compliance Analyst.</p>
+                <p>If you have any questions, please contact your Optimus representative.</p>
                 <p>Regards,<br>Optimus Compliance Team</p>
                 """
-                send_email(cand.email, "Vetting Process Started — Action Required", html_body)
+                send_email(cand.email, "Vetting Process Started — Action Required", html_body, from_email=COMPLIANCE_FROM)
                 flash(f"Vetting started and email sent to {cand.email}.", "success")
             except Exception as e:
                 flash(f"Vetting started but email failed: {str(e)}", "warning")
@@ -16815,7 +16822,8 @@ def send_reference(cand_id: int):
                             "application/pdf"
                         ))
             send_email(ref_req.referee_email, email_subject, html_body,
-                       attachments=attachments if attachments else None)
+                       attachments=attachments if attachments else None,
+                       from_email=COMPLIANCE_FROM)
             ref_req.status = "sent"
             ref_req.sent_at = datetime.datetime.utcnow()
             flash(f"Reference request sent to {ref_req.referee_email}.", "success")
@@ -16864,7 +16872,7 @@ def chase_reference(cand_id: int):
             """
             send_email(ref_req.referee_email,
                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
-                       html_body)
+                       html_body, from_email=COMPLIANCE_FROM)
             ref_req.chase_count = (ref_req.chase_count or 0) + 1
             ref_req.last_chased_at = datetime.datetime.utcnow()
             flash(f"Chase #{ref_req.chase_count} sent to {ref_req.referee_email}.", "success")
@@ -22311,7 +22319,7 @@ def _setup_scheduler():
                             """
                             send_email(ref.referee_email,
                                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
-                                       html_body)
+                                       html_body, from_email=COMPLIANCE_FROM)
                             ref.chase_count += 1
                             ref.last_chased_at = datetime.datetime.utcnow()
                             if ref.chase_count >= 3:
@@ -22387,7 +22395,7 @@ def _setup_scheduler():
                             <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
                             <p>Regards,<br>Optimus Compliance Team</p>
                             """
-                            send_email(cand.email, "Reminder: Complete Your Vetting Profile", html_body)
+                            send_email(cand.email, "Reminder: Complete Your Vetting Profile", html_body, from_email=COMPLIANCE_FROM)
                             chased += 1
                         except Exception:
                             pass
