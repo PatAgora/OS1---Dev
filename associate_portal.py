@@ -2728,11 +2728,33 @@ def vetting_progress():
             decl = s.query(DeclarationRecord).filter_by(candidate_id=cand_id).first()
             declaration_signed = bool(decl and decl.signed_date)
 
+        secondary_job_signed = False
+        Candidate = _model("Candidate")
+        if Candidate:
+            cand = s.get(Candidate, cand_id)
+            if cand:
+                secondary_job_signed = bool(getattr(cand, "secondary_job_declaration_signed", False))
+
+        EmploymentHistory = _portal_model("EmploymentHistory")
+        employment_entered = False
+        if EmploymentHistory:
+            emp_count = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).count()
+            employment_entered = emp_count > 0
+
+        Document = _model("Document")
+        docs_uploaded = False
+        if Document:
+            doc_count = s.query(Document).filter_by(candidate_id=cand_id).count()
+            docs_uploaded = doc_count > 0
+
         return render_template(
             "associate/vetting_progress.html",
             vetting_checks=checks,
             consent_signed=consent_signed,
             declaration_signed=declaration_signed,
+            secondary_job_signed=secondary_job_signed,
+            employment_entered=employment_entered,
+            docs_uploaded=docs_uploaded,
         )
 
 

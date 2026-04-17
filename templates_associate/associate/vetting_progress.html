@@ -29,20 +29,20 @@
     <div class="portal-card-body">
         <p>To begin the vetting process, please complete the following:</p>
         <div class="d-flex flex-wrap gap-2">
-            <a href="/portal/consent-form" class="btn btn-primary" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
-                <i class="fas fa-file-signature me-1"></i> Consent Form
+            <a href="/portal/consent-form" class="btn {{ 'btn-success' if consent_signed else 'btn-primary' }}" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fas fa-{{ 'check-circle' if consent_signed else 'file-signature' }} me-1"></i> Consent Form
             </a>
-            <a href="/portal/declaration" class="btn btn-primary" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
-                <i class="fas fa-clipboard-check me-1"></i> Declaration
+            <a href="/portal/declaration" class="btn {{ 'btn-success' if declaration_signed else 'btn-primary' }}" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fas fa-{{ 'check-circle' if declaration_signed else 'clipboard-check' }} me-1"></i> Declaration
             </a>
-            <a href="/portal/secondary-job-declaration" class="btn btn-primary" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
-                <i class="fas fa-briefcase me-1"></i> Secondary Job Declaration
+            <a href="/portal/secondary-job-declaration" class="btn {{ 'btn-success' if secondary_job_signed else 'btn-primary' }}" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fas fa-{{ 'check-circle' if secondary_job_signed else 'briefcase' }} me-1"></i> Secondary Job Declaration
             </a>
-            <a href="/portal/references/employment" class="btn btn-primary" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
-                <i class="fas fa-briefcase me-1"></i> Employment History
+            <a href="/portal/references/employment" class="btn {{ 'btn-success' if employment_entered else 'btn-primary' }}" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fas fa-{{ 'check-circle' if employment_entered else 'briefcase' }} me-1"></i> Employment History
             </a>
-            <a href="/portal/documents" class="btn btn-primary" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
-                <i class="fas fa-folder-open me-1"></i> Documents
+            <a href="/portal/documents" class="btn {{ 'btn-success' if docs_uploaded else 'btn-primary' }}" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fas fa-{{ 'check-circle' if docs_uploaded else 'folder-open' }} me-1"></i> Documents
             </a>
         </div>
     </div>
