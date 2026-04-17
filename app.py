@@ -20783,8 +20783,21 @@ def download_filled_assignment(cand_id, ext):
             return re.sub(r"\s+", " ", (t or "")).strip().lower().rstrip("?:.")
 
         def _set_cell_text(cell, value):
-            """Set the text of a table cell, preserving the first run's
-            formatting but replacing all content."""
+            """Set the text of a table cell, matching the font style and
+            size of the existing content so filled values look native."""
+            from docx.shared import Pt
+            from copy import deepcopy
+
+            # Capture font properties from the existing cell content
+            ref_font = None
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    if run.font:
+                        ref_font = run.font
+                        break
+                if ref_font:
+                    break
+
             for i, para in enumerate(cell.paragraphs):
                 if i == 0:
                     if para.runs:
@@ -20792,7 +20805,14 @@ def download_filled_assignment(cand_id, ext):
                         for r in para.runs[1:]:
                             r.text = ""
                     else:
-                        para.text = value or ""
+                        run = para.add_run(value or "")
+                        if ref_font:
+                            if ref_font.name:
+                                run.font.name = ref_font.name
+                            if ref_font.size:
+                                run.font.size = ref_font.size
+                            run.font.bold = ref_font.bold
+                            run.font.italic = ref_font.italic
                 else:
                     for r in para.runs:
                         r.text = ""
