@@ -55,6 +55,18 @@ associate_bp = Blueprint(
 )
 
 
+@associate_bp.before_request
+def _ensure_portal_models_before_request():
+    """Guarantee portal models are defined on EVERY request,
+    not just lazily on first _portal_model() call. This runs
+    before any route handler, so by the time the handler calls
+    _portal_model(), the classes are always registered."""
+    try:
+        _ensure_models()
+    except Exception as exc:
+        print(f"[PORTAL] _ensure_models failed in before_request: {exc}", flush=True)
+
+
 def _apply_rate_limits(app):
     """Apply rate limits to portal auth routes. Called after blueprint registration."""
     try:
@@ -385,32 +397,45 @@ def _ensure_models():
         is_current = Column(Boolean, default=False)
         created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Register models in the _models dict for external access
+    # Register ALL portal models in the _models dict for external access.
+    # Previous code only registered 4 — missing classes caused lookup
+    # failures on some workers.
+    _models["AssociateProfile"] = AssociateProfile
+    _models["CompanyDetails"] = CompanyDetails
+    _models["ConsentRecord"] = ConsentRecord
+    _models["DeclarationRecord"] = DeclarationRecord
+    _models["EmploymentHistory"] = EmploymentHistory
+    _models["QualificationRecord"] = QualificationRecord
+    _models["ProfessionalRegistration"] = ProfessionalRegistration
+    _models["ReferenceContact"] = ReferenceContact
+    _models["FlaggedReferenceHouse"] = FlaggedReferenceHouse
     _models["TimesheetConfig"] = TimesheetConfig
     _models["TimesheetEntry"] = TimesheetEntry
     _models["TimesheetExpense"] = TimesheetExpense
     _models["AddressHistory"] = AddressHistory
 
-    # Only flip the guard once all classes above have successfully been
-    # declared. Any earlier exception will leave _MODELS_DEFINED=False so
-    # the next request can retry rather than being stuck forever.
     _MODELS_DEFINED = True
 
 
 def _portal_model(name: str):
-    """Get a portal-specific model class by table registration in Base.metadata.
-
-    If the first lookup fails, reset the init guard and retry once — this
-    self-heals the case where a previous partial init left the flag True
-    without all classes registered.
-    """
+    """Get a portal-specific model class. Checks the _models dict first
+    (populated by _ensure_models), then falls back to the mapper registry.
+    Retries once if the first lookup fails."""
     global _MODELS_DEFINED
+
+    # Fast path: already in _models dict
+    if name in _models:
+        return _models[name]
+
     for attempt in range(2):
         _ensure_models()
+        if name in _models:
+            return _models[name]
         Base = _base()
         for mapper in Base.registry.mappers:
             cls = mapper.class_
             if cls.__name__ == name:
+                _models[name] = cls
                 return cls
         # Not found — log the mappers we did see and try one retry after
         # clearing the guard.
