@@ -11043,7 +11043,8 @@ def placements():
                 "job": job,
                 "engagement": eng,
                 "end_date": end_date,
-                "days_until": days_until
+                "days_until": days_until,
+                "reason": "",
             })
         
         # Also include approved leave requests with notice_end_date in next 30 days
