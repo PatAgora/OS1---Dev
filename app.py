@@ -20032,6 +20032,26 @@ def taxonomy_manage():
     except Exception:
         ref_houses = []
 
+    # Assignment templates — DOCX templates per umbrella company
+    assignment_templates = []
+    assignment_umbrella_options = ["PayStream My Max 2 Ltd", "Trafalgar Workforce Solutions Ltd"]
+    try:
+        with Session(engine) as s_at:
+            assignment_templates = s_at.scalars(
+                select(AssignmentTemplate).order_by(AssignmentTemplate.uploaded_at.desc())
+            ).all()
+            try:
+                approved = s_at.scalars(
+                    select(ApprovedUmbrella).where(ApprovedUmbrella.is_active == True)
+                    .order_by(ApprovedUmbrella.name)
+                ).all()
+                if approved:
+                    assignment_umbrella_options = [u.name for u in approved]
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     # Load or seed the reference request email template
     email_template_ref = None
     try:
@@ -20095,7 +20115,9 @@ previous employer.</p>
                            ref_contacts_page=ref_contacts_page,
                            ref_contacts_per_page=ref_contacts_per_page,
                            ref_houses=ref_houses,
-                           email_template_ref=email_template_ref)
+                           email_template_ref=email_template_ref,
+                           assignment_templates=assignment_templates,
+                           assignment_umbrella_options=assignment_umbrella_options)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
@@ -20571,26 +20593,7 @@ def configuration():
 @app.route("/admin/assignment-templates", methods=["GET"])
 @login_required
 def admin_assignment_templates():
-    with Session(engine) as s:
-        templates = s.scalars(
-            select(AssignmentTemplate).order_by(AssignmentTemplate.uploaded_at.desc())
-        ).all()
-        # Pull approved umbrella list for the dropdown
-        umbrella_options = ["PayStream My Max 2 Ltd", "Trafalgar Workforce Solutions Ltd"]
-        try:
-            approved = s.scalars(
-                select(ApprovedUmbrella).where(ApprovedUmbrella.is_active == True)
-                .order_by(ApprovedUmbrella.name)
-            ).all()
-            if approved:
-                umbrella_options = [u.name for u in approved]
-        except Exception:
-            pass
-    return render_template(
-        "admin_assignment_templates.html",
-        templates=templates,
-        umbrella_options=umbrella_options,
-    )
+    return redirect(url_for("taxonomy_manage") + "#assignment-templates")
 
 
 @app.route("/admin/assignment-templates/upload", methods=["POST"])
@@ -20600,16 +20603,17 @@ def admin_assignment_template_upload():
     umbrella = (request.form.get("umbrella_company") or "").strip()
     file = request.files.get("template_file")
 
+    redir = url_for("taxonomy_manage") + "#assignment-templates"
     if not name or not umbrella:
         flash("Template name and umbrella company are required.", "danger")
-        return redirect(url_for("admin_assignment_templates"))
+        return redirect(redir)
     if not file or not file.filename:
         flash("Please select a DOCX file to upload.", "danger")
-        return redirect(url_for("admin_assignment_templates"))
+        return redirect(redir)
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ("docx",):
         flash("Only .docx files are supported for assignment templates.", "danger")
-        return redirect(url_for("admin_assignment_templates"))
+        return redirect(redir)
 
     import uuid
     upload_dir = os.path.join("uploads", "assignment_templates")
@@ -20630,7 +20634,7 @@ def admin_assignment_template_upload():
         s.add(tpl)
         s.commit()
     flash(f"Template '{name}' uploaded for {umbrella}.", "success")
-    return redirect(url_for("admin_assignment_templates"))
+    return redirect(url_for("taxonomy_manage") + "#assignment-templates")
 
 
 @app.route("/admin/assignment-templates/<int:tpl_id>/delete", methods=["POST"])
@@ -20648,7 +20652,7 @@ def admin_assignment_template_delete(tpl_id):
             flash(f"Template '{tpl.name}' deleted.", "success")
         else:
             flash("Template not found.", "warning")
-    return redirect(url_for("admin_assignment_templates"))
+    return redirect(url_for("taxonomy_manage") + "#assignment-templates")
 
 
 @app.route("/candidate/<int:cand_id>/assignment-filled.<ext>")
