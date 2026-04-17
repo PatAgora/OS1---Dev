@@ -305,6 +305,10 @@
                         {% endif %}
                     </td>
                     <td>
+                        <button type="button" class="action-btn view" title="View timesheet entries"
+                                onclick="document.getElementById('tsDetail{{ ts.id }}').classList.toggle('hidden')">
+                            <i class="fas fa-eye"></i>
+                        </button>
                         {% if ts.status == 'Submitted' %}
                         <form method="POST" action="{{ url_for('admin_approve_timesheet', ts_id=ts.id) }}" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -319,6 +323,37 @@
                         <span class="text-success"><i class="fas fa-check-circle"></i></span>
                         {% elif ts.status == 'Rejected' %}
                         <span class="text-danger"><i class="fas fa-times-circle"></i></span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr id="tsDetail{{ ts.id }}" class="hidden">
+                    <td colspan="8" style="background:#f8fafc; padding:16px 24px;">
+                        {% if ts.entries %}
+                        <table class="table table-sm mb-2" style="font-size:0.8rem;">
+                            <thead><tr><th>Date</th><th>Type</th><th>Value</th></tr></thead>
+                            <tbody>
+                                {% for e in ts.entries %}
+                                <tr>
+                                    <td>{{ e.date }}</td>
+                                    <td>{{ e.time_type }}</td>
+                                    <td>{{ e.value }} {{ e.unit }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted small mb-0">No time entries recorded.</p>
+                        {% endif %}
+                        {% if ts.expenses %}
+                        <div class="fw-semibold small mt-2 mb-1">Expenses</div>
+                        <table class="table table-sm mb-0" style="font-size:0.8rem;">
+                            <thead><tr><th>Type</th><th>Amount</th></tr></thead>
+                            <tbody>
+                                {% for exp in ts.expenses %}
+                                <tr><td>{{ exp.type }}</td><td>&pound;{{ "%.2f"|format(exp.amount) }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                         {% endif %}
                     </td>
                 </tr>

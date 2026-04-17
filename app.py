@@ -1557,7 +1557,38 @@ def admin_approvals():
                 .order_by(Timesheet.submitted_at.desc())
             ).all()
 
+            # Load entry/expense models from portal
+            try:
+                from associate_portal import _portal_model
+                TSEntry = _portal_model("TimesheetEntry")
+                TSExpense = _portal_model("TimesheetExpense")
+            except Exception:
+                TSEntry = TSExpense = None
+
             for ts, cand in all_ts:
+                entries = []
+                if TSEntry:
+                    try:
+                        for e in s.query(TSEntry).filter_by(timesheet_id=ts.id).order_by(TSEntry.entry_date).all():
+                            entries.append({
+                                "date": e.entry_date.strftime("%a %d/%m") if e.entry_date else "",
+                                "time_type": e.time_type or "",
+                                "value": f"{e.value:.1f}" if e.value else "0",
+                                "unit": e.value_unit or "days",
+                            })
+                    except Exception:
+                        pass
+                expenses = []
+                if TSExpense:
+                    try:
+                        for exp in s.query(TSExpense).filter_by(timesheet_id=ts.id).all():
+                            expenses.append({
+                                "type": exp.expense_type or exp.description or "Other",
+                                "amount": exp.amount or 0,
+                            })
+                    except Exception:
+                        pass
+
                 timesheets_data.append({
                     "id": ts.id,
                     "associate_name": cand.name if cand else f"ID {ts.user_id}",
@@ -1570,6 +1601,8 @@ def admin_approvals():
                     "total_amount": ts.grand_total or ts.total_amount or 0,
                     "status": ts.status,
                     "submitted_at": ts.submitted_at.strftime("%d/%m/%Y %H:%M") if ts.submitted_at else "",
+                    "entries": entries,
+                    "expenses": expenses,
                 })
                 if ts.status == "Submitted":
                     pending_count += 1
