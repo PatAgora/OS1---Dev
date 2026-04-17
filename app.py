@@ -3891,12 +3891,12 @@ def admin_portal_user_delete(cand_id: int):
     # a single transaction), but we keep it logical for readability.
     child_deletes = [
         # Signable + Verifile references by candidate or by application
-        "DELETE FROM esig_requests WHERE candidate_id = :cid",
-        "DELETE FROM esig_requests WHERE application_id IN (SELECT id FROM applications WHERE candidate_id = :cid)",
+        "DELETE FROM esign_requests WHERE candidate_id = :cid",
+        "DELETE FROM esign_requests WHERE application_id IN (SELECT id FROM applications WHERE candidate_id = :cid)",
         "DELETE FROM trustid_checks WHERE application_id IN (SELECT id FROM applications WHERE candidate_id = :cid)",
         "DELETE FROM applications WHERE candidate_id = :cid",
         # Core vetting / staff-side
-        "DELETE FROM vetting_checks WHERE candidate_id = :cid",
+        "DELETE FROM vetting_check WHERE candidate_id = :cid",
         "DELETE FROM shortlists WHERE candidate_id = :cid",
         "DELETE FROM candidate_tags WHERE candidate_id = :cid",
         "DELETE FROM documents WHERE candidate_id = :cid",
