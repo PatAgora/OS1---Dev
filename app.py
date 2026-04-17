@@ -6016,6 +6016,25 @@ try:
         except Exception:
             pass
 
+        # Backfill ESigRequest.application_id for signed records that
+        # have candidate_id but no application_id (created before the
+        # linking logic was added). Links to the most recent application.
+        try:
+            _mc.execute(text("""
+                UPDATE esign_requests SET application_id = sub.app_id
+                FROM (
+                    SELECT DISTINCT ON (e.id) e.id AS esig_id, a.id AS app_id
+                    FROM esign_requests e
+                    JOIN applications a ON a.candidate_id = e.candidate_id
+                    WHERE e.application_id IS NULL
+                      AND e.candidate_id IS NOT NULL
+                    ORDER BY e.id, a.created_at DESC
+                ) sub
+                WHERE esign_requests.id = sub.esig_id
+            """))
+        except Exception:
+            pass
+
         # Ensure "placed" stage exists in stage_config (added after
         # the original 9 stages were seeded). Also fix sort_order on
         # rejected_withdrawn so Placed sits between Contract Sent (7)

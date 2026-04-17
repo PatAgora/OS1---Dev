@@ -3358,10 +3358,16 @@ def my_applications():
                     display_status = "Offer Declined"
                 elif raw_status in UNSUCCESSFUL_STATUSES:
                     display_status = "Unsuccessful"
+                elif raw_status in ("contract issued", "contract sent"):
+                    display_status = "Contract Issued"
+                elif raw_status in ("contract signed", "placed"):
+                    display_status = "Placed"
                 else:
                     display_status = "Applied"
 
-                # Look up e-signature / contract status for this application
+                # Look up e-signature / contract status for this application.
+                # Try application_id first, fall back to candidate_id (older
+                # ESigRequests may have application_id = NULL).
                 esig = None
                 if ESigRequest:
                     esig = s.scalar(
@@ -3369,6 +3375,12 @@ def my_applications():
                         .where(ESigRequest.application_id == app.id)
                         .order_by(ESigRequest.id.desc())
                     )
+                    if not esig:
+                        esig = s.scalar(
+                            select(ESigRequest)
+                            .where(ESigRequest.candidate_id == cand_id)
+                            .order_by(ESigRequest.id.desc())
+                        )
 
                 applications.append({
                     "id": app.id,
@@ -3572,82 +3584,8 @@ def offer_decline(application_id):
 @associate_bp.route("/assignments")
 @_require_login
 def assignments():
-    """View current and past assignments (engagements/placements)."""
-    Application = _model("Application")
-    Job = _model("Job")
-    Engagement = _model("Engagement")
-    ESigRequest = _model("ESigRequest")
-    engine = _engine()
-    cand_id = _get_associate_id()
-
-    with SASession(engine) as s:
-        apps = []
-        if Application:
-            query = s.query(Application).filter_by(candidate_id=cand_id)
-            if hasattr(Application, "job"):
-                from sqlalchemy.orm import joinedload
-                query = query.options(joinedload(Application.job))
-            apps = query.order_by(Application.created_at.desc()).all()
-
-        esign_requests = []
-        if ESigRequest:
-            try:
-                # Try candidate_id first, fall back to fetching by application_ids
-                if hasattr(ESigRequest, "candidate_id"):
-                    esign_requests = s.query(ESigRequest).filter_by(candidate_id=cand_id).order_by(
-                        ESigRequest.created_at.desc()
-                    ).all()
-                elif apps and hasattr(ESigRequest, "application_id"):
-                    app_ids = [a.id for a in apps]
-                    esign_requests = s.query(ESigRequest).filter(
-                        ESigRequest.application_id.in_(app_ids)
-                    ).order_by(ESigRequest.created_at.desc()).all()
-            except Exception:
-                esign_requests = []
-
-        # Build assignment dicts from applications for the template
-        all_assignments = []
-        for app in apps:
-            job = app.job if hasattr(app, "job") and app.job else None
-            # Look up engagement name if job has engagement_id
-            engagement_name = ""
-            client_name = ""
-            if job and hasattr(job, "engagement_id") and job.engagement_id and Engagement:
-                eng = s.get(Engagement, job.engagement_id)
-                if eng:
-                    engagement_name = getattr(eng, "name", "") or ""
-                    client_name = getattr(eng, "client", "") or getattr(eng, "name", "") or ""
-            if not client_name:
-                client_name = job.engagement_name if job and hasattr(job, "engagement_name") else ""
-
-            stage = (app.stage or "").lower() if hasattr(app, "stage") else ""
-            is_ended = stage in ("completed", "ended", "terminated", "withdrawn")
-            display_status = "Contract ended" if is_ended else "On Contract"
-
-            assignment = {
-                "id": app.id,
-                "job_title": job.title if job else (app.role if hasattr(app, "role") else "Untitled Role"),
-                "client": client_name,
-                "engagement_name": engagement_name,
-                "start_date": app.start_date.strftime("%d %b %Y") if hasattr(app, "start_date") and app.start_date else "TBC",
-                "end_date": app.end_date.strftime("%d %b %Y") if hasattr(app, "end_date") and app.end_date else "TBC",
-                "day_rate": getattr(app, "day_rate", None),
-                "status": display_status,
-                "contract_status": "N/A",
-                "duration": "",
-            }
-            # Check e-sign status for contract
-            for esig in esign_requests:
-                if hasattr(esig, "application_id") and esig.application_id == app.id:
-                    assignment["contract_status"] = esig.status.title() if esig.status else "Pending"
-                    break
-
-            all_assignments.append(assignment)
-
-        return render_template(
-            "associate/assignments.html",
-            assignments=all_assignments,
-        )
+    """Removed — redirects to my-applications."""
+    return redirect(url_for("associate.my_applications"))
 
 
 @associate_bp.route("/timesheets", methods=["GET"])
