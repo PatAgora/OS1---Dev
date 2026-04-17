@@ -2185,7 +2185,7 @@ def mark_umbrella_assignment_signed(cand_id: int):
                 .order_by(Application.created_at.desc())
             )
             if latest_app and latest_app.status in ("Contract Issued", "Contract Sent", "sent"):
-                latest_app.status = "Contract Signed"
+                latest_app.status = "Placed"
             # Update Candidate status — vetting done + contract signed = Active
             if cand.status in ("In Vetting", "Contract Issued"):
                 cand.status = "Active"
@@ -5067,7 +5067,8 @@ DEFAULT_STAGES = [
     {"id": "accepted", "name": "Accepted", "short": "Accepted", "color": "#14b8a6", "icon": "fa-thumbs-up", "order": 5, "terminal": False},
     {"id": "ready_to_contract", "name": "Ready to Contract", "short": "Ready to Contract", "color": "#3b82f6", "icon": "fa-shield-alt", "order": 6, "terminal": False},
     {"id": "contract_sent", "name": "Contract Sent", "short": "Contract Sent", "color": "#10b981", "icon": "fa-file-signature", "order": 7, "terminal": False},
-    {"id": "rejected_withdrawn", "name": "Rejected/Withdrawn", "short": "Rej/Withdrawn", "color": "#ef4444", "icon": "fa-times-circle", "order": 8, "terminal": True},
+    {"id": "placed", "name": "Placed", "short": "Placed", "color": "#059669", "icon": "fa-check-circle", "order": 8, "terminal": False},
+    {"id": "rejected_withdrawn", "name": "Rejected/Withdrawn", "short": "Rej/Withdrawn", "color": "#ef4444", "icon": "fa-times-circle", "order": 9, "terminal": True},
 ]
 
 
@@ -9937,6 +9938,18 @@ def workflow_move():
                     "allow_override": True,
                     "app_id": app_id,
                     "target_stage": new_status,
+                }), 400
+
+        # Contract-signed gate: cannot move to Placed unless the
+        # assignment schedule has been confirmed as signed.
+        if new_status == "Placed" and not force_move:
+            cand_for_check = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
+            if not getattr(cand_for_check, "umbrella_assignment_signed", False):
+                return jsonify({
+                    "ok": False,
+                    "error": "Cannot move to Placed — the Assignment Schedule has not been confirmed as signed yet.",
+                    "validation_error": True,
+                    "contract_not_signed": True,
                 }), 400
 
         # If force move with incomplete vetting, log to audit
