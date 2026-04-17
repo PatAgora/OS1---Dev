@@ -2574,7 +2574,6 @@ def schedule_interview(cand_id: int):
         latest_app.interview_scheduled_at = scheduled_dt
         if latest_app.status in ("Pipeline", "Shortlist", "I&A", "New", "Applied", "Screening"):
             latest_app.status = "I&A"
-        cand.status = "Interviewing"
 
         # Load job + engagement for email placeholders
         job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
