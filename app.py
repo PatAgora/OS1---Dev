@@ -20651,7 +20651,8 @@ def admin_assignment_template_upload():
         return redirect(redir)
 
     import uuid
-    upload_dir = os.path.join("uploads", "assignment_templates")
+    _app_root = os.path.dirname(os.path.abspath(__file__))
+    upload_dir = os.path.join(_app_root, "uploads", "assignment_templates")
     os.makedirs(upload_dir, exist_ok=True)
     safe_name = f"tpl_{uuid.uuid4().hex[:10]}.docx"
     dest = os.path.join(upload_dir, safe_name)
@@ -20715,8 +20716,19 @@ def download_filled_assignment(cand_id, ext):
             .where(AssignmentTemplate.umbrella_company == umbrella_name)
             .order_by(AssignmentTemplate.uploaded_at.desc())
         )
-        if not tpl or not os.path.isfile(tpl.file_path):
+        if not tpl:
             flash(f"No assignment template found for '{umbrella_name}'.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        # Resolve the stored path relative to the app root
+        tpl_path = tpl.file_path
+        if not os.path.isabs(tpl_path):
+            tpl_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), tpl_path)
+        if not os.path.isfile(tpl_path):
+            current_app.logger.error(
+                "Assignment template file not found: stored=%s resolved=%s",
+                tpl.file_path, tpl_path,
+            )
+            flash(f"Template file missing on server — re-upload in Configuration → Assignment Templates.", "danger")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         latest_app = s.scalar(
@@ -20737,7 +20749,7 @@ def download_filled_assignment(cand_id, ext):
 
         from docx import Document as DocxDocument
         import io
-        doc = DocxDocument(tpl.file_path)
+        doc = DocxDocument(tpl_path)
         for para in doc.paragraphs:
             for key, value in vals.items():
                 placeholder = "{" + key + "}"
