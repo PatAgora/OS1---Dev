@@ -1650,15 +1650,20 @@ def _admin_approvals_inner():
                 })
                 if lr.status == "Pending":
                     leave_pending += 1
+    except Exception as _lr_exc:
+        print(f"[APPROVALS] leave requests query failed: {_lr_exc}", flush=True)
+
+    try:
+        with Session(engine) as s3:
             leave_reasons = [
                 {"id": r.id, "name": r.name}
-                for r in s2.scalars(
+                for r in s3.scalars(
                     select(LeaveReason).where(LeaveReason.is_active == True)
                     .order_by(LeaveReason.sort_order)
                 ).all()
             ]
-    except Exception as _lr_exc:
-        print(f"[APPROVALS] leave query failed: {_lr_exc}", flush=True)
+    except Exception as _lrr_exc:
+        print(f"[APPROVALS] leave reasons query failed: {_lrr_exc}", flush=True)
 
     print(f"[APPROVALS] leave_reasons={leave_reasons}, leave_data_count={len(leave_data)}", flush=True)
 
@@ -6658,15 +6663,19 @@ Optimus Compliance Team"""))
         except Exception:
             pass
 
-        # Leave request notice date columns
-        try:
-            _mc.execute(text("ALTER TABLE leave_requests ADD COLUMN notice_start_date DATE"))
-        except Exception:
-            pass
-        try:
-            _mc.execute(text("ALTER TABLE leave_requests ADD COLUMN notice_end_date DATE"))
-        except Exception:
-            pass
+        # Leave request columns — model was updated from the original
+        for _lr_col in [
+            "ALTER TABLE leave_requests ADD COLUMN reason VARCHAR(200) DEFAULT ''",
+            "ALTER TABLE leave_requests ADD COLUMN notice_start_date DATE",
+            "ALTER TABLE leave_requests ADD COLUMN notice_end_date DATE",
+            "ALTER TABLE leave_requests ADD COLUMN last_working_date DATE",
+            "ALTER TABLE leave_requests ADD COLUMN notice_period VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE leave_requests ADD COLUMN created_by VARCHAR(200) DEFAULT ''",
+        ]:
+            try:
+                _mc.execute(text(_lr_col))
+            except Exception:
+                pass
 
         # Seed default leave reasons if table is empty
         try:
