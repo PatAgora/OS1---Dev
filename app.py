@@ -20748,39 +20748,108 @@ def download_filled_assignment(cand_id, ext):
         vals = _build_paystream_field_values(cand, latest_app, job, eng, conduct_label) if latest_app else {}
 
         from docx import Document as DocxDocument
-        import io
+        import io, re
 
-        def _replace_in_paragraph(para, placeholder, value):
-            """Replace a placeholder that may span multiple Word runs.
-            Word often splits {worker_name} across runs like {worker + _name}.
-            para.text sees the joined string, but no single run contains it.
-            Fix: when the placeholder spans runs, collapse into the first run
-            and clear the rest — preserves the first run's formatting."""
-            full = para.text
-            if placeholder not in full:
-                return
-            # Fast path: placeholder is entirely inside one run
-            for run in para.runs:
-                if placeholder in run.text:
-                    run.text = run.text.replace(placeholder, value or "")
-                    return
-            # Slow path: placeholder spans runs — rebuild
-            new_text = full.replace(placeholder, value or "")
-            if para.runs:
-                para.runs[0].text = new_text
-                for r in para.runs[1:]:
-                    r.text = ""
+        # Map the label text in the DOCX left column to the captured
+        # field key. Matching is case-insensitive with whitespace
+        # normalized so minor formatting differences don't break it.
+        LABEL_TO_FIELD = {
+            "name of worker": "worker_name",
+            "position and nature of the work": "position",
+            "hirer name (end client)": "hirer_name",
+            "hirer name": "hirer_name",
+            "assignment start date": "start_date",
+            "assignment end date": "end_date",
+            "assignment hours of work": "hours_of_work",
+            "assignment place of work": "work_location",
+            "whether any expenses are payable by hirer": "expenses",
+            "expenses payable by hirer": "expenses",
+            "details of any known health and safety risks": "health_safety",
+            "health and safety risks": "health_safety",
+            "will the engagement involve the worker working with or caring for or attending any vulnerable person": "vulnerable_person",
+            "vulnerable person": "vulnerable_person",
+            "conduct regulations status": "conduct_regs",
+            "conduct of employment agencies": "conduct_regs",
+            "notice period (by agency, without cause)": "notice_agency",
+            "notice period (by agency": "notice_agency",
+            "notice period (by paystream, without cause)": "notice_paystream",
+            "notice period (by paystream": "notice_paystream",
+            "fee (agency to paystream, ex vat)": "fee",
+            "fee (agency to paystream": "fee",
+            "invoice frequency": "invoice_frequency",
+        }
+
+        def _norm(t):
+            return re.sub(r"\s+", " ", (t or "")).strip().lower().rstrip("?:.")
+
+        def _set_cell_text(cell, value):
+            """Set the text of a table cell, preserving the first run's
+            formatting but replacing all content."""
+            for i, para in enumerate(cell.paragraphs):
+                if i == 0:
+                    if para.runs:
+                        para.runs[0].text = value or ""
+                        for r in para.runs[1:]:
+                            r.text = ""
+                    else:
+                        para.text = value or ""
+                else:
+                    for r in para.runs:
+                        r.text = ""
 
         doc = DocxDocument(tpl_path)
-        for para in doc.paragraphs:
-            for key, value in vals.items():
-                _replace_in_paragraph(para, "{" + key + "}", value)
+
+        # Primary approach: find label in left table column, fill the
+        # right column with the captured value.
+        filled_keys = set()
         for table in doc.tables:
             for row in table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:
-                        for key, value in vals.items():
-                            _replace_in_paragraph(para, "{" + key + "}", value)
+                cells = row.cells
+                if len(cells) < 2:
+                    continue
+                label = _norm(cells[0].text)
+                field_key = LABEL_TO_FIELD.get(label)
+                if not field_key and label:
+                    for lbl, fk in LABEL_TO_FIELD.items():
+                        if lbl in label or label in lbl:
+                            field_key = fk
+                            break
+                if field_key and field_key in vals:
+                    _set_cell_text(cells[-1], vals[field_key])
+                    filled_keys.add(field_key)
+
+        # Fallback: {placeholder} token replacement for any fields not
+        # matched by label (supports both paragraph and table text).
+        remaining = {k: v for k, v in vals.items() if k not in filled_keys}
+        if remaining:
+            def _replace_in_para(para, placeholder, value):
+                full = para.text
+                if placeholder not in full:
+                    return
+                for run in para.runs:
+                    if placeholder in run.text:
+                        run.text = run.text.replace(placeholder, value or "")
+                        return
+                if para.runs:
+                    para.runs[0].text = full.replace(placeholder, value or "")
+                    for r in para.runs[1:]:
+                        r.text = ""
+
+            for para in doc.paragraphs:
+                for key, value in remaining.items():
+                    _replace_in_para(para, "{" + key + "}", value)
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for para in cell.paragraphs:
+                            for key, value in remaining.items():
+                                _replace_in_para(para, "{" + key + "}", value)
+
+        current_app.logger.info(
+            "Assignment template filled: %d/%d fields matched (%s)",
+            len(filled_keys), len(vals),
+            ", ".join(sorted(filled_keys)) or "none",
+        )
 
         buf = io.BytesIO()
         doc.save(buf)
