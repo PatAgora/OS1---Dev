@@ -780,6 +780,92 @@ Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '
       </button>
     </div>
   </form>
+
+  <!-- Interview Invitation Template -->
+  <form method="POST" action="{{ url_for('save_email_template') }}" class="p-3 border rounded bg-light mt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="template_name" value="interview_invitation">
+
+    <h6 class="fw-bold mb-3"><i class="fas fa-calendar-check me-2"></i>Interview Invitation Email</h6>
+    <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to associates when inviting them to an interview. Use the tags below to automatically insert the relevant details.</p>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold mb-1">Email Subject</label>
+      <input type="text" name="subject" class="form-control"
+             value="{{ email_template_interview.subject if email_template_interview else 'Interview Confirmation: {date} at {time}' }}"
+             placeholder="Interview Confirmation: {date} at {time}">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold mb-1">Email Message</label>
+      <textarea name="body" class="form-control" rows="24"
+                placeholder="Hi {associate_name},
+
+I hope you are well. I am pleased to confirm that {client_name} would like to invite you to interview for the {role} role.
+
+...">{{ email_template_interview.body if email_template_interview else '' }}</textarea>
+    </div>
+
+    <div class="mb-3 p-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+      <p class="fw-semibold mb-2" style="font-size: 0.85rem;"><i class="fas fa-tags me-2 text-primary"></i>Auto-fill Tags</p>
+      <p class="text-muted mb-2" style="font-size: 0.8rem;">Type these tags anywhere in your email and they'll be replaced with the actual details:</p>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{associate_name}</code>
+            <small class="text-muted">Associate's name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{client_name}</code>
+            <small class="text-muted">Client company name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{role}</code>
+            <small class="text-muted">Role title</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{date}</code>
+            <small class="text-muted">Interview date</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{time}</code>
+            <small class="text-muted">Interview time</small>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{client_contact_name}</code>
+            <small class="text-muted">Client contact name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{client_role}</code>
+            <small class="text-muted">Client contact role</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{company_name}</code>
+            <small class="text-muted">Company name</small>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{company_website}</code>
+            <small class="text-muted">Company website</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center">
+      <small class="text-muted">
+        {% if email_template_interview and email_template_interview.updated_at %}
+          Last saved: {{ email_template_interview.updated_at.strftime('%d/%m/%Y %H:%M') }}
+        {% else %}
+          Using default template
+        {% endif %}
+      </small>
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="fas fa-save me-1"></i> Save Template
+      </button>
+    </div>
+  </form>
 </div>
 
 <!-- ==================================================================== -->
@@ -1099,6 +1185,81 @@ Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '
     {% else %}
     <div class="text-muted text-center py-3">
       No assignment templates uploaded yet.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Offer Templates -->
+<div class="card shadow-sm mb-4" id="offer-templates">
+  <div class="card-header bg-white py-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="fw-bold mb-0"><i class="fas fa-file-word me-2 text-success"></i>Offer Templates</h5>
+    </div>
+    <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
+      Upload DOCX templates for Offer of Engagement documents. The left column
+      of the template table should contain labels (e.g. "Job Title") which will
+      be matched and filled with captured values.
+    </p>
+  </div>
+  <div class="card-body">
+    <!-- Upload form -->
+    <form method="POST" action="{{ url_for('admin_offer_template_upload') }}" enctype="multipart/form-data" class="mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label for="ot_name" class="form-label small fw-semibold">Template name</label>
+          <input type="text" id="ot_name" name="name" class="form-control form-control-sm"
+                 placeholder="e.g. Standard Offer Letter" required>
+        </div>
+        <div class="col-md-6">
+          <label for="ot_file" class="form-label small fw-semibold">DOCX file</label>
+          <input type="file" id="ot_file" name="template_file" class="form-control form-control-sm"
+                 accept=".docx" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-success btn-sm w-100">
+            <i class="fas fa-upload me-1"></i> Upload
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Existing templates -->
+    {% if offer_templates %}
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>File</th>
+          <th>Uploaded</th>
+          <th>By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tpl in offer_templates %}
+        <tr>
+          <td>{{ tpl.name }}</td>
+          <td class="small text-muted">{{ tpl.filename }}</td>
+          <td class="small">{{ tpl.uploaded_at.strftime('%d %b %Y %H:%M') if tpl.uploaded_at else '—' }}</td>
+          <td class="small text-muted">{{ tpl.uploaded_by or '—' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('admin_offer_template_delete', tpl_id=tpl.id) }}"
+                  onsubmit="return confirm('Delete this offer template?');" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-muted text-center py-3">
+      No offer templates uploaded yet.
     </div>
     {% endif %}
   </div>

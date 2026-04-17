@@ -109,6 +109,7 @@
                     <th>Client</th>
                     <th>Date Applied</th>
                     <th>Status</th>
+                    <th>Offer of Engagement</th>
                     <th>Contract</th>
                 </tr>
             </thead>
@@ -127,6 +128,8 @@
                         <span class="badge bg-success"><i class="fas fa-check me-1"></i>Accepted</span>
                         {% elif app.status == 'Offer Declined' %}
                         <span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Declined</span>
+                        {% elif app.status in ('Contract Issued', 'Placed') %}
+                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Accepted</span>
                         {% elif app.status == 'Unsuccessful' %}
                         <span class="badge badge-not-started"><i class="fas fa-circle" style="font-size: 6px;"></i> Unsuccessful</span>
                         {% else %}
@@ -137,15 +140,30 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if app.contract_status == 'Sent' and app.signing_url %}
-                        <a href="{{ app.signing_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-success btn-sm">
-                            <i class="fas fa-file-signature me-1"></i>Sign Contract
-                        </a>
-                        {% elif app.contract_status == 'Signed' %}
-                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Contract Signed</span>
-                        {% elif app.contract_status == 'Declined' %}
-                        <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Contract Declined</span>
-                        {% elif app.status == 'Offer Accepted' and not app.contract_status %}
+                        {% if app.status == 'Offer Received' %}
+                        <form method="POST" action="/portal/offer/{{ app.id }}/accept" class="d-inline"
+                              onsubmit="return confirm('By accepting this offer you are confirming you have received your offer via email and read and understood the terms and conditions detailed within.\n\nDo you wish to proceed?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="fas fa-check me-1"></i>Accept Offer
+                            </button>
+                        </form>
+                        {% elif app.status in ('Offer Accepted', 'Contract Issued', 'Placed') %}
+                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Accepted</span>
+                        {% elif app.status == 'Offer Declined' %}
+                        <span class="badge bg-secondary">Declined</span>
+                        {% else %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if app.contract_status and app.contract_status|lower in ('sent', 'signed', 'completed') %}
+                            {% if app.contract_status|lower == 'signed' or app.contract_status|lower == 'completed' %}
+                            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Contract Signed</span>
+                            {% else %}
+                            <span class="badge bg-info text-dark"><i class="fas fa-paper-plane me-1"></i>Contract Sent</span>
+                            {% endif %}
+                        {% elif app.status in ('Offer Accepted', 'Contract Issued') and not app.contract_status %}
                         <span class="text-muted text-sm"><i class="fas fa-hourglass-half me-1"></i>Awaiting Contract</span>
                         {% else %}
                         <span class="text-muted">&mdash;</span>

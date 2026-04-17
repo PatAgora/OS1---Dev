@@ -2468,6 +2468,249 @@ def paystream_capture(cand_id: int):
 
 
 # ---------------------------------------------------------------------------
+# Offer of Engagement — Capture Sheet
+# ---------------------------------------------------------------------------
+@app.route("/candidate/<int:cand_id>/offer-capture", methods=["GET", "POST"])
+@login_required
+def offer_capture(cand_id: int):
+    """Capture sheet for the Offer of Engagement. Pre-fills fields from
+    the candidate's latest application / job / engagement. On submit,
+    persists values onto the Application row, creates an ESigRequest with
+    status='offered', sets the application status to 'Offered', and if an
+    OfferTemplate exists, fills and downloads the DOCX."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        if not latest_app:
+            flash("Candidate has no application to make an offer against.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
+        engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # Check for an uploaded offer template
+        offer_tpl = s.scalar(
+            select(OfferTemplate).order_by(OfferTemplate.uploaded_at.desc())
+        )
+
+        if request.method == "POST":
+            def _parse_date(v):
+                if not v:
+                    return None
+                try:
+                    return datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                except Exception:
+                    return None
+
+            latest_app.offer_role_title = (request.form.get("job_title") or "").strip()
+            latest_app.offer_location = (request.form.get("location") or "").strip()
+            latest_app.offer_start_date = _parse_date(request.form.get("start_date"))
+            latest_app.offer_engagement_type = (request.form.get("engagement_type") or "").strip()
+            latest_app.offer_expected_duration = (request.form.get("expected_duration") or "").strip()
+
+            # Parse day rate
+            day_rate_raw = (request.form.get("day_rate") or "").strip().replace(",", "")
+            try:
+                latest_app.offer_day_rate = float(day_rate_raw) if day_rate_raw else None
+            except ValueError:
+                latest_app.offer_day_rate = None
+
+            latest_app.offer_made_at = datetime.datetime.utcnow()
+            latest_app.status = "Offered"
+
+            # Create ESigRequest with status="offered"
+            esig = ESigRequest(
+                candidate_id=cand_id,
+                application_id=latest_app.id,
+                status="offered",
+                created_at=datetime.datetime.utcnow(),
+            )
+            s.add(esig)
+
+            # Activity note
+            user_email = getattr(current_user, "email", "staff") or "staff"
+            project_name = (request.form.get("project_name") or "").strip()
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=user_email,
+                note_type="activity",
+                content=(
+                    f"Offer of Engagement captured: "
+                    f"project={project_name!r}, "
+                    f"role={latest_app.offer_role_title!r}, "
+                    f"rate={latest_app.offer_day_rate}, "
+                    f"start={latest_app.offer_start_date}, "
+                    f"type={latest_app.offer_engagement_type!r}, "
+                    f"duration={latest_app.offer_expected_duration!r}"
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
+            s.commit()
+
+            # If an offer template exists, fill and download the DOCX
+            if offer_tpl and offer_tpl.file_content:
+                try:
+                    from docx import Document as DocxDocument
+                    import io, re
+
+                    vals = {
+                        "project_name": project_name,
+                        "job_title": latest_app.offer_role_title or "",
+                        "location": latest_app.offer_location or "",
+                        "day_rate": f"£{latest_app.offer_day_rate:,.2f}" if latest_app.offer_day_rate else "",
+                        "engagement_type": latest_app.offer_engagement_type or "",
+                        "start_date": latest_app.offer_start_date.strftime("%d %b %Y") if latest_app.offer_start_date else "",
+                        "expected_duration": latest_app.offer_expected_duration or "",
+                    }
+
+                    LABEL_TO_FIELD = {
+                        "project name": "project_name",
+                        "job title": "job_title",
+                        "location": "location",
+                        "day rate": "day_rate",
+                        "engagement type": "engagement_type",
+                        "start date": "start_date",
+                        "expected duration": "expected_duration",
+                    }
+
+                    def _norm(t):
+                        return re.sub(r"\s+", " ", (t or "")).strip().lower().rstrip("?:.")
+
+                    def _set_cell_text(cell, value):
+                        from docx.shared import Pt
+                        ref_font = None
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                if run.font:
+                                    ref_font = run.font
+                                    break
+                            if ref_font:
+                                break
+                        for i, para in enumerate(cell.paragraphs):
+                            if i == 0:
+                                if para.runs:
+                                    para.runs[0].text = value or ""
+                                    for r in para.runs[1:]:
+                                        r.text = ""
+                                else:
+                                    run = para.add_run(value or "")
+                                    if ref_font:
+                                        if ref_font.name:
+                                            run.font.name = ref_font.name
+                                        if ref_font.size:
+                                            run.font.size = ref_font.size
+                                        run.font.bold = ref_font.bold
+                                        run.font.italic = ref_font.italic
+                            else:
+                                for r in para.runs:
+                                    r.text = ""
+
+                    tpl_stream = io.BytesIO(offer_tpl.file_content)
+                    doc = DocxDocument(tpl_stream)
+
+                    filled_keys = set()
+                    for table in doc.tables:
+                        for row in table.rows:
+                            cells = row.cells
+                            if len(cells) < 2:
+                                continue
+                            label = _norm(cells[0].text)
+                            field_key = LABEL_TO_FIELD.get(label)
+                            if not field_key and label:
+                                for lbl, fk in LABEL_TO_FIELD.items():
+                                    if lbl in label or label in lbl:
+                                        field_key = fk
+                                        break
+                            if field_key and field_key in vals:
+                                _set_cell_text(cells[-1], vals[field_key])
+                                filled_keys.add(field_key)
+
+                    # Fallback: {placeholder} token replacement
+                    remaining = {k: v for k, v in vals.items() if k not in filled_keys}
+                    if remaining:
+                        def _replace_in_para(para, placeholder, value):
+                            full = para.text
+                            if placeholder not in full:
+                                return
+                            for run in para.runs:
+                                if placeholder in run.text:
+                                    run.text = run.text.replace(placeholder, value or "")
+                                    return
+                            if para.runs:
+                                para.runs[0].text = full.replace(placeholder, value or "")
+                                for r in para.runs[1:]:
+                                    r.text = ""
+
+                        for para in doc.paragraphs:
+                            for key, value in remaining.items():
+                                _replace_in_para(para, "{" + key + "}", value)
+                        for table in doc.tables:
+                            for row in table.rows:
+                                for cell in row.cells:
+                                    for para in cell.paragraphs:
+                                        for key, value in remaining.items():
+                                            _replace_in_para(para, "{" + key + "}", value)
+
+                    current_app.logger.info(
+                        "Offer template filled: %d/%d fields matched (%s)",
+                        len(filled_keys), len(vals),
+                        ", ".join(sorted(filled_keys)) or "none",
+                    )
+
+                    out = io.BytesIO()
+                    doc.save(out)
+                    out.seek(0)
+                    safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", cand.name or "candidate")
+                    flash("Offer details saved. Your filled template is downloading.", "success")
+                    return send_file(
+                        out,
+                        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        as_attachment=True,
+                        download_name=f"Offer_{safe_name}.docx",
+                    )
+                except Exception:
+                    current_app.logger.exception("Failed to fill offer template")
+                    flash("Offer details saved but template fill failed — check logs.", "warning")
+                    return redirect(url_for("candidate_profile", cand_id=cand_id))
+            else:
+                flash("Offer details saved. No offer template uploaded — upload one in Configuration.", "warning")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        # GET — pre-populate fields
+        def _or(override, source):
+            return override if (override or "").strip() else source
+
+        return render_template(
+            "offer_capture.html",
+            cand=cand,
+            appn=latest_app,
+            job=job,
+            engagement=engagement,
+            offer_tpl=offer_tpl,
+            captured={
+                "project_name": engagement.name if engagement else "",
+                "job_title": _or(latest_app.offer_role_title, job.title if job else ""),
+                "location": _or(latest_app.offer_location, job.location if job else ""),
+                "day_rate": str(latest_app.offer_day_rate) if latest_app.offer_day_rate else "",
+                "engagement_type": _or(
+                    getattr(latest_app, "offer_engagement_type", "") or "",
+                    job.role_type if job else "",
+                ),
+                "start_date": (
+                    latest_app.offer_start_date.isoformat()
+                    if latest_app.offer_start_date else ""
+                ),
+                "expected_duration": getattr(latest_app, "offer_expected_duration", "") or "",
+            },
+        )
+
+
+# ---------------------------------------------------------------------------
 # Signable API helpers — used by the Paystream auto-populated envelope flow.
 # ---------------------------------------------------------------------------
 SIGNABLE_API_BASE = os.getenv("SIGNABLE_API_BASE", "https://api.signable.co.uk/v1").strip().rstrip("/")
@@ -4856,6 +5099,8 @@ class Application(Base):
     offer_responded_at = Column(DateTime, nullable=True)
     offer_responded_ip = Column(String(50), nullable=True)
     offer_decline_reason = Column(Text, nullable=True)
+    offer_engagement_type = Column(String(100), default="")
+    offer_expected_duration = Column(String(100), default="")
 
     # Assignment-schedule capture (Paystream Assignment Schedule template).
     # Populated when staff reviews the capture sheet before sending the
@@ -5050,6 +5295,22 @@ class AssignmentTemplate(Base):
     umbrella_company = Column(String(300), default="")
     filename = Column(String(300), default="")
     file_path = Column(String(500), default="")
+    file_content = Column(LargeBinary, nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)
+    uploaded_by = Column(String(200), default="")
+
+
+class OfferTemplate(Base):
+    """Uploadable DOCX templates for Offer of Engagement documents.
+    Staff uploads one generic template via the config page. When making
+    an offer, the system fills placeholders using label matching (same
+    approach as AssignmentTemplate) and presents the filled DOCX for
+    download. File content is stored in the DB (LargeBinary) so it
+    survives Railway's ephemeral filesystem on redeployment."""
+    __tablename__ = "offer_templates"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(300), default="")
+    filename = Column(String(300), default="")
     file_content = Column(LargeBinary, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)
     uploaded_by = Column(String(200), default="")
@@ -6057,6 +6318,9 @@ try:
             "ALTER TABLE applications ADD COLUMN assignment_notice_paystream VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN assignment_invoice_frequency VARCHAR(50) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN assignment_captured_at TIMESTAMP",
+            # Offer capture — engagement type and expected duration
+            "ALTER TABLE applications ADD COLUMN offer_engagement_type VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE applications ADD COLUMN offer_expected_duration VARCHAR(100) DEFAULT ''",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -20269,6 +20533,16 @@ def taxonomy_manage():
     except Exception:
         pass
 
+    # Offer templates — DOCX templates for Offer of Engagement
+    offer_templates = []
+    try:
+        with Session(engine) as s_ot:
+            offer_templates = s_ot.scalars(
+                select(OfferTemplate).order_by(OfferTemplate.uploaded_at.desc())
+            ).all()
+    except Exception:
+        pass
+
     # Load or seed the reference request email template
     email_template_ref = None
     try:
@@ -20321,6 +20595,79 @@ Optimus Compliance Team"""
     except Exception:
         email_template_ref = None
 
+    # Load or seed the interview invitation email template
+    email_template_interview = None
+    try:
+        with Session(engine) as s7:
+            email_template_interview = s7.scalar(
+                select(EmailTemplate).where(EmailTemplate.name == "interview_invitation")
+            )
+            if not email_template_interview:
+                default_interview_body = """Hi {associate_name},
+
+I hope you are well. I am pleased to confirm that {client_name} would like to invite you to interview for the {role} role. Please find the details below.
+
+Date: {date}
+Time: {time}
+Format: Microsoft Teams (virtual)
+
+Client Contact
+
+Name: {client_contact_name}
+Role: {client_role}
+Company: {company_name}
+Website: {company_website}
+
+Technology
+
+This interview will be conducted via Microsoft Teams; a meeting link will be included in your calendar invitation. We recommend joining the call with plenty of time to spare to ensure you can access the meeting without any issues. Please also check the following ahead of the call:
+
+- Test your audio and video connection in advance
+- Ensure your camera is switched on throughout the interview, with your background blurred
+- Find a quiet, private location free from interruptions
+
+Research
+
+We strongly recommend taking some time to familiarise yourself with the company ahead of the interview. Their website is a great starting point: {company_website}
+
+Documents
+
+For your reference, I have attached the following:
+
+- Job description for the role
+- A copy of the CV we submitted to the client on your behalf
+
+Please review both documents so you are aligned on what the client has seen.
+
+Please respond to this e-mail to confirm receipt. If you have any questions in the meantime, or if anything changes, please do not hesitate to get in touch.
+
+We wish you the very best of luck.
+
+71-75 Shelton Street | London | WC2H 9JQ
+associates@optimussolutions.co.uk
+Optimus - Financial Services Resourcing Specialists"""
+                email_template_interview = EmailTemplate(
+                    name="interview_invitation",
+                    subject="Interview Confirmation: {date} at {time}",
+                    body=default_interview_body,
+                )
+                s7.add(email_template_interview)
+                s7.commit()
+                # Re-fetch to get ID
+                email_template_interview = s7.scalar(
+                    select(EmailTemplate).where(EmailTemplate.name == "interview_invitation")
+                )
+            # Detach-safe: copy values
+            email_template_interview = {
+                "id": email_template_interview.id,
+                "name": email_template_interview.name,
+                "subject": email_template_interview.subject,
+                "body": email_template_interview.body,
+                "updated_at": email_template_interview.updated_at,
+            }
+    except Exception:
+        email_template_interview = None
+
     return render_template("taxonomy_manage.html",
                            roles=roles, subjects=subjects,
                            tags_by_cat=tags_by_cat,
@@ -20336,8 +20683,10 @@ Optimus Compliance Team"""
                            ref_contacts_per_page=ref_contacts_per_page,
                            ref_houses=ref_houses,
                            email_template_ref=email_template_ref,
+                           email_template_interview=email_template_interview,
                            assignment_templates=assignment_templates,
-                           assignment_umbrella_options=assignment_umbrella_options)
+                           assignment_umbrella_options=assignment_umbrella_options,
+                           offer_templates=offer_templates)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
@@ -20867,6 +21216,57 @@ def admin_assignment_template_delete(tpl_id):
         else:
             flash("Template not found.", "warning")
     return redirect(url_for("taxonomy_manage") + "#assignment-templates")
+
+
+# ---------------------------------------------------------------------------
+# Offer Templates — upload/manage DOCX templates for Offer of Engagement
+# ---------------------------------------------------------------------------
+@app.route("/admin/offer-templates/upload", methods=["POST"])
+@login_required
+def admin_offer_template_upload():
+    name = (request.form.get("name") or "").strip()
+    file = request.files.get("template_file")
+
+    redir = url_for("taxonomy_manage") + "#offer-templates"
+    if not name:
+        flash("Template name is required.", "danger")
+        return redirect(redir)
+    if not file or not file.filename:
+        flash("Please select a DOCX file to upload.", "danger")
+        return redirect(redir)
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ("docx",):
+        flash("Only .docx files are supported for offer templates.", "danger")
+        return redirect(redir)
+
+    file_bytes = file.read()
+
+    with Session(engine) as s:
+        tpl = OfferTemplate(
+            name=name,
+            filename=file.filename,
+            file_content=file_bytes,
+            uploaded_at=datetime.datetime.utcnow(),
+            uploaded_by=getattr(current_user, "email", "") or "",
+        )
+        s.add(tpl)
+        s.commit()
+    flash(f"Offer template '{name}' uploaded.", "success")
+    return redirect(url_for("taxonomy_manage") + "#offer-templates")
+
+
+@app.route("/admin/offer-templates/<int:tpl_id>/delete", methods=["POST"])
+@login_required
+def admin_offer_template_delete(tpl_id):
+    with Session(engine) as s:
+        tpl = s.get(OfferTemplate, tpl_id)
+        if tpl:
+            s.delete(tpl)
+            s.commit()
+            flash(f"Offer template '{tpl.name}' deleted.", "success")
+        else:
+            flash("Template not found.", "warning")
+    return redirect(url_for("taxonomy_manage") + "#offer-templates")
 
 
 @app.route("/candidate/<int:cand_id>/assignment-filled.<ext>")

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Offer Capture — {{ cand.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="fw-bold mb-1">
+        Offer of Engagement — Capture Sheet
+      </h2>
+      <div class="text-muted">
+        Complete the fields below for <strong>{{ cand.name }}</strong>, then click
+        <em>Save &amp; download offer</em>.
+        {% if offer_tpl %}
+          The filled DOCX will download automatically.
+        {% endif %}
+      </div>
+    </div>
+    <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i> Back to profile
+    </a>
+  </div>
+
+  {% if offer_tpl %}
+  <div class="alert alert-success small py-2">
+    <i class="fas fa-check-circle me-1"></i>
+    <strong>Template found:</strong> {{ offer_tpl.name }}
+    <span class="text-muted">({{ offer_tpl.filename }}, uploaded {{ offer_tpl.uploaded_at.strftime('%d %b %Y') if offer_tpl.uploaded_at else '—' }})</span>
+    — the filled document will download when you submit.
+  </div>
+  {% else %}
+  <div class="alert alert-warning small py-2">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    <strong>No offer template uploaded.</strong>
+    Upload one in <a href="{{ url_for('taxonomy_manage') }}#offer-templates">Configuration &rarr; Offer Templates</a>.
+    Fields will still be saved.
+  </div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('offer_capture', cand_id=cand.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        <i class="fas fa-handshake me-1"></i> Offer Details
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <!-- Project Name -->
+          <div class="col-md-6">
+            <label for="project_name" class="form-label small">Project Name</label>
+            <input type="text" id="project_name" name="project_name"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.project_name }}">
+            <div class="form-text">From engagement — editable.</div>
+          </div>
+
+          <!-- Job Title -->
+          <div class="col-md-6">
+            <label for="job_title" class="form-label small">Job Title</label>
+            <input type="text" id="job_title" name="job_title"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.job_title }}">
+          </div>
+
+          <!-- Location -->
+          <div class="col-md-6">
+            <label for="location" class="form-label small">Location</label>
+            <input type="text" id="location" name="location"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.location }}">
+          </div>
+
+          <!-- Day Rate -->
+          <div class="col-md-6">
+            <label for="day_rate" class="form-label small">Day Rate (&pound;)</label>
+            <input type="text" id="day_rate" name="day_rate"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.day_rate }}"
+                   placeholder="e.g. 500.00">
+          </div>
+
+          <!-- Engagement Type -->
+          <div class="col-md-6">
+            <label for="engagement_type" class="form-label small">Engagement Type</label>
+            <input type="text" id="engagement_type" name="engagement_type"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.engagement_type }}"
+                   placeholder="e.g. Contract, Permanent">
+          </div>
+
+          <!-- Start Date -->
+          <div class="col-md-3">
+            <label for="start_date" class="form-label small">Start Date</label>
+            <input type="date" id="start_date" name="start_date"
+                   class="form-control form-control-sm bg-success-subtle"
+                   value="{{ captured.start_date }}">
+          </div>
+
+          <!-- Expected Duration -->
+          <div class="col-md-3">
+            <label for="expected_duration" class="form-label small">Expected Duration</label>
+            <input type="text" id="expected_duration" name="expected_duration"
+                   class="form-control form-control-sm"
+                   value="{{ captured.expected_duration }}"
+                   placeholder="e.g. 6 months">
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+        Cancel
+      </a>
+      <button type="submit" class="btn btn-success">
+        <i class="fas fa-download me-1"></i> Save &amp; download offer
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
