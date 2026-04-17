@@ -136,27 +136,23 @@ M365_CLIENT_ID = os.getenv("M365_CLIENT_ID", "")
 M365_CLIENT_SECRET = os.getenv("M365_CLIENT_SECRET", "")
 
 _client = None
-def get_gemini_model():
-    """
-    Return a configured Google Gemini GenerativeModel instance.
-    Returns None if GEMINI_API_KEY is not configured or is a placeholder.
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
-    Model can be swapped at runtime via GEMINI_MODEL env var:
-      - gemini-2.5-flash        (default — latest fast model)
-      - gemini-2.0-flash        (widely available, very fast)
-      - gemini-1.5-flash-8b     (smallest, ~3-5x faster than flash;
-                                 good enough for CV summaries)
-    """
+def get_gemini_client():
+    """Return a configured google.genai.Client, or None if not configured."""
     if not GEMINI_API_KEY or GEMINI_API_KEY in ("your_gemini_api_key_here", ""):
         return None
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-        return genai.GenerativeModel(model_name)
+        from google import genai
+        return genai.Client(api_key=GEMINI_API_KEY)
     except Exception as e:
-        print(f"Gemini init failed: {e}")
+        print(f"Gemini client init failed: {e}")
         return None
+
+
+def get_gemini_model():
+    """Backward compat — returns truthy if Gemini is configured."""
+    return get_gemini_client()
 
 # Public base URL used for building absolute links in outgoing emails
 # (verify-email magic links, offer notifications, password resets, etc).
@@ -6896,25 +6892,22 @@ If the CV is empty or unreadable, respond with: Unable to retrieve information f
 
 CV text:
 {text}"""
-            import google.generativeai as genai
-            gen_config = genai.GenerationConfig(
-                max_output_tokens=1000,
-                temperature=0.3,
+            from google import genai as genai_new
+            from google.genai import types as genai_types
+            client = get_gemini_client()
+            if not client:
+                return ""
+            resp = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    max_output_tokens=1000,
+                    temperature=0.3,
+                ),
             )
-            resp = model.generate_content(prompt, generation_config=gen_config)
-            if not resp.parts:
-                return "Unable to retrieve information from CV."
             out = (resp.text or "").strip()
-            # Diagnostic: finish_reason + output preview so we can distinguish
-            # "Gemini truncated" (MAX_TOKENS/SAFETY) from "Gemini returned
-            # paragraph despite bullet prompt" (format drift) from "deploy
-            # lag — stale prompt still running" in one glance.
-            try:
-                cand_meta = getattr(resp, "candidates", None) or []
-                finish_reason = getattr(cand_meta[0], "finish_reason", None) if cand_meta else None
-                print(f"[AI-SUMMARISE] finish_reason={finish_reason} out_chars={len(out)} prompt_chars={len(prompt)} full_output={repr(out)}", flush=True)
-            except Exception as diag_exc:
-                print(f"[AI-SUMMARISE] diag error: {diag_exc}", flush=True)
+            finish = getattr(resp.candidates[0], "finish_reason", None) if resp.candidates else None
+            print(f"[AI-SUMMARISE] finish_reason={finish} out_chars={len(out)} prompt_chars={len(prompt)}", flush=True)
             if "unable to retrieve" in out.lower():
                 return "Unable to retrieve information from CV."
             if out:
@@ -6968,16 +6961,19 @@ CV:
 """ + cv_text[:8000]
 
     try:
-        import google.generativeai as genai
-        gen_config = genai.GenerationConfig(
-            temperature=0.1,
-            max_output_tokens=4000,
-        )
-        response = model.generate_content(prompt, generation_config=gen_config)
-        # Handle blocked responses
-        if not response.parts:
-            print(f"[AI Extract] Response blocked or empty. Candidates: {response.candidates}")
+        from google import genai as genai_new
+        from google.genai import types as genai_types
+        client = get_gemini_client()
+        if not client:
             return []
+        response = client.models.generate_content(
+            model=GEMINI_MODEL_NAME,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=4000,
+            ),
+        )
         raw = (response.text or "").strip()
         if not raw:
             print("[AI Extract] Empty response text")
