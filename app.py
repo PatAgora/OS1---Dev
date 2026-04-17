@@ -6876,7 +6876,7 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     """Standalone CV summary — produces actionable insights from the
     candidate's job history for a UK financial services recruiter."""
     _ = job_description  # intentionally unused; summary is job-agnostic
-    text = _truncate_for_ai(text or "", 4000)
+    text = _truncate_for_ai(text or "", 12000)
     if not text or len(text.strip()) < 50:
         return "Unable to retrieve information from CV — text too short or missing. Try re-uploading the CV."
     model = get_gemini_model()
