@@ -13714,73 +13714,73 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     client_order_id = None
     candidate_order_id = None
 
-    # --- Client-entry order ---
-    # Only attempt client-entry if ALL required profile fields are present.
-    # If anything is missing, route everything to candidate-entry so the
-    # candidate fills it in on the Verifile portal.
+    # --- Decide: client-entry or candidate-entry for ALL checks ---
+    # Client-entry is only used if EVERY piece of data needed across
+    # ALL check types is present. If anything is missing, route
+    # everything to candidate-entry so the candidate fills it in
+    # on the Verifile portal.
     REQUIRED_PROFILE_FIELDS = [
         "first_name", "surname", "dob", "gender",
         "address_line1", "city", "postcode",
     ]
+    use_client_entry = False
+
     if client_entry_list:
         profile = _load_profile_data(candidate_id)
-        profile_complete = False
-        if profile:
-            missing = [f for f in REQUIRED_PROFILE_FIELDS if not (profile.get(f) or "")]
-            if missing:
-                print(f"[Verifile] Profile incomplete for candidate {candidate_id}, "
-                      f"missing: {missing} — routing ALL checks to candidate-entry")
-            else:
-                profile_complete = True
-        if profile_complete:
-            # Separate data-rich checks (Employment, References, Qualifications, Prof Reg)
-            # from simple checks (Sanctions, Credit, etc.)
-            data_rich_list = [ct for ct in client_entry_list if ct in DATA_RICH_CLIENT_ENTRY_CHECKS]
-            simple_list = [ct for ct in client_entry_list if ct not in DATA_RICH_CLIENT_ENTRY_CHECKS]
-
-            # Build per-check data for data-rich checks
-            data_rich_checks = []
-            fallback_types = []
-            if data_rich_list:
-                data_rich_checks, fallback_types = _build_data_rich_checks(candidate_id, data_rich_list)
-                # Move checks with no portal data to candidate-entry
-                if fallback_types:
-                    print(f"[Verifile] Falling back to candidate-entry for: {fallback_types}")
-                    candidate_entry_list.extend(fallback_types)
-
-            try:
-                if data_rich_checks or simple_list:
-                    client_order_id = verifile_place_client_entry_order_with_checks(
-                        cand_email, candidate_id, simple_list, data_rich_checks, profile
-                    )
-                    print(f"[Verifile] Client-entry order placed: {client_order_id}")
-                    # Mark all successfully submitted client-entry checks
-                    all_client_types = simple_list + [ct for ct in data_rich_list if ct not in (fallback_types if data_rich_list else [])]
-                    for check_type in all_client_types:
-                        vc = session.scalar(
-                            select(VettingCheck)
-                            .where(VettingCheck.candidate_id == candidate_id)
-                            .where(VettingCheck.check_type == check_type)
-                        )
-                        if vc:
-                            vc.external_ref = client_order_id
-                            vc.external_provider = "verifile"
-                            vc.status = "In Progress"
-                            submitted += 1
-            except Exception as e:
-                current_app.logger.warning(
-                    f"Verifile: client-entry order failed for candidate #{candidate_id}: {e}. "
-                    f"Falling back to candidate-entry for these checks."
-                )
-                # Fall back: move client-entry checks to candidate-entry
-                candidate_entry_list.extend(simple_list)
-                candidate_entry_list.extend([ct for ct in data_rich_list if ct not in (fallback_types if data_rich_list else [])])
-                client_entry_list = []
+        if not profile:
+            print(f"[Verifile] No profile for candidate {candidate_id} — all checks to candidate-entry")
         else:
-            print(f"[Verifile] No profile data for candidate {candidate_id}, "
-                  f"falling back to candidate-entry for all checks")
+            missing_profile = [f for f in REQUIRED_PROFILE_FIELDS if not (profile.get(f) or "")]
+            if missing_profile:
+                print(f"[Verifile] Profile incomplete: missing {missing_profile} — all checks to candidate-entry")
+            else:
+                # Check data-rich requirements too
+                data_rich_list = [ct for ct in client_entry_list if ct in DATA_RICH_CLIENT_ENTRY_CHECKS]
+                if data_rich_list:
+                    _, fallback_types = _build_data_rich_checks(candidate_id, data_rich_list)
+                    if fallback_types:
+                        print(f"[Verifile] Data-rich checks incomplete: {fallback_types} — all checks to candidate-entry")
+                    else:
+                        use_client_entry = True
+                else:
+                    use_client_entry = True
+
+    if client_entry_list and use_client_entry:
+        data_rich_list = [ct for ct in client_entry_list if ct in DATA_RICH_CLIENT_ENTRY_CHECKS]
+        simple_list = [ct for ct in client_entry_list if ct not in DATA_RICH_CLIENT_ENTRY_CHECKS]
+        data_rich_checks = []
+        if data_rich_list:
+            data_rich_checks, _ = _build_data_rich_checks(candidate_id, data_rich_list)
+
+        try:
+            if data_rich_checks or simple_list:
+                client_order_id = verifile_place_client_entry_order_with_checks(
+                    cand_email, candidate_id, simple_list, data_rich_checks, profile
+                )
+                print(f"[Verifile] Client-entry order placed: {client_order_id}")
+                all_client_types = simple_list + data_rich_list
+                for check_type in all_client_types:
+                    vc = session.scalar(
+                        select(VettingCheck)
+                        .where(VettingCheck.candidate_id == candidate_id)
+                        .where(VettingCheck.check_type == check_type)
+                    )
+                    if vc:
+                        vc.external_ref = client_order_id
+                        vc.external_provider = "verifile"
+                        vc.status = "In Progress"
+                        submitted += 1
+        except Exception as e:
+            current_app.logger.warning(
+                f"Verifile: client-entry order failed for candidate #{candidate_id}: {e}. "
+                f"Falling back to candidate-entry for all checks."
+            )
             candidate_entry_list.extend(client_entry_list)
             client_entry_list = []
+    elif client_entry_list:
+        # Data incomplete — move all to candidate-entry
+        candidate_entry_list.extend(client_entry_list)
+        client_entry_list = []
 
     # --- Candidate-entry order for remaining checks ---
     if candidate_entry_list:
