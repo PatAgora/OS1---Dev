@@ -1611,13 +1611,48 @@ def admin_approvals():
                 elif ts.status == "Rejected":
                     rejected_count += 1
 
+        # Leave requests
+        leave_data = []
+        leave_pending = 0
+        try:
+            all_leave = s.execute(
+                select(LeaveRequest, Candidate)
+                .outerjoin(Candidate, Candidate.id == LeaveRequest.candidate_id)
+                .order_by(LeaveRequest.created_at.desc())
+            ).all()
+            for lr, cand in all_leave:
+                leave_data.append({
+                    "id": lr.id,
+                    "associate_name": cand.name if cand else f"ID {lr.candidate_id}",
+                    "candidate_id": lr.candidate_id,
+                    "leave_type": lr.leave_type or "Annual Leave",
+                    "start_date": lr.start_date.strftime("%d/%m/%Y") if lr.start_date else "",
+                    "end_date": lr.end_date.strftime("%d/%m/%Y") if lr.end_date else "",
+                    "days": lr.days or 0,
+                    "notes": lr.notes or "",
+                    "status": lr.status or "Pending",
+                    "created_by": lr.created_by or "",
+                })
+                if lr.status == "Pending":
+                    leave_pending += 1
+        except Exception:
+            pass
+
+        # All candidates for the leave request form dropdown
+        all_candidates = s.scalars(
+            select(Candidate).order_by(Candidate.name)
+        ).all()
+
     return render_template("admin_approvals.html",
                            timesheets=timesheets_data,
                            pending_count=pending_count,
                            approved_count=approved_count,
                            rejected_count=rejected_count,
                            total_count=len(timesheets_data),
-                           timesheet_pending=pending_count)
+                           timesheet_pending=pending_count,
+                           leave_requests=leave_data,
+                           leave_pending=leave_pending,
+                           all_candidates=all_candidates)
 
 
 @app.route("/admin/approvals/timesheet/<int:ts_id>/approve", methods=["POST"])
@@ -1631,6 +1666,60 @@ def admin_approve_timesheet(ts_id):
             flash(f"Timesheet #{ts_id} approved.", "success")
         else:
             flash("Timesheet not found.", "warning")
+    return redirect(url_for("admin_approvals"))
+
+
+@app.route("/admin/approvals/leave/create", methods=["POST"])
+@login_required
+def admin_create_leave():
+    cand_id = request.form.get("candidate_id", type=int)
+    leave_type = (request.form.get("leave_type") or "Annual Leave").strip()
+    start_date = request.form.get("start_date", "")
+    end_date = request.form.get("end_date", "")
+    days = request.form.get("days", type=float) or 0
+    notes = (request.form.get("notes") or "").strip()
+    if not cand_id or not start_date or not end_date:
+        flash("Associate, start date and end date are required.", "danger")
+        return redirect(url_for("admin_approvals"))
+    with Session(engine) as s:
+        lr = LeaveRequest(
+            candidate_id=cand_id,
+            leave_type=leave_type,
+            start_date=datetime.datetime.strptime(start_date, "%Y-%m-%d").date(),
+            end_date=datetime.datetime.strptime(end_date, "%Y-%m-%d").date(),
+            days=days,
+            notes=notes,
+            status="Pending",
+            created_by=getattr(current_user, "email", "") or "staff",
+            created_at=datetime.datetime.utcnow(),
+        )
+        s.add(lr)
+        s.commit()
+    flash("Leave request created.", "success")
+    return redirect(url_for("admin_approvals"))
+
+
+@app.route("/admin/approvals/leave/<int:lr_id>/approve", methods=["POST"])
+@login_required
+def admin_approve_leave(lr_id):
+    with Session(engine) as s:
+        lr = s.get(LeaveRequest, lr_id)
+        if lr:
+            lr.status = "Approved"
+            s.commit()
+            flash(f"Leave request approved.", "success")
+    return redirect(url_for("admin_approvals"))
+
+
+@app.route("/admin/approvals/leave/<int:lr_id>/reject", methods=["POST"])
+@login_required
+def admin_reject_leave(lr_id):
+    with Session(engine) as s:
+        lr = s.get(LeaveRequest, lr_id)
+        if lr:
+            lr.status = "Rejected"
+            s.commit()
+            flash(f"Leave request rejected.", "success")
     return redirect(url_for("admin_approvals"))
 
 
@@ -4972,7 +5061,7 @@ class Timesheet(Base):
     grand_total = Column(Float, default=0)
     approved_by = Column(Integer, nullable=True)
     approved_at = Column(DateTime, nullable=True)
-    rejected_reason = Column(Text, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
 
 class Invoice(Base):
     """Invoice model for client billing"""
@@ -5415,6 +5504,20 @@ class AssignmentTemplate(Base):
     file_content = Column(LargeBinary, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)
     uploaded_by = Column(String(200), default="")
+
+
+class LeaveRequest(Base):
+    __tablename__ = "leave_requests"
+    id = Column(Integer, primary_key=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    leave_type = Column(String(50), default="Annual Leave")
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    days = Column(Float, default=0)
+    notes = Column(Text, default="")
+    status = Column(String(50), default="Pending")
+    created_by = Column(String(200), default="")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
 class OfferTemplate(Base):
