@@ -1535,8 +1535,84 @@ def admin_users():
 @app.route("/admin/approvals")
 @login_required
 def admin_approvals():
-    """Approvals management page - timesheets, expenses, etc."""
-    return render_template("admin_approvals.html")
+    """Approvals management page — shows submitted timesheets for review."""
+    with Session(engine) as s:
+        Timesheet = globals().get("Timesheet")
+        if not Timesheet:
+            try:
+                from app import Timesheet
+            except Exception:
+                pass
+
+        timesheets_data = []
+        pending_count = 0
+        approved_count = 0
+        rejected_count = 0
+
+        if Timesheet:
+            all_ts = s.execute(
+                select(Timesheet, Candidate)
+                .outerjoin(Candidate, Candidate.id == Timesheet.user_id)
+                .where(Timesheet.status.in_(["Submitted", "Approved", "Rejected"]))
+                .order_by(Timesheet.submitted_at.desc())
+            ).all()
+
+            for ts, cand in all_ts:
+                timesheets_data.append({
+                    "id": ts.id,
+                    "associate_name": cand.name if cand else f"ID {ts.user_id}",
+                    "candidate_id": ts.user_id,
+                    "engagement_name": "",
+                    "week_ending": ts.period_end.strftime("%d/%m/%Y") if ts.period_end else "",
+                    "period": f"{ts.period_start.strftime('%d/%m') if ts.period_start else ''} – {ts.period_end.strftime('%d/%m/%Y') if ts.period_end else ''}",
+                    "total_days": ts.billable_days or 0,
+                    "total_hours": ts.billable_hours or 0,
+                    "total_amount": ts.grand_total or ts.total_amount or 0,
+                    "status": ts.status,
+                    "submitted_at": ts.submitted_at.strftime("%d/%m/%Y %H:%M") if ts.submitted_at else "",
+                })
+                if ts.status == "Submitted":
+                    pending_count += 1
+                elif ts.status == "Approved":
+                    approved_count += 1
+                elif ts.status == "Rejected":
+                    rejected_count += 1
+
+    return render_template("admin_approvals.html",
+                           timesheets=timesheets_data,
+                           pending_count=pending_count,
+                           approved_count=approved_count,
+                           rejected_count=rejected_count,
+                           total_count=len(timesheets_data),
+                           timesheet_pending=pending_count)
+
+
+@app.route("/admin/approvals/timesheet/<int:ts_id>/approve", methods=["POST"])
+@login_required
+def admin_approve_timesheet(ts_id):
+    with Session(engine) as s:
+        ts = s.get(Timesheet, ts_id)
+        if ts:
+            ts.status = "Approved"
+            s.commit()
+            flash(f"Timesheet #{ts_id} approved.", "success")
+        else:
+            flash("Timesheet not found.", "warning")
+    return redirect(url_for("admin_approvals"))
+
+
+@app.route("/admin/approvals/timesheet/<int:ts_id>/reject", methods=["POST"])
+@login_required
+def admin_reject_timesheet(ts_id):
+    with Session(engine) as s:
+        ts = s.get(Timesheet, ts_id)
+        if ts:
+            ts.status = "Rejected"
+            s.commit()
+            flash(f"Timesheet #{ts_id} rejected.", "success")
+        else:
+            flash("Timesheet not found.", "warning")
+    return redirect(url_for("admin_approvals"))
 
 @app.route("/admin/invoices")
 @login_required
