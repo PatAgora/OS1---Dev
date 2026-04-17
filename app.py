@@ -6715,10 +6715,10 @@ Optimus Compliance Team"""))
         # rejected_withdrawn so Placed sits between Contract Sent (7)
         # and Rejected/Withdrawn (9).
         try:
-            exists = _mc.execute(text(
+            _placed_exists = _mc.execute(text(
                 "SELECT 1 FROM stage_config WHERE stage_id = 'placed'"
             )).first()
-            if not exists:
+            if not _placed_exists:
                 _mc.execute(text("""
                     INSERT INTO stage_config
                         (stage_id, name, short_name, color, icon, sort_order, is_active, is_terminal)
