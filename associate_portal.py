@@ -4288,10 +4288,9 @@ def timesheets_save():
                 if amt > 0:
                     exp = TimesheetExpense(
                         timesheet_id=ts.id,
-                        candidate_id=cand_id,
+                        expense_type=exp_types[i] if i < len(exp_types) else "Other",
                         description=exp_types[i] if i < len(exp_types) else "Other",
                         amount=amt,
-                        entry_date=_parse_date(exp_dates[i]) if i < len(exp_dates) and exp_dates[i] else None,
                     )
                     s.add(exp)
                     expense_total += amt
@@ -4386,10 +4385,9 @@ def timesheets_submit():
                 if amt > 0:
                     exp = TimesheetExpense(
                         timesheet_id=ts.id,
-                        candidate_id=cand_id,
+                        expense_type=exp_types[i] if i < len(exp_types) else "Other",
                         description=exp_types[i] if i < len(exp_types) else "Other",
                         amount=amt,
-                        entry_date=_parse_date(exp_dates[i]) if i < len(exp_dates) and exp_dates[i] else None,
                     )
                     s.add(exp)
                     expense_total += amt
