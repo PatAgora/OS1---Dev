@@ -6882,22 +6882,20 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     model = get_gemini_model()
     if model:
         try:
-            prompt = f"""You are analysing a CV. Summarise the candidate's job history into relevant and actionable insights for a UK financial services recruiter.
+            prompt = f"""Analyse this CV and produce a concise summary of the candidate's last 2 years of employment only.
 
-For each role (most recent first), include:
-- Job title, employer, and dates
-- Key responsibilities and achievements
-- Relevant specialisms, regulations, or technologies
+For each role within the last 2 years, write:
+1. One line: Job Title — Employer (Month Year – Month Year or Present)
+2. Then 3-4 short bullet points summarising the KEY points only — what they actually did, any notable achievements, and relevant skills/regulations.
 
-Focus on the last 3-5 years. Be concise but comprehensive.
+Do NOT copy the CV text verbatim. Distil each role into its essence.
+Do NOT include roles older than 2 years.
+Do NOT include any introduction, preamble, or closing remarks — start directly with the first role.
 
-IMPORTANT: Start your response directly with the first role. Do not include any preamble, introduction, or summary sentence. Do not echo these instructions.
+If the CV is empty or unreadable, respond with: Unable to retrieve information from CV.
 
-If the text below is empty or unreadable, respond with exactly: Unable to retrieve information from CV.
-
----
-{text}
----"""
+CV text:
+{text}"""
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
                 max_output_tokens=3200,
