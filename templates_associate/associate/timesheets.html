@@ -292,7 +292,11 @@
                         <tbody>
                             {% for ts in bundle.sheets %}
                             <tr>
-                                <td><input type="checkbox" name="ts_ids" value="{{ ts.id }}"></td>
+                                <td>
+                                    {% if ts.status == 'Approved' %}
+                                    <input type="checkbox" name="ts_ids" value="{{ ts.id }}">
+                                    {% endif %}
+                                </td>
                                 <td>{{ ts.period_start.strftime('%d/%m') if ts.period_start else '' }} – {{ ts.period_end.strftime('%d/%m/%Y') if ts.period_end else '' }}</td>
                                 <td>{{ "%.1f"|format(ts.billable_days or 0) }}</td>
                                 <td>{{ "%.1f"|format(ts.billable_hours or 0) }}</td>

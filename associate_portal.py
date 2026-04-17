@@ -4427,7 +4427,7 @@ def timesheets_generate_invoice():
         if Timesheet:
             for tid in ts_ids_int:
                 ts = s.get(Timesheet, tid)
-                if ts and ts.user_id == cand_id:
+                if ts and ts.user_id == cand_id and ts.status == "Approved":
                     sheets.append(ts)
 
         if not sheets:
