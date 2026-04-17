@@ -4399,6 +4399,130 @@ def timesheets_cancel():
     return redirect(url_for("associate.timesheets"))
 
 
+@associate_bp.route("/timesheets/generate-invoice", methods=["POST"])
+@_require_login
+def timesheets_generate_invoice():
+    """Generate a PDF invoice from selected timesheets."""
+    Timesheet = _model("Timesheet")
+    Candidate = _model("Candidate")
+    engine = _engine()
+    cand_id = _get_associate_id()
+    ts_ids = request.form.getlist("ts_ids")
+
+    if not ts_ids:
+        flash("Select at least one timesheet to generate an invoice.", "warning")
+        return redirect(url_for("associate.timesheets"))
+
+    try:
+        ts_ids_int = [int(t) for t in ts_ids]
+    except ValueError:
+        flash("Invalid timesheet selection.", "danger")
+        return redirect(url_for("associate.timesheets"))
+
+    with SASession(engine) as s:
+        cand = s.get(Candidate, cand_id) if Candidate else None
+        cand_name = (cand.name if cand else "") or "Associate"
+
+        sheets = []
+        if Timesheet:
+            for tid in ts_ids_int:
+                ts = s.get(Timesheet, tid)
+                if ts and ts.user_id == cand_id:
+                    sheets.append(ts)
+
+        if not sheets:
+            flash("No valid timesheets found.", "warning")
+            return redirect(url_for("associate.timesheets"))
+
+        sheets.sort(key=lambda t: t.period_start or datetime.min)
+
+        from fpdf import FPDF
+        import io
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.add_page()
+
+        # Header
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.cell(0, 12, "INVOICE", ln=True, align="C")
+        pdf.ln(4)
+
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"Associate: {cand_name}", ln=True)
+        pdf.cell(0, 6, f"Date: {datetime.utcnow().strftime('%d %B %Y')}", ln=True)
+        pdf.cell(0, 6, f"Timesheets included: {len(sheets)}", ln=True)
+
+        first_start = min((t.period_start for t in sheets if t.period_start), default=None)
+        last_end = max((t.period_end for t in sheets if t.period_end), default=None)
+        if first_start and last_end:
+            pdf.cell(0, 6, f"Period: {first_start.strftime('%d/%m/%Y')} - {last_end.strftime('%d/%m/%Y')}", ln=True)
+        pdf.ln(6)
+
+        # Table header
+        pdf.set_font("Helvetica", "B", 9)
+        col_w = [55, 25, 25, 30, 30, 25]
+        headers = ["Period", "Days", "OT Hours", "Day Rate", "Amount", "Status"]
+        for i, h in enumerate(headers):
+            pdf.cell(col_w[i], 8, h, border=1, align="C")
+        pdf.ln()
+
+        # Table rows
+        pdf.set_font("Helvetica", "", 9)
+        grand_total = 0
+        total_days = 0
+        total_hours = 0
+        for ts in sheets:
+            period = ""
+            if ts.period_start and ts.period_end:
+                period = f"{ts.period_start.strftime('%d/%m')} - {ts.period_end.strftime('%d/%m/%Y')}"
+            elif ts.period_start:
+                period = ts.period_start.strftime('%d/%m/%Y')
+
+            days = ts.billable_days or 0
+            hours = ts.billable_hours or 0
+            rate = ts.day_rate or 0
+            amount = ts.grand_total or ts.total_amount or 0
+            total_days += days
+            total_hours += hours
+            grand_total += amount
+
+            pdf.cell(col_w[0], 7, period, border=1)
+            pdf.cell(col_w[1], 7, f"{days:.1f}", border=1, align="C")
+            pdf.cell(col_w[2], 7, f"{hours:.1f}", border=1, align="C")
+            pdf.cell(col_w[3], 7, f"£{rate:.2f}", border=1, align="R")
+            pdf.cell(col_w[4], 7, f"£{amount:.2f}", border=1, align="R")
+            pdf.cell(col_w[5], 7, ts.status or "", border=1, align="C")
+            pdf.ln()
+
+        # Totals row
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(col_w[0], 8, "TOTAL", border=1, align="R")
+        pdf.cell(col_w[1], 8, f"{total_days:.1f}", border=1, align="C")
+        pdf.cell(col_w[2], 8, f"{total_hours:.1f}", border=1, align="C")
+        pdf.cell(col_w[3], 8, "", border=1)
+        pdf.cell(col_w[4], 8, f"£{grand_total:.2f}", border=1, align="R")
+        pdf.cell(col_w[5], 8, "", border=1)
+        pdf.ln(12)
+
+        # Footer
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(0, 6, "71-75 Shelton Street | London | WC2H 9JQ", ln=True, align="C")
+        pdf.cell(0, 6, "associates@optimussolutions.co.uk", ln=True, align="C")
+        pdf.cell(0, 6, "Optimus - Financial Services Resourcing Specialists", ln=True, align="C")
+
+        buf = io.BytesIO()
+        pdf.output(buf)
+        buf.seek(0)
+
+        safe_name = cand_name.replace(" ", "_")
+        download_name = f"Invoice_{safe_name}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+
+        from flask import send_file
+        return send_file(buf, as_attachment=True, download_name=download_name,
+                         mimetype="application/pdf")
+
+
 # =========================================================================
 # P1: VACANCY DETAIL ROUTE
 # =========================================================================

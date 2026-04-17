@@ -256,60 +256,74 @@
         <h2><i class="fas fa-history me-2"></i>Previous Timesheets</h2>
     </div>
     {% if monthly_bundles %}
-    <div class="portal-card-body" style="padding: 0;">
-        {% for month_key, bundle in monthly_bundles %}
-        <div class="ts-month-bundle">
-            <div style="padding: 16px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                <div>
-                    <strong>{{ bundle.label }}</strong>
-                    <span class="text-muted text-sm ms-2">{{ bundle.sheets|length }} timesheet{{ 's' if bundle.sheets|length != 1 }}</span>
+    <form method="POST" action="/portal/timesheets/generate-invoice" id="invoiceForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="portal-card-body" style="padding: 0;">
+            {% for month_key, bundle in monthly_bundles %}
+            <div class="ts-month-bundle">
+                <div style="padding: 16px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    <div>
+                        <strong>{{ bundle.label }}</strong>
+                        <span class="text-muted text-sm ms-2">{{ bundle.sheets|length }} timesheet{{ 's' if bundle.sheets|length != 1 }}</span>
+                    </div>
+                    <div style="display: flex; gap: 24px; font-size: 13px;">
+                        <span><strong>Days:</strong> {{ "%.1f"|format(bundle.total_days) }}</span>
+                        {% if bundle.total_hours > 0 %}
+                        <span><strong>OT:</strong> {{ "%.1f"|format(bundle.total_hours) }}h</span>
+                        {% endif %}
+                        <span style="color: var(--color-success);"><strong>Total: &pound;{{ "%.2f"|format(bundle.total_amount) }}</strong></span>
+                        <i class="fas fa-chevron-down text-muted"></i>
+                    </div>
                 </div>
-                <div style="display: flex; gap: 24px; font-size: 13px;">
-                    <span><strong>Days:</strong> {{ "%.1f"|format(bundle.total_days) }}</span>
-                    {% if bundle.total_hours > 0 %}
-                    <span><strong>OT:</strong> {{ "%.1f"|format(bundle.total_hours) }}h</span>
-                    {% endif %}
-                    <span style="color: var(--color-success);"><strong>Total: &pound;{{ "%.2f"|format(bundle.total_amount) }}</strong></span>
-                    <i class="fas fa-chevron-down text-muted"></i>
+                <div class="hidden">
+                    <table class="portal-table" style="margin: 0; font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;">
+                                    <input type="checkbox" title="Select all in this month" onclick="var cbs=this.closest('.ts-month-bundle').querySelectorAll('input[name=ts_ids]'); cbs.forEach(function(c){c.checked=this.checked;}.bind(this));">
+                                </th>
+                                <th>Period</th>
+                                <th>Days</th>
+                                <th>OT Hours</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ts in bundle.sheets %}
+                            <tr>
+                                <td><input type="checkbox" name="ts_ids" value="{{ ts.id }}"></td>
+                                <td>{{ ts.period_start.strftime('%d/%m') if ts.period_start else '' }} – {{ ts.period_end.strftime('%d/%m/%Y') if ts.period_end else '' }}</td>
+                                <td>{{ "%.1f"|format(ts.billable_days or 0) }}</td>
+                                <td>{{ "%.1f"|format(ts.billable_hours or 0) }}</td>
+                                <td>&pound;{{ "%.2f"|format(ts.grand_total or ts.total_amount or 0) }}</td>
+                                <td>
+                                    {% if ts.status == 'Approved' %}
+                                    <span class="badge badge-complete">Approved</span>
+                                    {% elif ts.status == 'Submitted' %}
+                                    <span class="badge badge-in-progress">Submitted</span>
+                                    {% elif ts.status == 'Rejected' %}
+                                    <span class="badge badge-failed">Rejected</span>
+                                    {% else %}
+                                    <span class="badge badge-not-started">{{ ts.status or 'Draft' }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div class="hidden">
-                <table class="portal-table" style="margin: 0; font-size: 13px;">
-                    <thead>
-                        <tr>
-                            <th>Period</th>
-                            <th>Days</th>
-                            <th>OT Hours</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ts in bundle.sheets %}
-                        <tr>
-                            <td>{{ ts.period_start.strftime('%d/%m') if ts.period_start else '' }} – {{ ts.period_end.strftime('%d/%m/%Y') if ts.period_end else '' }}</td>
-                            <td>{{ "%.1f"|format(ts.billable_days or 0) }}</td>
-                            <td>{{ "%.1f"|format(ts.billable_hours or 0) }}</td>
-                            <td>&pound;{{ "%.2f"|format(ts.grand_total or ts.total_amount or 0) }}</td>
-                            <td>
-                                {% if ts.status == 'Approved' %}
-                                <span class="badge badge-complete">Approved</span>
-                                {% elif ts.status == 'Submitted' %}
-                                <span class="badge badge-in-progress">Submitted</span>
-                                {% elif ts.status == 'Rejected' %}
-                                <span class="badge badge-failed">Rejected</span>
-                                {% else %}
-                                <span class="badge badge-not-started">{{ ts.status or 'Draft' }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            {% endfor %}
+
+            <div style="padding: 16px 20px; border-top: 2px solid var(--color-gray-200); display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn btn-primary"
+                        onclick="if(!document.querySelectorAll('input[name=ts_ids]:checked').length){alert('Select at least one timesheet to include in the invoice.');return false;}">
+                    <i class="fas fa-file-invoice me-1"></i> Generate Invoice
+                </button>
             </div>
         </div>
-        {% endfor %}
-    </div>
+    </form>
     {% else %}
     <div class="portal-card-body text-center" style="padding: 40px 24px;">
         <i class="fas fa-clock" style="font-size: 36px; color: var(--color-gray-300); margin-bottom: 12px;"></i>
