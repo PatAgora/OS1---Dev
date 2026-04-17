@@ -1650,10 +1650,13 @@ def _admin_approvals_inner():
                 })
                 if lr.status == "Pending":
                     leave_pending += 1
-            leave_reasons = s2.scalars(
-                select(LeaveReason).where(LeaveReason.is_active == True)
-                .order_by(LeaveReason.sort_order)
-            ).all()
+            leave_reasons = [
+                {"id": r.id, "name": r.name}
+                for r in s2.scalars(
+                    select(LeaveReason).where(LeaveReason.is_active == True)
+                    .order_by(LeaveReason.sort_order)
+                ).all()
+            ]
     except Exception:
         pass
 
