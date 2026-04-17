@@ -15176,9 +15176,12 @@ def webhook_esign():
                     ):
                         doc_label = "Secondary Job Declaration"
                         is_emp_ref = False
-                    elif "employment" in title_lower and (
-                        "reference" in title_lower
-                        or ("declaration" in title_lower and "secondary" not in title_lower)
+                    elif (
+                        ("employment" in title_lower and (
+                            "reference" in title_lower
+                            or ("declaration" in title_lower and "secondary" not in title_lower)
+                        ))
+                        or ("reference" in title_lower and "sign" in title_lower)
                     ):
                         doc_label = "Employment Reference Declaration"
                         is_emp_ref = True
