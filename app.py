@@ -18091,8 +18091,14 @@ def retag_candidate_from_cv(cand_id: int):
 @app.route("/engagement/<int:eng_id>/dashboard")
 @login_required
 def engagement_dashboard(eng_id):
-    # Audit log: engagement view
-    
+    try:
+        return _engagement_dashboard_inner(eng_id)
+    except Exception as exc:
+        import traceback
+        print(f"[ENG-DASHBOARD] ERROR eng_id={eng_id}: {exc}\n{traceback.format_exc()}", flush=True)
+        raise
+
+def _engagement_dashboard_inner(eng_id):
     UNASSIGNED = "Unassigned"
 
     with Session(engine) as s:
