@@ -4244,7 +4244,8 @@ def timesheets_new():
             if app and hasattr(app, "job") and app.job and hasattr(app.job, "engagement_id"):
                 engagement_id = app.job.engagement_id
 
-        # Load rates from config
+        # Load rates: TimesheetConfig first, then fall back to the
+        # offer day rate on the Application.
         day_rate = 0
         overtime_rate = 0
         if engagement_id and TimesheetConfig:
@@ -4252,6 +4253,10 @@ def timesheets_new():
             if config:
                 day_rate = config.day_rate or 0
                 overtime_rate = config.overtime_rate or 0
+        if not day_rate and Application:
+            app_for_rate = s.get(Application, int(assignment_id))
+            if app_for_rate and app_for_rate.offer_day_rate:
+                day_rate = float(app_for_rate.offer_day_rate)
 
         ts = Timesheet(
             user_id=cand_id,
