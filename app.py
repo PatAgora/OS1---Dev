@@ -2561,6 +2561,9 @@ def schedule_interview(cand_id: int):
         flash("Invalid date/time format.", "danger")
         return redirect(url_for("candidate_profile", cand_id=cand_id))
     with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
         latest_app = s.scalar(
             select(Application).where(Application.candidate_id == cand_id)
             .order_by(Application.created_at.desc())
@@ -2569,6 +2572,41 @@ def schedule_interview(cand_id: int):
             flash("No application found for this candidate.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
         latest_app.interview_scheduled_at = scheduled_dt
+
+        # Load job + engagement for email placeholders
+        job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
+        eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # Send interview invitation email using the configured template
+        try:
+            tpl = s.scalar(
+                select(EmailTemplate).where(EmailTemplate.name == "interview_invitation")
+            )
+            if tpl and cand.email:
+                placeholders = {
+                    "associate_name": cand.name or "Associate",
+                    "client_name": (eng.client if eng else "") or "",
+                    "role": (job.title if job else "") or latest_app.offer_role_title or "",
+                    "date": scheduled_dt.strftime("%d %B %Y"),
+                    "time": scheduled_dt.strftime("%H:%M"),
+                    "client_contact_name": (eng.client_contact_name if eng and hasattr(eng, "client_contact_name") else "") or "",
+                    "client_role": (eng.client_contact_role if eng and hasattr(eng, "client_contact_role") else "") or "",
+                    "company_name": (eng.client if eng else "") or "",
+                    "company_website": "",
+                }
+                subject = tpl.subject or "Interview Confirmation"
+                body = tpl.body or ""
+                for key, val in placeholders.items():
+                    subject = subject.replace("{" + key + "}", val)
+                    body = body.replace("{" + key + "}", val)
+                # Convert plain text body to HTML paragraphs
+                html_body = "<br>".join(body.split("\n"))
+                send_email(cand.email, subject, html_body)
+                flash(f"Interview invitation emailed to {cand.email}.", "success")
+        except Exception as mail_exc:
+            current_app.logger.exception("Interview email failed: %s", mail_exc)
+            flash(f"Interview scheduled but email failed: {mail_exc}", "warning")
+
         s.add(CandidateNote(
             candidate_id=cand_id,
             user_email=getattr(current_user, "email", "staff") or "staff",
