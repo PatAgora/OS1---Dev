@@ -2141,6 +2141,34 @@ def mark_reference_complete(cand_id: int, ref_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/action/reference-undo/<int:cand_id>/<int:ref_id>", methods=["POST"])
+@login_required
+def undo_reference_complete(cand_id: int, ref_id: int):
+    """Undo marking a reference as complete — revert to sent (or not_sent)."""
+    try:
+        with Session(engine) as s:
+            ref = s.get(ReferenceRequest, ref_id)
+            if not ref or ref.candidate_id != cand_id:
+                flash("Reference request not found.", "warning")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+            company = ref.company_name or "unknown"
+            ref.status = "sent" if ref.sent_at else "not_sent"
+            ref.received_at = None
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="activity",
+                content=f"Reference from {company} — completion undone.",
+                created_at=datetime.datetime.utcnow(),
+            ))
+            s.commit()
+        flash(f"Reference from {company} reverted.", "success")
+    except Exception as exc:
+        current_app.logger.exception("undo_reference_complete failed: %s", exc)
+        flash(f"Failed to undo: {exc}", "danger")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/umbrella-assignment-sent/<int:cand_id>", methods=["POST"])
 @login_required
 def mark_umbrella_assignment_sent(cand_id: int):
