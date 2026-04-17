@@ -1657,8 +1657,10 @@ def _admin_approvals_inner():
                     .order_by(LeaveReason.sort_order)
                 ).all()
             ]
-    except Exception:
-        pass
+    except Exception as _lr_exc:
+        print(f"[APPROVALS] leave query failed: {_lr_exc}", flush=True)
+
+    print(f"[APPROVALS] leave_reasons={leave_reasons}, leave_data_count={len(leave_data)}", flush=True)
 
     return render_template("admin_approvals.html",
                            timesheets=timesheets_data,
