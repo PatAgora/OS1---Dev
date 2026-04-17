@@ -2219,7 +2219,8 @@ def test_mark_vetting_complete(cand_id: int):
         for vc in checks:
             if vc.status not in ("Complete", "COMPLETE"):
                 vc.status = "Complete"
-                vc.result = vc.result or "Marked complete (test)"
+                vc.notes = (vc.notes or "") + " [Marked complete — test]"
+                vc.completed_at = datetime.datetime.utcnow()
         s.commit()
     flash(f"All {len(checks)} vetting checks marked as Complete (test).", "success")
     return redirect(url_for("candidate_profile", cand_id=cand_id))
