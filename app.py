@@ -13715,9 +13715,24 @@ def verifile_submit_all_checks(candidate_id: int, cand_name: str, cand_email: st
     candidate_order_id = None
 
     # --- Client-entry order ---
+    # Only attempt client-entry if ALL required profile fields are present.
+    # If anything is missing, route everything to candidate-entry so the
+    # candidate fills it in on the Verifile portal.
+    REQUIRED_PROFILE_FIELDS = [
+        "first_name", "surname", "dob", "gender",
+        "address_line1", "city", "postcode",
+    ]
     if client_entry_list:
         profile = _load_profile_data(candidate_id)
-        if profile and (profile.get("first_name") or profile.get("surname")):
+        profile_complete = False
+        if profile:
+            missing = [f for f in REQUIRED_PROFILE_FIELDS if not (profile.get(f) or "")]
+            if missing:
+                print(f"[Verifile] Profile incomplete for candidate {candidate_id}, "
+                      f"missing: {missing} — routing ALL checks to candidate-entry")
+            else:
+                profile_complete = True
+        if profile_complete:
             # Separate data-rich checks (Employment, References, Qualifications, Prof Reg)
             # from simple checks (Sanctions, Credit, etc.)
             data_rich_list = [ct for ct in client_entry_list if ct in DATA_RICH_CLIENT_ENTRY_CHECKS]
