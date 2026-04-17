@@ -15324,6 +15324,31 @@ def candidate_profile(cand_id: int):
                 )
         except Exception:
             company_details = None
+        # Raw-SQL fallback — partial ORM init can leave CompanyDetails
+        # unresolvable on some Gunicorn workers.
+        if company_details is None:
+            try:
+                _cd_row = s.execute(text(
+                    "SELECT id, candidate_id, contracting_type, company_name, "
+                    "       registration_number, vat_registered, vat_number, "
+                    "       bank_account_number, bank_sort_code, "
+                    "       umbrella_company_name, contact_email, updated_at "
+                    "FROM company_details WHERE candidate_id = :cid"
+                ).bindparams(cid=cand_id)).first()
+                if _cd_row:
+                    company_details = type("CD", (), {
+                        col: getattr(_cd_row, col, None)
+                        for col in (
+                            "id", "candidate_id", "contracting_type",
+                            "company_name", "registration_number",
+                            "vat_registered", "vat_number",
+                            "bank_account_number", "bank_sort_code",
+                            "umbrella_company_name", "contact_email",
+                            "updated_at",
+                        )
+                    })()
+            except Exception:
+                pass
         
         # === Employment History (from portal) ===
         employment_history = []
