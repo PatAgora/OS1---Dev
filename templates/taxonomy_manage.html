@@ -1265,6 +1265,52 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
   </div>
 </div>
 
+<!-- Leave Reasons Configuration -->
+<div class="card shadow-sm mb-4" id="leave-reasons">
+  <div class="card-header bg-white py-3">
+    <h5 class="fw-bold mb-0"><i class="fas fa-door-open me-2 text-primary"></i>Leave Request Reasons</h5>
+    <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
+      Manage the dropdown options for leave request reasons on the Approvals page.
+    </p>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('admin_add_leave_reason') }}" class="d-flex gap-2 mb-3 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="flex-grow-1">
+        <label class="form-label small fw-semibold">New reason</label>
+        <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Career Break" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus me-1"></i> Add
+      </button>
+    </form>
+
+    {% if leave_reasons %}
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>Reason</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in leave_reasons %}
+        <tr>
+          <td>{{ r.name }}</td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('admin_delete_leave_reason', lr_id=r.id) }}" class="d-inline"
+                  onsubmit="return confirm('Remove this reason?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted text-center py-2">No leave reasons configured yet.</p>
+    {% endif %}
+  </div>
+</div>
+
 <script>
 function editJobTemplate(roleType, btn) {
   document.getElementById('tplRoleType').value = roleType;

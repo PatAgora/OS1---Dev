@@ -1625,10 +1625,9 @@ def admin_approvals():
                     "id": lr.id,
                     "associate_name": cand.name if cand else f"ID {lr.candidate_id}",
                     "candidate_id": lr.candidate_id,
-                    "leave_type": lr.leave_type or "Annual Leave",
-                    "start_date": lr.start_date.strftime("%d/%m/%Y") if lr.start_date else "",
-                    "end_date": lr.end_date.strftime("%d/%m/%Y") if lr.end_date else "",
-                    "days": lr.days or 0,
+                    "reason": lr.reason or "",
+                    "last_working_date": lr.last_working_date.strftime("%d/%m/%Y") if lr.last_working_date else "—",
+                    "notice_period": lr.notice_period or "—",
                     "notes": lr.notes or "",
                     "status": lr.status or "Pending",
                     "created_by": lr.created_by or "",
@@ -1643,6 +1642,16 @@ def admin_approvals():
             select(Candidate).order_by(Candidate.name)
         ).all()
 
+        # Leave reasons for dropdown
+        leave_reasons = []
+        try:
+            leave_reasons = s.scalars(
+                select(LeaveReason).where(LeaveReason.is_active == True)
+                .order_by(LeaveReason.sort_order)
+            ).all()
+        except Exception:
+            pass
+
     return render_template("admin_approvals.html",
                            timesheets=timesheets_data,
                            pending_count=pending_count,
@@ -1652,7 +1661,8 @@ def admin_approvals():
                            timesheet_pending=pending_count,
                            leave_requests=leave_data,
                            leave_pending=leave_pending,
-                           all_candidates=all_candidates)
+                           all_candidates=all_candidates,
+                           leave_reasons=leave_reasons)
 
 
 @app.route("/admin/approvals/timesheet/<int:ts_id>/approve", methods=["POST"])
@@ -1669,25 +1679,50 @@ def admin_approve_timesheet(ts_id):
     return redirect(url_for("admin_approvals"))
 
 
+@app.route("/admin/leave-reasons/add", methods=["POST"])
+@login_required
+def admin_add_leave_reason():
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Reason name is required.", "danger")
+    else:
+        with Session(engine) as s:
+            max_order = s.scalar(select(func.max(LeaveReason.sort_order))) or 0
+            s.add(LeaveReason(name=name, is_active=True, sort_order=max_order + 1))
+            s.commit()
+        flash(f"Leave reason '{name}' added.", "success")
+    return redirect(url_for("taxonomy_manage") + "#leave-reasons")
+
+
+@app.route("/admin/leave-reasons/<int:lr_id>/delete", methods=["POST"])
+@login_required
+def admin_delete_leave_reason(lr_id):
+    with Session(engine) as s:
+        lr = s.get(LeaveReason, lr_id)
+        if lr:
+            s.delete(lr)
+            s.commit()
+            flash(f"Leave reason '{lr.name}' removed.", "success")
+    return redirect(url_for("taxonomy_manage") + "#leave-reasons")
+
+
 @app.route("/admin/approvals/leave/create", methods=["POST"])
 @login_required
 def admin_create_leave():
     cand_id = request.form.get("candidate_id", type=int)
-    leave_type = (request.form.get("leave_type") or "Annual Leave").strip()
-    start_date = request.form.get("start_date", "")
-    end_date = request.form.get("end_date", "")
-    days = request.form.get("days", type=float) or 0
+    reason = (request.form.get("reason") or "").strip()
+    last_working_date = request.form.get("last_working_date", "")
+    notice_period = (request.form.get("notice_period") or "").strip()
     notes = (request.form.get("notes") or "").strip()
-    if not cand_id or not start_date or not end_date:
-        flash("Associate, start date and end date are required.", "danger")
+    if not cand_id or not reason:
+        flash("Associate and reason are required.", "danger")
         return redirect(url_for("admin_approvals"))
     with Session(engine) as s:
         lr = LeaveRequest(
             candidate_id=cand_id,
-            leave_type=leave_type,
-            start_date=datetime.datetime.strptime(start_date, "%Y-%m-%d").date(),
-            end_date=datetime.datetime.strptime(end_date, "%Y-%m-%d").date(),
-            days=days,
+            reason=reason,
+            last_working_date=datetime.datetime.strptime(last_working_date, "%Y-%m-%d").date() if last_working_date else None,
+            notice_period=notice_period,
             notes=notes,
             status="Pending",
             created_by=getattr(current_user, "email", "") or "staff",
@@ -5510,14 +5545,21 @@ class LeaveRequest(Base):
     __tablename__ = "leave_requests"
     id = Column(Integer, primary_key=True)
     candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
-    leave_type = Column(String(50), default="Annual Leave")
-    start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
-    days = Column(Float, default=0)
+    reason = Column(String(200), default="")
+    last_working_date = Column(Date, nullable=True)
+    notice_period = Column(String(100), default="")
     notes = Column(Text, default="")
     status = Column(String(50), default="Pending")
     created_by = Column(String(200), default="")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class LeaveReason(Base):
+    __tablename__ = "leave_reasons"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
 
 
 class OfferTemplate(Base):
@@ -6598,6 +6640,17 @@ Optimus Compliance Team"""))
                 ) sub
                 WHERE esign_requests.id = sub.esig_id
             """))
+        except Exception:
+            pass
+
+        # Seed default leave reasons if table is empty
+        try:
+            count = _mc.execute(text("SELECT COUNT(*) FROM leave_reasons")).scalar()
+            if count == 0:
+                for i, name in enumerate(["New Job Offer", "Re-locating", "Maternity/Paternity", "Perm Role Offer"]):
+                    _mc.execute(text(
+                        "INSERT INTO leave_reasons (name, is_active, sort_order) VALUES (:n, TRUE, :o)"
+                    ).bindparams(n=name, o=i))
         except Exception:
             pass
 
@@ -20769,6 +20822,16 @@ def taxonomy_manage():
     except Exception:
         pass
 
+    # Leave reasons for config page
+    leave_reasons_list = []
+    try:
+        with Session(engine) as s_lr:
+            leave_reasons_list = s_lr.scalars(
+                select(LeaveReason).order_by(LeaveReason.sort_order)
+            ).all()
+    except Exception:
+        pass
+
     # Load or seed the reference request email template
     email_template_ref = None
     try:
@@ -20912,7 +20975,8 @@ Optimus - Financial Services Resourcing Specialists"""
                            email_template_interview=email_template_interview,
                            assignment_templates=assignment_templates,
                            assignment_umbrella_options=assignment_umbrella_options,
-                           offer_templates=offer_templates)
+                           offer_templates=offer_templates,
+                           leave_reasons=leave_reasons_list)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
