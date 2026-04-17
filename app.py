@@ -2312,6 +2312,15 @@ def paystream_capture(cand_id: int):
         else:
             contracting_label = contracting_type.title() if contracting_type else "Not set"
 
+        # Check if a DOCX template exists for this umbrella
+        matching_template = None
+        if umbrella_name:
+            matching_template = s.scalar(
+                select(AssignmentTemplate)
+                .where(AssignmentTemplate.umbrella_company == umbrella_name)
+                .order_by(AssignmentTemplate.uploaded_at.desc())
+            )
+
         return render_template(
             "paystream_capture.html",
             cand=cand,
@@ -2321,6 +2330,7 @@ def paystream_capture(cand_id: int):
             umbrella_name=umbrella_name,
             umbrella_email=umbrella_email,
             contracting_label=contracting_label,
+            matching_template=matching_template,
             captured={
                 # --- Auto-populated (editable — override persists) ---
                 "worker_name": _or(latest_app.assignment_worker_name, cand.name or ""),
