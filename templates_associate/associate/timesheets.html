@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
         el = document.getElementById('summaryTotal');
         if (el) el.textContent = '\u00a3' + total.toFixed(2);
         el = document.getElementById('totalAmount');
-        if (el) el.innerHTML = '&pound;' + total.toFixed(2);
+        if (el) el.innerHTML = '&pound;' + (dayAmount + otAmount).toFixed(2);
     }
 
     inputs.forEach(function(inp) {
