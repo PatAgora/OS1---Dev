@@ -1625,17 +1625,15 @@
                 Has the document been signed?
               {% endif %}
             </div>
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" class="d-flex gap-2">
+            {% if not cand.umbrella_assignment_signed %}
+            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" name="signed" value="yes"
-                      class="btn btn-sm {% if cand.umbrella_assignment_signed %}btn-success{% else %}btn-outline-success{% endif %}">
-                <i class="fas fa-check-double me-1"></i> Yes — signed
-              </button>
-              <button type="submit" name="signed" value="no"
-                      class="btn btn-sm {% if cand.umbrella_assignment_signed is sameas false %}btn-danger{% else %}btn-outline-danger{% endif %}">
-                <i class="fas fa-times me-1"></i> No — not yet
+              <input type="hidden" name="signed" value="yes">
+              <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-check-double me-1"></i> Confirm signed
               </button>
             </form>
+            {% endif %}
           </div>
           {% endif %}
         </div>
