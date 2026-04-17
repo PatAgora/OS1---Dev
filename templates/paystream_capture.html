@@ -9,9 +9,16 @@
         Assignment Schedule — Capture Sheet
       </h2>
       <div class="text-muted">
-        Currently selected Umbrella is <strong>{{ umbrella_name or 'not set' }}</strong>.
-        Complete the fields below, then click <em>Save &amp; download</em> to
-        generate a filled Assignment Schedule from the template.
+        {% if umbrella_name %}
+          Currently selected Umbrella is <strong>{{ umbrella_name }}</strong>.
+        {% else %}
+          Contracting entity: <strong>{{ contracting_label or 'not set' }}</strong>.
+        {% endif %}
+        Complete the fields below, then click <em>Save &amp; download</em>.
+        {% if umbrella_name %}
+          If a template is uploaded for this umbrella, the filled document
+          will download automatically.
+        {% endif %}
       </div>
     </div>
     <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">

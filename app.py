@@ -2303,6 +2303,15 @@ def paystream_capture(cand_id: int):
         def _or(override, source):
             return override if (override or "").strip() else source
 
+        # Contracting label for Ltd Co / no-umbrella display
+        contracting_type = (getattr(cd_row, "contracting_type", "") or "") if cd_row else ""
+        if contracting_type == "limited":
+            contracting_label = "Limited Company"
+        elif contracting_type == "umbrella" and not umbrella_name:
+            contracting_label = "Umbrella (not yet selected)"
+        else:
+            contracting_label = contracting_type.title() if contracting_type else "Not set"
+
         return render_template(
             "paystream_capture.html",
             cand=cand,
@@ -2311,6 +2320,7 @@ def paystream_capture(cand_id: int):
             engagement=engagement,
             umbrella_name=umbrella_name,
             umbrella_email=umbrella_email,
+            contracting_label=contracting_label,
             captured={
                 # --- Auto-populated (editable — override persists) ---
                 "worker_name": _or(latest_app.assignment_worker_name, cand.name or ""),

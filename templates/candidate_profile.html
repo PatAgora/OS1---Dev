@@ -1580,39 +1580,24 @@
                   <i class="fas fa-file-signature me-1"></i> Issue Contract
                 </button>
 
-              {% elif _is_umbrella %}
-                {# All umbrella companies: open the capture sheet to fill
-                   assignment details → download filled DOCX template. #}
+              {% elif _has_entity %}
+                {# All contracting types (umbrella or Ltd Co): open the
+                   capture sheet. If a DOCX template exists for the
+                   umbrella the filled document downloads automatically;
+                   otherwise it just saves the captured fields. #}
                 <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
                    class="btn btn-sm btn-primary">
                   <i class="fas fa-file-signature me-1"></i> Issue Contract
                 </a>
                 <div class="text-muted small mt-1 text-start">
-                  Opens the Assignment Schedule capture sheet for
-                  <strong>{{ _umb }}</strong> — fill in the details, then
-                  download the filled template.
+                  {% if _is_umbrella %}
+                    Opens the Assignment Schedule capture sheet for
+                    <strong>{{ _umb }}</strong>.
+                  {% else %}
+                    Opens the Assignment Schedule capture sheet for
+                    <strong>{{ _ltd_name or 'Limited Company' }}</strong>.
+                  {% endif %}
                 </div>
-
-              {% else %}
-                {# Limited Company — no capture sheet, just manual send
-                   confirmation. #}
-                <div class="alert alert-warning py-2 px-2 mb-2 small text-start">
-                  <i class="fas fa-exclamation-triangle me-1"></i>
-                  <strong>Assignment Schedule must be sent manually.</strong><br>
-                  No template for Limited Company
-                  {% if _ltd_name %}(<strong>{{ _ltd_name }}</strong>){% endif %}
-                  contracts. Send the Assignment Schedule out-of-band,
-                  then click below to record it as issued.
-                </div>
-                <form method="POST"
-                      action="{{ url_for('mark_umbrella_assignment_sent', cand_id=cand.id) }}"
-                      onsubmit="return confirm('Confirm that you have sent the Assignment Schedule manually?');">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="sent" value="yes">
-                  <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="fas fa-check me-1"></i> Issue Contract — mark as sent manually
-                  </button>
-                </form>
               {% endif %}
             </div>
           {% endif %}
