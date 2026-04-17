@@ -1619,11 +1619,19 @@ def _admin_approvals_inner():
                 elif ts.status == "Rejected":
                     rejected_count += 1
 
-        # Leave requests
-        leave_data = []
-        leave_pending = 0
-        try:
-            all_leave = s.execute(
+        # All candidates for the leave request form dropdown
+        all_candidates = s.scalars(
+            select(Candidate).order_by(Candidate.name)
+        ).all()
+
+    # Leave requests + reasons in separate session so a failed query
+    # doesn't poison the Postgres transaction for subsequent queries.
+    leave_data = []
+    leave_pending = 0
+    leave_reasons = []
+    try:
+        with Session(engine) as s2:
+            all_leave = s2.execute(
                 select(LeaveRequest, Candidate)
                 .outerjoin(Candidate, Candidate.id == LeaveRequest.candidate_id)
                 .order_by(LeaveRequest.created_at.desc())
@@ -1633,33 +1641,21 @@ def _admin_approvals_inner():
                     "id": lr.id,
                     "associate_name": cand.name if cand else f"ID {lr.candidate_id}",
                     "candidate_id": lr.candidate_id,
-                    "reason": lr.reason or "",
-                    "notice_start_date": lr.notice_start_date.strftime("%d/%m/%Y") if lr.notice_start_date else "—",
-                    "notice_end_date": lr.notice_end_date.strftime("%d/%m/%Y") if lr.notice_end_date else "—",
-                    "last_working_date": lr.last_working_date.strftime("%d/%m/%Y") if lr.last_working_date else "—",
+                    "reason": getattr(lr, "reason", "") or "",
+                    "notice_start_date": lr.notice_start_date.strftime("%d/%m/%Y") if getattr(lr, "notice_start_date", None) else "—",
+                    "notice_end_date": lr.notice_end_date.strftime("%d/%m/%Y") if getattr(lr, "notice_end_date", None) else "—",
                     "notes": lr.notes or "",
                     "status": lr.status or "Pending",
-                    "created_by": lr.created_by or "",
+                    "created_by": getattr(lr, "created_by", "") or "",
                 })
                 if lr.status == "Pending":
                     leave_pending += 1
-        except Exception:
-            pass
-
-        # All candidates for the leave request form dropdown
-        all_candidates = s.scalars(
-            select(Candidate).order_by(Candidate.name)
-        ).all()
-
-        # Leave reasons for dropdown
-        leave_reasons = []
-        try:
-            leave_reasons = s.scalars(
+            leave_reasons = s2.scalars(
                 select(LeaveReason).where(LeaveReason.is_active == True)
                 .order_by(LeaveReason.sort_order)
             ).all()
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return render_template("admin_approvals.html",
                            timesheets=timesheets_data,
