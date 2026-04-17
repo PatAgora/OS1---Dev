@@ -673,6 +673,19 @@ def _calc_completeness(s, candidate_id: int) -> dict:
     comp = None
     if CompanyDetails:
         comp = s.query(CompanyDetails).filter_by(candidate_id=candidate_id).first()
+    if comp is None:
+        try:
+            _cd = s.execute(text(
+                "SELECT contracting_type, umbrella_company_name, company_name, "
+                "       registration_number FROM company_details WHERE candidate_id = :cid"
+            ).bindparams(cid=candidate_id)).first()
+            if _cd:
+                comp = type("CD", (), {
+                    "contracting_type": _cd[0], "umbrella_company_name": _cd[1],
+                    "company_name": _cd[2], "registration_number": _cd[3],
+                })()
+        except Exception:
+            pass
     if comp:
         if comp.contracting_type:
             company_score += 1
