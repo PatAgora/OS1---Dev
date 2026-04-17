@@ -6900,7 +6900,7 @@ If the text below is empty or unreadable, respond with exactly: Unable to retrie
 ---"""
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                max_output_tokens=800,
+                max_output_tokens=3200,
                 temperature=0.3,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
