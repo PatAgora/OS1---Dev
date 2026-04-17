@@ -177,14 +177,14 @@
                     <label class="form-label" for="current_salary">Current Salary / Day Rate</label>
                     <div class="input-group">
                         <span class="input-group-text">&pound;</span>
-                        <input type="text" id="current_salary" name="current_salary" class="form-control" value="{{ profile.current_salary if profile and profile.current_salary else '' }}" placeholder="e.g. 500/day or 65,000/year">
+                        <input type="text" id="current_salary" name="current_salary" class="form-control" value="{{ profile.current_salary if profile and profile.current_salary else '' }}" placeholder="e.g. £500/day">
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label" for="expected_salary">Expected Salary / Day Rate</label>
+                    <label class="form-label" for="expected_salary">Expected Day Rate</label>
                     <div class="input-group">
                         <span class="input-group-text">&pound;</span>
-                        <input type="text" id="expected_salary" name="expected_salary" class="form-control" value="{{ profile.expected_salary if profile and profile.expected_salary else '' }}" placeholder="e.g. 550/day or 70,000/year">
+                        <input type="text" id="expected_salary" name="expected_salary" class="form-control" value="{{ profile.expected_salary if profile and profile.expected_salary else '' }}" placeholder="e.g. £550/day">
                     </div>
                 </div>
                 <div class="col-md-4">
