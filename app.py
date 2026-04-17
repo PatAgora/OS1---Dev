@@ -6873,62 +6873,33 @@ def _smart_truncate(txt: str, limit: int) -> str:
     return cut.rstrip() + " …"
 
 def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") -> str:
-    """Standalone CV summary. job_description is accepted for backward
-    compatibility but deliberately ignored — the summary must describe the
-    CV on its own and not reference or compare to any job."""
-    _ = job_description  # intentionally unused; summary is job-agnostic now
-    # Cap CV input more aggressively — we only want last 3 years of roles,
-    # so sending more than ~2.5k chars is wasted prompt tokens and latency.
-    text = _truncate_for_ai(text or "", 2500)
+    """Standalone CV summary — produces actionable insights from the
+    candidate's job history for a UK financial services recruiter."""
+    _ = job_description  # intentionally unused; summary is job-agnostic
+    text = _truncate_for_ai(text or "", 6000)
     if not text:
         return ""
     model = get_gemini_model()
     if model:
         try:
-            prompt = f"""Summarise this CV for a UK recruiter. Work in REVERSE
-CHRONOLOGICAL order (most recent first) through every role the candidate has
-held in the LAST 3 YEARS. Ignore any role whose end date is older than 3
-years from today.
+            prompt = f"""Looking at the CV below, summarise the candidate's job history into relevant and actionable insights for a UK financial services recruiter.
 
-For each role inside that 3-year window, output EXACTLY this shape:
+For each role (most recent first), include:
+- Job title, employer, and dates
+- Key responsibilities and achievements
+- Relevant specialisms, regulations, or technologies
 
-Role - <Job Title> at <Employer Name> (<Start Month Year> - <End Month Year or Present>)
-- <short bullet>
-- <short bullet>
-- <short bullet>
-- <short bullet>
-- <short bullet>
+Keep it concise but comprehensive. Focus on the last 3-5 years.
 
-Then a blank line between roles.
-
-Content rules for the 4-5 bullets per role:
-1. Day-to-day scope / responsibilities.
-2. One headline achievement or outcome.
-3. Specialisms, regulations, sector, or technologies visible in this role.
-4. Team size, clients served, budget, or scale (if stated).
-5. Reason for leaving or current status (if stated).
-
-Hard rules:
-- Each bullet is ONE short line (max ~15 words).
-- Hyphen-prefixed bullets, one per line. No other markdown.
-- Use ONLY facts in the CV. Do not invent, infer, or speculate.
-- If fewer than 5 bullets can be substantiated for a role, output only as
-  many as the CV supports (minimum 3) — never pad.
-- Do not include any role older than 3 years.
-- Do not output any preamble, headings, summary lines, or commentary outside
-  the role blocks.
-- If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
+If the CV is empty or unreadable, output exactly: Unable to retrieve information from CV.
 
 CV:
 {text}
 """
             import google.generativeai as genai
             gen_config = genai.GenerationConfig(
-                # 500 tokens ≈ 375 words — fits 3 roles × 5 bullets (~200
-                # words) with headroom. Smaller budget = faster response
-                # since the model stops generating sooner.
-                max_output_tokens=500,
-                temperature=0.2,
+                max_output_tokens=800,
+                temperature=0.3,
             )
             resp = model.generate_content(prompt, generation_config=gen_config)
             if not resp.parts:
