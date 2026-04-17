@@ -3604,11 +3604,18 @@ def timesheets():
     cand_id = _get_associate_id()
 
     with SASession(engine) as s:
-        # Get candidate's active assignments for dropdown
+        # Get candidate's placed/signed assignments for dropdown —
+        # only applications with a signed contract should appear.
         assignments = []
+        PLACED_STATUSES = {
+            "placed", "contract signed", "contract issued",
+            "contract sent", "active", "hired", "on contract",
+        }
         if Application:
             apps = s.query(Application).filter_by(candidate_id=cand_id).all()
             for app in apps:
+                if (app.status or "").strip().lower() not in PLACED_STATUSES:
+                    continue
                 job = app.job if hasattr(app, "job") and app.job else None
                 eng = None
                 if job and hasattr(job, "engagement_id") and job.engagement_id and Engagement:
