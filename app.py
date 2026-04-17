@@ -1536,6 +1536,14 @@ def admin_users():
 @login_required
 def admin_approvals():
     """Approvals management page — shows submitted timesheets for review."""
+    try:
+        return _admin_approvals_inner()
+    except Exception as exc:
+        import traceback
+        print(f"[APPROVALS] ERROR: {exc}\n{traceback.format_exc()}", flush=True)
+        raise
+
+def _admin_approvals_inner():
     with Session(engine) as s:
         Timesheet = globals().get("Timesheet")
         if not Timesheet:
@@ -10760,6 +10768,7 @@ def workflow_move():
 def placements():
     """
     Placements page showing all associates currently ON CONTRACT.
+    NOTE: wrapped in top-level try/except for diagnostics.
     
     Per wireframe requirements:
     Filters: Name, Client, Engagement, Role
@@ -10771,7 +10780,14 @@ def placements():
     - Scheduled Leavers Panel (next 14 days)
     - Forecasted Headcount graph
     """
-    # Query params for filters (now multi-select)
+    try:
+        return _placements_inner()
+    except Exception as exc:
+        import traceback
+        print(f"[PLACEMENTS] ERROR: {exc}\n{traceback.format_exc()}", flush=True)
+        raise
+
+def _placements_inner():
     name_filter = request.args.getlist("name") or []
     client_filter = request.args.getlist("client") or []
     engagement_filter = request.args.getlist("engagement") or []
