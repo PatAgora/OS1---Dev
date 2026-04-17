@@ -2207,6 +2207,24 @@ def mark_umbrella_assignment_signed(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/candidate/<int:cand_id>/test-mark-vetting-complete", methods=["POST"])
+@login_required
+def test_mark_vetting_complete(cand_id: int):
+    """TEST ONLY — marks all vetting checks as Complete for this candidate.
+    Remove before production use."""
+    with Session(engine) as s:
+        checks = s.scalars(
+            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+        ).all()
+        for vc in checks:
+            if vc.status not in ("Complete", "COMPLETE"):
+                vc.status = "Complete"
+                vc.result = vc.result or "Marked complete (test)"
+        s.commit()
+    flash(f"All {len(checks)} vetting checks marked as Complete (test).", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/candidate/<int:cand_id>/paystream-capture", methods=["GET", "POST"])
 @login_required
 def paystream_capture(cand_id: int):
