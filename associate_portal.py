@@ -3604,17 +3604,31 @@ def timesheets():
     cand_id = _get_associate_id()
 
     with SASession(engine) as s:
-        # Get candidate's placed/signed assignments for dropdown —
-        # only applications with a signed contract should appear.
+        # Get candidate's contracted assignments for dropdown —
+        # show applications where the candidate has a signed contract
+        # (either by application status OR by having a signed ESigRequest).
         assignments = []
         PLACED_STATUSES = {
             "placed", "contract signed", "contract issued",
             "contract sent", "active", "hired", "on contract",
         }
+        ESigRequest = _model("ESigRequest")
+        signed_app_ids = set()
+        if ESigRequest:
+            try:
+                signed_esigs = s.execute(text(
+                    "SELECT application_id FROM esign_requests "
+                    "WHERE candidate_id = :cid AND LOWER(status) IN ('signed', 'completed')"
+                ).bindparams(cid=cand_id)).all()
+                signed_app_ids = {r[0] for r in signed_esigs if r[0]}
+            except Exception:
+                pass
         if Application:
             apps = s.query(Application).filter_by(candidate_id=cand_id).all()
             for app in apps:
-                if (app.status or "").strip().lower() not in PLACED_STATUSES:
+                status_match = (app.status or "").strip().lower() in PLACED_STATUSES
+                esig_match = app.id in signed_app_ids
+                if not status_match and not esig_match:
                     continue
                 job = app.job if hasattr(app, "job") and app.job else None
                 eng = None
