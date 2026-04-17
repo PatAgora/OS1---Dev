@@ -2113,6 +2113,29 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", audit_entries=audit_entries)
 
 
+@app.route("/action/reference-complete/<int:cand_id>/<int:ref_id>", methods=["POST"])
+@login_required
+def mark_reference_complete(cand_id: int, ref_id: int):
+    """Mark a single reference request as received/complete."""
+    with Session(engine) as s:
+        ref = s.get(ReferenceRequest, ref_id)
+        if not ref or ref.candidate_id != cand_id:
+            flash("Reference request not found.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        ref.status = "received"
+        ref.received_at = datetime.datetime.utcnow()
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=getattr(current_user, "email", "staff") or "staff",
+            note_type="activity",
+            content=f"Reference from {ref.company_name or 'unknown'} marked as complete.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+    flash(f"Reference from {ref.company_name or 'unknown'} marked as complete.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/umbrella-assignment-sent/<int:cand_id>", methods=["POST"])
 @login_required
 def mark_umbrella_assignment_sent(cand_id: int):
