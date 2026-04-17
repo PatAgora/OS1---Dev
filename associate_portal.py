@@ -120,18 +120,22 @@ def _ensure_models():
 
     Base = _base()
 
-    # Guard against re-registration if tables already mapped.
-    # Populate ALL portal model classes from the registry — the old
-    # code only registered 3 Timesheet models, leaving CompanyDetails,
-    # ConsentRecord, AssociateProfile etc. unresolvable.
-    if "associate_profiles" in Base.metadata.tables:
-        PORTAL_MODEL_NAMES = {
-            "AssociateProfile", "CompanyDetails", "ConsentRecord",
-            "DeclarationRecord", "EmploymentHistory", "AddressHistory",
-            "QualificationRecord", "ProfessionalRegistration",
-            "ReferenceContact", "FlaggedReferenceHouse",
-            "TimesheetConfig", "TimesheetEntry", "TimesheetExpense",
-        }
+    # Guard against re-registration if classes are already in the
+    # mapper registry for THIS process. We check for a specific
+    # portal class (CompanyDetails), not just the table name —
+    # because Base.metadata.tables is populated by create_all()
+    # at import time (before Gunicorn fork), but the class mappers
+    # are per-process. If the table exists but the class doesn't,
+    # we MUST define the classes.
+    PORTAL_MODEL_NAMES = {
+        "AssociateProfile", "CompanyDetails", "ConsentRecord",
+        "DeclarationRecord", "EmploymentHistory", "AddressHistory",
+        "QualificationRecord", "ProfessionalRegistration",
+        "ReferenceContact", "FlaggedReferenceHouse",
+        "TimesheetConfig", "TimesheetEntry", "TimesheetExpense",
+    }
+    registered_names = {m.class_.__name__ for m in Base.registry.mappers}
+    if "CompanyDetails" in registered_names:
         for mapper in Base.registry.mappers:
             cls = mapper.class_
             if cls.__name__ in PORTAL_MODEL_NAMES:
