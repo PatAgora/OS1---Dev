@@ -415,12 +415,12 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small fw-semibold">Last Working Date</label>
-                        <input type="date" name="last_working_date" class="form-control form-control-sm">
+                        <label class="form-label small fw-semibold">Notice Start Date</label>
+                        <input type="date" name="notice_start_date" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small fw-semibold">Notice Period</label>
-                        <input type="text" name="notice_period" class="form-control form-control-sm" placeholder="e.g. 1 week">
+                        <label class="form-label small fw-semibold">Notice End Date</label>
+                        <input type="date" name="notice_end_date" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-1">
                         <button type="submit" class="btn btn-primary btn-sm w-100">
@@ -440,8 +440,8 @@
                 <tr>
                     <th>Associate</th>
                     <th>Reason</th>
-                    <th>Last Working Date</th>
-                    <th>Notice Period</th>
+                    <th>Notice Start</th>
+                    <th>Notice End</th>
                     <th>Notes</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -452,8 +452,8 @@
                 <tr>
                     <td><strong>{{ lr.associate_name }}</strong></td>
                     <td>{{ lr.reason }}</td>
-                    <td>{{ lr.last_working_date }}</td>
-                    <td>{{ lr.notice_period }}</td>
+                    <td>{{ lr.notice_start_date }}</td>
+                    <td>{{ lr.notice_end_date }}</td>
                     <td class="small text-muted">{{ lr.notes or '—' }}</td>
                     <td><span class="status-badge status-{{ lr.status|lower }}">{{ lr.status }}</span></td>
                     <td>

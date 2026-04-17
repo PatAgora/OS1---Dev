@@ -1626,8 +1626,9 @@ def admin_approvals():
                     "associate_name": cand.name if cand else f"ID {lr.candidate_id}",
                     "candidate_id": lr.candidate_id,
                     "reason": lr.reason or "",
+                    "notice_start_date": lr.notice_start_date.strftime("%d/%m/%Y") if lr.notice_start_date else "—",
+                    "notice_end_date": lr.notice_end_date.strftime("%d/%m/%Y") if lr.notice_end_date else "—",
                     "last_working_date": lr.last_working_date.strftime("%d/%m/%Y") if lr.last_working_date else "—",
-                    "notice_period": lr.notice_period or "—",
                     "notes": lr.notes or "",
                     "status": lr.status or "Pending",
                     "created_by": lr.created_by or "",
@@ -1711,18 +1712,21 @@ def admin_delete_leave_reason(lr_id):
 def admin_create_leave():
     cand_id = request.form.get("candidate_id", type=int)
     reason = (request.form.get("reason") or "").strip()
-    last_working_date = request.form.get("last_working_date", "")
-    notice_period = (request.form.get("notice_period") or "").strip()
+    notice_start = request.form.get("notice_start_date", "")
+    notice_end = request.form.get("notice_end_date", "")
     notes = (request.form.get("notes") or "").strip()
     if not cand_id or not reason:
         flash("Associate and reason are required.", "danger")
         return redirect(url_for("admin_approvals"))
+    _ns = datetime.datetime.strptime(notice_start, "%Y-%m-%d").date() if notice_start else None
+    _ne = datetime.datetime.strptime(notice_end, "%Y-%m-%d").date() if notice_end else None
     with Session(engine) as s:
         lr = LeaveRequest(
             candidate_id=cand_id,
             reason=reason,
-            last_working_date=datetime.datetime.strptime(last_working_date, "%Y-%m-%d").date() if last_working_date else None,
-            notice_period=notice_period,
+            notice_start_date=_ns,
+            notice_end_date=_ne,
+            last_working_date=_ne,
             notes=notes,
             status="Pending",
             created_by=getattr(current_user, "email", "") or "staff",
@@ -5546,6 +5550,8 @@ class LeaveRequest(Base):
     id = Column(Integer, primary_key=True)
     candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
     reason = Column(String(200), default="")
+    notice_start_date = Column(Date, nullable=True)
+    notice_end_date = Column(Date, nullable=True)
     last_working_date = Column(Date, nullable=True)
     notice_period = Column(String(100), default="")
     notes = Column(Text, default="")
@@ -6640,6 +6646,16 @@ Optimus Compliance Team"""))
                 ) sub
                 WHERE esign_requests.id = sub.esig_id
             """))
+        except Exception:
+            pass
+
+        # Leave request notice date columns
+        try:
+            _mc.execute(text("ALTER TABLE leave_requests ADD COLUMN notice_start_date DATE"))
+        except Exception:
+            pass
+        try:
+            _mc.execute(text("ALTER TABLE leave_requests ADD COLUMN notice_end_date DATE"))
         except Exception:
             pass
 
@@ -11030,6 +11046,35 @@ def placements():
                 "days_until": days_until
             })
         
+        # Also include approved leave requests with notice_end_date in next 30 days
+        try:
+            leave_leavers = s.execute(
+                select(LeaveRequest, Candidate)
+                .join(Candidate, Candidate.id == LeaveRequest.candidate_id)
+                .where(LeaveRequest.status == "Approved")
+                .where(LeaveRequest.notice_end_date.isnot(None))
+                .where(LeaveRequest.notice_end_date >= now.date())
+                .where(LeaveRequest.notice_end_date <= thirty_days.date())
+                .order_by(LeaveRequest.notice_end_date.asc())
+            ).all()
+            existing_cand_ids = {sl["candidate"].id for sl in scheduled_leavers}
+            for lr, cand in leave_leavers:
+                if cand.id in existing_cand_ids:
+                    continue
+                end_date = lr.notice_end_date
+                days_until = (end_date - today_date).days if end_date else 0
+                scheduled_leavers.append({
+                    "candidate": cand,
+                    "job": None,
+                    "engagement": None,
+                    "end_date": end_date,
+                    "days_until": days_until,
+                    "reason": lr.reason or "",
+                })
+            scheduled_leavers.sort(key=lambda x: x.get("end_date") or datetime.date.max)
+        except Exception:
+            pass
+
         # === Per-Engagement Forecast Data ===
         # Get all signed contracts grouped by engagement with start/end dates
         forecast_query = (

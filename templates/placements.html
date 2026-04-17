@@ -964,6 +964,7 @@
         <th>Engagement</th>
         <th>Client</th>
         <th>Leave Date</th>
+        <th>Reason</th>
         <th>Days Until</th>
       </tr>
     </thead>
@@ -976,6 +977,7 @@
         <td>{{ l.engagement.name if l.engagement else '—' }}</td>
         <td>{{ l.engagement.client if l.engagement else '—' }}</td>
         <td class="date-cell">{{ l.end_date.strftime('%d %b %Y') if l.end_date else '—' }}</td>
+        <td>{{ l.reason if l.reason else '—' }}</td>
         <td>
           {% if days_until <= 0 %}
           <span class="status-badge" style="background: #ef4444; color: white;">Today</span>
