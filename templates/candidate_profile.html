@@ -1048,13 +1048,13 @@
               <div class="col-md-6">
                 <div class="p-3 rounded" style="background: #f9fafb; border-left: 4px solid {{ colour_border }};">
                   <!-- Row 1: Check name + status badge -->
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div style="font-size: 0.85rem; font-weight: 600; color: #1f2937;">
+                  <div class="d-flex justify-content-between align-items-start mb-2" style="gap:0.5rem;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: #1f2937; min-width:0;">
                       {{ check.type }}
                       {% if check.portal_flags %}
                         {% for flag in check.portal_flags %}
                           <span class="badge ms-1" title="Flagged from the Associate Portal"
-                                style="background:#fef3c7; color:#92400e; font-weight:500;">
+                                style="background:#fef3c7; color:#92400e; font-weight:500; font-size:0.65rem; white-space:normal;">
                             <i class="fas fa-flag me-1"></i>{{ flag }}
                           </span>
                         {% endfor %}

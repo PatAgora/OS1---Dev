@@ -2186,6 +2186,9 @@ def mark_umbrella_assignment_signed(cand_id: int):
             )
             if latest_app and latest_app.status in ("Contract Issued", "Contract Sent", "sent"):
                 latest_app.status = "Contract Signed"
+            # Update Candidate status — vetting done + contract signed = Active
+            if cand.status in ("In Vetting", "Contract Issued"):
+                cand.status = "Active"
 
         user_email = getattr(current_user, "email", "staff") or "staff"
         s.add(CandidateNote(
