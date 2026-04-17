@@ -253,12 +253,6 @@
         <span class="badge-count">{{ timesheet_pending|default(0) }}</span>
         {% endif %}
     </button>
-    <button class="tab" data-tab="expenses">
-        <i class="fas fa-receipt me-1"></i>Expenses
-        {% if expense_pending|default(0) > 0 %}
-        <span class="badge-count">{{ expense_pending|default(0) }}</span>
-        {% endif %}
-    </button>
     <button class="tab" data-tab="leave">
         <i class="fas fa-calendar-minus me-1"></i>Leave Requests
         {% if leave_pending|default(0) > 0 %}
@@ -336,51 +330,6 @@
             <i class="fas fa-check-circle"></i>
             <h5>No pending timesheets</h5>
             <p>All timesheets have been reviewed</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Expenses Tab -->
-<div class="approval-card tab-content" id="expenses-content" style="display: none;">
-    <div class="card-header">
-        <span><i class="fas fa-receipt me-2"></i>Expense Claims</span>
-    </div>
-    <div class="card-body">
-        {% if expenses|default([])|length > 0 %}
-        <table class="approval-table">
-            <thead>
-                <tr>
-                    <th>Associate</th>
-                    <th>Description</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for exp in expenses|default([]) %}
-                <tr>
-                    <td><strong>{{ exp.associate_name }}</strong></td>
-                    <td>{{ exp.description }}</td>
-                    <td>£{{ "%.2f"|format(exp.amount) }}</td>
-                    <td>{{ exp.date }}</td>
-                    <td><span class="status-badge status-{{ exp.status|lower }}">{{ exp.status }}</span></td>
-                    <td>
-                        <button class="action-btn view"><i class="fas fa-eye"></i></button>
-                        <button class="action-btn approve"><i class="fas fa-check"></i></button>
-                        <button class="action-btn reject"><i class="fas fa-times"></i></button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="empty-state">
-            <i class="fas fa-receipt"></i>
-            <h5>No pending expenses</h5>
-            <p>All expense claims have been processed</p>
         </div>
         {% endif %}
     </div>
