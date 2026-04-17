@@ -2117,22 +2117,27 @@ def admin_audit_log():
 @login_required
 def mark_reference_complete(cand_id: int, ref_id: int):
     """Mark a single reference request as received/complete."""
-    with Session(engine) as s:
-        ref = s.get(ReferenceRequest, ref_id)
-        if not ref or ref.candidate_id != cand_id:
-            flash("Reference request not found.", "warning")
-            return redirect(url_for("candidate_profile", cand_id=cand_id))
-        ref.status = "received"
-        ref.received_at = datetime.datetime.utcnow()
-        s.add(CandidateNote(
-            candidate_id=cand_id,
-            user_email=getattr(current_user, "email", "staff") or "staff",
-            note_type="activity",
-            content=f"Reference from {ref.company_name or 'unknown'} marked as complete.",
-            created_at=datetime.datetime.utcnow(),
-        ))
-        s.commit()
-    flash(f"Reference from {ref.company_name or 'unknown'} marked as complete.", "success")
+    try:
+        with Session(engine) as s:
+            ref = s.get(ReferenceRequest, ref_id)
+            if not ref or ref.candidate_id != cand_id:
+                flash("Reference request not found.", "warning")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+            company = ref.company_name or "unknown"
+            ref.status = "received"
+            ref.received_at = datetime.datetime.utcnow()
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="activity",
+                content=f"Reference from {company} marked as complete.",
+                created_at=datetime.datetime.utcnow(),
+            ))
+            s.commit()
+        flash(f"Reference from {company} marked as complete.", "success")
+    except Exception as exc:
+        current_app.logger.exception("mark_reference_complete failed: %s", exc)
+        flash(f"Failed to mark reference complete: {exc}", "danger")
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
