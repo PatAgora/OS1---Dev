@@ -9,7 +9,10 @@
 {% endblock %}
 
 {% block content %}
-<!-- New Timesheet -->
+{% set has_draft = current_ts and current_ts.status in ('Draft', 'Unsubmitted', None, '') %}
+
+<!-- New Timesheet — only show when no active draft -->
+{% if not has_draft %}
 <div class="portal-card mb-4">
     <div class="portal-card-header">
         <h2><i class="fas fa-plus-circle me-2"></i>New Timesheet</h2>
@@ -44,13 +47,14 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 
-<!-- Current Timesheet: Weekly Grid -->
-{% if current_ts %}
+<!-- Current Timesheet: Weekly Grid — only shows for active drafts -->
+{% if has_draft %}
 <div class="portal-card mb-4">
     <div class="portal-card-header">
         <h2><i class="fas fa-calendar-week me-2"></i>Current Timesheet</h2>
-        <span class="badge badge-in-progress">{{ current_ts.status or 'Draft' }}</span>
+        <span class="badge badge-in-progress">Draft</span>
     </div>
     <div class="portal-card-body" style="padding: 0;">
         <form method="POST" action="/portal/timesheets/save" id="timesheetForm">
