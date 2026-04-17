@@ -120,12 +120,21 @@ def _ensure_models():
 
     Base = _base()
 
-    # Guard against re-registration if tables already mapped
+    # Guard against re-registration if tables already mapped.
+    # Populate ALL portal model classes from the registry — the old
+    # code only registered 3 Timesheet models, leaving CompanyDetails,
+    # ConsentRecord, AssociateProfile etc. unresolvable.
     if "associate_profiles" in Base.metadata.tables:
-        # Populate _models from existing registry so external access works
+        PORTAL_MODEL_NAMES = {
+            "AssociateProfile", "CompanyDetails", "ConsentRecord",
+            "DeclarationRecord", "EmploymentHistory", "AddressHistory",
+            "QualificationRecord", "ProfessionalRegistration",
+            "ReferenceContact", "FlaggedReferenceHouse",
+            "TimesheetConfig", "TimesheetEntry", "TimesheetExpense",
+        }
         for mapper in Base.registry.mappers:
             cls = mapper.class_
-            if cls.__name__ in ("TimesheetConfig", "TimesheetEntry", "TimesheetExpense"):
+            if cls.__name__ in PORTAL_MODEL_NAMES:
                 _models[cls.__name__] = cls
         _MODELS_DEFINED = True
         return
