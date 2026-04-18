@@ -970,14 +970,37 @@
                     {{ iv.scheduled_at.strftime('%d %b %Y at %H:%M') }}
                   </div>
                 </div>
-                <div>
+                <div class="d-flex gap-1 align-items-center">
                   {% if iv.completed_at %}
                     <span class="badge bg-success" style="font-size: 0.65rem;">Completed</span>
                   {% else %}
                     <span class="badge bg-primary" style="font-size: 0.65rem;">Scheduled</span>
+                    <button type="button" class="btn btn-outline-primary btn-sm" style="font-size:0.65rem; padding:0.15rem 0.4rem;" onclick="document.getElementById('reschedule-form-{{ iv.app_id }}').style.display = document.getElementById('reschedule-form-{{ iv.app_id }}').style.display === 'none' ? '' : 'none';">
+                      <i class="fas fa-calendar-alt me-1"></i>Reschedule
+                    </button>
                   {% endif %}
                 </div>
               </div>
+              {% if not iv.completed_at %}
+              <div id="reschedule-form-{{ iv.app_id }}" style="display:none; margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid #e5e7eb;">
+                <form method="POST" action="{{ url_for('schedule_interview', cand_id=cand.id) }}" enctype="multipart/form-data">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div class="row g-2">
+                    <div class="col-5">
+                      <input type="date" name="interview_date" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-3">
+                      <input type="time" name="interview_time" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-4">
+                      <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="fas fa-calendar-check me-1"></i> Update
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+              {% endif %}
             </div>
             {% endfor %}
           {% endif %}
