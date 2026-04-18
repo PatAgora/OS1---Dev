@@ -92,7 +92,7 @@
         <div class="col-md-4 col-sm-6 mb-2">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="vetting_check" value="{{ check }}" id="vc_{{ loop.index }}"
-              {% if check in selected_checks or not selected_checks %}checked{% endif %}>
+              {% if selected_checks and check in selected_checks %}checked{% endif %}>
             <label class="form-check-label" for="vc_{{ loop.index }}">{{ check }}</label>
           </div>
         </div>

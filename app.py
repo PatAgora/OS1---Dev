@@ -11838,7 +11838,10 @@ def engagement_edit(eng_id):
         if not engagement:
             abort(404)
 
-        form = EngagementForm(obj=engagement)
+        if request.method == "POST":
+            form = EngagementForm()
+        else:
+            form = EngagementForm(obj=engagement)
 
         if request.method == "POST" and form.validate_on_submit():
             engagement.name = form.name.data
@@ -11860,6 +11863,11 @@ def engagement_edit(eng_id):
             s.commit()
             flash(f"Engagement {engagement.ref} updated", "success")
             return redirect(url_for("engagement_dashboard", eng_id=eng_id))
+
+        if request.method == "POST" and form.errors:
+            for field, errs in form.errors.items():
+                for e in errs:
+                    flash(f"{field}: {e}", "danger")
 
         # Pre-populate form fields for GET
         if request.method == "GET":
