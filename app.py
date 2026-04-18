@@ -5733,6 +5733,7 @@ class VettingCheck(Base):
     expiry_date = Column(DateTime, nullable=True)
     verifile_confirmed = Column(Boolean, default=False)
     verifile_confirmed_at = Column(DateTime, nullable=True)
+    verifile_result = Column(String(50), nullable=True)
 
 # ---- CandidateNote model (Notes & Activity panel) ----
 class CandidateNote(Base):
@@ -6873,6 +6874,7 @@ try:
             "ALTER TABLE vetting_check ADD COLUMN expiry_date TIMESTAMP",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed_at TIMESTAMP",
+            "ALTER TABLE vetting_check ADD COLUMN verifile_result VARCHAR(50)",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -14195,10 +14197,11 @@ def webhook_verifile():
 
         vc.external_result = json.dumps(payload)[:19999]
 
-        # Set Verifile confirmed flag regardless of manual status
+        # Set Verifile confirmed flag with their actual result
         if raw_status in ("complete", "completed", "passed", "clear", "failed", "rejected"):
             vc.verifile_confirmed = True
             vc.verifile_confirmed_at = datetime.datetime.utcnow()
+            vc.verifile_result = raw_status.capitalize()
 
         # Only auto-update status if not already manually progressed past Verifile's result
         manual_advanced = (vc.status or "").upper() in ("SENT TO QC", "QC IN PROGRESS", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "CHECK STILL IN DATE")
@@ -17164,6 +17167,7 @@ def candidate_profile(cand_id: int):
                     "colour": vc.colour or "white",
                     "verifile_confirmed": getattr(vc, "verifile_confirmed", False) or False,
                     "verifile_confirmed_at": getattr(vc, "verifile_confirmed_at", None),
+                    "verifile_result": getattr(vc, "verifile_result", None) or "",
                 }
 
             _seen_eng = set()
@@ -17199,6 +17203,7 @@ def candidate_profile(cand_id: int):
                         "qc_assigned_to": vc_data.get("qc_assigned_to"),
                         "verifile_confirmed": vc_data.get("verifile_confirmed", False),
                         "verifile_confirmed_at": vc_data.get("verifile_confirmed_at"),
+                        "verifile_result": vc_data.get("verifile_result", ""),
                     })
                 vetting_by_project.append({
                     "eng_id": _ca.eng_id,
