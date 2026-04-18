@@ -1211,8 +1211,9 @@
                       <div class="row g-1 mt-1">
                         <div class="col-6">
                           <label style="font-size:0.6rem; color:#6b7280; display:block;">Assigned</label>
-                          <select class="form-select form-select-sm" style="font-size:0.7rem;"
-                                  onchange="assignAnalyst({{ cand.id }}, '{{ c.type }}', this.value)">
+                          <select class="form-select form-select-sm vc-analyst-select" style="font-size:0.7rem;"
+                                  data-check="{{ c.type }}"
+                                  onchange="assignAnalyst({{ cand.id }}, '{{ c.type }}', this.value, this)">
                             <option value="">Unassigned</option>
                             {% for staff in all_staff_users %}
                             <option value="{{ staff.id }}" {% if c.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
@@ -1221,8 +1222,9 @@
                         </div>
                         <div class="col-6">
                           <label style="font-size:0.6rem; color:#6b7280; display:block;">QC Assigned</label>
-                          <select class="form-select form-select-sm" style="font-size:0.7rem;"
-                                  onchange="assignQCReviewer({{ cand.id }}, '{{ c.type }}', this.value)">
+                          <select class="form-select form-select-sm vc-qc-select" style="font-size:0.7rem;"
+                                  data-check="{{ c.type }}"
+                                  onchange="assignQCReviewer({{ cand.id }}, '{{ c.type }}', this.value, this)">
                             <option value="">Unassigned</option>
                             {% for staff in all_staff_users %}
                             <option value="{{ staff.id }}" {% if c.qc_assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
@@ -2325,7 +2327,16 @@ function _csrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content || '';
 }
 
-function assignAnalyst(candId, checkType, analystId) {
+function assignAnalyst(candId, checkType, analystId, selectEl) {
+  if (analystId && selectEl) {
+    var row = selectEl.closest('.row');
+    var qcSelect = row ? row.querySelector('.vc-qc-select') : null;
+    if (qcSelect && qcSelect.value && qcSelect.value === analystId) {
+      alert('Cannot assign — Assignee cannot be the same as the QC Reviewer.');
+      selectEl.value = '';
+      return;
+    }
+  }
   var body = new FormData();
   body.append('csrf_token', _csrfToken());
   body.append('check_type', checkType);
@@ -2340,7 +2351,16 @@ function assignAnalyst(candId, checkType, analystId) {
   .catch(function() { alert('Network error'); });
 }
 
-function assignQCReviewer(candId, checkType, reviewerId) {
+function assignQCReviewer(candId, checkType, reviewerId, selectEl) {
+  if (reviewerId && selectEl) {
+    var row = selectEl.closest('.row');
+    var analystSelect = row ? row.querySelector('.vc-analyst-select') : null;
+    if (analystSelect && analystSelect.value && analystSelect.value === reviewerId) {
+      alert('Cannot assign QC to the same as the Assignee.');
+      selectEl.value = '';
+      return;
+    }
+  }
   var body = new FormData();
   body.append('csrf_token', _csrfToken());
   body.append('check_type', checkType);
