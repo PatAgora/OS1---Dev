@@ -15016,15 +15016,22 @@ def api_vetting_trigger(cand_id):
 @app.route("/api/vetting/reset/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_reset(cand_id):
-    """Reset all vetting checks for a candidate back to NOT STARTED."""
+    """Reset vetting checks for a candidate back to NOT STARTED.
+    If check_types provided in JSON body, only reset those specific checks (current project).
+    Otherwise resets all checks."""
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             return jsonify({"ok": False, "error": "Candidate not found"}), 404
 
-        checks = s.scalars(
-            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
-        ).all()
+        data = request.get_json(silent=True) or {}
+        check_types = data.get("check_types", [])
+
+        query = select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+        if check_types:
+            query = query.where(VettingCheck.check_type.in_(check_types))
+
+        checks = s.scalars(query).all()
 
         reset_count = 0
         for vc in checks:
