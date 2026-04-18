@@ -4830,6 +4830,30 @@ def vacancy_apply(job_id):
             s.commit()
             print(f"[PORTAL] Application committed successfully: app_id={app_id}")
 
+            # Trigger AI summary + score in background
+            try:
+                from app import ai_summarise, _collect_text_for_candidate
+                with SASession(engine) as s2:
+                    _cand = s2.get(Candidate, cand_id)
+                    _job = s2.get(Job, job_id)
+                    if _cand and _job:
+                        cv_text = _collect_text_for_candidate(s2, _cand)
+                        if cv_text and _job.description:
+                            summary = ai_summarise(cv_text, job_description=_job.description or "")
+                            _app = s2.get(Application, app_id)
+                            if _app and summary:
+                                _app.ai_summary = summary[:6000]
+                            # Score
+                            from app import ai_score_with_explanation
+                            score_result = ai_score_with_explanation(_job.description or "", cv_text)
+                            if score_result and _app:
+                                _app.ai_score = int(score_result.get("final", 0) or 0)
+                                _app.ai_explanation = (score_result.get("explanation") or "")[:7999]
+                            s2.commit()
+                            print(f"[PORTAL] AI score={_app.ai_score if _app else '?'} for app_id={app_id}")
+            except Exception as ai_exc:
+                print(f"[PORTAL] AI scoring failed (non-fatal): {ai_exc}")
+
         flash(f"Application submitted for {job.title}.", "success")
         return redirect(url_for("associate.vacancy_detail", job_id=job_id))
 
