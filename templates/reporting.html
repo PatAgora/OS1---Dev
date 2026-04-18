@@ -74,7 +74,8 @@
       <div class="d-flex align-items-end gap-3 flex-wrap">
         <div style="flex: 1; min-width: 200px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Client</label>
-          <select name="clients" id="reportClientFilter" class="form-select form-select-sm" multiple size="1" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+          <select name="clients" id="reportClientFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+            <option value="">All Clients</option>
             {% for client in all_clients %}
             <option value="{{ client }}" {% if client in selected_clients %}selected{% endif %}>{{ client }}</option>
             {% endfor %}
@@ -82,7 +83,8 @@
         </div>
         <div style="flex: 1; min-width: 200px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Engagement</label>
-          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" multiple size="1" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+            <option value="">All Engagements</option>
             {% for eng in all_engagements %}
             <option value="{{ eng.id }}" data-client="{{ eng.client or '' }}" {% if eng.id|string in selected_engagements %}selected{% endif %}>{{ eng.name }}</option>
             {% endfor %}
@@ -342,35 +344,18 @@ function cascadeReportFilters() {
   var engSel = document.getElementById('reportEngFilter');
   if (!clientSel || !engSel) return;
 
-  var selectedClients = Array.from(clientSel.selectedOptions).map(function(o) { return o.value; });
-  var selectedEngs = Array.from(engSel.selectedOptions).map(function(o) { return o.value; });
+  var selectedClient = clientSel.value;
 
-  // Client selected → hide engagements not matching
-  if (selectedClients.length > 0) {
-    Array.from(engSel.options).forEach(function(opt) {
-      var client = opt.getAttribute('data-client') || '';
-      opt.hidden = selectedClients.indexOf(client) === -1;
-      if (opt.hidden && opt.selected) opt.selected = false;
+  // Client selected → show only matching engagements
+  Array.from(engSel.options).forEach(function(opt) {
+    if (!opt.value) return; // skip "All" option
+    var client = opt.getAttribute('data-client') || '';
+    opt.hidden = selectedClient && client !== selectedClient;
+    if (opt.hidden && opt.selected) {
+      opt.selected = false;
+      engSel.value = '';
+    }
     });
-  } else {
-    Array.from(engSel.options).forEach(function(opt) { opt.hidden = false; });
-  }
-
-  // Engagement selected → hide clients not matching
-  if (selectedEngs.length > 0) {
-    var validClients = new Set();
-    Array.from(engSel.options).forEach(function(opt) {
-      if (selectedEngs.indexOf(opt.value) !== -1) {
-        validClients.add(opt.getAttribute('data-client') || '');
-      }
-    });
-    Array.from(clientSel.options).forEach(function(opt) {
-      opt.hidden = !validClients.has(opt.value);
-      if (opt.hidden && opt.selected) opt.selected = false;
-    });
-  } else {
-    Array.from(clientSel.options).forEach(function(opt) { opt.hidden = false; });
-  }
 }
 // Run on page load
 cascadeReportFilters();
