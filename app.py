@@ -8525,15 +8525,25 @@ def index():
                 .where(Application.status.in_(offer_stages))
                 .where(Job.engagement_id == eng.id)
             ) or 0
-            
-            if target > 0 or offered > 0:
+
+            _contracted_statuses = ["Placed", "Contract Signed", "Contracted", "Active", "Hired"]
+            eng_contracted = s.scalar(
+                select(func.count(func.distinct(Application.candidate_id)))
+                .select_from(Application)
+                .join(Job, Job.id == Application.job_id)
+                .where(Application.status.in_(_contracted_statuses))
+                .where(Job.engagement_id == eng.id)
+            ) or 0
+
+            if target > 0 or offered > 0 or eng_contracted > 0:
                 delivery_chart_data.append({
                     "name": eng.name,
                     "client": eng.client or "Unknown",
                     "target": target,
                     "offered": offered,
+                    "contracted": eng_contracted,
                     "pct": int(100 * offered / target) if target else 0,
-                    "eng_id": eng.id,  # GAP 2.2: Add engagement ID for clickable chart
+                    "eng_id": eng.id,
                 })
         
         # Sort by percentage (lowest first to show who needs attention)
@@ -8582,8 +8592,8 @@ def index():
             
             upcoming_intakes = s.execute(lookahead_query).all()
             
+            _contracted_statuses_la = ["Placed", "Contract Signed", "Contracted", "Active", "Hired"]
             for row in upcoming_intakes:
-                # Count associates offered for this engagement
                 eng_offered = s.scalar(
                     select(func.count(func.distinct(Application.candidate_id)))
                     .select_from(Application)
@@ -8591,10 +8601,18 @@ def index():
                     .where(Application.status.in_(offer_stages))
                     .where(Job.engagement_id == row.id)
                 ) or 0
-                
+
+                eng_contracted_la = s.scalar(
+                    select(func.count(func.distinct(Application.candidate_id)))
+                    .select_from(Application)
+                    .join(Job, Job.id == Application.job_id)
+                    .where(Application.status.in_(_contracted_statuses_la))
+                    .where(Job.engagement_id == row.id)
+                ) or 0
+
                 target = row.total_target or 0
                 intake_label = row.intake_date.strftime("%d %b") if row.intake_date else "TBD"
-                
+
                 lookahead_data.append({
                     "name": row.name,
                     "label": f"{row.name} ({intake_label})",
@@ -8602,6 +8620,7 @@ def index():
                     "intake_date": intake_label,
                     "target": target,
                     "offered": eng_offered,
+                    "contracted": eng_contracted_la,
                     "pct": int(100 * eng_offered / target) if target else 0,
                     "eng_id": row.id,
                 })
