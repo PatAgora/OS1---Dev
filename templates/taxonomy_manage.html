@@ -715,7 +715,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="template_name" value="reference_request">
 
-    <h6 class="fw-bold mb-3"><i class="fas fa-user-check me-2"></i>Reference Request Email</h6>
+    <h6 class="fw-bold mb-2" style="cursor:pointer;" onclick="document.getElementById('refEmailBody').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+      <i class="fas fa-user-check me-2"></i>Reference Request Email <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+    </h6>
+    <div id="refEmailBody" class="hidden">
     <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to referees when requesting a reference. Use the tags below to automatically insert the candidate's details.</p>
 
     <div class="mb-3">
@@ -791,6 +794,7 @@ Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '
         <i class="fas fa-save me-1"></i> Save Template
       </button>
     </div>
+  </div>
   </form>
 
   <!-- Interview Invitation Template -->
@@ -798,7 +802,10 @@ Optimus Compliance Team">{{ email_template_ref.body if email_template_ref else '
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="template_name" value="interview_invitation">
 
-    <h6 class="fw-bold mb-3"><i class="fas fa-calendar-check me-2"></i>Interview Invitation Email</h6>
+    <h6 class="fw-bold mb-2" style="cursor:pointer;" onclick="document.getElementById('interviewEmailBody').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+      <i class="fas fa-calendar-check me-2"></i>Interview Invitation Email <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+    </h6>
+    <div id="interviewEmailBody" class="hidden">
     <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to associates when inviting them to an interview. Use the tags below to automatically insert the relevant details.</p>
 
     <div class="mb-3">
@@ -877,6 +884,7 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
         <i class="fas fa-save me-1"></i> Save Template
       </button>
     </div>
+  </div>
   </form>
 
   <!-- Vetting Commencement Template -->
@@ -884,7 +892,10 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="template_name" value="vetting_commencement">
 
-    <h6 class="fw-bold mb-3"><i class="fas fa-clipboard-check me-2"></i>Commencement of Vetting Email</h6>
+    <h6 class="fw-bold mb-2" style="cursor:pointer;" onclick="document.getElementById('vettingEmailBody').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+      <i class="fas fa-clipboard-check me-2"></i>Commencement of Vetting Email <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+    </h6>
+    <div id="vettingEmailBody" class="hidden">
     <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to associates when vetting is commenced. Use the tags below to automatically insert the relevant details.</p>
 
     <div class="mb-3">
@@ -927,6 +938,7 @@ Following your offer of engagement with Optimus, the next step is to complete ou
         <i class="fas fa-save me-1"></i> Save Template
       </button>
     </div>
+  </div>
   </form>
   </div><!-- end collapsible-body -->
 </div>
