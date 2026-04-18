@@ -2571,8 +2571,9 @@ def assign_candidate_owner(cand_id: int):
         else:
             cand.owner_id = None
             cand.owner_name = ""
+        _owner_display = cand.owner_name or "Unassigned"
         s.commit()
-    flash(f"Owner updated to {cand.owner_name or 'Unassigned'}.", "success")
+    flash(f"Owner updated to {_owner_display}.", "success")
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
@@ -16172,11 +16173,21 @@ def candidate_profile(cand_id: int):
         if not cand:
             abort(404)
 
+        # Prefer the active/placed application over the newest one
+        # so that a new application doesn't hide an existing placement
+        _active_statuses = ("Placed", "Contract Signed", "Contract Sent", "On Assignment",
+                            "Accepted", "Offered", "Ready to Contract")
         latest_app = s.scalar(
             select(Application)
-            .where(Application.candidate_id == cand_id)
+            .where(Application.candidate_id == cand_id, Application.status.in_(_active_statuses))
             .order_by(Application.created_at.desc())
         )
+        if not latest_app:
+            latest_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            )
 
         job = None
         job_open = False
