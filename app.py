@@ -6770,6 +6770,16 @@ Optimus Compliance Team"""))
         except Exception:
             pass
 
+        # One-time: backfill employment_ref_declaration_signed for Ian Marley (cand 271)
+        # whose signing happened before the envelope_meta fix
+        try:
+            _mc.execute(text("""
+                UPDATE candidates SET employment_ref_declaration_signed = TRUE
+                WHERE id = 271 AND (employment_ref_declaration_signed IS NULL OR employment_ref_declaration_signed = FALSE)
+            """))
+        except Exception:
+            pass
+
         # Seed default leave reasons if table is empty
         try:
             count = _mc.execute(text("SELECT COUNT(*) FROM leave_reasons")).scalar()
