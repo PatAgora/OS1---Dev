@@ -14235,7 +14235,7 @@ def action_vetting(cand_id):
 def api_vetting_trigger_referencing(cand_id):
     """Start Referencing only: set References and Employment History checks to In Progress.
     Sends reference requests respecting contact permission flags."""
-    REFERENCE_CHECKS = ["References", "Employment History"]
+    REFERENCE_CHECKS = ["References"]
 
     # Check if employment reference declaration has been signed via Signable.
     # Fallback: also check webhook_events for a signed reference envelope
@@ -14296,18 +14296,6 @@ def api_vetting_trigger_referencing(cand_id):
                 ))
                 triggered += 1
 
-        # Update application to Vetting In-Flight if not already
-        appn = s.scalar(
-            select(Application)
-            .where(Application.candidate_id == cand_id)
-            .where(Application.status.notin_(["Rejected", "Withdrawn", "Vetting In-Flight",
-                                               "Contract Issued", "Contract Sent", "Placed"]))
-            .order_by(Application.created_at.desc())
-        )
-        if appn:
-            appn.status = "Vetting In-Flight"
-
-        cand.status = "In Vetting"
 
         # Auto-create reference requests from portal employment history
         refs_created = 0
