@@ -68,11 +68,6 @@
 </div>
 {% endif %}
 
-<!-- Reference House Warning Banner (hidden by default) -->
-<div class="alert alert-danger mb-4" id="referenceHouseWarning" style="display: none;">
-    <i class="fas fa-exclamation-circle me-2"></i>
-    <strong>Reference House Detected:</strong> <span id="referenceHouseMessage"></span>
-</div>
 
 <!-- Existing Employment Timeline -->
 <div class="portal-card mb-4">
@@ -494,12 +489,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (item.referee_email && refereeEmail) {
                                     refereeEmail.value = item.referee_email;
                                 }
-                                if (item.is_reference_house && warningBanner && warningMessage) {
-                                    warningMessage.textContent = item.name + ' is flagged as a reference house. References from this company may require additional verification.';
-                                    warningBanner.style.display = 'block';
-                                } else if (warningBanner) {
-                                    warningBanner.style.display = 'none';
-                                }
                             });
                             suggestionsDiv.appendChild(div);
                         });
@@ -530,10 +519,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     var match = data.results[0];
                     if (match.referee_email && refereeEmail && !refereeEmail.value) {
                         refereeEmail.value = match.referee_email;
-                    }
-                    if (match.is_reference_house && warningBanner && warningMessage) {
-                        warningMessage.textContent = match.name + ' is flagged as a reference house. References from this company may require additional verification.';
-                        warningBanner.style.display = 'block';
                     }
                 }
             })
