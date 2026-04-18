@@ -2747,9 +2747,14 @@ def vetting_progress():
 
         EmploymentHistory = _portal_model("EmploymentHistory")
         employment_entered = False
+        emp_ref_decl_signed = False
+        if Candidate:
+            _c = cand if cand else s.get(Candidate, cand_id)
+            if _c:
+                emp_ref_decl_signed = bool(getattr(_c, "employment_ref_declaration_signed", False))
         if EmploymentHistory:
             emp_count = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).count()
-            employment_entered = emp_count > 0
+            employment_entered = emp_count > 0 and emp_ref_decl_signed
 
         Document = _model("Document")
         docs_uploaded = False
