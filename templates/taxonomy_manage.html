@@ -1493,10 +1493,30 @@ Following your offer of engagement with Optimus, the next step is to complete ou
         <tr>
           <td class="fw-semibold">{{ vp.name }}</td>
           <td><small class="text-muted">{{ vp.checks | join(', ') }}</small></td>
-          <td class="text-end">
+          <td class="text-end" style="white-space:nowrap;">
+            <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="document.getElementById('vpEdit{{ vp.id }}').classList.toggle('hidden');" aria-label="Edit profile {{ vp.name }}"><i class="fas fa-edit"></i></button>
             <form method="POST" action="{{ url_for('vetting_profile_delete', vp_id=vp.id) }}" class="d-inline" onsubmit="return confirm('Delete this vetting profile?');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Delete profile {{ vp.name }}"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        <tr id="vpEdit{{ vp.id }}" class="hidden">
+          <td colspan="3" style="background:#f8fafc; padding:12px;">
+            <form method="POST" action="{{ url_for('vetting_profile_update', vp_id=vp.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <input type="text" name="name" class="form-control form-control-sm" value="{{ vp.name }}" required style="max-width:300px;">
+              </div>
+              <div class="d-flex flex-wrap gap-2 mb-2">
+                {% for ct in ["Right to Work", "Identity Verification", "Address History", "DBS Check", "Employment History", "References", "Qualifications", "Professional Registration", "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"] %}
+                <label class="form-check-label small" style="min-width:160px;">
+                  <input type="checkbox" name="profile_check" value="{{ ct }}" class="form-check-input" {% if ct in vp.checks %}checked{% endif %}> {{ ct }}
+                </label>
+                {% endfor %}
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-save me-1"></i>Save</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('vpEdit{{ vp.id }}').classList.add('hidden');">Cancel</button>
             </form>
           </td>
         </tr>

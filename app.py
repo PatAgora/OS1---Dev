@@ -21677,6 +21677,25 @@ def vetting_profile_create():
     return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
 
 
+@app.route("/admin/vetting-profiles/<int:vp_id>/update", methods=["POST"])
+@login_required
+def vetting_profile_update(vp_id):
+    """Update a vetting profile's name and checks."""
+    name = (request.form.get("name") or "").strip()
+    checks = request.form.getlist("profile_check")
+    if not name:
+        flash("Profile name is required.", "danger")
+        return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+    with Session(engine) as s:
+        vp = s.get(VettingProfile, vp_id)
+        if vp:
+            vp.name = name
+            vp.checks = json.dumps(checks)
+            s.commit()
+            flash(f"Vetting profile '{name}' updated.", "success")
+    return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+
+
 @app.route("/admin/vetting-profiles/<int:vp_id>/delete", methods=["POST"])
 @login_required
 def vetting_profile_delete(vp_id):
