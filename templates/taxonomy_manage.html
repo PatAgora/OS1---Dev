@@ -1140,6 +1140,17 @@ Following your offer of engagement with Optimus, the next step is to complete ou
   </form>
 
   {% if ref_houses %}
+  {% set latest_house = ref_houses|sort(attribute='created_at', reverse=true)|first if ref_houses else none %}
+  <div class="mb-2 mt-3">
+    <h6 class="fw-bold mb-1" style="cursor:pointer;" onclick="document.getElementById('refHousesList').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+      <i class="fas fa-list me-1"></i> Uploaded List ({{ ref_houses|length }} entries)
+      <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+    </h6>
+    {% if latest_house and latest_house.created_at %}
+    <small class="text-muted">Last updated: {{ latest_house.created_at.strftime('%d %b %Y at %H:%M') }}</small>
+    {% endif %}
+  </div>
+  <div id="refHousesList" class="hidden">
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0">
       <thead class="table-light">
@@ -1179,6 +1190,7 @@ Following your offer of engagement with Optimus, the next step is to complete ou
         {% endfor %}
       </tbody>
     </table>
+  </div>
   </div>
   {% else %}
   <div class="text-center py-3 text-muted">
