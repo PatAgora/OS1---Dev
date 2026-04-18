@@ -7029,8 +7029,11 @@ except Exception:
 # Uses UPSERT pattern: update if exists, insert if not.
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _dv:
-        # Always update candidate 123's checks to COMPLETE with expiry dates
-        if True:
+        # One-time: seed expiry dates for candidate 123 (guard: check if seed marker set)
+        _seed_done = _dv.execute(text(
+            "SELECT COUNT(*) FROM vetting_check WHERE candidate_id = 123 AND expiry_date IS NOT NULL AND check_type = 'DBS Check'"
+        )).scalar() or 0
+        if _seed_done == 0:
             import datetime as _dt
             _now = _dt.datetime.utcnow()
             _demo_checks = [
