@@ -1348,7 +1348,8 @@
               <div class="modal-body">
                 <div class="mb-3">
                   <label class="form-label fw-semibold" style="font-size: 0.85rem;">To (Referee Email)</label>
-                  <input type="email" class="form-control form-control-sm" id="refEmailToDisplay" disabled>
+                  <input type="email" class="form-control form-control-sm" id="refEmailToDisplay"
+                         oninput="document.getElementById('refEmailRefereeEmail').value=this.value;">
                 </div>
                 <div class="mb-3">
                   <label class="form-label fw-semibold" style="font-size: 0.85rem;">Subject</label>
