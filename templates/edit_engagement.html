@@ -75,7 +75,7 @@
         <select id="vettingProfileSelect" class="form-select form-select-sm" onchange="applyVettingProfile(this)">
           <option value="">-- Select a profile --</option>
           {% for vp in vetting_profiles %}
-          <option value="{{ vp.checks | tojson | e }}">{{ vp.name }}</option>
+          <option data-checks='{{ vp.checks | tojson }}'>{{ vp.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -113,13 +113,14 @@
 
     <script>
     function applyVettingProfile(sel) {
-      if (!sel.value) return;
+      var opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.dataset.checks) return;
       try {
-        var checks = JSON.parse(sel.value);
+        var checks = JSON.parse(opt.dataset.checks);
         document.querySelectorAll('input[name=vetting_check]').forEach(function(cb) {
           cb.checked = checks.indexOf(cb.value) !== -1;
         });
-      } catch(e) {}
+      } catch(e) { console.error('Vetting profile parse error:', e); }
     }
     </script>
 
