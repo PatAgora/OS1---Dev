@@ -74,7 +74,7 @@
       <div class="d-flex align-items-end gap-3 flex-wrap">
         <div style="flex: 1; min-width: 200px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Client</label>
-          <select name="clients" id="reportClientFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+          <select name="clients" id="reportClientFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="this.form.submit()">
             <option value="">All Clients</option>
             {% for client in all_clients %}
             <option value="{{ client }}" {% if client in selected_clients %}selected{% endif %}>{{ client }}</option>
@@ -83,7 +83,7 @@
         </div>
         <div style="flex: 1; min-width: 200px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Engagement</label>
-          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="cascadeReportFilters()">
+          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="this.form.submit()">
             <option value="">All Engagements</option>
             {% for eng in all_engagements %}
             <option value="{{ eng.id }}" data-client="{{ eng.client or '' }}" {% if eng.id|string in selected_engagements %}selected{% endif %}>{{ eng.name }}</option>
