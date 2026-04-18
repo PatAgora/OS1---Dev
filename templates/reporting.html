@@ -83,7 +83,7 @@
         </div>
         <div style="flex: 1; min-width: 200px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #6b7280; display: block; margin-bottom: 0.25rem;">Engagement</label>
-          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="this.form.submit()">
+          <select name="engagements" id="reportEngFilter" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="syncClientFromEng(this); this.form.submit()">
             <option value="">All Engagements</option>
             {% for eng in all_engagements %}
             <option value="{{ eng.id }}" data-client="{{ eng.client or '' }}" {% if eng.id|string in selected_engagements %}selected{% endif %}>{{ eng.name }}</option>
@@ -337,6 +337,16 @@ function exportFillRates() {
     link.href = URL.createObjectURL(blob);
     link.download = 'fill_rates_report.csv';
     link.click();
+}
+
+function syncClientFromEng(engSel) {
+  var clientSel = document.getElementById('reportClientFilter');
+  if (!clientSel || !engSel || !engSel.value) return;
+  var selectedOpt = engSel.options[engSel.selectedIndex];
+  var engClient = selectedOpt ? selectedOpt.getAttribute('data-client') : '';
+  if (engClient) {
+    clientSel.value = engClient;
+  }
 }
 
 function cascadeReportFilters() {
