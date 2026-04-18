@@ -4761,7 +4761,7 @@ def vacancy_apply(job_id):
         # Block applications for associates currently on contract
         cand_check = s.get(Candidate, cand_id) if Candidate else None
         if cand_check and getattr(cand_check, "applications_blocked", False):
-            flash("Please contact Optimus Solutions to discuss your application.", "warning")
+            flash("Please contact an Optimus representative to discuss your application.", "warning")
             return redirect(url_for("associate.vacancy_detail", job_id=job_id))
 
         if Application:
