@@ -9644,15 +9644,18 @@ def opportunity_edit(opp_id):
             opp.client_contact_phone = form.client_contact_phone.data or ""
             opp.client_contact_email = form.client_contact_email.data or ""
 
-            # If it becomes Closed Won, create/link an engagement (idempotent)
+            # If it becomes Closed Won and no engagement linked yet, create one
             new_stage = (opp.stage or "").strip().lower()
             e = None
-            if new_stage == "closed won" and prev_stage != "closed won":
+            if new_stage == "closed won" and not opp._engagement_id:
                 e = create_engagement_for_opportunity(s, opp)
 
-            # Also handle the case where it was already Closed Won but not linked yet
-            if new_stage == "closed won" and not e:
-                e = create_engagement_for_opportunity(s, opp)
+            # If renaming a Closed Won opportunity, also update the linked engagement name
+            if new_stage == "closed won" and opp._engagement_id:
+                linked_eng = s.get(Engagement, opp._engagement_id)
+                if linked_eng:
+                    linked_eng.name = opp.name or linked_eng.name
+                    linked_eng.client = opp.client or linked_eng.client
 
             s.commit()
             flash("Opportunity updated", "success")
