@@ -7027,11 +7027,12 @@ except Exception:
 # ---------- One-time data cleanup: remove all demo/test data except Ian Marley (cand 271) ----------
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _cl:
-        # Guard: only run once — check if cleanup marker exists
-        _cleanup_done = _cl.execute(text(
-            "SELECT COUNT(*) FROM candidates WHERE id != 271"
-        )).scalar() or 0
-        if _cleanup_done > 0:
+        # Guard: run if any demo data still exists
+        _cand_count = _cl.execute(text("SELECT COUNT(*) FROM candidates WHERE id != 271")).scalar() or 0
+        _eng_count = _cl.execute(text("SELECT COUNT(*) FROM engagements")).scalar() or 0
+        _opp_count = _cl.execute(text("SELECT COUNT(*) FROM opportunities")).scalar() or 0
+        _job_count = _cl.execute(text("SELECT COUNT(*) FROM jobs")).scalar() or 0
+        if _cand_count > 0 or _eng_count > 0 or _opp_count > 0 or _job_count > 0:
             _keep_cand_id = 271  # Ian Marley
             # Delete related data for all candidates except Ian Marley
             for _tbl in [
@@ -7065,6 +7066,16 @@ try:
                 _cl.execute(text("DELETE FROM candidates WHERE id != :keep").bindparams(keep=_keep_cand_id))
             except Exception:
                 pass
+            # Delete esig_requests referencing jobs/applications first
+            try:
+                _cl.execute(text("DELETE FROM esig_requests"))
+            except Exception:
+                pass
+            # Delete all applications (needed before jobs due to FK)
+            try:
+                _cl.execute(text("DELETE FROM applications"))
+            except Exception:
+                pass
             # Delete all jobs
             try:
                 _cl.execute(text("DELETE FROM jobs"))
@@ -7073,6 +7084,11 @@ try:
             # Delete engagement plans
             try:
                 _cl.execute(text("DELETE FROM engagement_plans"))
+            except Exception:
+                pass
+            # Delete shortlists referencing engagements
+            try:
+                _cl.execute(text("DELETE FROM shortlists"))
             except Exception:
                 pass
             # Delete engagements
@@ -7128,6 +7144,16 @@ try:
                 _cl.execute(text("DELETE FROM taxonomy_tags WHERE tag LIKE '%[PW-TEST]%'"))
             except Exception:
                 pass
+            # Delete any remaining [PW-TEST] data in any table
+            for _pw_tbl, _pw_col in [
+                ("candidates", "name"), ("candidates", "email"),
+                ("vetting_profiles", "name"),
+                ("leave_reasons", "reason"),
+            ]:
+                try:
+                    _cl.execute(text(f"DELETE FROM {_pw_tbl} WHERE {_pw_col} LIKE '%[PW-TEST]%'"))
+                except Exception:
+                    pass
             # Clean up associate portal data for deleted candidates
             try:
                 _cl.execute(text("DELETE FROM associate_profiles WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
