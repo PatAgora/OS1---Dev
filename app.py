@@ -6854,6 +6854,7 @@ try:
             # Offer capture — engagement type and expected duration
             "ALTER TABLE applications ADD COLUMN offer_engagement_type VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN offer_expected_duration VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE vetting_check ADD COLUMN expiry_date TIMESTAMP",
         ]:
             try:
                 _mc.execute(text(_stmt))
