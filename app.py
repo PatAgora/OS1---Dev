@@ -17069,8 +17069,8 @@ def candidate_profile(cand_id: int):
         with Session(engine) as _sec:
             _ec_row = _sec.scalar(select(VettingExpiryConfig))
             if _ec_row:
-                _db_config = from_json_safe(_ec_row.config or "{}")
-                if _db_config:
+                _db_config = json.loads(_ec_row.config or "{}")
+                if isinstance(_db_config, dict):
                     CHECK_EXPIRY_MONTHS.update({k: int(v) for k, v in _db_config.items()})
     except Exception:
         pass
@@ -21727,8 +21727,10 @@ def taxonomy_manage():
     try:
         with Session(engine) as _svec:
             _vec_row = _svec.scalar(select(VettingExpiryConfig))
-            if _vec_row:
-                vetting_expiry_config = from_json_safe(_vec_row.config or "{}")
+            if _vec_row and _vec_row.config:
+                _parsed = json.loads(_vec_row.config)
+                if isinstance(_parsed, dict):
+                    vetting_expiry_config = _parsed
     except Exception:
         pass
 
