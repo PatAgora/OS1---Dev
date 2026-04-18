@@ -1044,9 +1044,8 @@
             </div>
           </div>
 
-          {# Current project vetting counts #}
-          {% set current_proj = none %}
-          {% for p in vetting_by_project %}{% if p.is_latest %}{% set current_proj = p %}{% endif %}{% endfor %}
+          {# Current project vetting counts — passed from route as current_vetting_project #}
+          {% set current_proj = current_vetting_project %}
           {% set current_complete = current_proj.complete if current_proj else vetting_summary.complete %}
           {% set current_total = current_proj.total if current_proj else (vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started) %}
 

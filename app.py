@@ -17285,6 +17285,7 @@ def candidate_profile(cand_id: int):
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
         required_vetting_checks=required_vetting_checks,
         vetting_by_project=vetting_by_project,
+        current_vetting_project=next((p for p in vetting_by_project if p.get("is_latest")), None),
         # === QC workflow: staff users for analyst dropdown ===
         all_staff_users=all_staff_users,
         jobs_for_quick_pick=jobs_for_quick_pick,
