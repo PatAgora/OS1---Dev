@@ -7642,8 +7642,8 @@ def _jd_completeness_words(job_desc: str) -> Tuple[int, float]:
     return wc, completeness
 
 def _gemini_score_and_rationale(job_desc: str, cv_text: str) -> Tuple[int, List[str]]:
-    model = get_gemini_model()
-    if not model:
+    client = get_gemini_client()
+    if not client:
         return 0, []
     prompt = f"""You are a financial services recruitment scoring assistant.
 
@@ -7663,8 +7663,16 @@ CANDIDATE CV:
 {cv_text}
 """
     try:
-        resp = model.generate_content(prompt)
-        raw = resp.text.strip()
+        from google.genai import types as genai_types
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL_NAME,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                max_output_tokens=1024,
+                temperature=0.3,
+            ),
+        )
+        raw = (resp.text or "").strip()
         import json as _json
         cleaned = re.sub(r"^```json\s*|```\s*$", "", raw, flags=re.MULTILINE).strip()
         data = _json.loads(cleaned)
@@ -7672,7 +7680,7 @@ CANDIDATE CV:
         bullets = [str(b) for b in (data.get("bullets") or [])][:3]
         return max(0, min(100, g)), bullets
     except Exception as e:
-        print("Gemini scoring error:", e)
+        print(f"Gemini scoring error: {e}", flush=True)
         return 0, []
 
 def ai_score_with_explanation(job_desc: str, cv_text: str) -> Dict:
