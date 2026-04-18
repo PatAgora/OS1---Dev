@@ -805,8 +805,7 @@
         <th>Client</th>
         <th>Engagement</th>
         <th>Role</th>
-        <th>Pay Rate</th>
-        <th>Bill Rate</th>
+        <th>Vetting Status</th>
         <th>Start Date</th>
         <th>End Date</th>
         <th>Actions</th>
@@ -830,8 +829,17 @@
           </div>
         </td>
         <td>{{ p.role }}</td>
-        <td class="rate-cell">£{{ "{:,.0f}".format(p.pay_rate) }}</td>
-        <td class="rate-cell">£{{ "{:,.0f}".format(p.bill_rate) }}</td>
+        <td>
+          {% if p.vetting_class == 'success' %}
+            <span class="badge" style="background:#dcfce7; color:#166534; font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>{{ p.vetting_status }}</span>
+          {% elif p.vetting_class == 'warning' %}
+            <span class="badge" style="background:#fef3c7; color:#92400e; font-size:0.7rem;"><i class="fas fa-exclamation-triangle me-1"></i>{{ p.vetting_status }}</span>
+          {% elif p.vetting_class == 'info' %}
+            <span class="badge" style="background:#dbeafe; color:#1d4ed8; font-size:0.7rem;">{{ p.vetting_status }}</span>
+          {% else %}
+            <span class="text-muted" style="font-size:0.75rem;">{{ p.vetting_status }}</span>
+          {% endif %}
+        </td>
         <td class="date-cell">{{ p.start_date.strftime('%d %b %Y') if p.start_date else '—' }}</td>
         <td class="date-cell">{{ p.end_date.strftime('%d %b %Y') if p.end_date else '—' }}</td>
         <td>

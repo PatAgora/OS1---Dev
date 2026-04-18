@@ -11340,6 +11340,58 @@ def _placements_inner():
                 "esig_id": esig.id if esig else None,
             })
         
+        # Vetting status for each placement
+        _now = datetime.datetime.utcnow()
+        _all_cand_ids = list(set(p["associate_id"] for p in placements_data))
+        _all_vc = s.scalars(
+            select(VettingCheck).where(VettingCheck.candidate_id.in_(_all_cand_ids))
+        ).all() if _all_cand_ids else []
+        _vc_by_cand = {}
+        for vc in _all_vc:
+            _vc_by_cand.setdefault(vc.candidate_id, []).append(vc)
+
+        _CHECK_EXPIRY_MONTHS_PL = {
+            "Right to Work": 12, "Identity Verification": 36, "Address History": 36,
+            "DBS Check": 12, "Employment History": 36, "References": 36,
+            "Qualifications": 0, "Professional Registration": 12,
+            "Credit Check": 12, "Directorship / Disqualification": 12,
+            "Sanctions / PEP": 12, "Social Media Review": 6,
+        }
+
+        for p in placements_data:
+            cand_checks = _vc_by_cand.get(p["associate_id"], [])
+            complete_statuses = {"COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "CHECK STILL IN DATE", "N/A"}
+            total = len(cand_checks)
+            done = sum(1 for vc in cand_checks if (vc.status or "").upper() in complete_statuses)
+            all_complete = total > 0 and done == total
+
+            nearest_expiry_days = None
+            for vc in cand_checks:
+                if (vc.status or "").upper() not in complete_statuses:
+                    continue
+                exp = getattr(vc, "expiry_date", None)
+                if not exp and vc.completed_at:
+                    months = _CHECK_EXPIRY_MONTHS_PL.get(vc.check_type, 0)
+                    if months > 0:
+                        exp = vc.completed_at + datetime.timedelta(days=months * 30)
+                if exp and exp > _now:
+                    days_left = (exp - _now).days
+                    if nearest_expiry_days is None or days_left < nearest_expiry_days:
+                        nearest_expiry_days = days_left
+
+            if all_complete and nearest_expiry_days is not None and nearest_expiry_days <= 90:
+                p["vetting_status"] = f"Expiring in {nearest_expiry_days} days"
+                p["vetting_class"] = "warning"
+            elif all_complete:
+                p["vetting_status"] = "Complete"
+                p["vetting_class"] = "success"
+            elif total == 0:
+                p["vetting_status"] = "No checks"
+                p["vetting_class"] = "muted"
+            else:
+                p["vetting_status"] = f"{done}/{total}"
+                p["vetting_class"] = "info"
+
         # Pie chart data (by client)
         pie_chart_data = [
             {"client": client, "count": count}
