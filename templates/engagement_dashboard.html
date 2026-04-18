@@ -1393,42 +1393,32 @@
       </div>
     </div>
 
-    <div id="vettingSelectionBody" style="display:none;">
+    <div id="vettingSelectionBody" style="display:none; margin-top:1rem;">
       {% set all_checks = [
         "Right to Work", "Identity Verification", "Address History", "DBS Check",
         "Employment History", "References", "Qualifications", "Professional Registration",
         "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
       ] %}
 
-      {% if eng_vetting_checks %}
-      <div class="table-responsive">
-        <table class="table modern-table mb-0">
-          <thead>
-            <tr>
-              <th>Check</th>
-              <th class="text-center">Required</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for check in all_checks %}
-            <tr>
-              <td>{{ check }}</td>
-              <td class="text-center">
-                {% if check in eng_vetting_checks %}
-                  <span class="status-badge open"><i class="fas fa-check me-1"></i>Yes</span>
-                {% else %}
-                  <span class="text-muted" style="font-size:0.8rem;">—</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="row g-2">
+        {% for check in all_checks %}
+        <div class="col-md-4 col-sm-6">
+          <div class="d-flex align-items-center py-2 px-3 rounded" style="font-size:0.85rem; background:{{ '#f0fdf4' if check in eng_vetting_checks else '#f9fafb' }}; border:1px solid {{ '#bbf7d0' if check in eng_vetting_checks else '#e5e7eb' }};">
+            {% if check in eng_vetting_checks %}
+              <i class="fas fa-check-circle text-success me-2"></i>
+              <span class="fw-semibold">{{ check }}</span>
+            {% else %}
+              <i class="far fa-circle me-2" style="color:#d1d5db;"></i>
+              <span style="color:#9ca3af;">{{ check }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
       </div>
-      {% else %}
-      <div class="text-center py-3">
-        <i class="fas fa-info-circle text-muted me-2"></i>
-        <span class="text-muted">No vetting checks selected for this project. Click Edit to configure.</span>
+
+      {% if not eng_vetting_checks %}
+      <div class="text-center py-3 mt-2">
+        <span class="text-muted"><i class="fas fa-info-circle me-1"></i>No vetting checks selected. Click Edit to configure.</span>
       </div>
       {% endif %}
     </div>
