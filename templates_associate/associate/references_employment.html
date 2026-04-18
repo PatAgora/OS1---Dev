@@ -514,6 +514,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
 
+        // When user finishes typing (blur), do an exact case-insensitive
+        // lookup to auto-fill the referee email even if they didn't click
+        // a suggestion from the dropdown.
+        companyInput.addEventListener('blur', function() {
+            var typed = this.value.trim();
+            if (typed.length < 2) return;
+            suggestionsDiv.style.display = 'none';
+            fetch('/portal/api/company-lookup?q=' + encodeURIComponent(typed) + '&exact=1', {
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.results && data.results.length > 0) {
+                    var match = data.results[0];
+                    if (match.referee_email && refereeEmail && !refereeEmail.value) {
+                        refereeEmail.value = match.referee_email;
+                    }
+                    if (match.is_reference_house && warningBanner && warningMessage) {
+                        warningMessage.textContent = match.name + ' is flagged as a reference house. References from this company may require additional verification.';
+                        warningBanner.style.display = 'block';
+                    }
+                }
+            })
+            .catch(function() {});
+        });
+
         document.addEventListener('click', function(e) {
             if (!companyInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
                 suggestionsDiv.style.display = 'none';

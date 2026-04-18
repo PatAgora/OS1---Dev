@@ -4046,14 +4046,21 @@ def api_company_lookup():
     if not q or len(q) < 2:
         return jsonify({"results": []})
 
+    exact = request.args.get("exact", "") == "1"
+
     results = []
     with SASession(engine) as s:
         # Find matching reference contacts
         contacts = []
         if ReferenceContact:
-            contacts = s.query(ReferenceContact).filter(
-                ReferenceContact.company_name.ilike(f"{q}%")
-            ).limit(10).all()
+            if exact:
+                contacts = s.query(ReferenceContact).filter(
+                    func.lower(ReferenceContact.company_name) == q.lower()
+                ).limit(1).all()
+            else:
+                contacts = s.query(ReferenceContact).filter(
+                    ReferenceContact.company_name.ilike(f"{q}%")
+                ).limit(10).all()
 
         # Build set of flagged house names for cross-check
         flagged_names = set()
