@@ -7029,11 +7029,8 @@ except Exception:
 # Uses UPSERT pattern: update if exists, insert if not.
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _dv:
-        # Guard: only run if no checks are COMPLETE with expiry_date set
-        _has_complete_expiry = _dv.execute(text(
-            "SELECT COUNT(*) FROM vetting_check WHERE candidate_id = 123 AND status = 'COMPLETE' AND expiry_date IS NOT NULL"
-        )).scalar() or 0
-        if _has_complete_expiry == 0:
+        # Always update candidate 123's checks to COMPLETE with expiry dates
+        if True:
             import datetime as _dt
             _now = _dt.datetime.utcnow()
             _demo_checks = [
