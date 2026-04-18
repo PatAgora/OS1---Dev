@@ -256,7 +256,7 @@
     <span class="wt-legend-item"><span class="wt-legend-swatch swatch-staff"></span> Staff Action (Blue)</span>
     <span class="wt-legend-item"><span class="wt-legend-swatch swatch-assoc"></span> Associate Action (Green)</span>
     <span class="wt-legend-item"><span class="wt-legend-swatch swatch-system"></span> System Auto-Action (Orange)</span>
-    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-integ"></span> Integration / API (Purple)</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-integ"></span> Integration (Purple)</span>
     <span class="wt-legend-item"><span class="wt-legend-swatch swatch-config"></span> Configuration (Teal)</span>
     <span class="wt-legend-item" style="margin-left: auto; color: #9ca3af; font-weight: 500;"><i class="fas fa-hand-pointer me-1"></i>Click any step to expand</span>
   </div>
@@ -287,7 +287,7 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Page</td><td><code>/taxonomy/manage</code> &rarr; Vetting Profiles section</td></tr>
+          <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Vetting Profiles section</td></tr>
           <tr><td>Purpose</td><td>Pre-saved sets of vetting checks that can be applied to engagements with one click instead of ticking individual checks each time.</td></tr>
           <tr><td>Action</td><td>Click <strong>"Add Vetting Profile"</strong> &rarr; enter a name (e.g. "Standard FS", "Enhanced DBS") &rarr; tick the checks this profile requires &rarr; click <strong>Save</strong>.</td></tr>
           <tr><td>Available Checks</td><td>Right to Work, Identity Verification, Address History, DBS Check, Employment History, References, Qualifications, Professional Registration, Credit Check, Directorship / Disqualification, Sanctions / PEP, Social Media Review (12 total)</td></tr>
@@ -306,7 +306,7 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Page</td><td><code>/taxonomy/manage</code> &rarr; Assignment Templates section (anchor <code>#assignment-templates</code>)</td></tr>
+          <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Assignment Templates section (anchor )</td></tr>
           <tr><td>Purpose</td><td>DOCX templates for each umbrella company (e.g. Paystream, Trafalgar). When staff issue a contract, the system matches the associate's umbrella to the correct template and auto-fills placeholder fields.</td></tr>
           <tr><td>Action</td><td>Click <strong>"Upload Template"</strong> &rarr; select the umbrella company from the dropdown &rarr; upload the DOCX file &rarr; click <strong>Save</strong>.</td></tr>
           <tr><td>Template matching</td><td>The system matches by umbrella company name. If no template is uploaded for a given umbrella, a warning is shown on the capture sheet but fields are still saved.</td></tr>
@@ -325,7 +325,7 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Page</td><td><code>/taxonomy/manage</code> &rarr; Offer Templates section (anchor <code>#offer-templates</code>)</td></tr>
+          <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Offer Templates section (anchor )</td></tr>
           <tr><td>Purpose</td><td>DOCX template for the "Offer of Engagement" letter. When staff send an offer, the system auto-fills the template with offer details and downloads the completed DOCX.</td></tr>
           <tr><td>Action</td><td>Click <strong>"Upload Offer Template"</strong> &rarr; upload DOCX &rarr; click <strong>Save</strong>. Only one active offer template at a time.</td></tr>
         </table>
@@ -343,7 +343,7 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Page</td><td><code>/taxonomy/manage</code> &rarr; Email Templates section</td></tr>
+          <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Email Templates section</td></tr>
           <tr><td>Templates to configure</td><td>
             <ul class="wt-field-list" style="margin:0;">
               <li><span class="field-name">Reference Request</span> &mdash; sent to referees when referencing is triggered</li>
@@ -351,7 +351,7 @@
               <li><span class="field-name">Vetting Commencement</span> &mdash; sent to associate when full vetting begins</li>
             </ul>
           </td></tr>
-          <tr><td>Merge tags</td><td>Templates support merge tags: <code>{{ "{{candidate_name}}" }}</code>, <code>{{ "{{job_title}}" }}</code>, <code>{{ "{{engagement_name}}" }}</code>, <code>{{ "{{company_name}}" }}</code>, etc.</td></tr>
+          <tr><td>Merge tags</td><td>Templates support merge tags: <strong>{{ "{{candidate_name}}" }}</strong>, <strong>{{ "{{job_title}}" }}</strong>, <strong>{{ "{{engagement_name}}" }}</strong>, <strong>{{ "{{company_name}}" }}</strong>, etc.</td></tr>
         </table>
       </div>
     </div>
@@ -367,7 +367,7 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Page</td><td><code>/taxonomy/manage</code> &rarr; Reference Contact Details section &amp; Reference Houses Intel section</td></tr>
+          <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Reference Contact Details section &amp; Reference Houses Intel section</td></tr>
           <tr><td>Reference Contact Details</td><td>A list of known company names with their HR/referee email addresses. When an associate types a company name in their employment history, the system autocompletes and auto-fills the referee email from this list. Supports <strong>bulk CSV import</strong>.</td></tr>
           <tr><td>Reference Houses Intel</td><td>A list of companies known to be difficult, slow, or requiring special procedures for referencing. When a reference request is created for a company on this list, it is <strong>flagged with an orange warning</strong> so staff know to follow up more aggressively. Supports <strong>bulk CSV import</strong>.</td></tr>
         </table>
@@ -385,8 +385,8 @@
       <div class="wt-step-body">
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
-          <tr><td>Leave Request Reasons</td><td>Configurable dropdown values for leave requests (e.g. "End of Contract", "Resignation", "Dismissal", "Client Request", "Personal"). Set at <code>/taxonomy/manage</code>.</td></tr>
-          <tr><td>Approved Umbrella Companies</td><td>The list of umbrella companies associates can select from in the portal (e.g. Paystream, Trafalgar, Giant Group). Managed at <code>/admin/umbrella-companies</code>. Each entry has: <strong>Name</strong>, <strong>Contact Email</strong>. Associates can only choose from this approved list.</td></tr>
+          <tr><td>Leave Request Reasons</td><td>Configurable dropdown values for leave requests (e.g. "End of Contract", "Resignation", "Dismissal", "Client Request", "Personal"). Set at the <strong>Configuration</strong> page.</td></tr>
+          <tr><td>Approved Umbrella Companies</td><td>The list of umbrella companies associates can select from in the portal (e.g. Paystream, Trafalgar, Giant Group). Managed at the <strong>Admin</strong> section. Each entry has: <strong>Name</strong>, <strong>Contact Email</strong>. Associates can only choose from this approved list.</td></tr>
         </table>
       </div>
     </div>
@@ -417,7 +417,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/opportunities</code>. Click the <strong>"New Opportunity"</strong> button (top right, blue).</p>
+        <p>Navigate to the <strong>Opportunities</strong> page. Click the <strong>"New Opportunity"</strong> button (top right, blue).</p>
 
         <div class="wt-sub-heading">Fields to Complete</div>
         <table class="wt-detail-table">
@@ -442,7 +442,7 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>System:</strong> Opportunity appears in the pipeline table at <code>/opportunities</code>. Pipeline table shows: Opportunity name, Client, Stage (colour-coded badge), Est. Value, Probability (progress bar), Est. Start, Owner, and Actions (Edit / View Project / Create Engagement).
+          <strong>System:</strong> Opportunity appears in the pipeline table at the <strong>Opportunities</strong> page. Pipeline table shows: Opportunity name, Client, Stage (colour-coded badge), Est. Value, Probability (progress bar), Est. Start, Owner, and Actions (Edit / View Project / Create Engagement).
         </div>
 
         <div class="wt-sub-heading">Progressing Through Stages</div>
@@ -471,7 +471,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/engagement/&lt;id&gt;/edit</code> (or click <strong>"Edit"</strong> from the engagement dashboard).</p>
+        <p>Navigate to <strong>/engagement/&lt;id&gt;/edit</strong> (or click <strong>"Edit"</strong> from the engagement dashboard).</p>
 
         <div class="wt-sub-heading">Fields to Complete</div>
         <table class="wt-detail-table">
@@ -512,7 +512,7 @@
         <p>Click <strong>"Create Engagement"</strong> (new) or <strong>"Save Changes"</strong> (editing).</p>
 
         <div class="wt-sub-heading">Engagement Dashboard</div>
-        <p>After saving, the engagement dashboard (<code>/engagement/&lt;id&gt;/dashboard</code>) shows:</p>
+        <p>After saving, the engagement dashboard (<strong>/engagement/&lt;id&gt;/dashboard</strong>) shows:</p>
         <ul class="wt-field-list">
           <li><span class="field-name">Delivery Plan Summary tiles:</span> Total Delivery Target, On-Contract Associates, Scheduled Starters, Left to Fill, Vetting Complete</li>
           <li><span class="field-name">Delivery Plan Table:</span> Breakdown by role type showing planned headcount vs actual fill</li>
@@ -534,7 +534,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/engagement/&lt;id&gt;/job/create</code> (from engagement dashboard, click <strong>"Add Job"</strong>) or <code>/job/new</code> (standalone).</p>
+        <p>Navigate to <strong>/engagement/&lt;id&gt;/job/create</strong> (from engagement dashboard, click <strong>"Add Job"</strong>) or <strong>/job/new</strong> (standalone).</p>
 
         <div class="wt-sub-heading">Fields to Complete</div>
         <table class="wt-detail-table">
@@ -576,7 +576,7 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>System:</strong> A unique <code>public_token</code> (UUID) is auto-generated for the public job advert URL. Job appears on the engagement dashboard jobs list and, if status is "Open", on the public portal job board at <code>/portal/vacancies</code>.
+          <strong>System:</strong> A unique <strong>public_token</strong> (UUID) is auto-generated for the public job advert URL. Job appears on the engagement dashboard jobs list and, if status is "Open", on the public portal job board at <strong>/portal/vacancies</strong>.
         </div>
       </div>
     </div>
@@ -603,9 +603,9 @@
 
         <div class="wt-sub-heading">Where Staff See It</div>
         <ul class="wt-field-list">
-          <li><code>/applications</code> &mdash; full applications list with search, filters by engagement/status</li>
-          <li><code>/workflow</code> &mdash; kanban board showing all applications by stage</li>
-          <li><code>/candidate/&lt;id&gt;</code> &mdash; candidate profile with AI Summary card, AI Match Score sidebar card, and all application detail</li>
+          <li><strong>/applications</strong> &mdash; full applications list with search, filters by engagement/status</li>
+          <li><strong>/workflow</strong> &mdash; kanban board showing all applications by stage</li>
+          <li><strong>/candidate/&lt;id&gt;</strong> &mdash; candidate profile with AI Summary card, AI Match Score sidebar card, and all application detail</li>
         </ul>
       </div>
     </div>
@@ -622,7 +622,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/workflow</code> for the kanban board view.</p>
+        <p>Navigate to <strong>/workflow</strong> for the kanban board view.</p>
 
         <div class="wt-sub-heading">Kanban Columns (Application Stages)</div>
         <div class="wt-pipeline" style="flex-wrap: wrap; gap: 4px;">
@@ -650,7 +650,7 @@
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user me-1"></i>
-          <strong>Associate portal:</strong> At <code>/portal/my-applications</code>, the associate sees their application status update. They see simplified stages: Applied &rarr; Offer Received &rarr; Offer Accepted &rarr; Contract Issued &rarr; Placed. They do <em>not</em> see internal stages like "Shortlist" or "Client Review".
+          <strong>Associate portal:</strong> At <strong>/portal/my-applications</strong>, the associate sees their application status update. They see simplified stages: Applied &rarr; Offer Received &rarr; Offer Accepted &rarr; Contract Issued &rarr; Placed. They do <em>not</em> see internal stages like "Shortlist" or "Client Review".
         </div>
       </div>
     </div>
@@ -667,7 +667,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; scroll to the <strong>"Interview"</strong> card in the main content area.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; scroll to the <strong>"Interview"</strong> card in the main content area.</p>
 
         <div class="wt-sub-heading">Fields</div>
         <table class="wt-detail-table">
@@ -708,8 +708,8 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; look at the <strong>"Contract"</strong> card in the right sidebar. Click <strong>"Send to Offer"</strong>.</p>
-        <p>This opens the Offer Capture Sheet at <code>/candidate/&lt;id&gt;/offer-capture</code>.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; look at the <strong>"Contract"</strong> card in the right sidebar. Click <strong>"Send to Offer"</strong>.</p>
+        <p>This opens the Offer Capture Sheet at <strong>/candidate/&lt;id&gt;/offer-capture</strong>.</p>
 
         <div class="wt-sub-heading">Offer Capture Sheet Fields</div>
         <table class="wt-detail-table">
@@ -733,13 +733,13 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>Status changes:</strong> Application status &rarr; <strong>"Offered"</strong>. <code>offer_made_at</code> timestamp recorded. <code>offer_made_by_id</code> set to current staff user.
+          <strong>Status changes:</strong> Application status &rarr; <strong>"Offered"</strong>. <strong>offer_made_at</strong> timestamp recorded. <strong>offer_made_by_id</strong> set to current staff user.
         </div>
 
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user me-1"></i>
-          <strong>Associate portal:</strong> At <code>/portal/my-applications</code>, the application now shows status <strong>"Offer Received"</strong> with an amber badge and a bell icon. An <strong>"Accept Offer"</strong> green button appears in the "Offer of Engagement" column.
+          <strong>Associate portal:</strong> At <strong>/portal/my-applications</strong>, the application now shows status <strong>"Offer Received"</strong> with an amber badge and a bell icon. An <strong>"Accept Offer"</strong> green button appears in the "Offer of Engagement" column.
         </div>
       </div>
     </div>
@@ -756,7 +756,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where (Associate Portal)</div>
-        <p>Associate navigates to <code>/portal/my-applications</code>.</p>
+        <p>Associate navigates to <strong>/portal/my-applications</strong>.</p>
 
         <div class="wt-sub-heading">Action</div>
         <p>Click the green <strong>"Accept Offer"</strong> button in the "Offer of Engagement" column.</p>
@@ -771,13 +771,13 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>Status changes:</strong> Application status &rarr; <strong>"Accepted"</strong>. <code>offer_response</code> = "accepted". <code>offer_responded_at</code> = current timestamp. <code>offer_responded_ip</code> = associate's IP address (for audit compliance).
+          <strong>Status changes:</strong> Application status &rarr; <strong>"Accepted"</strong>. <strong>offer_response</strong> = "accepted". <strong>offer_responded_at</strong> = current timestamp. <strong>offer_responded_ip</strong> = associate's IP address (for audit compliance).
         </div>
 
         <div class="wt-sub-heading">What Staff Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user-tie me-1"></i>
-          <strong>Staff portal:</strong> On the candidate profile (<code>/candidate/&lt;id&gt;</code>), the Contract card sidebar now shows a green box: <strong>"Offer Accepted"</strong> with the acceptance timestamp. On the kanban (<code>/workflow</code>), the card moves to the "Accepted" column.
+          <strong>Staff portal:</strong> On the candidate profile (<strong>/candidate/&lt;id&gt;</strong>), the Contract card sidebar now shows a green box: <strong>"Offer Accepted"</strong> with the acceptance timestamp. On the kanban (<strong>/workflow</strong>), the card moves to the "Accepted" column.
         </div>
       </div>
     </div>
@@ -794,7 +794,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; scroll to the <strong>"Reference Requests"</strong> section. Click <strong>"Start Referencing"</strong>.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; scroll to the <strong>"Reference Requests"</strong> section. Click <strong>"Start Referencing"</strong>.</p>
 
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
@@ -852,7 +852,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; scroll to the <strong>"Vetting Checks"</strong> section. Click <strong>"Start Full Vetting"</strong>.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; scroll to the <strong>"Vetting Checks"</strong> section. Click <strong>"Start Full Vetting"</strong>.</p>
 
         <div class="wt-sub-heading">What Happens Immediately</div>
         <ol style="font-size: 0.82rem; padding-left: 1.25rem; margin: 0.5rem 0;">
@@ -890,13 +890,13 @@
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user me-1"></i>
-          <strong>Associate portal:</strong> At <code>/portal/vetting-progress</code>, the associate sees a progress bar (e.g. "4/12 Complete") and an accordion with information about each check type. They also receive direct contact from Verifile for DBS, Right to Work, and Credit Check steps.
+          <strong>Associate portal:</strong> At <strong>/portal/vetting-progress</strong>, the associate sees a progress bar (e.g. "4/12 Complete") and an accordion with information about each check type. They also receive direct contact from Verifile for DBS, Right to Work, and Credit Check steps.
         </div>
 
         <div class="wt-sub-heading">Integration: Verifile</div>
         <div style="background: #ede9fe; border: 1px solid #c4b5fd; border-radius: 8px; padding: 0.6rem 0.85rem; margin: 0.5rem 0; font-size: 0.8rem;">
           <i class="fas fa-plug me-1" style="color: #7c3aed;"></i>
-          <strong>Verifile API:</strong> DBS screening orders created automatically using the DBS criteria configured on the job (Level, Sector, Purpose, Position, Employer Name). Verifile contacts the associate directly for identity verification documents. Status updates received via webhook at <code>/webhook/verifile</code> and auto-update VettingCheck records.
+          <strong>Verifile API:</strong> DBS screening orders created automatically using the DBS criteria configured on the job (Level, Sector, Purpose, Position, Employer Name). Verifile contacts the associate directly for identity verification documents. Status updates are received automatically and the vetting checks update in real-time.
         </div>
       </div>
     </div>
@@ -913,7 +913,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; look at the <strong>"Contract"</strong> card in the right sidebar. Click <strong>"Issue Contract"</strong>.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; look at the <strong>"Contract"</strong> card in the right sidebar. Click <strong>"Issue Contract"</strong>.</p>
 
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
@@ -923,14 +923,14 @@
         </div>
 
         <div class="wt-sub-heading">Contract Type Routing</div>
-        <p>The system reads the associate's company details (from <code>/portal/company-details</code>) and routes to the correct capture sheet:</p>
+        <p>The system reads the associate's company details (from the Umbrella / Company Details page on the Associate Portal) and routes to the correct capture sheet:</p>
         <ul class="wt-field-list">
-          <li><span class="field-name">Umbrella company (Paystream etc.)</span> &rarr; Opens <strong>Assignment Schedule Capture Sheet</strong> at <code>/candidate/&lt;id&gt;/paystream-capture</code></li>
+          <li><span class="field-name">Umbrella company (Paystream etc.)</span> &rarr; Opens <strong>Assignment Schedule Capture Sheet</strong> at <strong>/candidate/&lt;id&gt;/paystream-capture</strong></li>
           <li><span class="field-name">Other umbrella / Limited company</span> &rarr; Opens <strong>generic contract flow</strong> with manual template download</li>
         </ul>
 
         <div class="wt-sub-heading">Assignment Schedule Capture Sheet (Umbrella Path)</div>
-        <p>Page: <code>/candidate/&lt;id&gt;/paystream-capture</code></p>
+        <p>Page: <strong>/candidate/&lt;id&gt;/paystream-capture</strong></p>
         <p>Template matching: If a DOCX template has been uploaded for this umbrella company (Config C2), a green alert shows <em>"Template found: [name]"</em>. Otherwise, amber warning.</p>
 
         <table class="wt-detail-table">
@@ -972,7 +972,7 @@
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user me-1"></i>
-          <strong>Associate portal:</strong> At <code>/portal/my-applications</code>, the Contract column shows <span style="background:#dbeafe; color:#1d4ed8; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Contract Sent</span>.
+          <strong>Associate portal:</strong> At <strong>/portal/my-applications</strong>, the Contract column shows <span style="background:#dbeafe; color:#1d4ed8; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Contract Sent</span>.
         </div>
       </div>
     </div>
@@ -989,13 +989,13 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; the Contract card sidebar shows "Contract Status: Sent" with an amber left border.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; the Contract card sidebar shows "Contract Status: Sent" with an amber left border.</p>
 
         <div class="wt-sub-heading">Action</div>
         <p>Click <strong>"Confirm signed"</strong>.</p>
 
         <div class="wt-sub-heading">Alternative: E-Signature via Signable / DocuSign</div>
-        <p>If e-signature is configured (<code>ESIGN_PROVIDER</code> env var), the contract can be sent for electronic signature. An ESigRequest record tracks: provider (dropbox_sign / docusign), request_id, status (sent &rarr; signed &rarr; completed / declined), signer_email, sent_at, signed_at. Webhooks at <code>/webhook/esign</code> auto-update status when the associate signs.</p>
+        <p>If e-signature is configured (<strong>ESIGN_PROVIDER</strong> env var), the contract can be sent for electronic signature. An ESigRequest record tracks: provider (dropbox_sign / docusign), request_id, status (sent &rarr; signed &rarr; completed / declined), signer_email, sent_at, signed_at. Webhooks at <strong>/webhook/esign</strong> auto-update status when the associate signs.</p>
 
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
@@ -1005,7 +1005,7 @@
             <li>Contract Status &rarr; <strong>"Signed"</strong></li>
             <li>Application status &rarr; <strong>"Placed"</strong></li>
             <li>Candidate status &rarr; <strong>"On Contract"</strong> (or "On Assignment")</li>
-            <li>Candidate appears in the <strong>Placements page</strong> (<code>/placements</code>)</li>
+            <li>Candidate appears in the <strong>Placements page</strong> (<strong>/placements</strong>)</li>
           </ul>
         </div>
 
@@ -1015,7 +1015,7 @@
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user me-1"></i>
-          <strong>Associate portal:</strong> At <code>/portal/my-applications</code>, the Contract column shows <span style="background:#dcfce7; color:#166534; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Contract Signed</span>. The application status shows <span style="background:#dcfce7; color:#166534; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Placed</span>.
+          <strong>Associate portal:</strong> At <strong>/portal/my-applications</strong>, the Contract column shows <span style="background:#dcfce7; color:#166534; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Contract Signed</span>. The application status shows <span style="background:#dcfce7; color:#166534; padding:1px 6px; border-radius:3px; font-size:0.7rem;">Placed</span>.
         </div>
       </div>
     </div>
@@ -1032,7 +1032,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/admin/approvals</code> &mdash; the Timesheets tab.</p>
+        <p>Navigate to <strong>/admin/approvals</strong> &mdash; the Timesheets tab.</p>
 
         <div class="wt-sub-heading">What You See</div>
         <p>A list of submitted timesheets showing: Associate name, Assignment, Period (start-end dates), Billable Days, Total Amount, Status, and Actions.</p>
@@ -1064,7 +1064,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/admin/approvals</code> &mdash; click the <strong>Leave</strong> tab.</p>
+        <p>Navigate to <strong>/admin/approvals</strong> &mdash; click the <strong>Leave</strong> tab.</p>
 
         <div class="wt-sub-heading">Adding a Leave Request</div>
         <p>Click <strong>"Add Leave Request"</strong>.</p>
@@ -1082,7 +1082,7 @@
 
         <div class="wt-sub-heading">Where Approved Leave Shows</div>
         <ul class="wt-field-list">
-          <li><span class="field-name">Placements page</span> (<code>/placements</code>) &mdash; "Scheduled Leavers" section shows all approved leave requests with countdown to departure</li>
+          <li><span class="field-name">Placements page</span> (<strong>/placements</strong>) &mdash; "Scheduled Leavers" section shows all approved leave requests with countdown to departure</li>
           <li><span class="field-name">Engagement dashboard</span> &mdash; flags associates approaching end dates</li>
         </ul>
       </div>
@@ -1100,7 +1100,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/candidate/&lt;id&gt;</code> &mdash; the <strong>"Associate Status"</strong> card in the right sidebar.</p>
+        <p>Navigate to <strong>/candidate/&lt;id&gt;</strong> &mdash; the <strong>"Associate Status"</strong> card in the right sidebar.</p>
 
         <div class="wt-sub-heading">Status Options (click to set)</div>
         <table class="wt-detail-table">
@@ -1145,7 +1145,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/register</code>.</p>
+        <p>Navigate to <strong>/portal/register</strong>.</p>
 
         <div class="wt-sub-heading">Registration Fields</div>
         <table class="wt-detail-table">
@@ -1181,7 +1181,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/personal-details</code>.</p>
+        <p>Navigate to <strong>/portal/personal-details</strong>.</p>
 
         <div class="wt-sub-heading">CV / Resume Section (Separate Form)</div>
         <ul class="wt-field-list">
@@ -1273,7 +1273,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/references/employment</code>.</p>
+        <p>Navigate to <strong>/portal/references/employment</strong>.</p>
 
         <div class="wt-sub-heading">Requirements</div>
         <ul class="wt-field-list">
@@ -1329,7 +1329,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/company-details</code>.</p>
+        <p>Navigate to the Umbrella / Company Details page on the Associate Portal.</p>
 
         <div class="wt-sub-heading">Step 1: Choose Contracting Type</div>
         <p>Select one:</p>
@@ -1371,17 +1371,17 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/vetting-progress</code> &mdash; the "Next Steps" section shows buttons for each form.</p>
+        <p>Navigate to <strong>/portal/vetting-progress</strong> &mdash; the "Next Steps" section shows buttons for each form.</p>
 
         <div class="wt-sub-heading">Required Forms (Each Has a Signable Widget)</div>
         <table class="wt-detail-table">
           <tr><th>Form</th><th>URL</th><th>Purpose</th><th>Status Indicator</th></tr>
-          <tr><td>Consent Form</td><td><code>/portal/consent-form</code></td><td>Authorises Optimus to perform background checks (DBS, credit, employment verification)</td><td>Blue button (unsigned) &rarr; Green button with checkmark (signed)</td></tr>
-          <tr><td>Declaration</td><td><code>/portal/declaration</code></td><td>Discloses any criminal convictions, CCJs, IVAs, bankruptcy, or other relevant history</td><td>Blue &rarr; Green</td></tr>
-          <tr><td>Secondary Job Declaration</td><td><code>/portal/secondary-job-declaration</code></td><td>Confirms whether the associate has any secondary employment that may conflict</td><td>Blue &rarr; Green</td></tr>
-          <tr><td>Employment Reference Declaration</td><td><code>/portal/employment-reference-declaration</code></td><td>Authorises Optimus to contact previous employers for references. <strong>Must be signed before referencing can begin (gate).</strong></td><td>Blue &rarr; Green</td></tr>
-          <tr><td>Employment History</td><td><code>/portal/references/employment</code></td><td>Complete 3-year employment history (see Associate Step 3)</td><td>Blue &rarr; Green</td></tr>
-          <tr><td>Documents</td><td><code>/portal/documents</code></td><td>Upload required documents (ID, proof of address, certificates)</td><td>Blue &rarr; Green</td></tr>
+          <tr><td>Consent Form</td><td><strong>/portal/consent-form</strong></td><td>Authorises Optimus to perform background checks (DBS, credit, employment verification)</td><td>Blue button (unsigned) &rarr; Green button with checkmark (signed)</td></tr>
+          <tr><td>Declaration</td><td><strong>/portal/declaration</strong></td><td>Discloses any criminal convictions, CCJs, IVAs, bankruptcy, or other relevant history</td><td>Blue &rarr; Green</td></tr>
+          <tr><td>Secondary Job Declaration</td><td><strong>/portal/secondary-job-declaration</strong></td><td>Confirms whether the associate has any secondary employment that may conflict</td><td>Blue &rarr; Green</td></tr>
+          <tr><td>Employment Reference Declaration</td><td><strong>/portal/employment-reference-declaration</strong></td><td>Authorises Optimus to contact previous employers for references. <strong>Must be signed before referencing can begin (gate).</strong></td><td>Blue &rarr; Green</td></tr>
+          <tr><td>Employment History</td><td><strong>/portal/references/employment</strong></td><td>Complete 3-year employment history (see Associate Step 3)</td><td>Blue &rarr; Green</td></tr>
+          <tr><td>Documents</td><td><strong>/portal/documents</strong></td><td>Upload required documents (ID, proof of address, certificates)</td><td>Blue &rarr; Green</td></tr>
         </table>
 
         <div class="wt-sub-heading">Vetting Progress Page</div>
@@ -1406,7 +1406,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/vacancies</code>.</p>
+        <p>Navigate to <strong>/portal/vacancies</strong>.</p>
 
         <div class="wt-sub-heading">Browsing Jobs</div>
         <p>The job board lists all jobs with status "Open". Each listing shows: Job Title, Client, Location, Rate, IR35 Status (Inside/Outside). Associates can search and filter.</p>
@@ -1427,7 +1427,7 @@
         </div>
 
         <div class="wt-sub-heading">My Applications</div>
-        <p>At <code>/portal/my-applications</code>, the associate sees a table of all applications with columns:</p>
+        <p>At <strong>/portal/my-applications</strong>, the associate sees a table of all applications with columns:</p>
         <table class="wt-detail-table">
           <tr><th>Column</th><th>Shows</th></tr>
           <tr><td>Role</td><td>Job title</td></tr>
@@ -1453,7 +1453,7 @@
       <div class="wt-step-body">
         <p>See Staff Step 8 above for the full detail. Summary:</p>
         <ul class="wt-field-list">
-          <li>Go to <code>/portal/my-applications</code></li>
+          <li>Go to <strong>/portal/my-applications</strong></li>
           <li>Click the green <strong>"Accept Offer"</strong> button</li>
           <li>Confirm the dialog: <em>"By accepting this offer you are confirming..."</em></li>
           <li>Application status updates to <strong>"Offer Accepted"</strong> on both portals</li>
@@ -1474,7 +1474,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <code>/portal/timesheets</code>.</p>
+        <p>Navigate to <strong>/portal/timesheets</strong>.</p>
 
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
@@ -1533,7 +1533,7 @@
         <div class="wt-sub-heading">What Staff Sees</div>
         <div class="wt-mirror-box">
           <i class="fas fa-user-tie me-1"></i>
-          <strong>Staff portal:</strong> Submitted timesheets appear at <code>/admin/approvals</code> for review. Staff can approve (green tick) or reject (red X with mandatory reason). Rejected reason is visible to the associate on their timesheet.
+          <strong>Staff portal:</strong> Submitted timesheets appear at <strong>/admin/approvals</strong> for review. Staff can approve (green tick) or reject (red X with mandatory reason). Rejected reason is visible to the associate on their timesheet.
         </div>
       </div>
     </div>
