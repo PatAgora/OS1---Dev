@@ -8539,13 +8539,11 @@ def index():
             open_jobs_query.order_by(Job.created_at.desc())
         ).all()
         
-        # === Recent Jobs Widget ===
-        recent_jobs = s.scalars(
-            select(Job)
-            .options(selectinload(Job.engagement))
-            .order_by(Job.created_at.desc())
-            .limit(5)
-        ).all()
+        # === Recent Jobs Widget (filtered) ===
+        recent_jobs_q = select(Job).options(selectinload(Job.engagement)).order_by(Job.created_at.desc())
+        if eng_ids:
+            recent_jobs_q = recent_jobs_q.where(Job.engagement_id.in_(eng_ids))
+        recent_jobs = s.scalars(recent_jobs_q.limit(5)).all()
         
         # === Legacy data for backward compatibility ===
         total_candidates = s.scalar(select(func.count(Candidate.id))) or 0
@@ -8573,20 +8571,21 @@ def index():
         new_docs_7 = s.scalar(select(func.count(Document.id)).where(Document.uploaded_at >= d7)) or 0
         new_docs_30 = s.scalar(select(func.count(Document.id)).where(Document.uploaded_at >= d30)) or 0
 
-        # Upcoming interviews (next 7 days)
-        upcoming_interviews = s.execute(
+        # Upcoming interviews (next 7 days) — filtered
+        _int_q = (
             select(Application, Candidate, Job)
             .join(Candidate, Candidate.id == Application.candidate_id)
             .join(Job, Job.id == Application.job_id)
             .where(Application.interview_scheduled_at != None)
             .where(Application.interview_scheduled_at >= now)
             .where(Application.interview_scheduled_at <= now + datetime.timedelta(days=7))
-            .order_by(Application.interview_scheduled_at.asc())
-            .limit(10)
-        ).all()
+        )
+        if eng_ids:
+            _int_q = _int_q.where(Job.engagement_id.in_(eng_ids))
+        upcoming_interviews = s.execute(_int_q.order_by(Application.interview_scheduled_at.asc()).limit(10)).all()
 
-        # Unsigned contracts > 3 days
-        unsigned_contracts = s.execute(
+        # Unsigned contracts > 3 days — filtered
+        _uc_q = (
             select(ESigRequest, Application, Candidate, Job)
             .join(Application, Application.id == ESigRequest.application_id)
             .join(Candidate, Candidate.id == Application.candidate_id)
@@ -8594,27 +8593,37 @@ def index():
             .where(func.lower(ESigRequest.status).in_(["sent", "delivered"]))
             .where(ESigRequest.sent_at != None)
             .where(ESigRequest.sent_at < d3)
-            .order_by(ESigRequest.sent_at.asc())
-            .limit(10)
-        ).all()
+        )
+        if eng_ids:
+            _uc_q = _uc_q.where(Job.engagement_id.in_(eng_ids))
+        unsigned_contracts = s.execute(_uc_q.order_by(ESigRequest.sent_at.asc()).limit(10)).all()
 
-        # Verifile vetting in progress > 3 days
-        vetting_in_progress = s.execute(
+        # Verifile vetting in progress — filtered
+        _vp_q = (
             select(VettingCheck, Candidate)
             .join(Candidate, Candidate.id == VettingCheck.candidate_id)
             .where(VettingCheck.external_provider == "verifile")
             .where(VettingCheck.status.in_(["In Progress", "NOT STARTED"]))
-            .order_by(VettingCheck.id.desc())
-        ).all()
+        )
+        if eng_ids:
+            _vp_q = _vp_q.where(VettingCheck.candidate_id.in_(
+                select(Application.candidate_id).where(Application.job_id.in_(
+                    select(Job.id).where(Job.engagement_id.in_(eng_ids))
+                ))
+            ))
+        vetting_in_progress = s.execute(_vp_q.order_by(VettingCheck.id.desc())).all()
 
-        # Stuck apps
-        stuck_apps = s.execute(
+        # Stuck apps — filtered
+        _sa_q = (
             select(Application, Candidate, Job)
             .join(Candidate, Candidate.id == Application.candidate_id)
             .join(Job, Job.id == Application.job_id)
             .where(Application.created_at < d7)
             .where(Application.status.in_(["New", "Screening", "Interview", "Applications Pending Review"]))
-            .order_by(Application.created_at.asc())
+        )
+        if eng_ids:
+            _sa_q = _sa_q.where(Job.engagement_id.in_(eng_ids))
+        stuck_apps = s.execute(_sa_q.order_by(Application.created_at.asc())
             .limit(10)
         ).all()
 
