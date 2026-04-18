@@ -1432,17 +1432,17 @@ Following your offer of engagement with Optimus, the next step is to complete ou
 <!-- ==================================================================== -->
 <!-- Vetting Profiles                                                       -->
 <!-- ==================================================================== -->
-<div id="vetting-profiles" class="modern-card mb-4 p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('vetting-profiles-body', this)">
-    <div>
-      <h5 class="fw-bold mb-1"><i class="fas fa-shield-alt me-2 text-primary"></i>Vetting Profiles</h5>
-      <small class="text-muted">Create reusable sets of vetting checks that can be applied to engagements and jobs.</small>
-    </div>
-    <div class="d-flex align-items-center gap-2">
+<div class="card shadow-sm mb-4" id="vetting-profiles">
+  <div class="card-header bg-white py-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('vetting-profiles-body', this)">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="fw-bold mb-0"><i class="fas fa-shield-alt me-2 text-primary"></i>Vetting Profiles</h5>
       <i class="fas fa-chevron-down collapse-icon text-muted"></i>
     </div>
+    <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
+      Create reusable sets of vetting checks that can be applied to engagements and jobs.
+    </p>
   </div>
-  <div id="vetting-profiles-body" class="collapsible-body" style="display: none;">
+  <div id="vetting-profiles-body" class="card-body collapsible-body" style="display: none;">
 
   <!-- Create new profile -->
   <form method="POST" action="{{ url_for('vetting_profile_create') }}" class="mb-3 p-3 border rounded bg-light">
