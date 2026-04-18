@@ -7027,147 +7027,61 @@ except Exception:
 # ---------- One-time data cleanup: remove all demo/test data except Ian Marley (cand 271) ----------
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _cl:
-        # Guard: run if any demo data still exists
-        _cand_count = _cl.execute(text("SELECT COUNT(*) FROM candidates WHERE id != 271")).scalar() or 0
+        # Use TRUNCATE CASCADE for clean wipe of transactional tables
+        # Then selectively delete candidates (keep Ian Marley 271)
         _eng_count = _cl.execute(text("SELECT COUNT(*) FROM engagements")).scalar() or 0
-        _opp_count = _cl.execute(text("SELECT COUNT(*) FROM opportunities")).scalar() or 0
-        _job_count = _cl.execute(text("SELECT COUNT(*) FROM jobs")).scalar() or 0
-        if _cand_count > 0 or _eng_count > 0 or _opp_count > 0 or _job_count > 0:
-            _keep_cand_id = 271  # Ian Marley
-            # Delete related data for all candidates except Ian Marley
-            for _tbl in [
-                "vetting_check", "candidate_notes", "reference_requests",
-                "candidate_tags", "shortlists",
-            ]:
+        _cand_count = _cl.execute(text("SELECT COUNT(*) FROM candidates WHERE id != 271")).scalar() or 0
+        if _eng_count > 0 or _cand_count > 0:
+            # Truncate all transactional tables (CASCADE handles FK deps)
+            _truncate_tables = [
+                "esig_requests", "applications", "shortlists", "engagement_plans",
+                "jobs", "opportunity_notes", "leave_requests", "webhook_events",
+            ]
+            for _tt in _truncate_tables:
                 try:
-                    _cl.execute(text(f"DELETE FROM {_tbl} WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
+                    _cl.execute(text(f"TRUNCATE TABLE {_tt} CASCADE"))
                 except Exception:
                     pass
-            # Delete documents for other candidates
+            # Now engagements and opportunities (after their deps are gone)
             try:
-                _cl.execute(text("DELETE FROM documents WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
-            except Exception:
-                pass
-            # Delete applications (and related esig_requests)
-            try:
-                _cl.execute(text("""
-                    DELETE FROM esig_requests WHERE application_id IN (
-                        SELECT id FROM applications WHERE candidate_id != :keep
-                    )
-                """).bindparams(keep=_keep_cand_id))
+                _cl.execute(text("TRUNCATE TABLE engagements CASCADE"))
             except Exception:
                 pass
             try:
-                _cl.execute(text("DELETE FROM applications WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
+                _cl.execute(text("TRUNCATE TABLE opportunities CASCADE"))
             except Exception:
                 pass
+            # Delete all candidate-linked data for non-Ian-Marley
+            for _tbl in ["vetting_check", "candidate_notes", "reference_requests",
+                         "candidate_tags", "documents"]:
+                try:
+                    _cl.execute(text(f"DELETE FROM {_tbl} WHERE candidate_id != 271"))
+                except Exception:
+                    pass
             # Delete candidates except Ian Marley
             try:
-                _cl.execute(text("DELETE FROM candidates WHERE id != :keep").bindparams(keep=_keep_cand_id))
-            except Exception:
-                pass
-            # Delete esig_requests referencing jobs/applications first
-            try:
-                _cl.execute(text("DELETE FROM esig_requests"))
-            except Exception:
-                pass
-            # Delete all applications (needed before jobs due to FK)
-            try:
-                _cl.execute(text("DELETE FROM applications"))
-            except Exception:
-                pass
-            # Delete all jobs
-            try:
-                _cl.execute(text("DELETE FROM jobs"))
-            except Exception:
-                pass
-            # Delete engagement plans
-            try:
-                _cl.execute(text("DELETE FROM engagement_plans"))
-            except Exception:
-                pass
-            # Delete shortlists referencing engagements
-            try:
-                _cl.execute(text("DELETE FROM shortlists"))
-            except Exception:
-                pass
-            # Delete engagements
-            try:
-                _cl.execute(text("DELETE FROM engagements"))
-            except Exception:
-                pass
-            # Delete opportunity notes then opportunities
-            try:
-                _cl.execute(text("DELETE FROM opportunity_notes"))
-            except Exception:
-                pass
-            try:
-                _cl.execute(text("DELETE FROM opportunities"))
-            except Exception:
-                pass
-            # Delete webhook events (test data)
-            try:
-                _cl.execute(text("DELETE FROM webhook_events"))
-            except Exception:
-                pass
-            # Clean up Ian Marley's applications that reference deleted jobs
-            try:
-                _cl.execute(text("DELETE FROM applications WHERE candidate_id = :keep").bindparams(keep=_keep_cand_id))
-            except Exception:
-                pass
-            # Clean up Ian Marley's esig_requests
-            try:
-                _cl.execute(text("DELETE FROM esig_requests WHERE candidate_id = :keep").bindparams(keep=_keep_cand_id))
-            except Exception:
-                pass
-            # Clean up leave requests
-            try:
-                _cl.execute(text("DELETE FROM leave_requests"))
+                _cl.execute(text("DELETE FROM candidates WHERE id != 271"))
             except Exception:
                 pass
             # Delete [PW-TEST] staff users
             try:
-                _cl.execute(text("DELETE FROM users WHERE name LIKE '%[PW-TEST]%' OR email LIKE '%[PW-TEST]%'"))
+                _cl.execute(text("DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%' OR email LIKE '%pw-test%'"))
             except Exception:
                 pass
-            # Delete [PW-TEST] taxonomy categories and their tags
+            # Delete [PW-TEST] taxonomy
             try:
-                _cl.execute(text("DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%[PW-TEST]%')"))
+                _cl.execute(text("DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')"))
+                _cl.execute(text("DELETE FROM taxonomy_categories WHERE name LIKE '%PW-TEST%'"))
+                _cl.execute(text("DELETE FROM taxonomy_tags WHERE tag LIKE '%PW-TEST%'"))
             except Exception:
                 pass
-            try:
-                _cl.execute(text("DELETE FROM taxonomy_categories WHERE name LIKE '%[PW-TEST]%'"))
-            except Exception:
-                pass
-            # Delete [PW-TEST] taxonomy tags by tag name
-            try:
-                _cl.execute(text("DELETE FROM taxonomy_tags WHERE tag LIKE '%[PW-TEST]%'"))
-            except Exception:
-                pass
-            # Delete any remaining [PW-TEST] data in any table
-            for _pw_tbl, _pw_col in [
-                ("candidates", "name"), ("candidates", "email"),
-                ("vetting_profiles", "name"),
-                ("leave_reasons", "reason"),
-            ]:
+            # Clean up orphaned portal data
+            for _pt in ["associate_profiles", "company_details", "employment_history"]:
                 try:
-                    _cl.execute(text(f"DELETE FROM {_pw_tbl} WHERE {_pw_col} LIKE '%[PW-TEST]%'"))
+                    _cl.execute(text(f"DELETE FROM {_pt} WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
                 except Exception:
                     pass
-            # Clean up associate portal data for deleted candidates
-            try:
-                _cl.execute(text("DELETE FROM associate_profiles WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
-            except Exception:
-                pass
-            try:
-                _cl.execute(text("DELETE FROM company_details WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
-            except Exception:
-                pass
-            try:
-                _cl.execute(text("DELETE FROM employment_history WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
-            except Exception:
-                pass
-            print("[CLEANUP] Demo data removed. Ian Marley (271) preserved.", flush=True)
+            print("[CLEANUP] All demo data removed. Ian Marley (271) preserved.", flush=True)
 except Exception as _e:
     print(f"[CLEANUP] Skip: {_e}", flush=True)
 
