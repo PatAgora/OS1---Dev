@@ -1090,7 +1090,7 @@
               <div class="d-flex justify-content-between align-items-center py-2 px-3 rounded" style="background:{{ '#eff6ff' if proj.is_latest else '#f8fafc' }}; border:1px solid {{ '#bfdbfe' if proj.is_latest else '#e5e7eb' }}; cursor:pointer;" onclick="var b=document.getElementById('vp-{{ loop.index }}'); b.style.display=b.style.display==='none'?'':'none'; this.querySelector('.chevron-toggle').classList.toggle('fa-chevron-down'); this.querySelector('.chevron-toggle').classList.toggle('fa-chevron-up');">
                 <div>
                   {% if proj.is_latest %}
-                    <span class="badge bg-primary me-1" style="font-size:0.6rem;">LATEST</span>
+                    <span class="badge bg-primary me-1" style="font-size:0.6rem;">CURRENT</span>
                   {% endif %}
                   <span class="fw-semibold" style="font-size:0.85rem;">{{ proj.role }}</span>
                   {% if proj.eng_name and proj.eng_name != 'No Project' %}
