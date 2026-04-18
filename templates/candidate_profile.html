@@ -1278,6 +1278,86 @@
         </div>
       </div>
 
+      <!-- Vetting History by Project / Role -->
+      {% if vetting_by_project %}
+      <div class="modern-card mt-4 fade-in-up">
+        <div class="card-body p-4">
+          <div class="section-header" style="cursor:pointer;" onclick="var b=document.getElementById('vettingHistoryBody'); b.style.display=b.style.display==='none'?'':'none'; this.querySelector('.fa-chevron-down, .fa-chevron-up').classList.toggle('fa-chevron-down'); this.querySelector('.fa-chevron-down, .fa-chevron-up').classList.toggle('fa-chevron-up');">
+            <div class="section-title">
+              <i class="fas fa-history"></i>
+              Vetting History by Project / Role
+            </div>
+            <i class="fas fa-chevron-down text-muted"></i>
+          </div>
+          <div id="vettingHistoryBody" style="display:none; margin-top:1rem;">
+            {% for proj in vetting_by_project %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center py-2 px-3 rounded" style="background:#f0f9ff; border:1px solid #bae6fd; cursor:pointer;" onclick="var b=document.getElementById('vhp-{{ loop.index }}'); b.style.display=b.style.display==='none'?'':'none'; this.querySelector('.fa-chevron-down, .fa-chevron-up').classList.toggle('fa-chevron-down'); this.querySelector('.fa-chevron-down, .fa-chevron-up').classList.toggle('fa-chevron-up');">
+                <div>
+                  <span class="fw-semibold" style="font-size:0.85rem;">{{ proj.role }}</span>
+                  {% if proj.eng_name and proj.eng_name != 'No Project' %}
+                    <span class="text-muted fw-normal"> — {{ proj.eng_name }}</span>
+                  {% endif %}
+                  {% if proj.client %}
+                    <span class="text-muted" style="font-size:0.75rem;"> ({{ proj.client }})</span>
+                  {% endif %}
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge {{ 'bg-success' if proj.complete == proj.total else 'bg-warning text-dark' }}" style="font-size:0.65rem;">{{ proj.complete }}/{{ proj.total }} complete</span>
+                  <i class="fas fa-chevron-down text-muted" style="font-size:0.7rem;"></i>
+                </div>
+              </div>
+              <div id="vhp-{{ loop.index }}" style="display:none;">
+                <table class="table mb-0" style="font-size:0.8rem;">
+                  <thead>
+                    <tr style="background:#f8fafc;">
+                      <th style="padding:0.4rem 0.6rem;">Check</th>
+                      <th class="text-center" style="padding:0.4rem 0.6rem;">Status</th>
+                      <th class="text-center" style="padding:0.4rem 0.6rem;">Completed</th>
+                      <th class="text-center" style="padding:0.4rem 0.6rem;">Expires</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for c in proj.checks %}
+                    <tr>
+                      <td style="padding:0.35rem 0.6rem;">{{ c.type }}</td>
+                      <td class="text-center" style="padding:0.35rem 0.6rem;">
+                        {% set st = c.status|upper %}
+                        {% if st in ('COMPLETE', 'QC COMPLETE', 'REFERRAL APPROVED') %}
+                          <span class="badge bg-success" style="font-size:0.65rem;">{{ c.status }}</span>
+                        {% elif st in ('IN PROGRESS', 'AWAITING QC', 'SENT TO QC') %}
+                          <span class="badge bg-primary" style="font-size:0.65rem;">{{ c.status }}</span>
+                        {% elif st == 'N/A' %}
+                          <span class="badge bg-secondary" style="font-size:0.65rem;">N/A</span>
+                        {% else %}
+                          <span class="badge bg-light text-dark" style="font-size:0.65rem;">{{ c.status }}</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-center" style="padding:0.35rem 0.6rem;">
+                        {{ c.completed_at.strftime('%d %b %Y') if c.completed_at else '—' }}
+                      </td>
+                      <td class="text-center" style="padding:0.35rem 0.6rem;">
+                        {% if c.expiry_date %}
+                          <span class="{{ 'text-danger fw-semibold' if c.expired else '' }}">
+                            {{ c.expiry_date.strftime('%d %b %Y') }}
+                            {% if c.expired %}<i class="fas fa-exclamation-triangle ms-1"></i>{% endif %}
+                          </span>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Reference Requests Section -->
       <div class="modern-card mt-4 fade-in-up stagger-5" id="reference-requests">
         <div class="card-body p-4">

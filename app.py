@@ -5730,6 +5730,7 @@ class VettingCheck(Base):
     # Third pass fix 3: Referral Approved requires additional approval
     referral_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     referral_approved_at = Column(DateTime, nullable=True)
+    expiry_date = Column(DateTime, nullable=True)
 
 # ---- CandidateNote model (Notes & Activity panel) ----
 class CandidateNote(Base):
@@ -6648,6 +6649,7 @@ def ensure_schema():
             "qc_reviewed_by INTEGER REFERENCES users(id)",
             "qc_reviewed_at TIMESTAMP",
             "qc_notes TEXT DEFAULT ''",
+            "expiry_date TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE vetting_check ADD COLUMN {coldef}"))
@@ -6751,6 +6753,7 @@ def ensure_schema():
         for coldef in [
             "referral_approved_by INTEGER REFERENCES users(id)",  # Fix 3: two-step referral
             "referral_approved_at TIMESTAMP",
+            "expiry_date TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE vetting_check ADD COLUMN {coldef}"))
@@ -17039,6 +17042,68 @@ def candidate_profile(cand_id: int):
             'created_at': af.get('timestamp'),
         })())
 
+    # Vetting history per project/role — for the collapsible Previous Vetting section
+    vetting_by_project = []
+    try:
+        with Session(engine) as _svh:
+            # Find all engagements this candidate has been linked to via applications
+            _cand_apps = _svh.execute(
+                select(Application.id, Application.status, Job.title, Job.id.label("job_id"),
+                       Engagement.id.label("eng_id"), Engagement.name.label("eng_name"),
+                       Engagement.client, Engagement.vetting_requirements)
+                .select_from(Application)
+                .join(Job, Job.id == Application.job_id)
+                .outerjoin(Engagement, Engagement.id == Job.engagement_id)
+                .where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            ).all()
+
+            _all_vc = _svh.scalars(
+                select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+            ).all()
+            _vc_map = {}
+            for vc in _all_vc:
+                _vc_map[vc.check_type] = {
+                    "status": vc.status or "NOT STARTED",
+                    "completed_at": vc.completed_at,
+                    "expiry_date": getattr(vc, "expiry_date", None),
+                }
+
+            _seen_eng = set()
+            for _ca in _cand_apps:
+                eng_key = _ca.eng_id or f"job_{_ca.job_id}"
+                if eng_key in _seen_eng:
+                    continue
+                _seen_eng.add(eng_key)
+                required = from_json_safe(_ca.vetting_requirements or "[]")
+                if not required:
+                    continue
+                checks_detail = []
+                for check_type in required:
+                    vc_data = _vc_map.get(check_type, {})
+                    completed = vc_data.get("completed_at")
+                    expiry = vc_data.get("expiry_date")
+                    expired = bool(expiry and expiry < datetime.datetime.utcnow())
+                    checks_detail.append({
+                        "type": check_type,
+                        "status": vc_data.get("status", "NOT STARTED"),
+                        "completed_at": completed,
+                        "expiry_date": expiry,
+                        "expired": expired,
+                    })
+                vetting_by_project.append({
+                    "eng_id": _ca.eng_id,
+                    "eng_name": _ca.eng_name or "No Project",
+                    "client": _ca.client or "",
+                    "role": _ca.title or "Unknown Role",
+                    "app_status": _ca.status or "",
+                    "checks": checks_detail,
+                    "total": len(checks_detail),
+                    "complete": sum(1 for c in checks_detail if c["status"].upper() in ("COMPLETE", "QC COMPLETE", "N/A", "REFERRAL APPROVED")),
+                })
+    except Exception:
+        pass
+
     # Staff users for analyst assignment dropdown (QC workflow)
     all_staff_users = []
     # Jobs for Match to Job / quick shortlist
@@ -17096,6 +17161,7 @@ def candidate_profile(cand_id: int):
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
         required_vetting_checks=required_vetting_checks,
+        vetting_by_project=vetting_by_project,
         # === QC workflow: staff users for analyst dropdown ===
         all_staff_users=all_staff_users,
         jobs_for_quick_pick=jobs_for_quick_pick,
