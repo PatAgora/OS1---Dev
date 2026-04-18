@@ -7571,7 +7571,7 @@ CV text:
                 model=GEMINI_MODEL_NAME,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
-                    max_output_tokens=1000,
+                    max_output_tokens=2000,
                     temperature=0.3,
                 ),
             )
@@ -8941,7 +8941,7 @@ def candidate_regenerate_summary():
 
         s.commit()
 
-    flash("AI summary regenerated, tags updated, and match score recalculated (when possible).", "success")
+    flash("AI summary regenerated.", "success")
     return redirect(url_for("candidate_profile", cand_id=cand_id, job_id=job_id))
 
 
@@ -21674,13 +21674,45 @@ def candidate_skills_update(cand_id):
 @app.route("/action/candidate/recalculate_match_score", methods=["POST"])
 @login_required
 def recalculate_match_score():
-    """Recalculate AI match score for a candidate (stub - requires Gemini API key)."""
+    """Recalculate AI match score only (not summary) against the latest applied job."""
     cand_id = request.form.get("candidate_id")
     if not cand_id:
         flash("No associate specified.", "warning")
         return redirect(request.referrer or url_for("resource_pool"))
-    flash("Match score recalculation requested. This feature requires an active GEMINI_API_KEY.", "info")
-    return redirect(url_for("candidate_profile", cand_id=int(cand_id)))
+    cand_id = int(cand_id)
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            flash("Candidate not found.", "danger")
+            return redirect(url_for("resource_pool"))
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+        if not job:
+            flash("No job application to score against.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        doc = s.scalar(
+            select(Document).where(Document.candidate_id == cand_id, Document.doc_type == "cv")
+            .order_by(Document.uploaded_at.desc())
+        )
+        cv_text = extract_cv_text(doc) if doc else ""
+        jd_text = (job.description or "").strip()
+        if not cv_text or not jd_text:
+            flash("CV or job description missing — cannot score.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+        try:
+            score_result = ai_score_with_explanation(jd_text, cv_text)
+            if score_result and latest_app:
+                latest_app.ai_score = score_result.get("final", 0)
+                latest_app.ai_explanation = (score_result.get("explanation") or "")[:7999]
+                s.commit()
+            flash("AI score recalculated.", "success")
+        except Exception as exc:
+            current_app.logger.exception("recalculate_match_score failed: %s", exc)
+            flash(f"Score recalculation failed: {exc}", "danger")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 @app.post("/action/esign_status/candidate/<int:cand_id>")
 def action_esign_status_candidate(cand_id):
@@ -22699,20 +22731,16 @@ def candidate_upload_cv(cand_id):
             s.add(doc)
             s.flush()
 
-            # Rebuild AI summary + tags off the new CV, and auto-score against
-            # the candidate's most recent application (if they have one).
-            latest_app = s.scalar(
-                select(Application)
-                .where(Application.candidate_id == cand.id)
-                .order_by(Application.created_at.desc())
-            )
-            latest_job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+            # Auto-generate AI summary only (not score) on CV upload.
+            # Score generates separately when the candidate applies for a role.
             try:
-                _rebuild_ai_summary_and_tags(s, cand, doc=doc, job=latest_job, appn=latest_app)
-                if latest_app and latest_job and latest_app.ai_score is not None:
-                    _log_ai_score_activity(s, cand.id, latest_app.ai_score, latest_job)
+                cv_text = extract_cv_text(doc) or ""
+                if cv_text:
+                    summary = ai_summarise(cv_text) or ""
+                    if hasattr(cand, "ai_summary"):
+                        cand.ai_summary = summary
             except Exception as e:
-                current_app.logger.warning(f"Post-upload AI/retag failed for cand #{cand.id}: {e}")
+                current_app.logger.warning(f"Post-upload AI summary failed for cand #{cand.id}: {e}")
 
             s.commit()
             flash("CV uploaded successfully.", "success")
