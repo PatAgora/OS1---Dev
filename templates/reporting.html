@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: convData.map(d => d.stage),
             datasets: [{
                 label: 'Applications Reached',
-                data: convData.map(d => Math.max(d.count, 0.5)),
+                data: convData.map(d => d.count),
                 backgroundColor: ['#6366f1', '#8b5cf6', '#f59e0b', '#f97316', '#ec4899', '#14b8a6', '#3b82f6', '#10b981'],
                 borderRadius: 4,
             }]
@@ -254,6 +254,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
+                        label: function(ctx) {
+                            return 'Applications: ' + convData[ctx.dataIndex].count;
+                        },
                         afterLabel: function(ctx) {
                             return 'Conversion: ' + convData[ctx.dataIndex].pct + '%';
                         }
@@ -261,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             scales: {
-                x: { beginAtZero: true, min: 0, suggestedMax: Math.max(1, ...convData.map(d => d.count)) < 2 ? 2 : undefined, grid: { color: '#f3f4f6' } },
+                x: { beginAtZero: true, min: 0, ticks: { stepSize: 1 }, grid: { color: '#f3f4f6' } },
                 y: { grid: { display: false } }
             }
         }
