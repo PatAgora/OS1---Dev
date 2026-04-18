@@ -9399,7 +9399,7 @@ def api_opportunity_update_stage(opp_id):
         return jsonify({"ok": False, "error": "Stage is required"}), 400
 
     # Only require a note when closing (Won/Lost)
-    if not stage_note and to_stage in ("Closed Won", "Closed Lost"):
+    if not stage_note and new_stage in ("Closed Won", "Closed Lost"):
         return jsonify({"ok": False, "error": "A note is required when closing an opportunity.", "note_required": True}), 400
 
     with Session(engine) as s:
@@ -9909,12 +9909,13 @@ def workflow():
         except Exception:
             pass
         
-        # Get unique owners (users assigned to engagements or created jobs)
-        all_owners = s.scalars(
-            select(User.email)
+        # Get unique candidate owners (staff users assigned as candidate owner)
+        all_owners = [r[0] for r in s.execute(
+            select(Candidate.owner_name)
             .distinct()
-            .order_by(User.email)
-        ).all()
+            .where(Candidate.owner_name.isnot(None), Candidate.owner_name != "")
+            .order_by(Candidate.owner_name)
+        ).all()]
         
         # Build base query for applications
         # Map legacy statuses to new workflow stages
@@ -10010,13 +10011,9 @@ def workflow():
             if role_filter != "all":
                 query = query.where(Job.title == role_filter)
             
-            # Owner filter - filter by job creator email or engagement owner name
+            # Owner filter - filter by candidate owner name
             if owner_filter != "all":
-                from sqlalchemy.orm import aliased
-                OwnerUser = aliased(User)
-                query = query.outerjoin(OwnerUser, OwnerUser.id == Job.created_by).where(
-                    or_(OwnerUser.email == owner_filter, Engagement.owner == owner_filter)
-                )
+                query = query.where(Candidate.owner_name == owner_filter)
             
             # Intake filter - filter by engagement plan intake date
             if intake_filter != "all":

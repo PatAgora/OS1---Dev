@@ -288,7 +288,7 @@
         <table class="wt-detail-table">
           <tr><th>Item</th><th>Detail</th></tr>
           <tr><td>Page</td><td>the <strong>Configuration</strong> page &rarr; Vetting Profiles section</td></tr>
-          <tr><td>Purpose</td><td>Pre-saved sets of vetting checks that can be applied to engagements with one click instead of ticking individual checks each time.</td></tr>
+          <tr><td>Purpose</td><td>Pre-saved sets of vetting checks that can be applied to projects with one click instead of ticking individual checks each time.</td></tr>
           <tr><td>Action</td><td>Click <strong>"Add Vetting Profile"</strong> &rarr; enter a name (e.g. "Standard FS", "Enhanced DBS") &rarr; tick the checks this profile requires &rarr; click <strong>Save</strong>.</td></tr>
           <tr><td>Available Checks</td><td>Right to Work, Identity Verification, Address History, DBS Check, Employment History, References, Qualifications, Professional Registration, Credit Check, Directorship / Disqualification, Sanctions / PEP, Social Media Review (12 total)</td></tr>
         </table>
@@ -351,7 +351,7 @@
               <li><span class="field-name">Vetting Commencement</span> &mdash; sent to associate when full vetting begins</li>
             </ul>
           </td></tr>
-          <tr><td>Merge tags</td><td>Templates support merge tags: <strong>{{ "{{candidate_name}}" }}</strong>, <strong>{{ "{{job_title}}" }}</strong>, <strong>{{ "{{engagement_name}}" }}</strong>, <strong>{{ "{{company_name}}" }}</strong>, etc.</td></tr>
+          <tr><td>Merge tags</td><td>Templates support merge tags: <strong>{{ "{{candidate_name}}" }}</strong>, <strong>{{ "{{job_title}}" }}</strong>, <strong>{{ "{{project_name}}" }}</strong>, <strong>{{ "{{company_name}}" }}</strong>, etc.</td></tr>
         </table>
       </div>
     </div>
@@ -426,7 +426,7 @@
           <tr><td>Client</td><td>Text input</td><td>Client / organisation name</td></tr>
           <tr><td>Stage</td><td>Dropdown</td><td>Lead / Qualified Lead / Proposal / Procurement / Verbal Offer / Closed Won / Closed Lost</td></tr>
           <tr><td>Owner</td><td>Dropdown</td><td>Select from registered staff users</td></tr>
-          <tr><td>Estimated Start Date</td><td>Date picker</td><td>Expected engagement start</td></tr>
+          <tr><td>Estimated Start Date</td><td>Date picker</td><td>Expected project start</td></tr>
           <tr><td>Estimated Value</td><td>Currency (&pound;)</td><td>Total estimated contract value</td></tr>
           <tr><td>Probability</td><td>Auto-calculated</td><td>Auto-set based on stage: Lead 0% &rarr; Qualified 10% &rarr; Proposal 30% &rarr; Procurement 50% &rarr; Verbal Offer 75% &rarr; Won 100% &rarr; Lost 0%</td></tr>
           <tr><td>Client Contact &mdash; Name</td><td>Text input</td><td>Primary client contact person</td></tr>
@@ -442,36 +442,36 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>System:</strong> Opportunity appears in the pipeline table at the <strong>Opportunities</strong> page. Pipeline table shows: Opportunity name, Client, Stage (colour-coded badge), Est. Value, Probability (progress bar), Est. Start, Owner, and Actions (Edit / View Project / Create Engagement).
+          <strong>System:</strong> Opportunity appears in the pipeline table at the <strong>Opportunities</strong> page. Pipeline table shows: Opportunity name, Client, Stage (colour-coded badge), Est. Value, Probability (progress bar), Est. Start, Owner, and Actions (Edit / View Project / Create Project).
         </div>
 
         <div class="wt-sub-heading">Progressing Through Stages</div>
-        <p>Click <strong>"Edit"</strong> on any opportunity row &rarr; change the Stage dropdown &rarr; click <strong>Save</strong>. Each stage change is logged as an OpportunityNote with old stage, new stage, timestamp, and user.</p>
+        <p>Click <strong>"Edit"</strong> on any opportunity row &rarr; change the Stage dropdown &rarr; click <strong>Save</strong>. Each stage change is logged with old stage, new stage, timestamp, and user.</p>
 
-        <div class="wt-sub-heading">Converting to Engagement</div>
+        <div class="wt-sub-heading">Converting to a Project</div>
         <p>When stage is set to <strong>"Closed Won"</strong>:</p>
         <ul class="wt-field-list">
-          <li>A green <strong>"Create Engagement"</strong> button appears in the Actions column</li>
-          <li>Click it &rarr; system auto-creates an Engagement with sequential reference (OS001, OS002, etc.)</li>
-          <li>Engagement is pre-populated with: name from opportunity, client name, estimated dates</li>
-          <li>The opportunity row now shows <strong>"View Project"</strong> linking directly to the engagement dashboard</li>
+          <li>A green <strong>"Create Project"</strong> button appears in the Actions column</li>
+          <li>Click it &rarr; system auto-creates a Project with sequential reference (OS001, OS002, etc.)</li>
+          <li>Project is pre-populated with: name from opportunity, client name, estimated dates</li>
+          <li>The opportunity row now shows <strong>"View Project"</strong> linking directly to the Project Dashboard</li>
         </ul>
       </div>
     </div>
 
-    <div class="wt-connector"><span class="wt-connector-label">Closed Won triggers engagement creation</span></div>
+    <div class="wt-connector"><span class="wt-connector-label">Closed Won triggers project creation</span></div>
 
-    <!-- ==================== STEP 2: ENGAGEMENT SETUP ==================== -->
+    <!-- ==================== STEP 2: PROJECT SETUP ==================== -->
     <div class="wt-step border-staff" onclick="toggleStep(this)">
       <div class="wt-step-header">
         <span class="wt-step-num num-staff">2</span>
-        <span class="wt-step-title"><i class="fas fa-project-diagram me-2"></i>Engagement Setup</span>
+        <span class="wt-step-title"><i class="fas fa-project-diagram me-2"></i>Project Setup</span>
         <span class="wt-step-badge badge-staff">STAFF</span>
         <i class="fas fa-chevron-down wt-step-chevron"></i>
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <strong>/engagement/&lt;id&gt;/edit</strong> (or click <strong>"Edit"</strong> from the engagement dashboard).</p>
+        <p>Navigate to <strong>Projects</strong> in the sidebar. Find the project in the table and click <strong>"Open"</strong> to go to the Project Dashboard. From there, click <strong>"Edit"</strong> to update the project details.</p>
 
         <div class="wt-sub-heading">Fields to Complete</div>
         <table class="wt-detail-table">
@@ -479,15 +479,15 @@
           <tr><td>Name</td><td>Text input</td><td>e.g. "Q4 Remediation Programme" (pre-populated from opportunity)</td></tr>
           <tr><td>Client</td><td>Text input</td><td>Client name (pre-populated)</td></tr>
           <tr><td>Status</td><td>Dropdown</td><td>Active / On Hold / Completed / Cancelled</td></tr>
-          <tr><td>Start Date</td><td>Date (DD-MM-YYYY)</td><td>Engagement start</td></tr>
-          <tr><td>End Date</td><td>Date (DD-MM-YYYY)</td><td>Engagement end</td></tr>
+          <tr><td>Start Date</td><td>Date (DD-MM-YYYY)</td><td>Project start</td></tr>
+          <tr><td>End Date</td><td>Date (DD-MM-YYYY)</td><td>Project end</td></tr>
           <tr><td>SOW Signed</td><td>Date (DD-MM-YYYY)</td><td>Statement of Work signed date</td></tr>
           <tr><td>Description</td><td>Textarea</td><td>Brief scope, deliverables, milestones</td></tr>
           <tr><td>Reference Period (years)</td><td>Number (1-10)</td><td>How many years of employment/address history required for vetting. Default: 3 years.</td></tr>
         </table>
 
         <div class="wt-sub-heading">Vetting Requirements</div>
-        <p>This is critical &mdash; it determines what vetting checks every candidate on this engagement must complete.</p>
+        <p>This is critical &mdash; it determines what vetting checks every candidate on this project must complete.</p>
         <ul class="wt-field-list">
           <li><span class="field-name">Apply a Vetting Profile</span> &mdash; dropdown of pre-saved profiles (see Config C1). Selecting one auto-ticks the relevant checkboxes below.</li>
           <li><span class="field-name">Individual check checkboxes</span> (tick/untick individually):</li>
@@ -509,20 +509,20 @@
         <p>Utility buttons: <strong>"Select All"</strong> / <strong>"Clear All"</strong> for bulk toggle.</p>
 
         <div class="wt-sub-heading">Button</div>
-        <p>Click <strong>"Create Engagement"</strong> (new) or <strong>"Save Changes"</strong> (editing).</p>
+        <p>Click <strong>"Create Project"</strong> (new) or <strong>"Save Changes"</strong> (editing).</p>
 
-        <div class="wt-sub-heading">Engagement Dashboard</div>
-        <p>After saving, the engagement dashboard (<strong>/engagement/&lt;id&gt;/dashboard</strong>) shows:</p>
+        <div class="wt-sub-heading">Project Dashboard</div>
+        <p>After saving, the Project Dashboard shows:</p>
         <ul class="wt-field-list">
           <li><span class="field-name">Delivery Plan Summary tiles:</span> Total Delivery Target, On-Contract Associates, Scheduled Starters, Left to Fill, Vetting Complete</li>
           <li><span class="field-name">Delivery Plan Table:</span> Breakdown by role type showing planned headcount vs actual fill</li>
-          <li><span class="field-name">Jobs list:</span> All jobs under this engagement</li>
-          <li><span class="field-name">Applications:</span> All applications linked to jobs in this engagement</li>
+          <li><span class="field-name">Jobs list:</span> All jobs under this project</li>
+          <li><span class="field-name">Applications:</span> All applications linked to jobs in this project</li>
         </ul>
       </div>
     </div>
 
-    <div class="wt-connector"><span class="wt-connector-label">Engagement created, now create jobs</span></div>
+    <div class="wt-connector"><span class="wt-connector-label">Project created, now create jobs</span></div>
 
     <!-- ==================== STEP 3: CREATE A JOB ==================== -->
     <div class="wt-step border-staff" onclick="toggleStep(this)">
@@ -534,7 +534,7 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Where</div>
-        <p>Navigate to <strong>/engagement/&lt;id&gt;/job/create</strong> (from engagement dashboard, click <strong>"Add Job"</strong>) or <strong>/job/new</strong> (standalone).</p>
+        <p>From the Project Dashboard, click <strong>"Add Job"</strong>. Alternatively, navigate to <strong>Jobs</strong> in the sidebar and click <strong>"New Job"</strong> (standalone).</p>
 
         <div class="wt-sub-heading">Fields to Complete</div>
         <table class="wt-detail-table">
@@ -546,11 +546,11 @@
           <tr><td>Salary / Rate</td><td>Text input</td><td>e.g. "&pound;250/day", "&pound;45,000 p.a."</td></tr>
           <tr><td>Status</td><td>Dropdown</td><td>Open / Closed / On Hold / Withdrawn. Only "Open" jobs appear on the public job board.</td></tr>
           <tr><td>IR35 Status</td><td>Dropdown</td><td>Inside / Outside. Shown on the public job advert so candidates know up front.</td></tr>
-          <tr><td>Engagement</td><td>Dropdown</td><td>Which engagement this job belongs to (pre-selected if creating from engagement dashboard).</td></tr>
+          <tr><td>Project</td><td>Dropdown</td><td>Which project this job belongs to (pre-selected if creating from the Project Dashboard).</td></tr>
         </table>
 
-        <div class="wt-sub-heading">DBS Vetting Criteria (Collapsed Section &mdash; Click to Expand)</div>
-        <p>Internal only &mdash; used when raising the Verifile background check. Click the <strong>"DBS Vetting Criteria"</strong> heading to expand.</p>
+        <div class="wt-sub-heading">DBS Vetting Criteria (Optional &mdash; Collapsed Section &mdash; Click to Expand)</div>
+        <p>Optional. Internal only &mdash; used when raising the Verifile background check. Click the <strong>"DBS Vetting Criteria"</strong> heading to expand.</p>
         <table class="wt-detail-table">
           <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
           <tr><td>DBS Level</td><td>Dropdown</td><td>Basic / Standard / Enhanced</td></tr>
@@ -568,7 +568,7 @@
         </table>
 
         <div class="wt-sub-heading">Vetting Overrides</div>
-        <p>The job inherits the engagement's vetting checks. Additional per-job checks can be added here beyond the engagement defaults.</p>
+        <p>The job inherits the project's vetting checks. Additional per-job checks can be added here beyond the project defaults.</p>
 
         <div class="wt-sub-heading">Button</div>
         <p>Click <strong>"Save Job"</strong>.</p>
@@ -576,7 +576,7 @@
         <div class="wt-sub-heading">What Happens Next</div>
         <div class="wt-system-box">
           <i class="fas fa-cog me-1"></i>
-          <strong>System:</strong> A unique <strong>public_token</strong> (UUID) is auto-generated for the public job advert URL. Job appears on the engagement dashboard jobs list and, if status is "Open", on the public portal job board at <strong>/portal/vacancies</strong>.
+          <strong>System:</strong> A unique <strong>public_token</strong> (UUID) is auto-generated for the public job advert URL. Job appears on the Project Dashboard jobs list and, if status is "Open", on the public portal job board at <strong>/portal/vacancies</strong>.
         </div>
       </div>
     </div>
@@ -603,7 +603,7 @@
 
         <div class="wt-sub-heading">Where Staff See It</div>
         <ul class="wt-field-list">
-          <li><strong>/applications</strong> &mdash; full applications list with search, filters by engagement/status</li>
+          <li><strong>/applications</strong> &mdash; full applications list with search, filters by project/status</li>
           <li><strong>/workflow</strong> &mdash; kanban board showing all applications by stage</li>
           <li><strong>/candidate/&lt;id&gt;</strong> &mdash; candidate profile with AI Summary card, AI Match Score sidebar card, and all application detail</li>
         </ul>
@@ -714,15 +714,15 @@
         <div class="wt-sub-heading">Offer Capture Sheet Fields</div>
         <table class="wt-detail-table">
           <tr><th>Field</th><th>Type</th><th>Auto-populated?</th></tr>
-          <tr><td>Project Name</td><td>Text input</td><td>Yes &mdash; from engagement name. Editable.</td></tr>
+          <tr><td>Project Name</td><td>Text input</td><td>Yes &mdash; from project name. Editable.</td></tr>
           <tr><td>Job Title</td><td>Text input</td><td>Yes &mdash; from job title. Editable.</td></tr>
           <tr><td>Location</td><td>Text input</td><td>Yes &mdash; from job location. Editable.</td></tr>
           <tr><td>Day Rate (&pound;)</td><td>Text input</td><td>Yes &mdash; from job salary/rate. Editable.</td></tr>
           <tr><td>Engagement Type</td><td>Text input</td><td>Yes &mdash; e.g. "Contract", "Permanent". Editable.</td></tr>
-          <tr><td>Start Date</td><td>Date picker</td><td>Yes &mdash; from engagement start date. Editable.</td></tr>
+          <tr><td>Start Date</td><td>Date picker</td><td>Yes &mdash; from project start date. Editable.</td></tr>
           <tr><td>Expected Duration</td><td>Text input</td><td>No &mdash; staff enters, e.g. "6 months", "12 months".</td></tr>
         </table>
-        <p style="font-size: 0.8rem; color: #6b7280;">Fields with green background (<span style="background:#d1fae5; padding: 2px 6px; border-radius: 3px;">green</span>) are auto-populated from engagement/job data. Fields with amber background (<span style="background:#fef3c7; padding: 2px 6px; border-radius: 3px;">amber</span>) need staff input.</p>
+        <p style="font-size: 0.8rem; color: #6b7280;">Fields with green background (<span style="background:#d1fae5; padding: 2px 6px; border-radius: 3px;">green</span>) are auto-populated from project/job data. Fields with amber background (<span style="background:#fef3c7; padding: 2px 6px; border-radius: 3px;">amber</span>) need staff input.</p>
 
         <div class="wt-sub-heading">Template</div>
         <p>If an Offer Template has been uploaded in Configuration (Config C3), a green alert shows: <em>"Template found: [name]"</em> and the filled DOCX will download automatically on submit. If no template is uploaded, a warning shows but fields are still saved.</p>
@@ -870,7 +870,7 @@
         <div class="wt-sub-heading">Vetting Checks Dashboard</div>
         <p>The Vetting Checks section on the candidate profile shows:</p>
         <ul class="wt-field-list">
-          <li><span class="field-name">Required checks banner:</span> Blue info bar listing all checks required by the engagement + job</li>
+          <li><span class="field-name">Required checks banner:</span> Blue info bar listing all checks required by the project + job</li>
           <li><span class="field-name">Progress bar:</span> e.g. "4/12 complete" with percentage</li>
           <li><span class="field-name">Bulk assign:</span> Dropdown to assign all checks to a specific analyst</li>
           <li><span class="field-name">Add extra check:</span> Dropdown to add check types not already present</li>
@@ -936,10 +936,10 @@
         <table class="wt-detail-table">
           <tr><th>Field</th><th>Auto-populated?</th><th>Notes</th></tr>
           <tr><td>Name of Worker</td><td>Yes (green bg)</td><td>From candidate name. Editable.</td></tr>
-          <tr><td>Hirer Name (end client)</td><td>Yes (green bg)</td><td>From engagement client name. Editable.</td></tr>
+          <tr><td>Hirer Name (end client)</td><td>Yes (green bg)</td><td>From project client name. Editable.</td></tr>
           <tr><td>Role Title</td><td>Yes (green bg)</td><td>From job title. Editable.</td></tr>
           <tr><td>Nature of the Work *</td><td>No (amber bg)</td><td>Staff enters. e.g. "Completion of KYC reviews and other adhoc KYC tasks"</td></tr>
-          <tr><td>Assignment Start Date</td><td>Yes (green bg)</td><td>From engagement/offer start date. Editable.</td></tr>
+          <tr><td>Assignment Start Date</td><td>Yes (green bg)</td><td>From project/offer start date. Editable.</td></tr>
           <tr><td>Assignment End Date</td><td>No (amber bg)</td><td>Leave blank for open-ended.</td></tr>
           <tr><td>Fee (Agency to Umbrella, ex VAT)</td><td>Yes (green bg)</td><td>From offer day rate. Editable.</td></tr>
           <tr><td>Assignment Hours of Work *</td><td>Prefilled default</td><td>"7.5 hours per day, 37.5 hours per week. UK business hours (9am-5pm)". Edit if different.</td></tr>
@@ -1083,7 +1083,7 @@
         <div class="wt-sub-heading">Where Approved Leave Shows</div>
         <ul class="wt-field-list">
           <li><span class="field-name">Placements page</span> (<strong>/placements</strong>) &mdash; "Scheduled Leavers" section shows all approved leave requests with countdown to departure</li>
-          <li><span class="field-name">Engagement dashboard</span> &mdash; flags associates approaching end dates</li>
+          <li><span class="field-name">Project Dashboard</span> &mdash; flags associates approaching end dates</li>
         </ul>
       </div>
     </div>
@@ -1106,7 +1106,7 @@
         <table class="wt-detail-table">
           <tr><th>Status</th><th>Icon</th><th>Meaning</th></tr>
           <tr><td>Available</td><td><i class="fas fa-check-circle text-success"></i></td><td>Ready for new assignments</td></tr>
-          <tr><td>On Assignment</td><td><i class="fas fa-briefcase text-primary"></i></td><td>Currently working on an engagement</td></tr>
+          <tr><td>On Assignment</td><td><i class="fas fa-briefcase text-primary"></i></td><td>Currently working on a project</td></tr>
           <tr><td>On Contract</td><td><i class="fas fa-file-signature text-info"></i></td><td>Active contract in place</td></tr>
           <tr><td>On Notice</td><td><i class="fas fa-clock text-warning"></i></td><td>Contract ending soon</td></tr>
           <tr><td>Ex-Associate</td><td><i class="fas fa-user-clock text-secondary"></i></td><td>Previously worked, no current contract</td></tr>
@@ -1277,7 +1277,7 @@
 
         <div class="wt-sub-heading">Requirements</div>
         <ul class="wt-field-list">
-          <li>Must cover the full <strong>3 years</strong> prior to today's date (configurable per engagement via Reference Period)</li>
+          <li>Must cover the full <strong>3 years</strong> prior to today's date (configurable per project via Reference Period)</li>
           <li>All employment periods must be listed: full-time, part-time, contract, temporary, agency</li>
           <li>No unexplained gaps &gt; <strong>90 days</strong>. If a gap exists, it must be declared with a reason and supporting evidence emailed to compliance@optimussolutions.co.uk</li>
           <li>HMRC employment record recommended: <a href="https://www.gov.uk/check-income-tax-current-year" target="_blank" rel="noopener" style="font-size:0.8rem;">www.gov.uk/check-income-tax-current-year</a></li>

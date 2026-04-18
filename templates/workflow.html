@@ -1017,17 +1017,26 @@
             <i class="fas fa-check"></i>
           </button>
           {% elif stage.id == 'shortlist' %}
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#interview-section"
+             class="btn btn-primary btn-sm" title="Schedule Interview">
+            <i class="fas fa-calendar-plus"></i>
+          </a>
           <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'I&A')" title="Pass Tele-screen">
             <i class="fas fa-phone-alt"></i>
           </button>
           {% elif stage.id == 'ia' %}
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#interview-section"
+             class="btn btn-primary btn-sm" title="Schedule Interview">
+            <i class="fas fa-calendar-plus"></i>
+          </a>
           <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Client Review')" title="Pass I&A">
             <i class="fas fa-clipboard-check"></i>
           </button>
           {% elif stage.id == 'client_review' %}
-          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Offered')" title="Make Offer">
+          <a href="{{ url_for('offer_capture', cand_id=card.candidate_id) }}"
+             class="btn btn-success btn-sm" title="Make Offer">
             <i class="fas fa-hand-holding-usd"></i>
-          </button>
+          </a>
           {% elif stage.id == 'offered' %}
           <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Accepted')" title="Accept Offer">
             <i class="fas fa-thumbs-up"></i>
@@ -1040,20 +1049,23 @@
             <i class="fas fa-shield-alt"></i>
           </button>
           {% elif stage.id == 'ready_to_contract' %}
-          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'Contract Sent')" title="Send Contract">
+          <a href="{{ url_for('paystream_capture', cand_id=card.candidate_id) }}"
+             class="btn btn-success btn-sm" title="Issue Contract">
             <i class="fas fa-file-signature"></i>
-          </button>
+          </a>
           {% elif stage.id == 'contract_sent' %}
           {# No "Placed" advance button — signed contracts move to Placements section #}
           {% endif %}
 
-          {# Vetting triggers — available at all stages #}
-          <button class="btn btn-info btn-sm" onclick="triggerReferencing({{ card.candidate_id }})" title="Start Referencing">
+          {# Vetting triggers — link to candidate profile so staff sees the email preview #}
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_referencing#vetting-checks"
+             class="btn btn-info btn-sm" title="Start Referencing">
             <i class="fas fa-envelope"></i>
-          </button>
-          <button class="btn btn-warning btn-sm" onclick="triggerFullVetting({{ card.candidate_id }})" title="Start Full Vetting">
+          </a>
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_vetting#vetting-checks"
+             class="btn btn-warning btn-sm" title="Start Full Vetting">
             <i class="fas fa-shield-alt"></i>
-          </button>
+          </a>
 
           {# REQ-274: General Skip/Unskip stage dropdown #}
           <div class="dropdown d-inline-block">
@@ -1522,49 +1534,6 @@ function toggleReworkFilter() {
 }
 
 // Start Referencing — References + Employment History checks
-function triggerReferencing(candidateId) {
-  if (!confirm('Start referencing for this associate? References and Employment History checks will be set to In Progress. Reference requests will be sent (respecting contact preferences).')) return;
-  fetch('/api/vetting/trigger-referencing/' + candidateId, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-    }
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      showToast(data.msg || 'Referencing started', 'success');
-      setTimeout(function() { location.reload(); }, 500);
-    } else {
-      alert(data.error || 'Failed to start referencing');
-    }
-  })
-  .catch(function() { alert('Network error'); });
-}
-
-// Start Full Vetting (paid) — all checks + Verifile API
-function triggerFullVetting(candidateId) {
-  if (!confirm('Start FULL vetting for this associate? This will trigger all checks including paid Verifile API checks. Continue?')) return;
-  fetch('/api/vetting/trigger/' + candidateId, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-    }
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      showToast(data.msg || 'Full vetting started', 'success');
-      setTimeout(function() { location.reload(); }, 500);
-    } else {
-      alert(data.error || 'Failed to start vetting');
-    }
-  })
-  .catch(function() { alert('Network error'); });
-}
-
 // Advance card to next stage via button click
 function advanceStage(cardId, newStatus) {
   const confirmMessages = {

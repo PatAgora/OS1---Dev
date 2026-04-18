@@ -958,7 +958,7 @@
       </div>
 
       <!-- Interview Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-3">
+      <div class="modern-card mt-4 fade-in-up stagger-3" id="interview-section">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -2448,6 +2448,26 @@ document.addEventListener('DOMContentLoaded', function() {
   const engSelect = document.getElementById('contractEngSelect');
   if (engSelect) {
     populateJobDropdown(engSelect.value);
+  }
+
+  // Auto-trigger actions from kanban links (?action=...)
+  var params = new URLSearchParams(window.location.search);
+  var autoAction = params.get('action');
+  if (autoAction === 'start_vetting') {
+    setTimeout(function() { openVettingEmailModal(); }, 400);
+  } else if (autoAction === 'start_referencing') {
+    setTimeout(function() { triggerReferencing({{ cand.id }}); }, 400);
+  } else if (autoAction === 'schedule_interview') {
+    setTimeout(function() {
+      var section = document.getElementById('interview-section');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        section.style.boxShadow = '0 0 0 3px #3b82f6';
+        setTimeout(function() { section.style.boxShadow = ''; }, 3000);
+        var dateInput = section.querySelector('input[name="interview_date"]');
+        if (dateInput) dateInput.focus();
+      }
+    }, 400);
   }
 });
 </script>
