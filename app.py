@@ -7673,9 +7673,17 @@ CANDIDATE CV:
             ),
         )
         raw = (resp.text or "").strip()
+        print(f"[AI-SCORE] Gemini raw response: {raw[:500]}", flush=True)
         import json as _json
         cleaned = re.sub(r"^```json\s*|```\s*$", "", raw, flags=re.MULTILINE).strip()
-        data = _json.loads(cleaned)
+        try:
+            data = _json.loads(cleaned)
+        except _json.JSONDecodeError:
+            # Try to extract score with regex if JSON is malformed
+            score_match = re.search(r'"score"\s*:\s*(\d+)', cleaned)
+            if score_match:
+                return max(0, min(100, int(score_match.group(1)))), []
+            return 0, []
         g = int(data.get("score", 0))
         bullets = [str(b) for b in (data.get("bullets") or [])][:3]
         return max(0, min(100, g)), bullets
