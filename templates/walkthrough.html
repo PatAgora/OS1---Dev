@@ -1,0 +1,900 @@
+{% extends "base.html" %}
+{% block title %}Platform Walkthrough — OS1{% endblock %}
+
+{% block content %}
+<style>
+  /* ===== WALKTHROUGH PAGE STYLES ===== */
+  .wt-page { max-width: 1600px; margin: 0 auto; padding: 0 1rem 3rem; }
+
+  /* Header */
+  .wt-hero {
+    background: linear-gradient(135deg, #030a1d 0%, #1e3a8a 60%, #2563eb 100%);
+    color: #fff;
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 24px rgba(30, 58, 138, 0.35);
+    position: relative;
+    overflow: hidden;
+  }
+  .wt-hero::after {
+    content: '';
+    position: absolute;
+    top: -50%; right: -20%;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .wt-hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; }
+  .wt-hero p { opacity: 0.9; font-size: 1.05rem; margin-bottom: 0; max-width: 700px; }
+
+  /* Legend */
+  .wt-legend {
+    display: flex; flex-wrap: wrap; gap: 1rem;
+    background: #fff; padding: 1.25rem 1.5rem; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 2rem;
+    align-items: center;
+  }
+  .wt-legend-title { font-weight: 700; font-size: 0.85rem; color: #374151; margin-right: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .wt-legend-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.85rem; font-weight: 600; color: #374151;
+  }
+  .wt-legend-swatch {
+    width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
+  }
+  .swatch-staff   { background: #2563eb; }
+  .swatch-assoc   { background: #16a34a; }
+  .swatch-system  { background: #ea580c; }
+  .swatch-integ   { background: #7c3aed; }
+  .swatch-connect { background: #0891b2; }
+
+  /* Section headers */
+  .wt-section-header {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin: 2.5rem 0 1.25rem; padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  .wt-section-header .icon-circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; color: #fff; flex-shrink: 0;
+  }
+  .wt-section-header h2 { font-size: 1.35rem; font-weight: 700; margin: 0; color: #111827; }
+  .wt-section-header p  { font-size: 0.9rem; color: #6b7280; margin: 0; }
+
+  /* Flow container — horizontal scroll */
+  .wt-flow {
+    display: flex; gap: 0; align-items: flex-start;
+    overflow-x: auto; padding: 1rem 0 1.5rem;
+    scroll-snap-type: x proximity;
+  }
+
+  /* Vertical flow (associate journey) */
+  .wt-flow-vertical {
+    display: flex; flex-direction: column; gap: 0;
+    align-items: center; padding: 1rem 0 1.5rem;
+  }
+
+  /* Arrow connectors — horizontal */
+  .wt-arrow {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 48px; flex-shrink: 0; position: relative;
+  }
+  .wt-arrow::before {
+    content: '';
+    width: 32px; height: 2px;
+    background: #9ca3af;
+  }
+  .wt-arrow::after {
+    content: '';
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid #9ca3af;
+  }
+
+  /* Arrow connectors — vertical */
+  .wt-arrow-down {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 40px; flex-shrink: 0;
+  }
+  .wt-arrow-down::before {
+    content: '';
+    width: 2px; height: 24px;
+    background: #9ca3af;
+  }
+  .wt-arrow-down::after {
+    content: '';
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #9ca3af;
+  }
+
+  /* Flow cards */
+  .wt-card {
+    min-width: 200px; max-width: 260px;
+    border-radius: 12px; padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    cursor: pointer; transition: all 0.2s ease;
+    scroll-snap-align: start; flex-shrink: 0;
+    overflow: hidden; background: #fff;
+    border: 2px solid transparent;
+  }
+  .wt-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+  .wt-card.expanded { max-width: 340px; }
+
+  .wt-card-header {
+    padding: 0.85rem 1rem;
+    font-weight: 700; font-size: 0.85rem;
+    color: #fff;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .wt-card-header i { font-size: 1rem; }
+  .wt-card-header .step-num {
+    background: rgba(255,255,255,0.25);
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+  }
+
+  .wt-card-body {
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem; color: #374151; line-height: 1.5;
+  }
+
+  .wt-card-detail {
+    display: none; padding: 0.5rem 1rem 0.85rem;
+    font-size: 0.78rem; color: #6b7280; line-height: 1.5;
+    border-top: 1px dashed #e5e7eb;
+  }
+  .wt-card.expanded .wt-card-detail { display: block; }
+
+  /* Colour variants */
+  .wt-staff   .wt-card-header { background: linear-gradient(135deg, #1d4ed8, #2563eb); }
+  .wt-staff   { border-color: #bfdbfe; }
+  .wt-assoc   .wt-card-header { background: linear-gradient(135deg, #15803d, #16a34a); }
+  .wt-assoc   { border-color: #bbf7d0; }
+  .wt-system  .wt-card-header { background: linear-gradient(135deg, #c2410c, #ea580c); }
+  .wt-system  { border-color: #fed7aa; }
+  .wt-integ   .wt-card-header { background: linear-gradient(135deg, #6d28d9, #7c3aed); }
+  .wt-integ   { border-color: #ddd6fe; }
+  .wt-connect .wt-card-header { background: linear-gradient(135deg, #0e7490, #0891b2); }
+  .wt-connect { border-color: #a5f3fc; }
+
+  /* Sub-steps inside a card */
+  .wt-substeps { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+  .wt-substeps li {
+    position: relative; padding-left: 1rem; margin-bottom: 0.3rem;
+    font-size: 0.78rem; color: #4b5563;
+  }
+  .wt-substeps li::before {
+    content: '\f054'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+    position: absolute; left: 0; top: 1px; font-size: 0.55rem; color: #9ca3af;
+  }
+
+  /* Stage pipeline mini-visualisation */
+  .wt-pipeline {
+    display: flex; gap: 2px; margin: 0.5rem 0;
+  }
+  .wt-pipeline-stage {
+    padding: 0.25rem 0.5rem; font-size: 0.65rem; font-weight: 700;
+    color: #fff; border-radius: 4px; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+
+  /* Connection section cards */
+  .wt-connection-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem; margin-top: 1rem;
+  }
+  .wt-conn-card {
+    background: #fff; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #0891b2;
+    transition: all 0.2s ease;
+  }
+  .wt-conn-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-1px); }
+  .wt-conn-card h4 { font-size: 0.95rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+  .wt-conn-card p  { font-size: 0.82rem; color: #6b7280; margin-bottom: 0; line-height: 1.6; }
+  .wt-conn-card .badge-staff  { background: #dbeafe; color: #1d4ed8; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; }
+  .wt-conn-card .badge-assoc  { background: #dcfce7; color: #15803d; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; }
+  .wt-conn-card .badge-system { background: #ffedd5; color: #c2410c; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; }
+
+  /* Print styles */
+  @media print {
+    .app-sidebar, .app-topbar, .wt-legend .btn { display: none !important; }
+    .app-shell > main { margin-left: 0 !important; }
+    .wt-flow { overflow-x: visible; flex-wrap: wrap; }
+    .wt-card { break-inside: avoid; }
+    .wt-card-detail { display: block !important; }
+    .wt-hero { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .wt-flow { flex-direction: column; align-items: center; }
+    .wt-arrow { transform: rotate(90deg); min-width: 40px; min-height: 40px; }
+    .wt-card { max-width: 100%; min-width: unset; width: 100%; }
+    .wt-connection-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Table of contents */
+  .wt-toc {
+    background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 2rem;
+  }
+  .wt-toc h3 { font-size: 0.9rem; font-weight: 700; color: #374151; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .wt-toc a {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    color: #2563eb; text-decoration: none; font-size: 0.88rem; font-weight: 600;
+    padding: 0.35rem 0.75rem; border-radius: 6px; margin-right: 0.5rem; margin-bottom: 0.35rem;
+    transition: all 0.2s ease;
+  }
+  .wt-toc a:hover { background: #eff6ff; }
+
+  /* Expand all button */
+  .wt-controls { display: flex; gap: 0.75rem; align-items: center; }
+  .wt-controls .btn { font-size: 0.82rem; font-weight: 600; border-radius: 8px; }
+</style>
+
+<div class="wt-page">
+
+  <!-- HERO HEADER -->
+  <div class="wt-hero">
+    <h1><i class="fas fa-route me-2"></i>OS1 Platform Walkthrough</h1>
+    <p>Complete end-to-end guide covering every workflow in the ATS Onboarding Platform &mdash; from opportunity creation through to placement and ongoing management.</p>
+  </div>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="wt-toc d-flex flex-wrap align-items-center justify-content-between">
+    <div>
+      <h3 class="mb-2">Contents</h3>
+      <div class="d-flex flex-wrap">
+        <a href="#section-staff"><i class="fas fa-user-tie"></i> Staff Journey</a>
+        <a href="#section-associate"><i class="fas fa-user"></i> Associate Journey</a>
+        <a href="#section-connections"><i class="fas fa-exchange-alt"></i> How They Connect</a>
+      </div>
+    </div>
+    <div class="wt-controls">
+      <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllCards(true)"><i class="fas fa-expand-arrows-alt me-1"></i>Expand All</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllCards(false)"><i class="fas fa-compress-arrows-alt me-1"></i>Collapse All</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="wt-legend">
+    <span class="wt-legend-title">Legend:</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-staff"></span> Staff Action</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-assoc"></span> Associate Action</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-system"></span> System Auto-Action</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-integ"></span> Integration (Verifile / Signable)</span>
+    <span class="wt-legend-item"><span class="wt-legend-swatch swatch-connect"></span> Touchpoint (Staff + Associate)</span>
+    <span class="wt-legend-item" style="margin-left: auto; color: #9ca3af; font-weight: 500;"><i class="fas fa-hand-pointer me-1"></i>Click any card to expand</span>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: STAFF JOURNEY                                      -->
+  <!-- ============================================================ -->
+  <div id="section-staff">
+    <div class="wt-section-header">
+      <div class="icon-circle" style="background: linear-gradient(135deg, #1d4ed8, #2563eb);">
+        <i class="fas fa-user-tie"></i>
+      </div>
+      <div>
+        <h2>Section 1: Staff Journey</h2>
+        <p>End-to-end recruitment workflow from opportunity through to placement and ongoing management</p>
+      </div>
+    </div>
+
+    <!-- ROW 1: Opportunity Pipeline -->
+    <h5 class="mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+      <i class="fas fa-funnel-dollar me-1"></i> Phase 1 &mdash; Opportunity &amp; Engagement
+    </h5>
+    <div class="wt-flow">
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">1</span><i class="fas fa-plus-circle"></i> Create Opportunity</div>
+        <div class="wt-card-body">
+          Open the Opportunities page and create a new pipeline opportunity with client details, estimated value, and owner.
+          <div class="wt-pipeline mt-2">
+            <span class="wt-pipeline-stage" style="background:#6b7280;">Lead</span>
+            <span class="wt-pipeline-stage" style="background:#3b82f6;">Qualified</span>
+            <span class="wt-pipeline-stage" style="background:#f59e0b;">Proposal</span>
+            <span class="wt-pipeline-stage" style="background:#8b5cf6;">Procurement</span>
+            <span class="wt-pipeline-stage" style="background:#16a34a;">Won</span>
+          </div>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/opportunities</code><br>
+          <strong>Fields:</strong> Name, client, stage, owner, est. start, est. value, client contact details (name, role, phone, email).<br>
+          <strong>Probability auto-set:</strong> Lead 0% &rarr; Qualified 10% &rarr; Proposal 30% &rarr; Procurement 50% &rarr; Won 100%.<br>
+          <strong>Notes:</strong> Timestamped opportunity notes are tracked as an immutable audit trail.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">2</span><i class="fas fa-arrows-alt-h"></i> Progress Stages</div>
+        <div class="wt-card-body">
+          Move the opportunity through pipeline stages. Each stage change is logged with timestamp and user.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/opportunity/&lt;id&gt;/edit</code><br>
+          <strong>Stages:</strong> Lead &rarr; Qualified Lead &rarr; Proposal &rarr; Procurement &rarr; Closed Won / Closed Lost.<br>
+          <strong>Audit:</strong> Every stage change creates an OpportunityNote record with the old and new stage.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-system" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">3</span><i class="fas fa-magic"></i> Auto-Create Engagement</div>
+        <div class="wt-card-body">
+          When an opportunity reaches <strong>Closed Won</strong>, the system automatically creates an Engagement with a sequential OS### reference.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Trigger:</strong> <code>create_engagement_for_opportunity()</code> fires on stage change to "Closed Won".<br>
+          <strong>Auto-populated:</strong> Engagement ref (OS001, OS002...), name from opportunity, client, dates.<br>
+          <strong>Link:</strong> <code>opportunity_id</code> on the Engagement creates a 1:1 relationship back to the opportunity.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">4</span><i class="fas fa-shield-alt"></i> Set Vetting Profile</div>
+        <div class="wt-card-body">
+          Configure the engagement&rsquo;s vetting requirements: which checks are needed, reference period, and gap threshold.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/engagement/&lt;id&gt;/edit</code><br>
+          <strong>Vetting checks:</strong> Right to Work, Identity Verification, Address History, DBS, Employment History, References, Qualifications, Professional Registration, Credit Check, Directorship, Sanctions/PEP, Social Media Review.<br>
+          <strong>Profiles:</strong> Pre-saved vetting profiles can be loaded to auto-tick the right checks.<br>
+          <strong>Config:</strong> Reference period (1&ndash;10 years, default 3), gap threshold days (default 90), IR35 status, required documents.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">5</span><i class="fas fa-briefcase"></i> Create Job</div>
+        <div class="wt-card-body">
+          Create a job under the engagement. Set role type, location, rate, IR35 status, and DBS/vetting specifics.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/engagement/&lt;eng_id&gt;/job/create</code><br>
+          <strong>Key fields:</strong> Title, description, role type, location, salary range, sector, IR35 (Inside/Outside), DBS level (Basic/Standard/Enhanced).<br>
+          <strong>DBS extras:</strong> Employment sector, check purpose, position, employer name, job role, working with children/vulnerable adults, volunteer status, working from home.<br>
+          <strong>Vetting overrides:</strong> Per-job JSON array of additional check types beyond the engagement defaults.<br>
+          <strong>Public token:</strong> Auto-generated UUID for the public job advert URL.
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: Applications & Pipeline -->
+    <h5 class="mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+      <i class="fas fa-layer-group me-1"></i> Phase 2 &mdash; Applications &amp; Pipeline
+    </h5>
+    <div class="wt-flow">
+      <div class="wt-card wt-system" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">6</span><i class="fas fa-globe"></i> Job Goes Live</div>
+        <div class="wt-card-body">
+          Job status set to &ldquo;Open&rdquo; &mdash; appears on the public portal job board. Associates can browse and apply.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Public URL:</strong> <code>/public/jobs/&lt;token&gt;</code><br>
+          <strong>Portal:</strong> Job board at <code>/public/jobs</code> lists all open jobs with search and filters.<br>
+          <strong>IR35 displayed:</strong> Inside/Outside IR35 shown on the public advert so candidates know up front.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">7</span><i class="fas fa-paper-plane"></i> Associate Applies</div>
+        <div class="wt-card-body">
+          Associate submits an application via the public portal with CV and cover note. Creates Application + Candidate records.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/public/apply/&lt;token&gt;</code><br>
+          <strong>Creates:</strong> Candidate record (if new email), Application record linked to job, uploaded CV stored as Document.<br>
+          <strong>Status:</strong> Application starts at <strong>New</strong> &rarr; auto-moved to <strong>Pipeline</strong>.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-system" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">8</span><i class="fas fa-robot"></i> AI Score &amp; Summary</div>
+        <div class="wt-card-body">
+          Gemini AI auto-generates a match score (0&ndash;100), summary, and explanation comparing the CV to the job description.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/action/score/&lt;id&gt;</code> and <code>/action/summarise/&lt;id&gt;</code><br>
+          <strong>AI fields:</strong> <code>ai_score</code> (integer), <code>ai_summary</code> (text), <code>ai_explanation</code> (detailed reasoning).<br>
+          <strong>Auto-shortlist:</strong> If score exceeds threshold, candidate is auto-added to the shortlist for that job.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">9</span><i class="fas fa-filter"></i> Review &amp; Pipeline</div>
+        <div class="wt-card-body">
+          Staff review applications in the pipeline view. Move candidates through stages:
+          <div class="wt-pipeline mt-2">
+            <span class="wt-pipeline-stage" style="background:#6b7280;">Pipeline</span>
+            <span class="wt-pipeline-stage" style="background:#3b82f6;">Shortlist</span>
+            <span class="wt-pipeline-stage" style="background:#8b5cf6;">I&amp;A</span>
+            <span class="wt-pipeline-stage" style="background:#f59e0b;">Client</span>
+            <span class="wt-pipeline-stage" style="background:#16a34a;">Offered</span>
+            <span class="wt-pipeline-stage" style="background:#059669;">Accepted</span>
+          </div>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Views:</strong> <code>/applications</code> (list), <code>/workflow</code> (kanban), <code>/application/&lt;id&gt;</code> (detail).<br>
+          <strong>Stage transitions:</strong> Controlled by ALLOWED_TRANSITIONS. Skip/unskip available for exceptional moves.<br>
+          <strong>I&amp;A stage:</strong> Schedule interview (date/time), send interview email, record interview notes and completion.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">10</span><i class="fas fa-calendar-check"></i> Interview &amp; Assessment</div>
+        <div class="wt-card-body">
+          At the I&amp;A stage: schedule interview, send interview invitation email, record notes and outcome.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Actions:</strong> Schedule interview date, send email to candidate, mark interview completed, add interview notes.<br>
+          <strong>Email:</strong> Interview invitation sent via SMTP with calendar details (TIMEZONE default: Europe/London).<br>
+          <strong>Next:</strong> Move to Client Review for hiring manager feedback.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">11</span><i class="fas fa-hand-holding-usd"></i> Make Offer</div>
+        <div class="wt-card-body">
+          Send offer with capture sheet: start date, role title, day rate, location, engagement type, and expected duration.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> Offer modal on <code>/application/&lt;id&gt;</code><br>
+          <strong>Offer fields:</strong> Start date, role title, day rate (or salary), rate type, location, engagement type, expected duration, notes.<br>
+          <strong>Email:</strong> Offer notification sent to associate&rsquo;s email with portal link to respond.<br>
+          <strong>Tracking:</strong> <code>offer_made_at</code>, <code>offer_made_by_id</code>, <code>offer_response</code>, <code>offer_responded_at</code>.
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 3: Vetting & Contracts -->
+    <h5 class="mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+      <i class="fas fa-clipboard-check me-1"></i> Phase 3 &mdash; Vetting &amp; Contracts
+    </h5>
+    <div class="wt-flow">
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">12</span><i class="fas fa-user-check"></i> Start Referencing</div>
+        <div class="wt-card-body">
+          Trigger referencing: creates reference requests for each employment history entry. Sends emails to referees.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/action/start-referencing/&lt;cand_id&gt;</code><br>
+          <strong>Process:</strong> For each employment history entry, creates a ReferenceRequest with company name, referee email, and referee name.<br>
+          <strong>Auto-lookup:</strong> If no referee email on the entry, checks the Reference Contact Details list for a known contact at that company.<br>
+          <strong>Flagged houses:</strong> Cross-references against the Reference Houses Intel list &mdash; flagged companies get an orange warning and require additional verification.<br>
+          <strong>Hold option:</strong> References can be created &ldquo;on hold&rdquo; (permission_status = no) if the candidate has asked to delay contact.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">13</span><i class="fas fa-search"></i> Start Full Vetting</div>
+        <div class="wt-card-body">
+          Trigger all vetting checks. Sends commencement email to the associate with attachments. Triggers Verifile integration.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/candidate/&lt;cand_id&gt;/start-vetting-with-email</code><br>
+          <strong>Email:</strong> Vetting commencement email sent to associate &mdash; subject and body loaded from EmailTemplate (customisable). Supports file attachments.<br>
+          <strong>Checks triggered:</strong> Up to 12 check types based on engagement vetting profile: Right to Work, ID Verification, Address History, DBS, Employment History, References, Qualifications, Professional Registration, Credit Check, Directorship, Sanctions/PEP, Social Media Review.<br>
+          <strong>Verifile:</strong> DBS and employment screening orders created via Verifile API if configured.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-integ" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">14</span><i class="fas fa-external-link-alt"></i> Verifile Screening</div>
+        <div class="wt-card-body">
+          External screening via Verifile: DBS checks, employment verification, qualification checks. Results update automatically via webhooks.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Integration:</strong> Verifile REST API for DBS (Basic/Standard/Enhanced), employment screening, qualification verification.<br>
+          <strong>DBS data:</strong> Per-job configuration of employment sector, check purpose, position, employer name, job role, children/vulnerable adults flags.<br>
+          <strong>Webhooks:</strong> <code>/webhook/verifile</code> receives status updates and auto-updates VettingCheck records.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">15</span><i class="fas fa-file-contract"></i> Issue Contract</div>
+        <div class="wt-card-body">
+          Capture assignment schedule details, download the filled Paystream template, and issue the contract for signature.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Capture sheet:</strong> Worker name, hirer, role title, start/end dates, fee, nature of work, hours, location, expenses, health &amp; safety, vulnerable persons, notice periods, invoice frequency.<br>
+          <strong>Template:</strong> Auto-populates the Paystream Assignment Schedule template from candidate/job/engagement data. Staff can override any field.<br>
+          <strong>Route:</strong> <code>/action/contract/capture/&lt;app_id&gt;</code> &rarr; review &rarr; download filled template.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-integ" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">16</span><i class="fas fa-signature"></i> E-Signature</div>
+        <div class="wt-card-body">
+          Send contract for electronic signature via Signable (Dropbox Sign) or DocuSign. Track sent/signed/completed status.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Providers:</strong> Configurable via <code>ESIGN_PROVIDER</code> env var &mdash; <code>dropbox_sign</code> or <code>docusign</code>.<br>
+          <strong>ESigRequest model:</strong> Tracks application_id, provider, request_id, status (sent &rarr; signed &rarr; completed / declined), signer email, sent/signed timestamps.<br>
+          <strong>Webhook:</strong> <code>/webhook/esign</code> receives signature events and auto-updates status.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">17</span><i class="fas fa-check-double"></i> Placed</div>
+        <div class="wt-card-body">
+          Contract signed. Application marked as &ldquo;Placed&rdquo;. Candidate appears in the Placements view.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/placements</code><br>
+          <strong>Status:</strong> Application status = &ldquo;Placed&rdquo;. Visible in placements list, engagement dashboard, and reporting.<br>
+          <strong>Financials:</strong> Placement data feeds into engagement financials and revenue reporting.
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 4: Ongoing Management -->
+    <h5 class="mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+      <i class="fas fa-cogs me-1"></i> Phase 4 &mdash; Ongoing Management
+    </h5>
+    <div class="wt-flow">
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">18</span><i class="fas fa-clock"></i> Approve Timesheets</div>
+        <div class="wt-card-body">
+          Review and approve submitted timesheets. Manage timesheet periods, hours, and notes per engagement.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/admin/approvals</code><br>
+          <strong>Model:</strong> Timesheet &mdash; user_id, engagement_id, period start/end, hours, status (Submitted/Approved/Rejected), notes.<br>
+          <strong>Config:</strong> Timesheet configuration managed at <code>/admin/timesheet-config</code>.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">19</span><i class="fas fa-calendar-minus"></i> Leave Requests</div>
+        <div class="wt-card-body">
+          View scheduled leavers, manage leave requests, and track contractor availability across engagements.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Visibility:</strong> Dashboard shows upcoming end dates, scheduled leavers, and leave periods.<br>
+          <strong>Alerts:</strong> Engagement dashboard highlights contractors approaching end dates.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">20</span><i class="fas fa-file-invoice-dollar"></i> Invoicing</div>
+        <div class="wt-card-body">
+          Generate and manage invoices per engagement. Track amounts, due dates, and payment status.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/admin/invoices</code><br>
+          <strong>Model:</strong> Invoice &mdash; engagement_id, amount, status, due_date, line items (JSON), PDF generation.<br>
+          <strong>Actions:</strong> Create, edit, view, download PDF, configure invoice settings.
+        </div>
+      </div>
+
+      <div class="wt-arrow"></div>
+
+      <div class="wt-card wt-staff" onclick="toggleCard(this)">
+        <div class="wt-card-header"><span class="step-num">21</span><i class="fas fa-chart-pie"></i> Reporting</div>
+        <div class="wt-card-body">
+          MI reporting: fill rates, time-to-hire, conversion rates, revenue tracking. Filter by client and engagement.
+        </div>
+        <div class="wt-card-detail">
+          <strong>Route:</strong> <code>/reporting</code><br>
+          <strong>Metrics:</strong> Fill rates, time-to-hire averages, pipeline conversion rates, revenue per engagement, placement counts.<br>
+          <strong>Filters:</strong> Client, engagement, date range. Export to CSV available on resource pool.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: ASSOCIATE JOURNEY                                  -->
+  <!-- ============================================================ -->
+  <div id="section-associate">
+    <div class="wt-section-header">
+      <div class="icon-circle" style="background: linear-gradient(135deg, #15803d, #16a34a);">
+        <i class="fas fa-user"></i>
+      </div>
+      <div>
+        <h2>Section 2: Associate Journey</h2>
+        <p>Candidate self-service from registration through onboarding, vetting, and ongoing contract management</p>
+      </div>
+    </div>
+
+    <div class="wt-flow-vertical">
+
+      <!-- Step A: Register -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">A</span><i class="fas fa-user-plus"></i> Register &amp; Set Up Account</div>
+        <div class="wt-card-body">
+          Register on the public portal with name and email. Set a secure password. Set up two-factor authentication (TOTP).
+          <ul class="wt-substeps">
+            <li>Register at <code>/public/auth/signup</code></li>
+            <li>Set password (strength requirements enforced)</li>
+            <li>Configure 2FA via authenticator app (TOTP)</li>
+            <li>Receive and store backup codes for account recovery</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Auth:</strong> Flask-Login with separate WorkerUser model for portal users. Session-based auth with CSRF protection.<br>
+          <strong>2FA:</strong> pyotp TOTP with QR code setup. Backup codes generated (10 hex codes). Valid window of 1 period.<br>
+          <strong>Security:</strong> Password history tracked (prevents reuse), account lockout after failed attempts, rate limiting on auth endpoints.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step B: Profile -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">B</span><i class="fas fa-id-card"></i> Complete Profile</div>
+        <div class="wt-card-body">
+          Fill in personal details, employment history (with company autocomplete and referee email lookup), qualifications, and upload documents.
+          <ul class="wt-substeps">
+            <li>Personal details: name, email, phone, address, date of birth</li>
+            <li>Employment history with company name autocomplete</li>
+            <li>Referee email lookup from Reference Contacts database</li>
+            <li>Qualifications and professional registrations</li>
+            <li>Document uploads: CV, proof of ID, proof of address, certificates</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Company autocomplete:</strong> Searches existing Reference Contacts for company names, auto-populates referee email if a known contact exists.<br>
+          <strong>Documents:</strong> Uploaded to <code>/uploads/cvs/</code>. Tracked in Document model with doc_type, filename, file_path.<br>
+          <strong>Gap detection:</strong> Employment history checked for gaps exceeding the engagement threshold (default 90 days). Flagged for staff review.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step C: Company Details -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">C</span><i class="fas fa-building"></i> Company &amp; Conduct Details</div>
+        <div class="wt-card-body">
+          Choose engagement type: umbrella company or Ltd company. Complete conduct regulations declaration.
+          <ul class="wt-substeps">
+            <li>Select umbrella company from approved list, or declare Ltd Co</li>
+            <li>Provide company registration details if Ltd</li>
+            <li>Complete FCA conduct regulations declaration</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Umbrella companies:</strong> Managed list at <code>/admin/umbrella-companies</code>. Associates select from the approved list.<br>
+          <strong>Conduct regulations:</strong> Financial services specific &mdash; declaration required before placement in regulated roles.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step D: Apply -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">D</span><i class="fas fa-search"></i> Browse &amp; Apply for Jobs</div>
+        <div class="wt-card-body">
+          Browse the public job board, view job details including IR35 status, and submit applications with a cover note.
+          <ul class="wt-substeps">
+            <li>Browse vacancies at <code>/public/jobs</code></li>
+            <li>View full job description with IR35 status</li>
+            <li>Apply with cover note and CV upload</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Public portal:</strong> Separate template set (<code>templates_public/</code>) with its own base layout.<br>
+          <strong>Job board:</strong> Lists all jobs with status &ldquo;Open&rdquo;. Search by title, location, sector.<br>
+          <strong>Application:</strong> Creates Application record linked to the Candidate and Job. Status starts at &ldquo;New&rdquo;.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step E: Offer -->
+      <div class="wt-card wt-connect" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">E</span><i class="fas fa-handshake"></i> Receive &amp; Respond to Offer</div>
+        <div class="wt-card-body">
+          Receive offer notification via email. View offer details in the portal. Accept or decline with optional reason.
+          <ul class="wt-substeps">
+            <li>Email notification with link to portal</li>
+            <li>View offer: role, rate, start date, location, engagement type</li>
+            <li>Accept or decline (decline reason captured)</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Offer fields visible:</strong> Role title, day rate/salary, start date, location, engagement type, expected duration, notes from staff.<br>
+          <strong>Response tracked:</strong> <code>offer_response</code> (accepted/declined), <code>offer_responded_at</code>, <code>offer_responded_ip</code>, <code>offer_decline_reason</code>.<br>
+          <strong>Audit:</strong> Response logged with IP address and timestamp for compliance.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step F: Vetting -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">F</span><i class="fas fa-clipboard-check"></i> Complete Vetting</div>
+        <div class="wt-card-body">
+          Receive vetting commencement email. Sign consent form, declarations, and complete Verifile checks via the portal.
+          <ul class="wt-substeps">
+            <li>Sign consent form (electronic)</li>
+            <li>Sign personal declaration</li>
+            <li>Complete secondary job declaration</li>
+            <li>Complete employment reference declaration</li>
+            <li>Complete Verifile identity and screening checks</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Commencement email:</strong> Customisable template with associate name merge tags. Supports file attachments.<br>
+          <strong>Forms:</strong> Consent form, personal declaration, secondary job declaration, employment reference declaration &mdash; all tracked as signed/unsigned.<br>
+          <strong>Verifile:</strong> Candidate entry created via API. Associate completes identity verification and screening steps directly with Verifile.
+        </div>
+      </div>
+
+      <div class="wt-arrow-down"></div>
+
+      <!-- Step G: On Contract -->
+      <div class="wt-card wt-assoc" onclick="toggleCard(this)" style="width: 100%; max-width: 480px;">
+        <div class="wt-card-header"><span class="step-num">G</span><i class="fas fa-file-alt"></i> On Contract &mdash; Timesheets &amp; Invoices</div>
+        <div class="wt-card-body">
+          Once placed, submit weekly/monthly timesheets via the portal. Generate and download invoices.
+          <ul class="wt-substeps">
+            <li>Submit timesheets at <code>/my/timesheets</code></li>
+            <li>Enter hours, period, and notes per engagement</li>
+            <li>View approval status (Submitted &rarr; Approved / Rejected)</li>
+            <li>Generate invoices based on approved timesheets</li>
+          </ul>
+        </div>
+        <div class="wt-card-detail">
+          <strong>Timesheet model:</strong> user_id, engagement_id, period_start, period_end, hours, notes, status.<br>
+          <strong>Approval flow:</strong> Associate submits &rarr; Staff reviews at <code>/admin/approvals</code> &rarr; Approve or reject with notes.<br>
+          <strong>Invoicing:</strong> Invoice records linked to engagement with line items, amounts, due dates. PDF generation available.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: HOW THEY CONNECT                                   -->
+  <!-- ============================================================ -->
+  <div id="section-connections">
+    <div class="wt-section-header">
+      <div class="icon-circle" style="background: linear-gradient(135deg, #0e7490, #0891b2);">
+        <i class="fas fa-exchange-alt"></i>
+      </div>
+      <div>
+        <h2>Section 3: How They Connect</h2>
+        <p>Key touchpoints where staff and associate workflows intersect</p>
+      </div>
+    </div>
+
+    <div class="wt-connection-grid">
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-paper-plane" style="color: #16a34a;"></i> Application Submitted</h4>
+        <p>
+          <span class="badge-assoc">ASSOCIATE</span> applies via the public portal.<br>
+          <span class="badge-system">SYSTEM</span> creates Application + Candidate records, runs AI scoring.<br>
+          <span class="badge-staff">STAFF</span> sees the application appear in the Pipeline / Workflow view with AI score and summary.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-hand-holding-usd" style="color: #2563eb;"></i> Offer Made &amp; Accepted</h4>
+        <p>
+          <span class="badge-staff">STAFF</span> creates offer with capture sheet details and sends notification email.<br>
+          <span class="badge-assoc">ASSOCIATE</span> receives email, views offer in portal, accepts or declines.<br>
+          <span class="badge-system">SYSTEM</span> records response with timestamp, IP, and moves application to &ldquo;Accepted&rdquo; stage.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-search" style="color: #7c3aed;"></i> Vetting Commenced</h4>
+        <p>
+          <span class="badge-staff">STAFF</span> triggers vetting and sends commencement email with attachments.<br>
+          <span class="badge-assoc">ASSOCIATE</span> receives email, signs consent/declaration forms, completes Verifile checks.<br>
+          <span class="badge-system">SYSTEM</span> creates VettingCheck records, monitors progress, updates statuses via webhooks.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-address-book" style="color: #ea580c;"></i> Referencing Started</h4>
+        <p>
+          <span class="badge-staff">STAFF</span> triggers referencing from the candidate profile.<br>
+          <span class="badge-system">SYSTEM</span> creates ReferenceRequest records for each employment entry. Auto-looks up referee emails from Reference Contacts. Flags known reference houses.<br>
+          <span class="badge-assoc">ASSOCIATE</span>&rsquo;s referees receive email requests directly.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-clock" style="color: #0891b2;"></i> Timesheet Cycle</h4>
+        <p>
+          <span class="badge-assoc">ASSOCIATE</span> submits timesheets via the portal with hours and notes.<br>
+          <span class="badge-staff">STAFF</span> reviews at Approvals page &mdash; approves or rejects with feedback.<br>
+          <span class="badge-system">SYSTEM</span> updates status and feeds approved hours into invoicing.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-file-signature" style="color: #7c3aed;"></i> Contract Signing</h4>
+        <p>
+          <span class="badge-staff">STAFF</span> captures assignment schedule details and issues contract via e-signature provider.<br>
+          <span class="badge-assoc">ASSOCIATE</span> receives signing request, reviews and signs electronically.<br>
+          <span class="badge-system">SYSTEM</span> receives webhook on signature completion, updates ESigRequest status, moves application to &ldquo;Placed&rdquo;.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-calendar-minus" style="color: #dc2626;"></i> Scheduled Leavers</h4>
+        <p>
+          <span class="badge-staff">STAFF</span> creates leave/end-date records for contractors approaching contract end.<br>
+          <span class="badge-system">SYSTEM</span> shows upcoming leavers on the dashboard and engagement view.<br>
+          <span class="badge-assoc">ASSOCIATE</span>&rsquo;s contract end date tracked and visible in their portal.
+        </p>
+      </div>
+
+      <div class="wt-conn-card">
+        <h4><i class="fas fa-shield-alt" style="color: #1d4ed8;"></i> Vetting Completion Gate</h4>
+        <p>
+          <span class="badge-system">SYSTEM</span> enforces that all 12 vetting checks must be Complete/N/A/QC Complete before allowing stage skip to &ldquo;Placed&rdquo;.<br>
+          <span class="badge-staff">STAFF</span> monitors vetting dashboard &mdash; each check shows status with colour coding.<br>
+          <span class="badge-assoc">ASSOCIATE</span>&rsquo;s vetting progress visible to staff in real time.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="text-center mt-5 mb-3" style="color: #9ca3af; font-size: 0.8rem;">
+    <p>OS1 ATS Onboarding Platform &mdash; Optimus Solutions &mdash; Platform Walkthrough v1.0</p>
+  </div>
+
+</div>
+
+<script>
+  function toggleCard(el) {
+    el.classList.toggle('expanded');
+  }
+
+  function toggleAllCards(expand) {
+    document.querySelectorAll('.wt-card').forEach(function(card) {
+      if (expand) {
+        card.classList.add('expanded');
+      } else {
+        card.classList.remove('expanded');
+      }
+    });
+  }
+</script>
+{% endblock %}

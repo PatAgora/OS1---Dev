@@ -238,6 +238,12 @@ def set_security_headers(response):
 def health():
     return jsonify({"status": "healthy", "timestamp": datetime.datetime.utcnow().isoformat()}), 200
 
+@app.route("/walkthrough")
+@login_required
+def walkthrough():
+    """Platform walkthrough guide — interactive flowchart of all workflows."""
+    return render_template("walkthrough.html")
+
 @app.route("/system/status")
 def system_status():
     """
