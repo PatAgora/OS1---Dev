@@ -788,13 +788,21 @@ def _calc_completeness(s, candidate_id: int) -> dict:
         if doc_count >= 2:
             checks_score += 1
 
-    # Employment history entries
+    # Employment history — must cover 3 years back from today
     if EmploymentHistory:
-        emp_count = s.query(EmploymentHistory).filter_by(candidate_id=candidate_id).filter(
+        emp_rows = s.query(EmploymentHistory).filter_by(candidate_id=candidate_id).filter(
             EmploymentHistory.is_gap == False  # noqa: E712
-        ).count()
-        if emp_count >= 1:
-            checks_score += 1
+        ).order_by(EmploymentHistory.start_date.asc()).all()
+        if emp_rows:
+            three_years_ago = (datetime.utcnow() - timedelta(days=3*365)).date()
+            earliest_start = None
+            for e in emp_rows:
+                sd = getattr(e, "start_date", None)
+                if sd:
+                    if earliest_start is None or sd < earliest_start:
+                        earliest_start = sd
+            if earliest_start and earliest_start <= three_years_ago:
+                checks_score += 1
 
     # Vetting checks
     if VettingCheck:
