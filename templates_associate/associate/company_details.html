@@ -46,7 +46,6 @@
                             <span class="text-muted text-sm d-block">Contract through one of our approved umbrella company partners</span>
                         </label>
                     </div>
-                    {% if allow_limited %}
                     <div class="form-check mt-2">
                         <input type="radio" id="entity_limited" name="entity_type" value="limited"
                                {% if company and company.contracting_type == 'limited' %}checked{% endif %}>
@@ -55,13 +54,10 @@
                             <span class="text-muted text-sm d-block">Contract through your own limited company (PSC)</span>
                         </label>
                     </div>
-                    {% endif %}
-                    {% if not allow_limited %}
                     <div class="alert alert-info mt-3">
                         <i class="fas fa-info-circle me-2"></i>
                         Limited Company contracting is only available for roles determined to be outside IR35. Please contact your consultant for more information.
                     </div>
-                    {% endif %}
                 </div>
             </div>
 
