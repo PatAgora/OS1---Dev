@@ -2904,10 +2904,24 @@ def secondary_job_declaration():
 @_require_login
 def employment_reference_declaration():
     """Employment Reference Declaration — embedded Signable widget."""
-    widget_url = os.getenv("SIGNABLE_EMPLOYMENT_REF_WIDGET_URL", "")
+    cand_id = _get_associate_id()
+    base_url = os.getenv("SIGNABLE_EMPLOYMENT_REF_WIDGET_URL", "")
+    widget_url = _widget_url_with_meta(base_url, cand_id) if base_url else ""
+
+    # Check if already signed
+    already_signed = False
+    Candidate = _model("Candidate")
+    if Candidate and cand_id:
+        engine = _engine()
+        with SASession(engine) as s:
+            cand = s.get(Candidate, cand_id)
+            if cand:
+                already_signed = bool(getattr(cand, "employment_ref_declaration_signed", False))
+
     return render_template(
         "associate/employment_reference_declaration.html",
         widget_url=widget_url,
+        already_signed=already_signed,
     )
 
 
