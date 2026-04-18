@@ -546,13 +546,17 @@
 <!-- Role Aliases (migrated from legacy /configuration page)                -->
 <!-- ==================================================================== -->
 <div id="role-aliases" class="modern-card mb-4 mt-4 p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('role-aliases-body', this)">
     <div>
       <h5 class="fw-bold mb-1"><i class="fas fa-users-cog me-2 text-primary"></i>Role Normalisation (Aliases)</h5>
       <small class="text-muted">Map alternative role titles (e.g. "Senior Software Engineer") to a normalised canonical name (e.g. "Software Engineer"). Used by candidate scoring and search.</small>
     </div>
-    <span class="badge bg-secondary">{{ aliases|length }} {{ 'alias' if aliases|length == 1 else 'aliases' }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ aliases|length }} {{ 'alias' if aliases|length == 1 else 'aliases' }}</span>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
   </div>
+  <div id="role-aliases-body" class="collapsible-body" style="display: none;">
 
   <!-- Add new alias -->
   <form method="POST" action="{{ url_for('config_role_alias_add') }}" class="mb-3 p-3 border rounded bg-light">
@@ -607,19 +611,24 @@
     <p class="mb-0">No role aliases defined yet.</p>
   </div>
   {% endif %}
+  </div><!-- end collapsible-body -->
 </div>
 
 <!-- ==================================================================== -->
 <!-- Job Description Templates (migrated from legacy /configuration page)   -->
 <!-- ==================================================================== -->
 <div id="job-templates" class="modern-card mb-4 p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('job-templates-body', this)">
     <div>
       <h5 class="fw-bold mb-1"><i class="fas fa-file-alt me-2 text-primary"></i>Job Description Templates</h5>
       <small class="text-muted">Default job descriptions for each role category. Used when auto-creating job posts from engagement plans.</small>
     </div>
-    <span class="badge bg-secondary">{{ job_templates|length }} {{ 'template' if job_templates|length == 1 else 'templates' }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ job_templates|length }} {{ 'template' if job_templates|length == 1 else 'templates' }}</span>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
   </div>
+  <div id="job-templates-body" class="collapsible-body" style="display: none;">
 
   <!-- Add / Edit template form -->
   <form method="POST" action="{{ url_for('save_job_template') }}" class="mb-3 p-3 border rounded bg-light" id="jobTemplateForm">
@@ -685,18 +694,21 @@
     <p class="mb-0">No job description templates yet.</p>
   </div>
   {% endif %}
+  </div><!-- end collapsible-body -->
 </div>
 
 <!-- ==================================================================== -->
 <!-- Email Templates (editable reference request email)                     -->
 <!-- ==================================================================== -->
 <div id="email-templates" class="modern-card mb-4 p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('email-templates-body', this)">
     <div>
       <h5 class="fw-bold mb-1"><i class="fas fa-envelope-open-text me-2 text-primary"></i>Email Templates</h5>
       <small class="text-muted">Editable email templates used when sending reference requests and other automated emails.</small>
     </div>
+    <i class="fas fa-chevron-down collapse-icon text-muted"></i>
   </div>
+  <div id="email-templates-body" class="collapsible-body" style="display: none;">
 
   <!-- Reference Request Template -->
   <form method="POST" action="{{ url_for('save_email_template') }}" class="p-3 border rounded bg-light">
@@ -866,18 +878,73 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
       </button>
     </div>
   </form>
+
+  <!-- Vetting Commencement Template -->
+  <form method="POST" action="{{ url_for('save_email_template') }}" class="p-3 border rounded bg-light mt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="template_name" value="vetting_commencement">
+
+    <h6 class="fw-bold mb-3"><i class="fas fa-clipboard-check me-2"></i>Commencement of Vetting Email</h6>
+    <p class="text-muted" style="font-size: 0.85rem;">Write the email that will be sent to associates when vetting is commenced. Use the tags below to automatically insert the relevant details.</p>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold mb-1">Email Subject</label>
+      <input type="text" name="subject" class="form-control"
+             value="{{ email_template_vetting.subject if email_template_vetting else 'Optimus – Commencement of Vetting' }}"
+             placeholder="Optimus – Commencement of Vetting">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold mb-1">Email Message</label>
+      <textarea name="body" class="form-control" rows="30"
+                placeholder="Dear {associate_name},
+
+Following your offer of engagement with Optimus, the next step is to complete our vetting and compliance process...">{{ email_template_vetting.body if email_template_vetting else '' }}</textarea>
+    </div>
+
+    <div class="mb-3 p-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+      <p class="fw-semibold mb-2" style="font-size: 0.85rem;"><i class="fas fa-tags me-2 text-primary"></i>Auto-fill Tags</p>
+      <p class="text-muted mb-2" style="font-size: 0.8rem;">Type these tags anywhere in your email and they'll be replaced with the actual details:</p>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <code style="background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{associate_name}</code>
+            <small class="text-muted">Associate's name</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center">
+      <small class="text-muted">
+        {% if email_template_vetting and email_template_vetting.updated_at %}
+          Last saved: {{ email_template_vetting.updated_at.strftime('%d/%m/%Y %H:%M') }}
+        {% else %}
+          Using default template
+        {% endif %}
+      </small>
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="fas fa-save me-1"></i> Save Template
+      </button>
+    </div>
+  </form>
+  </div><!-- end collapsible-body -->
 </div>
 
 <!-- ==================================================================== -->
 <!-- Reference Request - Contact Details (migrated from legacy)             -->
 <!-- ==================================================================== -->
 <div id="reference-contacts" class="modern-card mb-4 p-4">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('reference-contacts-body', this)">
     <div>
       <h5 class="fw-bold mb-1"><i class="fas fa-address-book me-2 text-primary"></i>Reference Request &mdash; Contact Details</h5>
       <small class="text-muted">Approved company &rarr; referee email mappings used by the associate portal autocomplete. <strong>{{ ref_contacts_total }}</strong> entries.</small>
     </div>
-    <form method="GET" action="/taxonomy/manage#reference-contacts" class="d-flex gap-2">
+    <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+  </div>
+  <div id="reference-contacts-body" class="collapsible-body" style="display: none;">
+  <div class="mt-3">
+    <form method="GET" action="/taxonomy/manage#reference-contacts" class="d-flex gap-2 mb-3">
       <input type="search" name="ref_search" class="form-control form-control-sm" placeholder="Search by company name..." value="{{ ref_contacts_search }}" aria-label="Search reference contacts" style="min-width: 220px;">
       <button type="submit" class="btn btn-outline-primary btn-sm" aria-label="Search"><i class="fas fa-search"></i></button>
       {% if ref_contacts_search %}
@@ -984,19 +1051,24 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
     <p class="mb-0">{% if ref_contacts_search %}No matches for "{{ ref_contacts_search }}".{% else %}No reference contacts loaded yet — use the bulk import above.{% endif %}</p>
   </div>
   {% endif %}
+  </div><!-- end collapsible-body -->
 </div>
 
 <!-- ==================================================================== -->
 <!-- Reference Houses Intel (migrated from legacy)                          -->
 <!-- ==================================================================== -->
 <div id="reference-houses" class="modern-card mb-5 p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('reference-houses-body', this)">
     <div>
       <h5 class="fw-bold mb-1"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Reference Houses &mdash; Intel</h5>
       <small class="text-muted">Known fake or suspicious reference houses. Companies on this list trigger a warning banner in the associate portal.</small>
     </div>
-    <span class="badge bg-secondary">{{ ref_houses|length }} {{ 'entry' if ref_houses|length == 1 else 'entries' }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ ref_houses|length }} {{ 'entry' if ref_houses|length == 1 else 'entries' }}</span>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
   </div>
+  <div id="reference-houses-body" class="collapsible-body" style="display: none;">
 
   <!-- Add new reference house -->
   <form method="POST" action="{{ url_for('admin_reference_house_add') }}" class="mb-3 p-3 border rounded bg-light">
@@ -1102,13 +1174,15 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
     <p class="mb-0">No flagged reference houses recorded.</p>
   </div>
   {% endif %}
+  </div><!-- end collapsible-body -->
 </div>
 
 <!-- Assignment Schedule Templates -->
 <div class="card shadow-sm mb-4" id="assignment-templates">
-  <div class="card-header bg-white py-3">
+  <div class="card-header bg-white py-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('assignment-templates-body', this)">
     <div class="d-flex justify-content-between align-items-center">
       <h5 class="fw-bold mb-0"><i class="fas fa-file-word me-2 text-primary"></i>Assignment Schedule Templates</h5>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
     </div>
     <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
       Upload DOCX templates for each umbrella company. Use placeholders like
@@ -1116,7 +1190,7 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
       when a contract is issued.
     </p>
   </div>
-  <div class="card-body">
+  <div class="card-body collapsible-body" id="assignment-templates-body" style="display: none;">
     <!-- Upload form -->
     <form method="POST" action="{{ url_for('admin_assignment_template_upload') }}" enctype="multipart/form-data" class="mb-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -1192,9 +1266,10 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
 
 <!-- Offer Templates -->
 <div class="card shadow-sm mb-4" id="offer-templates">
-  <div class="card-header bg-white py-3">
+  <div class="card-header bg-white py-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('offer-templates-body', this)">
     <div class="d-flex justify-content-between align-items-center">
       <h5 class="fw-bold mb-0"><i class="fas fa-file-word me-2 text-success"></i>Offer Templates</h5>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
     </div>
     <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
       Upload DOCX templates for Offer of Engagement documents. The left column
@@ -1202,7 +1277,7 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
       be matched and filled with captured values.
     </p>
   </div>
-  <div class="card-body">
+  <div class="card-body collapsible-body" id="offer-templates-body" style="display: none;">
     <!-- Upload form -->
     <form method="POST" action="{{ url_for('admin_offer_template_upload') }}" enctype="multipart/form-data" class="mb-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -1267,13 +1342,16 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
 
 <!-- Leave Reasons Configuration -->
 <div class="card shadow-sm mb-4" id="leave-reasons">
-  <div class="card-header bg-white py-3">
-    <h5 class="fw-bold mb-0"><i class="fas fa-door-open me-2 text-primary"></i>Leave Request Reasons</h5>
+  <div class="card-header bg-white py-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('leave-reasons-body', this)">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="fw-bold mb-0"><i class="fas fa-door-open me-2 text-primary"></i>Leave Request Reasons</h5>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
     <p class="text-muted mb-0 mt-1" style="font-size: 0.85rem;">
       Manage the dropdown options for leave request reasons on the Approvals page.
     </p>
   </div>
-  <div class="card-body">
+  <div class="card-body collapsible-body" id="leave-reasons-body" style="display: none;">
     <form method="POST" action="{{ url_for('admin_add_leave_reason') }}" class="d-flex gap-2 mb-3 align-items-end">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="flex-grow-1">
@@ -1317,5 +1395,43 @@ function editJobTemplate(roleType, btn) {
   document.getElementById('tplDescription').value = btn.dataset.desc || '';
   document.getElementById('tplDescription').focus();
 }
+
+/* Collapsible section toggle */
+function toggleCollapse(targetId, headerEl) {
+  var body = document.getElementById(targetId);
+  if (!body) return;
+  var icon = headerEl.querySelector('.collapse-icon');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+  } else {
+    body.style.display = 'none';
+    if (icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+  }
+}
+
+/* If the URL hash matches a collapsible section, auto-expand it */
+(function() {
+  var hash = window.location.hash;
+  if (hash) {
+    var bodyId = hash.replace('#', '') + '-body';
+    var body = document.getElementById(bodyId);
+    if (body && body.style.display === 'none') {
+      body.style.display = '';
+      var header = body.previousElementSibling;
+      while (header && !header.classList.contains('collapsible-header')) {
+        header = header.previousElementSibling;
+      }
+      if (!header) {
+        header = body.closest('.modern-card, .card');
+        if (header) header = header.querySelector('.collapsible-header');
+      }
+      if (header) {
+        var icon = header.querySelector('.collapse-icon');
+        if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+      }
+    }
+  }
+})();
 </script>
 {% endblock %}

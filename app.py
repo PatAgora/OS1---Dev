@@ -17028,25 +17028,38 @@ def start_vetting(cand_id: int):
                 s.add(VettingCheck(candidate_id=cand_id, check_type=ct, status="NOT STARTED"))
                 created += 1
 
-        # Send email notification to candidate
+        # Send email notification to candidate using the vetting_commencement template
         if cand.email:
             try:
-                base_url = os.getenv("APP_BASE_URL", "http://localhost:5001")
-                html_body = f"""
-                <h2>Vetting Process Started</h2>
-                <p>Dear {cand.name or 'Associate'},</p>
-                <p>Your pre-employment vetting process has been initiated. Please log in to the
-                Associate Portal to complete the required steps:</p>
-                <ul>
-                    <li>Upload required documents (ID, Proof of Address, Right to Work)</li>
-                    <li>Complete your employment history and references</li>
-                    <li>Sign the consent and declaration forms</li>
-                </ul>
-                <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
-                <p>If you have any questions, please contact your Optimus representative.</p>
-                <p>Regards,<br>Optimus Compliance Team</p>
-                """
-                send_email(cand.email, "Vetting Process Started — Action Required", html_body, from_email=COMPLIANCE_FROM)
+                # Load vetting_commencement email template from DB
+                vetting_tpl = s.scalar(
+                    select(EmailTemplate).where(EmailTemplate.name == "vetting_commencement")
+                )
+                associate_name = cand.name or 'Associate'
+                if vetting_tpl:
+                    email_subject = (vetting_tpl.subject or "Optimus \u2013 Commencement of Vetting").replace("{associate_name}", associate_name)
+                    email_body_text = (vetting_tpl.body or "").replace("{associate_name}", associate_name)
+                    # Convert plain text to HTML (preserve line breaks and structure)
+                    import html as _html_mod
+                    html_body = "<div style='font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;'>"
+                    html_body += _html_mod.escape(email_body_text).replace("\n\n", "</p><p>").replace("\n", "<br>")
+                    html_body += "</div>"
+                    html_body = f"<p>{html_body}</p>"
+                else:
+                    # Fallback if template somehow missing
+                    base_url = os.getenv("APP_BASE_URL", "http://localhost:5001")
+                    email_subject = "Optimus \u2013 Commencement of Vetting"
+                    html_body = f"""
+                    <h2>Vetting Process Started</h2>
+                    <p>Dear {associate_name},</p>
+                    <p>Your pre-employment vetting process has been initiated. Please log in to the
+                    Associate Portal to complete the required steps.</p>
+                    <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
+                    <p>If you have any questions, please contact the Optimus compliance team
+                    at compliance@optimussolutions.co.uk.</p>
+                    <p>Regards,<br>Optimus Compliance Team</p>
+                    """
+                send_email(cand.email, email_subject, html_body, from_email=COMPLIANCE_FROM)
                 flash(f"Vetting started and email sent to {cand.email}.", "success")
             except Exception as e:
                 flash(f"Vetting started but email failed: {str(e)}", "warning")
@@ -21157,6 +21170,75 @@ Optimus - Financial Services Resourcing Specialists"""
     except Exception:
         email_template_interview = None
 
+    # Load or seed the vetting commencement email template
+    email_template_vetting = None
+    try:
+        with Session(engine) as s8:
+            email_template_vetting = s8.scalar(
+                select(EmailTemplate).where(EmailTemplate.name == "vetting_commencement")
+            )
+            if not email_template_vetting:
+                default_vetting_body = """Dear {associate_name},
+
+Following your offer of engagement with Optimus, the next step is to complete our vetting and compliance process. This email sets out everything you need to do, who will contact you, and the timescales involved. Please read it carefully in full.
+
+All vetting must be completed several days before you are able to commence on the project. We therefore ask that you action everything below promptly and treat this as a priority.
+
+Section 1: Forms to Complete and Sign (via Signable)
+
+You will shortly receive a separate email from Signable, our electronic document signing platform, containing the following four forms for your completion and signature. Please complete and return all forms within 24 hours of receipt.
+
+- Consent Form: Authorises Optimus and its appointed agents to conduct the background checks required as part of your engagement.
+- Declaration: Requires you to disclose any criminal convictions, county court judgements, bankruptcy, dismissal from previous employment, or any other matters that may constitute a conflict of interest.
+- Secondary Employment Declaration: Confirms whether you are undertaking any secondary employment alongside this engagement.
+- 3 Year Reference History: Requires you to provide a complete account of your employment history covering the three years immediately prior to today, with no unexplained gaps exceeding 90 days.
+
+Please ensure you read each form carefully before signing. If you have any questions, contact the Optimus compliance team before signing at compliance@optimussolutions.co.uk.
+
+Section 2: Background Checks (via Verifile)
+
+Optimus will conduct the following background checks through our appointed screening partner, Verifile. You will be contacted directly by Verifile to complete these checks via their secure online platform.
+
+- ID / Right to Work Check: Verification of your identity and legal right to work in the UK.
+- Criminal Record Check (DBS): A Disclosure and Barring Service check to confirm the absence of any relevant criminal history.
+- Credit Check: A financial probity check to identify any significant adverse financial history relevant to the nature of the role.
+
+You do not need to contact Verifile directly. They will reach out to you. Please respond to all Verifile communications promptly to avoid any delays to your start date.
+
+Section 3: Important Reminders
+
+- 24-hour deadline: All Signable forms must be completed and returned within 24 hours of receipt.
+- Accuracy is essential: All information you provide must be complete, accurate, and truthful.
+- Check your junk and spam folders: Emails from both Signable and Verifile may be filtered by your email provider.
+- Start date is conditional: Your proposed start date is subject to satisfactory completion of all vetting.
+
+The Optimus compliance team is on hand to assist you. If you have any queries, please contact us at compliance@optimussolutions.co.uk.
+
+71-75 Shelton Street | London | WC2H 9JQ
+compliance@optimussolutions.co.uk
+Optimus - Financial Services Resourcing Specialists"""
+                email_template_vetting = EmailTemplate(
+                    name="vetting_commencement",
+                    subject="Optimus \u2013 Commencement of Vetting",
+                    body=default_vetting_body,
+                )
+                s8.add(email_template_vetting)
+                s8.commit()
+                # Re-fetch to get ID
+                email_template_vetting = s8.scalar(
+                    select(EmailTemplate).where(EmailTemplate.name == "vetting_commencement")
+                )
+            # Detach-safe: copy values
+            email_template_vetting = {
+                "id": email_template_vetting.id,
+                "name": email_template_vetting.name,
+                "subject": email_template_vetting.subject,
+                "body": email_template_vetting.body,
+                "updated_at": email_template_vetting.updated_at,
+            }
+    except Exception:
+        email_template_vetting = None
+
     return render_template("taxonomy_manage.html",
                            roles=roles, subjects=subjects,
                            tags_by_cat=tags_by_cat,
@@ -21173,6 +21255,7 @@ Optimus - Financial Services Resourcing Specialists"""
                            ref_houses=ref_houses,
                            email_template_ref=email_template_ref,
                            email_template_interview=email_template_interview,
+                           email_template_vetting=email_template_vetting,
                            assignment_templates=assignment_templates,
                            assignment_umbrella_options=assignment_umbrella_options,
                            offer_templates=offer_templates,
