@@ -920,7 +920,7 @@
         <div class="chart-header">
             <h3 class="chart-title">
                 <i class="fas fa-user-clock"></i>
-                Upcoming Leavers (Next 30 Days)
+                Scheduled Leavers (Next 30 Days)
             </h3>
             <span class="jobs-badge">{{ upcoming_leavers|default([])|length }} associate{{ 's' if upcoming_leavers|default([])|length != 1 else '' }}</span>
         </div>
@@ -932,17 +932,19 @@
                     <th>Role</th>
                     <th>Client</th>
                     <th>Engagement</th>
-                    <th>End Date</th>
+                    <th>Leave Date</th>
+                    <th>Reason</th>
                 </tr>
             </thead>
             <tbody>
                 {% for leaver in upcoming_leavers %}
                 <tr>
                     <td><strong>{{ leaver.name }}</strong></td>
-                    <td>{{ leaver.role }}</td>
-                    <td>{{ leaver.client }}</td>
-                    <td>{{ leaver.engagement }}</td>
+                    <td>{{ leaver.role or '—' }}</td>
+                    <td>{{ leaver.client or '—' }}</td>
+                    <td>{{ leaver.engagement or '—' }}</td>
                     <td><span class="leavers-date-badge">{{ leaver.end_date }}</span></td>
+                    <td>{{ leaver.reason or '—' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

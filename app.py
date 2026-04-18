@@ -8667,28 +8667,58 @@ def index():
         # Upcoming Leavers (contracts ending in next 30 days)
         thirty_days = now + datetime.timedelta(days=30)
         upcoming_leavers = []
+        # Engagement end dates
         if eng_ids:
-            leavers_query = s.execute(
-                select(ESigRequest, Application, Candidate, Job, Engagement)
-                .join(Application, Application.id == ESigRequest.application_id)
-                .join(Candidate, Candidate.id == Application.candidate_id)
-                .join(Job, Job.id == Application.job_id)
-                .join(Engagement, Engagement.id == Job.engagement_id)
-                .where(func.lower(ESigRequest.status).in_(["signed", "completed"]))
-                .where(Engagement.end_date.isnot(None))
-                .where(Engagement.end_date >= now.date())
-                .where(Engagement.end_date <= thirty_days.date())
-                .order_by(Engagement.end_date.asc())
-                .limit(10)
+            try:
+                leavers_query = s.execute(
+                    select(ESigRequest, Application, Candidate, Job, Engagement)
+                    .outerjoin(Application, Application.id == ESigRequest.application_id)
+                    .outerjoin(Candidate, Candidate.id == func.coalesce(Application.candidate_id, ESigRequest.candidate_id))
+                    .outerjoin(Job, Job.id == Application.job_id)
+                    .outerjoin(Engagement, Engagement.id == func.coalesce(Job.engagement_id, ESigRequest.engagement_id))
+                    .where(func.lower(ESigRequest.status).in_(["signed", "completed"]))
+                    .where(Engagement.end_date.isnot(None))
+                    .where(Engagement.end_date >= now.date())
+                    .where(Engagement.end_date <= thirty_days.date())
+                    .where(Candidate.id.isnot(None))
+                    .order_by(Engagement.end_date.asc())
+                    .limit(10)
+                ).all()
+                for esig, appn, cand, job, eng in leavers_query:
+                    upcoming_leavers.append({
+                        "name": cand.name or "Unknown",
+                        "role": job.title if job else "",
+                        "client": eng.client if eng else "",
+                        "end_date": eng.end_date.strftime("%d %b %Y") if eng and eng.end_date else "TBC",
+                        "engagement": eng.name if eng else "",
+                        "reason": "",
+                    })
+            except Exception:
+                pass
+        # Also include approved leave requests
+        try:
+            leave_leavers = s.execute(
+                select(LeaveRequest, Candidate)
+                .join(Candidate, Candidate.id == LeaveRequest.candidate_id)
+                .where(LeaveRequest.status == "Approved")
+                .where(LeaveRequest.notice_end_date.isnot(None))
+                .where(LeaveRequest.notice_end_date >= now.date())
+                .where(LeaveRequest.notice_end_date <= thirty_days.date())
             ).all()
-            for esig, appn, cand, job, eng in leavers_query:
+            existing_names = {l["name"] for l in upcoming_leavers}
+            for lr, cand in leave_leavers:
+                if cand.name in existing_names:
+                    continue
                 upcoming_leavers.append({
                     "name": cand.name or "Unknown",
-                    "role": job.title or "",
-                    "client": eng.client or "",
-                    "end_date": eng.end_date.strftime("%d %b %Y") if eng.end_date else "TBC",
-                    "engagement": eng.name or "",
+                    "role": "",
+                    "client": "",
+                    "end_date": lr.notice_end_date.strftime("%d %b %Y") if lr.notice_end_date else "TBC",
+                    "engagement": "",
+                    "reason": lr.reason or "",
                 })
+        except Exception:
+            pass
 
     # Cascading filter map for dashboard (built from already-loaded data)
     dash_filter_map = {}
