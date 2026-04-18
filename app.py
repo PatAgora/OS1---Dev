@@ -22645,25 +22645,31 @@ def recalculate_match_score():
         if not job:
             flash("No job application to score against.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
+        # Try file-based CV first, fall back to DB text (skills, summary, etc.)
         doc = s.scalar(
             select(Document).where(Document.candidate_id == cand_id, Document.doc_type == "cv")
             .order_by(Document.uploaded_at.desc())
         )
         cv_text = extract_cv_text(doc) if doc else ""
+        if not cv_text:
+            cv_text = _collect_text_for_candidate(s, cand)
         jd_text = (job.description or job.title or "").strip()
         if not cv_text:
-            flash("No CV found — cannot score.", "warning")
+            flash("No CV or profile data found — cannot score.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
         if not jd_text:
             jd_text = job.title or "General role"
         print(f"[AI-SCORE] cand={cand_id} job={job.id} cv_chars={len(cv_text)} jd_chars={len(jd_text)}", flush=True)
         try:
             score_result = ai_score_with_explanation(jd_text, cv_text)
+            print(f"[AI-SCORE] result: final={score_result.get('final', 'N/A')} gemini={score_result.get('gemini', 'N/A')} heuristic={score_result.get('heuristic', 'N/A')}", flush=True)
             if score_result and latest_app:
-                latest_app.ai_score = score_result.get("final", 0)
+                latest_app.ai_score = int(score_result.get("final", 0) or 0)
                 latest_app.ai_explanation = (score_result.get("explanation") or "")[:7999]
                 s.commit()
-            flash("AI score recalculated.", "success")
+                flash(f"AI score recalculated: {latest_app.ai_score}/100.", "success")
+            else:
+                flash("AI scoring returned no result — check Gemini API key.", "warning")
         except Exception as exc:
             current_app.logger.exception("recalculate_match_score failed: %s", exc)
             flash(f"Score recalculation failed: {exc}", "danger")
