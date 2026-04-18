@@ -20175,18 +20175,46 @@ def reporting():
                 "pct": int(100 * filled / target) if target > 0 else 0,
             })
 
+        # Build a filtered set of engagement IDs for scoping all metrics
+        filtered_eng_ids = None
+        if selected_clients or selected_engagements:
+            fq = select(Engagement.id)
+            if selected_clients:
+                fq = fq.where(Engagement.client.in_(selected_clients))
+            if selected_engagements:
+                _eids = [int(e) for e in selected_engagements if e.isdigit()]
+                if _eids:
+                    fq = fq.where(Engagement.id.in_(_eids))
+            filtered_eng_ids = set(s.scalars(fq).all())
+
+        def _app_filter(q):
+            """Apply engagement filter to an Application query."""
+            if filtered_eng_ids is not None:
+                return q.where(Application.job_id.in_(
+                    select(Job.id).where(Job.engagement_id.in_(filtered_eng_ids))
+                ))
+            return q
+
+        def _vc_filter(q):
+            """Apply engagement filter to a VettingCheck query."""
+            if filtered_eng_ids is not None:
+                return q.where(VettingCheck.candidate_id.in_(
+                    select(Application.candidate_id).where(Application.job_id.in_(
+                        select(Job.id).where(Job.engagement_id.in_(filtered_eng_ids))
+                    ))
+                ))
+            return q
+
         # 2. Time to Hire (avg days from application created to contract signed)
         time_to_hire = []
         try:
-            # Use EXTRACT(EPOCH) for PostgreSQL, julianday for SQLite
             db_url = str(engine.url)
             if "sqlite" in db_url:
                 days_expr = func.julianday(ESigRequest.signed_at) - func.julianday(Application.created_at)
             else:
-                # PostgreSQL: EXTRACT(EPOCH FROM (signed - created)) / 86400
                 days_expr = func.extract("epoch", ESigRequest.signed_at - Application.created_at) / 86400.0
 
-            hire_times = s.execute(
+            hire_q = (
                 select(
                     Job.title,
                     Engagement.client,
@@ -20197,16 +20225,18 @@ def reporting():
                 .join(Engagement, Engagement.id == Job.engagement_id)
                 .where(ESigRequest.signed_at.isnot(None))
                 .where(Application.created_at.isnot(None))
-                .group_by(Job.title, Engagement.client)
-                .order_by(func.avg(days_expr).desc())
-                .limit(20)
-            ).all()
+            )
+            if filtered_eng_ids is not None:
+                hire_q = hire_q.where(Engagement.id.in_(filtered_eng_ids))
+            hire_q = hire_q.group_by(Job.title, Engagement.client).order_by(func.avg(days_expr).desc()).limit(20)
+
+            hire_times = s.execute(hire_q).all()
             time_to_hire = [{"role": r[0] or "Unknown", "client": r[1] or "Unknown", "avg_days": round(r[2] or 0, 1)} for r in hire_times]
         except Exception:
             pass
 
         # 3. Pipeline Conversion Rates
-        total_apps = s.scalar(select(func.count(Application.id))) or 0
+        total_apps = s.scalar(_app_filter(select(func.count(Application.id)))) or 0
         status_map = {
             "Pipeline": ["New", "Pending", "Applied", "Applications Pending Review", "Pipeline"],
             "Shortlist": ["Shortlist", "Shortlisted", "CV Passed", "Declared"],
@@ -20220,7 +20250,7 @@ def reporting():
         stage_counts = {}
         for stage_name, statuses in status_map.items():
             stage_counts[stage_name] = s.scalar(
-                select(func.count(Application.id)).where(Application.status.in_(statuses))
+                _app_filter(select(func.count(Application.id)).where(Application.status.in_(statuses)))
             ) or 0
 
         stages_ordered = ["Pipeline", "Shortlist", "I&A", "Client Review", "Offered", "Accepted", "Ready to Contract", "Contract Sent"]
@@ -20231,10 +20261,10 @@ def reporting():
             conversion_rates.append({"stage": stage, "count": reached, "pct": pct})
 
         # 4. Vetting Completion Rate
-        total_checks = s.scalar(select(func.count(VettingCheck.id))) or 0
+        total_checks = s.scalar(_vc_filter(select(func.count(VettingCheck.id)))) or 0
         completed_checks = s.scalar(
-            select(func.count(VettingCheck.id))
-            .where(func.upper(VettingCheck.status).in_(["COMPLETE", "N/A"]))
+            _vc_filter(select(func.count(VettingCheck.id))
+            .where(func.upper(VettingCheck.status).in_(["COMPLETE", "N/A"])))
         ) or 0
         vetting_completion_pct = round(100 * completed_checks / total_checks, 1) if total_checks > 0 else 0
 
@@ -20249,9 +20279,9 @@ def reporting():
                 month_end = now
             app_volume_labels.append(month_start.strftime("%b %Y"))
             count = s.scalar(
-                select(func.count(Application.id))
+                _app_filter(select(func.count(Application.id))
                 .where(Application.created_at >= month_start)
-                .where(Application.created_at < month_end)
+                .where(Application.created_at < month_end))
             ) or 0
             app_volume_data.append(count)
 
