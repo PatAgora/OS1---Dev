@@ -17359,16 +17359,35 @@ def update_vetting_check(cand_id: int):
         
         if existing:
             old_status_value = existing.status
+            nu = new_status.upper()
 
-            # QC gate: cannot mark as COMPLETE unless QC has been done
-            if new_status.upper() == "COMPLETE" and (existing.status or "").upper() not in ("QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"):
+            # QC gate: cannot mark as COMPLETE unless QC has been done or user is QC reviewer
+            is_qc_check = existing.qc_assigned_to and current_user.is_authenticated and existing.qc_assigned_to == current_user.id
+            if nu == "COMPLETE" and not is_qc_check and (existing.status or "").upper() not in ("QC COMPLETE", "QC NOT REQUIRED", "CHECK STILL IN DATE"):
                 flash(f"{check_type}: cannot mark as Complete — must go through QC first.", "danger")
                 return redirect(redirect_url)
 
+            # Role-based status validation (non-admins only)
+            user_role = getattr(current_user, "role", "") or ""
+            is_admin = user_role == "admin"
+            is_assignee = existing.assigned_to and current_user.is_authenticated and existing.assigned_to == current_user.id
+            is_qc = existing.qc_assigned_to and current_user.is_authenticated and existing.qc_assigned_to == current_user.id
+
+            ASSIGNEE_STATUSES = {"NOT STARTED", "IN PROGRESS", "SENT TO QC", "CHECK STILL IN DATE", "N/A"}
+            QC_STATUSES = {"QC IN PROGRESS", "QC REWORK NEEDED", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE"}
+
+            if not is_admin:
+                if is_assignee and not is_qc and nu not in ASSIGNEE_STATUSES:
+                    flash(f"{check_type}: as the assignee you can only set: {', '.join(sorted(ASSIGNEE_STATUSES))}.", "danger")
+                    return redirect(redirect_url)
+                if is_qc and not is_assignee and nu not in QC_STATUSES:
+                    flash(f"{check_type}: as the QC reviewer you can only set QC statuses.", "danger")
+                    return redirect(redirect_url)
+
             existing.status = new_status
             existing.notes = notes
-            if new_status.upper() == "COMPLETE":
-                existing.completed_at = datetime.datetime.utcnow()
+            if nu in ("COMPLETE", "CHECK STILL IN DATE"):
+                existing.completed_at = existing.completed_at or datetime.datetime.utcnow()
         else:
             new_check = VettingCheck(
                 candidate_id=cand_id,
