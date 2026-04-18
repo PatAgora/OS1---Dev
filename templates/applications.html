@@ -514,14 +514,21 @@
               </td>
 
               <td>
-                {% if r.shortlisted %}
-                  <span class="badge-modern badge-success">
-                    <i class="fas fa-check-circle"></i>Shortlisted
-                  </span>
+                {% set app_st = (r.app.status or 'New') %}
+                {% if app_st in ('Placed', 'Contract Signed', 'Hired', 'Active') %}
+                  <span class="badge-modern badge-success"><i class="fas fa-check-circle"></i>{{ app_st }}</span>
+                {% elif app_st in ('Contract Issued', 'Contract Sent') %}
+                  <span class="badge-modern" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-file-signature"></i>{{ app_st }}</span>
+                {% elif app_st in ('Offered', 'Accepted') %}
+                  <span class="badge-modern" style="background:#fef3c7;color:#92400e;"><i class="fas fa-handshake"></i>{{ app_st }}</span>
+                {% elif app_st in ('Ready to Contract', 'Vetting In-Flight', 'In Vetting') %}
+                  <span class="badge-modern" style="background:#ede9fe;color:#6d28d9;"><i class="fas fa-shield-alt"></i>{{ app_st }}</span>
+                {% elif app_st in ('I&A', 'Client Review', 'Interview', 'Shortlist', 'Shortlisted') %}
+                  <span class="badge-modern" style="background:#e0f2fe;color:#0369a1;"><i class="fas fa-users"></i>{{ app_st }}</span>
+                {% elif app_st in ('Rejected', 'Withdrawn') %}
+                  <span class="badge-modern" style="background:#fee2e2;color:#991b1b;"><i class="fas fa-times-circle"></i>{{ app_st }}</span>
                 {% else %}
-                  <span class="badge-modern badge-secondary">
-                    <i class="fas fa-circle"></i>New
-                  </span>
+                  <span class="badge-modern badge-secondary"><i class="fas fa-circle"></i>{{ app_st }}</span>
                 {% endif %}
               </td>
 
