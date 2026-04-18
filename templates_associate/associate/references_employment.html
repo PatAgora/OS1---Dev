@@ -510,7 +510,12 @@ document.addEventListener('DOMContentLoaded', function() {
         var exactTimer;
         function doExactLookup() {
             var typed = companyInput.value.trim();
-            if (typed.length < 3) return;
+            if (typed.length < 3) {
+                if (typed.length === 0 && refereeEmail) {
+                    refereeEmail.value = '';
+                }
+                return;
+            }
             fetch('/portal/api/company-lookup?q=' + encodeURIComponent(typed) + '&exact=1', {
                 headers: { 'X-CSRFToken': csrfToken }
             })
