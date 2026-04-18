@@ -2759,8 +2759,8 @@ def vetting_progress():
         Document = _model("Document")
         docs_uploaded = False
         if Document:
-            doc_count = s.query(Document).filter_by(candidate_id=cand_id).count()
-            docs_uploaded = doc_count > 0
+            id_doc = s.query(Document).filter_by(candidate_id=cand_id, doc_type="proof_of_identity").first()
+            docs_uploaded = id_doc is not None
 
         return render_template(
             "associate/vetting_progress.html",
