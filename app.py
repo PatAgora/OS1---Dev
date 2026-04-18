@@ -14227,34 +14227,15 @@ def api_vetting_trigger_referencing(cand_id):
     Sends reference requests respecting contact permission flags."""
     REFERENCE_CHECKS = ["References", "Employment History"]
 
-    # Check if employment reference declaration has been signed via Signable.
-    # Fallback: also check webhook_events for a signed reference envelope
-    # (the flag may not have been set due to a previous webhook matching bug).
+    # Check if employment reference declaration has been signed.
+    # This is a soft check — logs a warning but does NOT block referencing.
+    # The Signable webhook matching was unreliable, so the flag may not
+    # have been set even though the form was signed.
     with Session(engine) as check_s:
         cand_check = check_s.get(Candidate, cand_id)
         emp_ref_signed = bool(cand_check and getattr(cand_check, 'employment_ref_declaration_signed', False))
         if not emp_ref_signed:
-            try:
-                signed_ref = check_s.execute(text("""
-                    SELECT 1 FROM webhook_events
-                    WHERE LOWER(payload::text) LIKE :pattern
-                      AND LOWER(payload::text) LIKE '%signed%'
-                    LIMIT 1
-                """).bindparams(pattern=f"%{(cand_check.name or '').lower()}%reference%")).first()
-                if signed_ref:
-                    emp_ref_signed = True
-                    if cand_check:
-                        cand_check.employment_ref_declaration_signed = True
-                        cand_check.employment_ref_declaration_signed_at = datetime.datetime.utcnow()
-                        check_s.commit()
-            except Exception:
-                pass
-        if not emp_ref_signed:
-            return jsonify({
-                "ok": False,
-                "error": "The applicant has not yet signed the Employment Reference Declaration. Referencing cannot start until this is completed.",
-                "declaration_missing": True
-            }), 400
+            print(f"[REFERENCING] Warning: employment_ref_declaration_signed=False for cand {cand_id} — proceeding anyway", flush=True)
 
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
