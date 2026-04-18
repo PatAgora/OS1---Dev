@@ -5918,6 +5918,11 @@ class VettingProfile(Base):
     checks = Column(Text, default="[]")  # JSON array of check type strings
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+class VettingExpiryConfig(Base):
+    __tablename__ = "vetting_expiry_config"
+    id = Column(Integer, primary_key=True)
+    config = Column(Text, default="{}")  # JSON: {"DBS Check": 12, "Credit Check": 12, ...}
+
 
 from public import public_bp
 app.register_blueprint(public_bp)
@@ -17044,13 +17049,24 @@ def candidate_profile(cand_id: int):
         })())
 
     # Vetting grouped by project/role — collapsible within the Vetting Checks section
-    CHECK_EXPIRY_MONTHS = {
+    # Load vetting expiry config from DB (fallback to defaults if not configured)
+    _DEFAULT_EXPIRY = {
         "Right to Work": 12, "Identity Verification": 36, "Address History": 36,
         "DBS Check": 12, "Employment History": 36, "References": 36,
         "Qualifications": 0, "Professional Registration": 12,
         "Credit Check": 12, "Directorship / Disqualification": 12,
         "Sanctions / PEP": 12, "Social Media Review": 6,
     }
+    CHECK_EXPIRY_MONTHS = dict(_DEFAULT_EXPIRY)
+    try:
+        with Session(engine) as _sec:
+            _ec_row = _sec.scalar(select(VettingExpiryConfig))
+            if _ec_row:
+                _db_config = from_json_safe(_ec_row.config or "{}")
+                if _db_config:
+                    CHECK_EXPIRY_MONTHS.update({k: int(v) for k, v in _db_config.items()})
+    except Exception:
+        pass
     vetting_by_project = []
     try:
         with Session(engine) as _svh:
@@ -21699,6 +21715,16 @@ def taxonomy_manage():
     except Exception:
         vetting_profiles = []
 
+    # Vetting expiry config — months per check type
+    vetting_expiry_config = {}
+    try:
+        with Session(engine) as _svec:
+            _vec_row = _svec.scalar(select(VettingExpiryConfig))
+            if _vec_row:
+                vetting_expiry_config = from_json_safe(_vec_row.config or "{}")
+    except Exception:
+        pass
+
     # Leave reasons for config page
     leave_reasons_list = []
     try:
@@ -21924,7 +21950,8 @@ Optimus - Financial Services Resourcing Specialists"""
                            assignment_umbrella_options=assignment_umbrella_options,
                            offer_templates=offer_templates,
                            leave_reasons=leave_reasons_list,
-                           vetting_profiles=vetting_profiles)
+                           vetting_profiles=vetting_profiles,
+                           vetting_expiry_config=vetting_expiry_config)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
@@ -22053,6 +22080,33 @@ def vetting_profile_delete(vp_id):
         s.commit()
     flash("Vetting profile deleted.", "success")
     return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+
+
+@app.route("/admin/vetting-expiry/save", methods=["POST"])
+@login_required
+def vetting_expiry_save():
+    """Save vetting check expiry periods (months per check type)."""
+    VETTING_CHECK_TYPES = [
+        "Right to Work", "Identity Verification", "Address History", "DBS Check",
+        "Employment History", "References", "Qualifications", "Professional Registration",
+        "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review",
+    ]
+    expiry_map = {}
+    for ct in VETTING_CHECK_TYPES:
+        val = request.form.get(f"expiry_{ct}", "0").strip()
+        try:
+            expiry_map[ct] = int(val) if val else 0
+        except ValueError:
+            expiry_map[ct] = 0
+    with Session(engine) as s:
+        row = s.scalar(select(VettingExpiryConfig))
+        if row:
+            row.config = json.dumps(expiry_map)
+        else:
+            s.add(VettingExpiryConfig(config=json.dumps(expiry_map)))
+        s.commit()
+    flash("Vetting expiry periods saved.", "success")
+    return redirect(url_for("taxonomy_manage") + "#vetting-expiry")
 
 
 @app.route("/api/vetting-profiles", methods=["GET"])

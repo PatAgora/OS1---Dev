@@ -1533,6 +1533,49 @@ Following your offer of engagement with Optimus, the next step is to complete ou
   </div><!-- end collapsible-body -->
 </div>
 
+<!-- ================================================================== -->
+<!-- Vetting Expiry Configuration                                        -->
+<!-- ================================================================== -->
+<div class="card shadow-sm mb-4" id="vetting-expiry">
+  <div class="card-header bg-white py-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('vetting-expiry-body', this)">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="fw-bold mb-0"><i class="fas fa-clock me-2 text-warning"></i>Vetting Expiry Periods</h5>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
+  </div>
+  <div id="vetting-expiry-body" class="card-body collapsible-body" style="display: none;">
+    <p class="text-muted small mb-3">Set the expiry period in months for each vetting check type. When a check is completed, the expiry date is calculated from the completion date. Set to <strong>0</strong> for checks that never expire.</p>
+    <form method="POST" action="{{ url_for('vetting_expiry_save') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2">
+        {% set all_check_types = [
+          "Right to Work", "Identity Verification", "Address History", "DBS Check",
+          "Employment History", "References", "Qualifications", "Professional Registration",
+          "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+        ] %}
+        {% for ct in all_check_types %}
+        <div class="col-md-4 col-sm-6">
+          <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb;">
+            <label class="form-label mb-0 fw-semibold" style="font-size:0.8rem; flex:1;">{{ ct }}</label>
+            <div class="d-flex align-items-center gap-1">
+              <input type="number" name="expiry_{{ ct }}" class="form-control form-control-sm text-center"
+                     style="width:60px; font-size:0.8rem;"
+                     value="{{ vetting_expiry_config.get(ct, 0) }}" min="0" max="120">
+              <span class="text-muted" style="font-size:0.7rem; white-space:nowrap;">months</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="fas fa-save me-1"></i> Save Expiry Periods
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function editJobTemplate(roleType, btn) {
   document.getElementById('tplRoleType').value = roleType;
