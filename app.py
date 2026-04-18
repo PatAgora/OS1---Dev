@@ -1260,14 +1260,23 @@ def admin_delete_user(user_id):
         
         user_email = user.email
         user_name = user.name
-        
-        # Delete the user
+
+        # Clear FK references before deleting
+        s.execute(text("UPDATE audit_logs SET user_id = NULL WHERE user_id = :uid").bindparams(uid=user_id))
+        s.execute(text("DELETE FROM password_history WHERE user_id = :uid").bindparams(uid=user_id))
+        try:
+            s.execute(text("UPDATE vetting_check SET assigned_to = NULL WHERE assigned_to = :uid").bindparams(uid=user_id))
+            s.execute(text("UPDATE vetting_check SET qc_assigned_to = NULL WHERE qc_assigned_to = :uid").bindparams(uid=user_id))
+            s.execute(text("UPDATE vetting_check SET qc_reviewed_by = NULL WHERE qc_reviewed_by = :uid").bindparams(uid=user_id))
+            s.execute(text("UPDATE vetting_check SET referral_approved_by = NULL WHERE referral_approved_by = :uid").bindparams(uid=user_id))
+        except Exception:
+            pass
+
         s.delete(user)
         s.commit()
-        
-        # Log deletion action
+
         log_audit_event('delete', 'user_mgmt', f'Deleted user: {user_email}',
-                      'user', user_id, {'deleted_user_name': user_name, 'deleted_user_email': user_email})
+                      'user', None, {'deleted_user_name': user_name, 'deleted_user_email': user_email})
         
         flash(f"User {user_email} has been permanently deleted", "success")
     
@@ -7050,9 +7059,9 @@ _cleanup_stmts = [
     "DELETE FROM employment_history WHERE candidate_id != 271",
     "DELETE FROM timesheets",
     "DELETE FROM consent_records WHERE candidate_id != 271",
+    "DELETE FROM declaration_records WHERE candidate_id != 271",
     "DELETE FROM invoices",
-    "DELETE FROM trustid_checks WHERE candidate_id != 271",
-    "DELETE FROM password_history WHERE user_id IN (SELECT id FROM candidates WHERE id != 271)",
+    "DELETE FROM trustid_checks",
     # Now delete candidates
     "DELETE FROM candidates WHERE id != 271",
     # Clear audit_logs for PW-TEST users before deleting them
