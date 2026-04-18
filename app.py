@@ -6707,6 +6707,7 @@ try:
             "ALTER TABLE jobs ADD COLUMN dbs_vulnerable_adults_in_environment BOOLEAN DEFAULT FALSE",
             "ALTER TABLE jobs ADD COLUMN dbs_is_volunteer BOOLEAN DEFAULT FALSE",
             "ALTER TABLE jobs ADD COLUMN dbs_working_from_home BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE jobs ADD COLUMN vetting_requirements TEXT DEFAULT '[]'",
             # Paystream Assignment Schedule capture columns — must run
             # under Gunicorn, not just `python app.py`.
             "ALTER TABLE applications ADD COLUMN assignment_worker_name VARCHAR(300) DEFAULT ''",
