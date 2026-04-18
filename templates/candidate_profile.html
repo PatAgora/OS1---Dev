@@ -536,15 +536,6 @@
           {% if not cand.email and not cand.phone %}
             <span class="text-muted">No contact information available</span>
           {% endif %}
-          {% if cand.current_employer_contact_ok is not none %}
-          <span style="margin-left: 0.75rem;">
-            {% if cand.current_employer_contact_ok %}
-              <span class="badge bg-success" style="font-size: 0.65em;"><i class="fas fa-check me-1"></i>Current employer ref OK</span>
-            {% else %}
-              <span class="badge bg-danger" style="font-size: 0.65em;"><i class="fas fa-times me-1"></i>Do not contact current employer</span>
-            {% endif %}
-          </span>
-          {% endif %}
         </div>
         <form method="POST" action="{{ url_for('assign_candidate_owner', cand_id=cand.id) }}" class="d-inline-flex align-items-center gap-2 mt-2" style="font-size:0.8rem;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
