@@ -485,6 +485,66 @@
         </div>
       </div>
 
+      <!-- Filters -->
+      <div class="mb-3 p-2 rounded" style="background:#f8fafc; border:1px solid #e5e7eb;">
+        <div class="d-flex gap-2 flex-wrap align-items-end">
+          <div style="flex:2; min-width:180px;">
+            <label class="form-label small fw-semibold mb-0">Search</label>
+            <input type="text" id="oppSearchInput" class="form-control form-control-sm" placeholder="Search by name..." oninput="filterOpportunities()">
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label class="form-label small fw-semibold mb-0">Client</label>
+            <select id="oppClientFilter" class="form-select form-select-sm" onchange="filterOpportunities()">
+              <option value="">All Clients</option>
+              {% set seen_clients = [] %}
+              {% for o in items %}
+                {% if o.client and o.client not in seen_clients %}
+                  {% if seen_clients.append(o.client) %}{% endif %}
+                {% endif %}
+              {% endfor %}
+              {% for c in seen_clients|sort %}
+              <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label class="form-label small fw-semibold mb-0">Stage</label>
+            <select id="oppStageFilter" class="form-select form-select-sm" onchange="filterOpportunities()">
+              <option value="">All Stages</option>
+              {% set seen_stages = [] %}
+              {% for o in items %}
+                {% if o.stage and o.stage not in seen_stages %}
+                  {% if seen_stages.append(o.stage) %}{% endif %}
+                {% endif %}
+              {% endfor %}
+              {% for st in seen_stages|sort %}
+              <option value="{{ st }}">{{ st }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label class="form-label small fw-semibold mb-0">Owner</label>
+            <select id="oppOwnerFilter" class="form-select form-select-sm" onchange="filterOpportunities()">
+              <option value="">All Owners</option>
+              {% set seen_owners = [] %}
+              {% for o in items %}
+                {% if o.owner and o.owner not in seen_owners %}
+                  {% if seen_owners.append(o.owner) %}{% endif %}
+                {% endif %}
+              {% endfor %}
+              {% for ow in seen_owners|sort %}
+              <option value="{{ ow }}">{{ ow }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('oppSearchInput').value='';document.getElementById('oppClientFilter').value='';document.getElementById('oppStageFilter').value='';document.getElementById('oppOwnerFilter').value='';filterOpportunities();">
+              <i class="fas fa-times me-1"></i>Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="table-responsive">
         <table class="table modern-table mb-0">
           <thead>
@@ -503,7 +563,7 @@
             {% for o in items %}
             {% set st = (o.stage or '') %}
             {% set st_low = st.lower() %}
-            <tr>
+            <tr class="opp-row" data-name="{{ (o.name or '')|lower }}" data-client="{{ o.client or '' }}" data-stage="{{ st }}" data-owner="{{ o.owner or '' }}">
               <td><strong>{{ o.name }}</strong></td>
               <td>{{ o.client or '—' }}</td>
               <td class="text-center">
@@ -586,4 +646,21 @@
 
 </div>
 </div>
+
+<script>
+function filterOpportunities() {
+  var search = (document.getElementById('oppSearchInput').value || '').toLowerCase();
+  var client = document.getElementById('oppClientFilter').value;
+  var stage = document.getElementById('oppStageFilter').value;
+  var owner = document.getElementById('oppOwnerFilter').value;
+
+  document.querySelectorAll('.opp-row').forEach(function(row) {
+    var nameMatch = !search || row.dataset.name.indexOf(search) !== -1;
+    var clientMatch = !client || row.dataset.client === client;
+    var stageMatch = !stage || row.dataset.stage === stage;
+    var ownerMatch = !owner || row.dataset.owner === owner;
+    row.style.display = (nameMatch && clientMatch && stageMatch && ownerMatch) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}
