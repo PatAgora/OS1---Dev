@@ -14343,15 +14343,46 @@ def api_vetting_trigger_referencing(cand_id):
                         hold = True
                         hold_reason = "Associate requested: do not contact current employer"
 
+                    company = getattr(emp, 'company_name', '') or ''
+                    referee_email_val = getattr(emp, 'referee_email', '') or ''
+
+                    # If no referee email, try the Reference Contact Details list
+                    if not referee_email_val and company:
+                        try:
+                            ReferenceContact = _portal_model("ReferenceContact")
+                            if ReferenceContact:
+                                rc = s.query(ReferenceContact).filter(
+                                    func.lower(ReferenceContact.company_name) == company.lower()
+                                ).first()
+                                if rc and rc.referee_email:
+                                    referee_email_val = rc.referee_email
+                        except Exception:
+                            pass
+
+                    # Check against Reference Houses Intel list
+                    ref_house_flag = ""
+                    if company:
+                        try:
+                            FlaggedReferenceHouse = _portal_model("FlaggedReferenceHouse")
+                            if FlaggedReferenceHouse:
+                                flagged = s.query(FlaggedReferenceHouse).filter(
+                                    func.lower(FlaggedReferenceHouse.name) == company.lower()
+                                ).first()
+                                if flagged:
+                                    ref_house_flag = f"⚠ {company} is a flagged reference house — additional verification may be required."
+                        except Exception:
+                            pass
+
                     ref = ReferenceRequest(
                         candidate_id=cand_id,
                         employment_history_id=emp.id,
-                        company_name=getattr(emp, 'company_name', '') or '',
-                        referee_email=getattr(emp, 'referee_email', '') or '',
+                        company_name=company,
+                        referee_email=referee_email_val,
                         referee_name=getattr(emp, 'referee_name', '') or '',
                         status="on_hold" if hold else "not_sent",
                         permission_status="no" if hold else "yes",
-                        notes=hold_reason if hold else "",
+                        notes=(hold_reason if hold else ref_house_flag) or "",
+                        colour="orange" if ref_house_flag else ("white" if not hold else "white"),
                         created_at=now,
                     )
                     s.add(ref)
