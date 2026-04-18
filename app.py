@@ -2556,6 +2556,26 @@ def mark_umbrella_assignment_signed(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/candidate/<int:cand_id>/assign-owner", methods=["POST"])
+@login_required
+def assign_candidate_owner(cand_id: int):
+    owner_id = request.form.get("owner_id", type=int)
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        if owner_id:
+            user_row = s.execute(text("SELECT name FROM users WHERE id = :uid").bindparams(uid=owner_id)).first()
+            cand.owner_id = owner_id
+            cand.owner_name = user_row[0] if user_row else ""
+        else:
+            cand.owner_id = None
+            cand.owner_name = ""
+        s.commit()
+    flash(f"Owner updated to {cand.owner_name or 'Unassigned'}.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/candidate/<int:cand_id>/schedule-interview", methods=["POST"])
 @login_required
 def schedule_interview(cand_id: int):
@@ -5318,6 +5338,10 @@ class Candidate(Base):
     min_day_rate = Column(Integer, nullable=True)  # Minimum acceptable day rate
     max_day_rate = Column(Integer, nullable=True)  # Maximum acceptable day rate
     
+    # Owner — staff user assigned to manage this candidate
+    owner_id = Column(Integer, nullable=True)
+    owner_name = Column(String(200), default="")
+
     # Status and availability fields per wireframe requirements
     status = Column(String(50), default="Available")  # Available, On Assignment, On Hold, Unavailable, etc.
     availability = Column(String(100), default="Immediately available")  # Immediately available, 2 weeks notice, etc.
@@ -5968,6 +5992,14 @@ def ensure_schema():
         # ===== candidates table =====
         try:
             conn.execute(text("ALTER TABLE candidates ADD COLUMN ai_summary TEXT DEFAULT ''"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN owner_id INTEGER"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN owner_name VARCHAR(200) DEFAULT ''"))
         except Exception:
             pass
         for coldef in [
