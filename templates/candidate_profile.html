@@ -1252,56 +1252,56 @@
           </div>
           {% if reference_requests %}
           <div class="table-responsive">
-            <table class="table table-hover table-sm align-middle mb-0">
+            <table class="table table-hover table-sm align-middle mb-0" style="font-size:0.75rem;">
               <thead class="table-light">
                 <tr>
-                  <th>Company</th>
-                  <th>Referee</th>
-                  <th>Status</th>
-                  <th>Sent</th>
-                  <th>Chases</th>
-                  <th class="text-end">Actions</th>
-                  <th class="text-center">Completed</th>
+                  <th style="padding:0.3rem 0.5rem;">Company</th>
+                  <th style="padding:0.3rem 0.5rem;">Referee</th>
+                  <th style="padding:0.3rem 0.5rem;">Status</th>
+                  <th style="padding:0.3rem 0.5rem;">Sent</th>
+                  <th style="padding:0.3rem 0.5rem;">Chases</th>
+                  <th style="padding:0.3rem 0.5rem;" class="text-end">Actions</th>
+                  <th style="padding:0.3rem 0.5rem;" class="text-center">Done</th>
                 </tr>
               </thead>
               <tbody>
                 {% for ref in reference_requests %}
                 {% set ref_border = '#22c55e' if ref.status == 'received' else '#f97316' if ref.status == 'on_hold' else '#3b82f6' if ref.status == 'sent' else '#e2e8f0' %}
                 <tr style="border-left: 3px solid {{ ref_border }};">
-                  <td><strong>{{ ref.company_name or 'Unknown' }}</strong></td>
-                  <td>
-                    <small>{{ ref.referee_email or 'No email' }}</small>
-                    {% if ref.referee_name %}<br><small class="text-muted">{{ ref.referee_name }}</small>{% endif %}
+                  <td style="padding:0.25rem 0.5rem;"><strong>{{ ref.company_name or 'Unknown' }}</strong></td>
+                  <td style="padding:0.25rem 0.5rem;">
+                    {{ ref.referee_email or 'No email' }}
+                    {% if ref.referee_name %}<br><span class="text-muted">{{ ref.referee_name }}</span>{% endif %}
                   </td>
-                  <td>
+                  <td style="padding:0.25rem 0.5rem;">
                     {% if ref.status == 'not_sent' %}
-                      <span class="badge" style="background: #e5e7eb; color: #6b7280;">Not Sent</span>
+                      <span class="badge" style="background:#e5e7eb;color:#6b7280;font-size:0.65rem;">Not Sent</span>
                     {% elif ref.status == 'sent' %}
-                      <span class="badge" style="background: #dbeafe; color: #1d4ed8;">Sent</span>
+                      <span class="badge" style="background:#dbeafe;color:#1d4ed8;font-size:0.65rem;">Sent</span>
                     {% elif ref.status == 'received' %}
-                      <span class="badge" style="background: #dcfce7; color: #166534;">Received</span>
+                      <span class="badge" style="background:#dcfce7;color:#166534;font-size:0.65rem;">Received</span>
                     {% elif ref.status == 'on_hold' %}
-                      <span class="badge" style="background: #fef3c7; color: #92400e;">On Hold</span>
+                      <span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.65rem;">On Hold</span>
                     {% elif ref.status == 'flagged' %}
-                      <span class="badge" style="background: #fee2e2; color: #991b1b;">Flagged</span>
+                      <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:0.65rem;">Flagged</span>
                     {% else %}
-                      <span class="badge" style="background: #e5e7eb; color: #6b7280;">{{ ref.status }}</span>
+                      <span class="badge" style="background:#e5e7eb;color:#6b7280;font-size:0.65rem;">{{ ref.status }}</span>
                     {% endif %}
                   </td>
-                  <td><small class="text-muted">{{ ref.sent_at.strftime('%d/%m/%Y') if ref.sent_at else '—' }}</small></td>
-                  <td><small>{{ ref.chase_count }}</small></td>
-                  <td class="text-end">
+                  <td style="padding:0.25rem 0.5rem;" class="text-muted">{{ ref.sent_at.strftime('%d/%m') if ref.sent_at else '—' }}</td>
+                  <td style="padding:0.25rem 0.5rem;">{{ ref.chase_count }}</td>
+                  <td style="padding:0.25rem 0.5rem;" class="text-end">
                     {% if ref.status in ('not_sent', 'on_hold') and ref.referee_email and ref.permission_status != 'no' %}
-                    <button type="button" class="btn btn-sm btn-outline-primary"
+                    <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem;padding:0.15rem 0.4rem;"
                             onclick="previewReferenceEmail({{ cand.id }}, {{ ref.id }})"
                             title="Preview and send reference email">
-                      <i class="fas fa-eye me-1"></i> Preview &amp; Send
+                      <i class="fas fa-eye me-1"></i>Send
                     </button>
                     {% elif ref.status == 'sent' %}
-                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.7rem;padding:0.15rem 0.4rem;"
                             onclick="previewReferenceEmail({{ cand.id }}, {{ ref.id }})"
                             title="Preview and resend reference email">
-                      <i class="fas fa-redo me-1"></i> Resend
+                      <i class="fas fa-redo me-1"></i>Resend
                     </button>
                     {% endif %}
                     {% if ref.permission_status == 'no' %}
