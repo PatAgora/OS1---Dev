@@ -7037,69 +7037,6 @@ try:
 except Exception:
     pass
 
-# ---------- One-time data cleanup ----------
-print("[CLEANUP] Starting data cleanup...", flush=True)
-_cleanup_stmts = [
-    # Transactional tables (no FK deps on these)
-    "DELETE FROM esign_requests",
-    "DELETE FROM applications",
-    "DELETE FROM shortlists",
-    "DELETE FROM engagement_plans",
-    "DELETE FROM leave_requests",
-    "DELETE FROM webhook_events",
-    "DELETE FROM opportunity_notes",
-    "DELETE FROM jobs",
-    "DELETE FROM engagements",
-    "DELETE FROM opportunities",
-    # Candidate-linked data
-    "DELETE FROM vetting_check WHERE candidate_id != 271",
-    "DELETE FROM candidate_notes WHERE candidate_id != 271",
-    "DELETE FROM reference_requests WHERE candidate_id != 271",
-    "DELETE FROM documents WHERE candidate_id != 271",
-    "DELETE FROM candidate_tags WHERE candidate_id != 271",
-    # Portal tables that reference candidates (must delete before candidates)
-    "DELETE FROM associate_profiles WHERE candidate_id != 271",
-    "DELETE FROM company_details WHERE candidate_id != 271",
-    "DELETE FROM employment_history WHERE candidate_id != 271",
-    "DELETE FROM timesheets",
-    "DELETE FROM consent_records WHERE candidate_id != 271",
-    "DELETE FROM declaration_records WHERE candidate_id != 271",
-    "DELETE FROM qualification_records WHERE candidate_id != 271",
-    "DELETE FROM professional_registrations WHERE candidate_id != 271",
-    "DELETE FROM address_history WHERE candidate_id != 271",
-    "DELETE FROM timesheet_expenses",
-    "DELETE FROM timesheet_entries",
-    "DELETE FROM invoices",
-    "DELETE FROM trustid_checks",
-    # Now delete candidates
-    "DELETE FROM candidates WHERE id != 271",
-    # Clear audit_logs for PW-TEST users before deleting them
-    "DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%')",
-    # PW-TEST users and taxonomy
-    "DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%'",
-    "DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')",
-    "DELETE FROM taxonomy_categories WHERE name LIKE '%PW-TEST%'",
-    "DELETE FROM taxonomy_tags WHERE tag LIKE '%PW-TEST%'",
-]
-try:
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _cl:
-        for _stmt in _cleanup_stmts:
-            try:
-                _r = _cl.execute(text(_stmt))
-                if _r.rowcount and _r.rowcount > 0:
-                    print(f"[CLEANUP] {_stmt[:60]}... -> {_r.rowcount} rows", flush=True)
-            except Exception as _e2:
-                print(f"[CLEANUP] FAILED: {_stmt[:60]}... -> {_e2}", flush=True)
-        # Orphaned portal data
-        for _pt in ["associate_profiles", "company_details", "employment_history", "candidate_tags"]:
-            try:
-                _cl.execute(text(f"DELETE FROM {_pt} WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
-            except Exception:
-                pass
-    print("[CLEANUP] Done. Ian Marley (271) preserved.", flush=True)
-except Exception as _e:
-    print(f"[CLEANUP] FATAL: {_e}", flush=True)
-
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
