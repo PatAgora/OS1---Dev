@@ -1347,7 +1347,7 @@
               <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>Start Full Vetting — Send Commencement Email</h5>
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('start_vetting_with_email', cand_id=cand.id) }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ url_for('send_vetting_email', cand_id=cand.id) }}" enctype="multipart/form-data">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="modal-body">
                 <div class="mb-3">
@@ -2154,7 +2154,16 @@ function triggerReferencing(candidateId) {
 }
 
 function openVettingEmailModal() {
-  // Pre-fill email from the vetting commencement template
+  // Fire Verifile API in the background immediately — runs while user reads the email
+  fetch('/api/vetting/trigger/{{ cand.id }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
+    credentials: 'same-origin'
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    console.log('[Vetting] Background trigger:', data.message || data.error || 'done');
+  }).catch(function(e) { console.log('[Vetting] Background trigger error:', e); });
+
+  // Open the email modal instantly (no wait for Verifile)
   fetch('/api/vetting/email-preview/{{ cand.id }}', {
     headers: { 'X-CSRFToken': _csrfToken() },
     credentials: 'same-origin'

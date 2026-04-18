@@ -14441,6 +14441,33 @@ def api_vetting_email_preview(cand_id):
     return jsonify({"subject": subject, "body": body})
 
 
+@app.route("/candidate/<int:cand_id>/send-vetting-email", methods=["POST"])
+@login_required
+def send_vetting_email(cand_id):
+    """Send the vetting commencement email only (vetting already triggered in background)."""
+    to_email = (request.form.get("to_email") or "").strip()
+    email_subject = (request.form.get("email_subject") or "").strip()
+    email_body = (request.form.get("email_body") or "").strip()
+    if to_email and email_body:
+        try:
+            html_body = "<br>".join(email_body.split("\n"))
+            attachments = []
+            user_file = request.files.get("attachment")
+            if user_file and user_file.filename:
+                attachments.append((
+                    user_file.filename, user_file.read(),
+                    user_file.content_type or "application/octet-stream",
+                ))
+            send_email(to_email, email_subject, html_body,
+                       attachments=attachments if attachments else None)
+            flash(f"Vetting commencement email sent to {to_email}.", "success")
+        except Exception as exc:
+            flash(f"Email failed: {exc}", "warning")
+    else:
+        flash("No email sent — missing email address or body.", "warning")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/candidate/<int:cand_id>/start-vetting-with-email", methods=["POST"])
 @login_required
 def start_vetting_with_email(cand_id):
