@@ -1034,7 +1034,7 @@
         </div>
       </div>
 
-      <!-- Vetting Checks Section — grouped by Project / Role -->
+      <!-- Vetting Checks Section -->
       <div class="modern-card mt-4 fade-in-up stagger-4" id="vetting-checks">
         <div class="card-body p-4">
           <div class="section-header mb-3">
@@ -1044,18 +1044,12 @@
             </div>
           </div>
 
-          {# Current project vetting counts — passed from route as current_vetting_project #}
-          {% set current_proj = current_vetting_project %}
-          {% set current_complete = current_proj.complete if current_proj else vetting_summary.complete %}
-          {% set current_total = current_proj.total if current_proj else (vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started) %}
-
-          {# Action buttons — apply to the current project's vetting #}
+          {# Action bar #}
           <div class="mb-3 p-2 rounded" style="background: #f1f5f9;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
               <span class="fw-semibold" style="font-size: 0.85rem; color: #1f2937;">
                 <i class="fas fa-chart-pie me-1 text-primary"></i>
-                {{ current_complete }}/{{ current_total }} complete
-                {% if current_proj %}<span class="text-muted fw-normal" style="font-size:0.75rem;"> — {{ current_proj.role }}</span>{% endif %}
+                {{ vetting_summary.complete }}/{{ vetting_summary.complete + vetting_summary.in_progress + vetting_summary.not_started }} complete
               </span>
               <div class="d-flex align-items-center gap-1">
                 <select id="bulkAnalystSelect" class="form-select form-select-sm" style="font-size: 0.75rem; width: auto;">
@@ -1084,8 +1078,7 @@
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
-              {% set current_in_progress = current_proj.in_progress if current_proj else vetting_summary.in_progress %}
-              {% set vetting_started = current_in_progress > 0 or current_complete > 0 %}
+              {% set vetting_started = vetting_summary.in_progress > 0 or vetting_summary.complete > 0 %}
               {% if vetting_started %}
               <span class="btn btn-outline-secondary btn-sm flex-fill" style="cursor:default; opacity:0.7;">
                 <i class="fas fa-check-circle me-1"></i> Vetting Already Started
@@ -1095,164 +1088,125 @@
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>
               {% endif %}
-              <button class="btn btn-outline-danger btn-sm" onclick="resetVettingCurrent({{ cand.id }})">
+              <button class="btn btn-outline-danger btn-sm" onclick="resetVettingAll({{ cand.id }})">
                 <i class="fas fa-undo me-1"></i> Reset
               </button>
             </div>
           </div>
 
-          {# Collapsible project groups #}
-          {% if vetting_by_project %}
-            {% for proj in vetting_by_project %}
-            <div class="mb-3">
-              <div class="d-flex justify-content-between align-items-center py-2 px-3 rounded" style="background:{{ '#eff6ff' if proj.is_latest else '#f8fafc' }}; border:1px solid {{ '#bfdbfe' if proj.is_latest else '#e5e7eb' }}; cursor:pointer;" onclick="var b=document.getElementById('vp-{{ loop.index }}'); b.style.display=b.style.display==='none'?'':'none'; this.querySelector('.chevron-toggle').classList.toggle('fa-chevron-down'); this.querySelector('.chevron-toggle').classList.toggle('fa-chevron-up');">
-                <div>
-                  {% if proj.is_latest %}
-                    <span class="badge bg-primary me-1" style="font-size:0.6rem;">CURRENT</span>
-                  {% endif %}
-                  <span class="fw-semibold" style="font-size:0.85rem;">{{ proj.role }}</span>
-                  {% if proj.eng_name and proj.eng_name != 'No Project' %}
-                    <span class="text-muted fw-normal"> — {{ proj.eng_name }}</span>
-                  {% endif %}
-                  {% if proj.client %}
-                    <span class="text-muted" style="font-size:0.75rem;"> ({{ proj.client }})</span>
-                  {% endif %}
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                  <span class="badge {{ 'bg-success' if proj.complete == proj.total else 'bg-warning text-dark' }}" style="font-size:0.65rem;">{{ proj.complete }}/{{ proj.total }}</span>
-                  <i class="fas {{ 'fa-chevron-up' if proj.is_latest else 'fa-chevron-down' }} text-muted chevron-toggle" style="font-size:0.7rem;"></i>
-                </div>
-              </div>
-              <div id="vp-{{ loop.index }}" style="{{ '' if proj.is_latest else 'display:none;' }}">
-                <div class="row g-2 mt-1">
-                  {% for c in proj.checks %}
-                  {% set s_upper = c.status|upper %}
-                  {% set colour_border = '#22c55e' if s_upper in ('COMPLETE','QC COMPLETE','REFERRAL APPROVED','QC NOT REQUIRED','CHECK STILL IN DATE') else '#3b82f6' if s_upper in ('IN PROGRESS','SENT TO QC','QC IN PROGRESS','AWAITING QC') else '#f97316' if c.expired else '#e2e8f0' %}
-                  <div class="col-md-6">
-                    <div class="p-2 rounded" style="background: #f9fafb; border-left: 4px solid {{ colour_border }};">
-                      <div class="d-flex justify-content-between align-items-start mb-1" style="gap:0.5rem;">
-                        <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{{ c.type }}</div>
-                        {% if s_upper == 'CHECK STILL IN DATE' %}
-                          <span class="badge" style="background:#dcfce7; color:#166534; font-size:0.6rem;"><i class="fas fa-check-circle me-1"></i>Still In Date</span>
-                        {% elif s_upper in ('COMPLETE','QC COMPLETE','REFERRAL APPROVED','QC NOT REQUIRED') %}
-                          <span class="badge" style="background:#dcfce7; color:#166534; font-size:0.6rem;">{{ c.status }}</span>
-                        {% elif s_upper in ('IN PROGRESS','SENT TO QC','QC IN PROGRESS','AWAITING QC') %}
-                          <span class="badge" style="background:#dbeafe; color:#1d4ed8; font-size:0.6rem;">{{ c.status }}</span>
-                        {% elif s_upper == 'N/A' %}
-                          <span class="badge" style="background:#f1f5f9; color:#94a3b8; font-size:0.6rem;">N/A</span>
-                        {% else %}
-                          <span class="badge" style="background:#e5e7eb; color:#6b7280; font-size:0.6rem;">{{ c.status or 'Not Started' }}</span>
-                        {% endif %}
-                      </div>
-
-                      {# Expiry info #}
-                      {% if c.completed_at %}
-                      <div style="font-size:0.7rem; color:#6b7280;">
-                        Completed: {{ c.completed_at.strftime('%d %b %Y') }}
-                        {% if c.expiry_date %}
-                          · Expires: <span class="{{ 'text-danger fw-semibold' if c.expired else 'text-success' }}">{{ c.expiry_date.strftime('%d %b %Y') }}{% if c.expired %} <i class="fas fa-exclamation-triangle"></i>{% endif %}</span>
-                        {% endif %}
-                      </div>
-                      {% endif %}
-
-                      {# Verifile confirmed flag #}
-                      {% if c.verifile_confirmed %}
-                      <div class="mt-1 py-1 px-2 rounded" style="font-size:0.7rem; background:#ede9fe; border:1px solid #c4b5fd; color:#5b21b6;">
-                        <i class="fas fa-check-double me-1"></i>Verifile — {{ c.verifile_result or 'Confirmed' }}{% if c.verifile_confirmed_at %} ({{ c.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
-                      </div>
-                      {% endif %}
-
-                      {# Previous check still in date flag #}
-                      {% if c.prev_in_date and proj.is_latest %}
-                      <div class="mt-1 py-1 px-2 rounded" style="font-size:0.7rem; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534;">
-                        <i class="fas fa-check-circle me-1"></i>Previous {{ c.type }} still in date
-                      </div>
-                      {% endif %}
-
-                      {# Status update form + Assignees — only on latest project #}
-                      {% if proj.is_latest %}
-                      <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-1 mt-1 align-items-end">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="check_type" value="{{ c.type }}">
-                        {% set is_assignee = (c.assigned_to and current_user.is_authenticated and c.assigned_to == current_user.id) %}
-                        {% set is_qc = (c.qc_assigned_to and current_user.is_authenticated and c.qc_assigned_to == current_user.id) %}
-                        {% set is_admin = (current_user.is_authenticated and current_user.role == 'admin') %}
-                        <select name="status" class="form-select form-select-sm" style="font-size:0.7rem; flex:1;">
-                          {% if is_qc and not is_admin %}
-                            {# QC reviewer: QC statuses + Complete #}
-                            <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
-                            <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
-                            <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
-                            <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
-                            <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
-                          {% elif is_assignee and not is_admin %}
-                            {# Assignee: analyst statuses only #}
-                            <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
-                            <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                            <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
-                            <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
-                            <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
-                          {% else %}
-                            {# Admin / unassigned — full list #}
-                            <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
-                            <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                            <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
-                            <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
-                            <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
-                            <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
-                            <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
-                            <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
-                            <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
-                            <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
-                          {% endif %}
-                        </select>
-                        <button type="submit" class="btn btn-outline-primary" style="font-size:0.6rem; padding:0.2rem 0.4rem;">
-                          <i class="fas fa-save"></i>
-                        </button>
-                      </form>
-                      <div class="row g-1 mt-1">
-                        <div class="col-6">
-                          <label style="font-size:0.6rem; color:#6b7280; display:block;">Assigned</label>
-                          <select class="form-select form-select-sm vc-analyst-select" style="font-size:0.7rem;"
-                                  data-check="{{ c.type }}"
-                                  onchange="assignAnalyst({{ cand.id }}, '{{ c.type }}', this.value, this)">
-                            <option value="">Unassigned</option>
-                            {% for staff in all_staff_users %}
-                            <option value="{{ staff.id }}" {% if c.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
-                            {% endfor %}
-                          </select>
-                        </div>
-                        <div class="col-6">
-                          <label style="font-size:0.6rem; color:#6b7280; display:block;">QC Assigned</label>
-                          <select class="form-select form-select-sm vc-qc-select" style="font-size:0.7rem;"
-                                  data-check="{{ c.type }}"
-                                  onchange="assignQCReviewer({{ cand.id }}, '{{ c.type }}', this.value, this)">
-                            <option value="">Unassigned</option>
-                            {% for staff in all_staff_users %}
-                            <option value="{{ staff.id }}" {% if c.qc_assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
-                            {% endfor %}
-                          </select>
-                        </div>
-                      </div>
-                      {% endif %}
-                    </div>
-                  </div>
-                  {% endfor %}
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-          {% elif vetting_checks %}
-            {# Fallback: show flat list if no project grouping available #}
+          {% if vetting_checks %}
             <div class="row g-2">
               {% for check in vetting_checks %}
               {% set s_upper = check.status|upper %}
+              {% set colour_border = '#22c55e' if s_upper in ('COMPLETE','QC COMPLETE','QC NOT REQUIRED','CHECK STILL IN DATE') else '#3b82f6' if s_upper in ('IN PROGRESS','SENT TO QC','QC IN PROGRESS','AWAITING QC') else '#f97316' if check.expired else '#e2e8f0' %}
               <div class="col-md-6">
-                <div class="p-2 rounded" style="background: #f9fafb; border-left: 4px solid {{ '#22c55e' if s_upper in ('COMPLETE','QC COMPLETE') else '#e2e8f0' }};">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <span style="font-size:0.8rem; font-weight:600;">{{ check.type }}</span>
-                    <span class="badge" style="background:{{ '#dcfce7' if s_upper in ('COMPLETE','QC COMPLETE') else '#e5e7eb' }}; color:{{ '#166534' if s_upper in ('COMPLETE','QC COMPLETE') else '#6b7280' }}; font-size:0.6rem;">{{ check.status }}</span>
+                <div class="p-2 rounded" style="background: #f9fafb; border-left: 4px solid {{ colour_border }};">
+                  <div class="d-flex justify-content-between align-items-start mb-1" style="gap:0.5rem;">
+                    <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{{ check.type }}</div>
+                    {% if s_upper == 'CHECK STILL IN DATE' %}
+                      <span class="badge" style="background:#dcfce7; color:#166534; font-size:0.6rem;"><i class="fas fa-check-circle me-1"></i>Still In Date</span>
+                    {% elif s_upper in ('COMPLETE','QC COMPLETE','QC NOT REQUIRED') %}
+                      <span class="badge" style="background:#dcfce7; color:#166534; font-size:0.6rem;">{{ check.status }}</span>
+                    {% elif s_upper in ('IN PROGRESS','SENT TO QC','QC IN PROGRESS','AWAITING QC') %}
+                      <span class="badge" style="background:#dbeafe; color:#1d4ed8; font-size:0.6rem;">{{ check.status }}</span>
+                    {% elif s_upper == 'N/A' %}
+                      <span class="badge" style="background:#f1f5f9; color:#94a3b8; font-size:0.6rem;">N/A</span>
+                    {% elif s_upper == 'FAILED' %}
+                      <span class="badge" style="background:#fee2e2; color:#991b1b; font-size:0.6rem;">Failed</span>
+                    {% else %}
+                      <span class="badge" style="background:#e5e7eb; color:#6b7280; font-size:0.6rem;">{{ check.status }}</span>
+                    {% endif %}
                   </div>
+
+                  {# Expiry info #}
+                  {% if check.completed_at %}
+                  <div style="font-size:0.7rem; color:#6b7280;">
+                    Completed: {{ check.completed_at.strftime('%d %b %Y') }}
+                    {% if check.expiry_date %}
+                      · Expires: <span class="{{ 'text-danger fw-semibold' if check.expired else 'text-success' }}">{{ check.expiry_date.strftime('%d %b %Y') }}{% if check.expired %} <i class="fas fa-exclamation-triangle"></i>{% endif %}</span>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+
+                  {# Verifile confirmed flag #}
+                  {% if check.verifile_confirmed %}
+                  <div class="mt-1 py-1 px-2 rounded" style="font-size:0.7rem; background:#ede9fe; border:1px solid #c4b5fd; color:#5b21b6;">
+                    <i class="fas fa-check-double me-1"></i>Verifile — {{ check.verifile_result or 'Confirmed' }}{% if check.verifile_confirmed_at %} ({{ check.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
+                  </div>
+                  {% endif %}
+
+                  {# Status update form #}
+                  <form method="POST" action="{{ url_for('update_vetting_check', cand_id=cand.id) }}" class="d-flex gap-1 mt-1 align-items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="check_type" value="{{ check.type }}">
+                    {% set is_assignee = (check.assigned_to and current_user.is_authenticated and check.assigned_to == current_user.id) %}
+                    {% set is_qc = (check.qc_assigned_to and current_user.is_authenticated and check.qc_assigned_to == current_user.id) %}
+                    {% set is_admin = (current_user.is_authenticated and current_user.role == 'admin') %}
+                    <select name="status" class="form-select form-select-sm" style="font-size:0.7rem; flex:1;">
+                      {% if is_qc and not is_admin %}
+                        <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
+                        <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
+                        <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
+                        <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
+                        <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                      {% elif is_assignee and not is_admin %}
+                        <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
+                        <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                        <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
+                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                      {% else %}
+                        <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
+                        <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                        <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
+                        <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
+                        <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
+                        <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
+                        <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
+                        <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                        <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
+                      {% endif %}
+                    </select>
+                    <button type="submit" class="btn btn-outline-primary" style="font-size:0.6rem; padding:0.2rem 0.4rem;">
+                      <i class="fas fa-save"></i>
+                    </button>
+                  </form>
+
+                  {# Assigned + QC Assigned #}
+                  <div class="row g-1 mt-1">
+                    <div class="col-6">
+                      <label style="font-size:0.6rem; color:#6b7280; display:block;">Assigned</label>
+                      <select class="form-select form-select-sm vc-analyst-select" style="font-size:0.7rem;"
+                              data-check="{{ check.type }}"
+                              onchange="assignAnalyst({{ cand.id }}, '{{ check.type }}', this.value, this)">
+                        <option value="">Unassigned</option>
+                        {% for staff in all_staff_users %}
+                        <option value="{{ staff.id }}" {% if check.assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-6">
+                      <label style="font-size:0.6rem; color:#6b7280; display:block;">QC Assigned</label>
+                      <select class="form-select form-select-sm vc-qc-select" style="font-size:0.7rem;"
+                              data-check="{{ check.type }}"
+                              onchange="assignQCReviewer({{ cand.id }}, '{{ check.type }}', this.value, this)">
+                        <option value="">Unassigned</option>
+                        {% for staff in all_staff_users %}
+                        <option value="{{ staff.id }}" {% if check.qc_assigned_to == staff.id %}selected{% endif %}>{{ staff.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+
+                  {# QC history #}
+                  {% if check.qc_reviewed_by_name %}
+                  <div class="mt-1" style="font-size: 0.7rem; color: #6b7280; background: #f1f5f9; border-radius: 4px; padding: 0.3rem 0.5rem;">
+                    <i class="fas fa-history me-1"></i>
+                    QC'd by <strong>{{ check.qc_reviewed_by_name }}</strong>
+                    {% if check.qc_reviewed_at %} on {{ check.qc_reviewed_at.strftime('%d %b %Y %H:%M') }}{% endif %}{% if check.qc_notes %}: <em>{{ check.qc_notes }}</em>{% endif %}
+                  </div>
+                  {% endif %}
                 </div>
               </div>
               {% endfor %}
@@ -2280,9 +2234,9 @@ function openVettingEmailModal() {
   });
 }
 
-function resetVettingCurrent(candidateId) {
-  if (!confirm('Reset current project vetting checks to Not Started? This will clear progress for the current role only.')) return;
-  fetch('/api/vetting/reset-current/' + candidateId, {
+function resetVettingAll(candidateId) {
+  if (!confirm('Reset all vetting checks to Not Started? This will clear all vetting progress for this candidate.')) return;
+  fetch('/api/vetting/reset/' + candidateId, {
     method: 'POST',
     headers: {
       'X-CSRFToken': _csrfToken()

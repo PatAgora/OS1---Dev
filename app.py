@@ -16555,6 +16555,13 @@ def candidate_profile(cand_id: int):
             for check_type in VETTING_CHECK_TYPES:
                 if check_type in existing_checks:
                     check = existing_checks[check_type]
+                    _completed = check.completed_at
+                    _expiry = getattr(check, 'expiry_date', None)
+                    if not _expiry and _completed:
+                        _exp_months = CHECK_EXPIRY_MONTHS.get(check_type, 0)
+                        if _exp_months > 0:
+                            _expiry = _completed + datetime.timedelta(days=_exp_months * 30)
+                    _expired = bool(_expiry and _expiry < datetime.datetime.utcnow())
                     vetting_checks.append({
                         "id": check.id,
                         "type": check_type,
@@ -16575,6 +16582,12 @@ def candidate_profile(cand_id: int):
                         "referral_approved_by_name": _get_user_name(check.referral_approved_by),
                         "referral_approved_at": check.referral_approved_at,
                         "missing_data": _missing_for_check(check_type),
+                        "completed_at": _completed,
+                        "expiry_date": _expiry,
+                        "expired": _expired,
+                        "verifile_confirmed": getattr(check, 'verifile_confirmed', False) or False,
+                        "verifile_confirmed_at": getattr(check, 'verifile_confirmed_at', None),
+                        "verifile_result": getattr(check, 'verifile_result', None) or "",
                     })
                 else:
                     # Create a placeholder for display
@@ -16818,7 +16831,7 @@ def candidate_profile(cand_id: int):
             # Calculate summary
             for vc in vetting_checks:
                 status = (vc["status"] or "").upper()
-                if status in ("COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"):
+                if status in ("COMPLETE", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED", "CHECK STILL IN DATE"):
                     vetting_summary["complete"] += 1
                 elif status in ("IN PROGRESS", "AWAITING QC", "SENT TO QC", "QC IN PROGRESS", "QC REWORK NEEDED", "AWAIT QC REWORK CHECK"):
                     vetting_summary["in_progress"] += 1
