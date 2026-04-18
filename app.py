@@ -5120,6 +5120,9 @@ class Job(Base):
     dbs_is_volunteer = Column(Boolean, default=False)
     dbs_working_from_home = Column(Boolean, default=False)
 
+    # Vetting requirements — JSON array of additional check types for this specific role
+    vetting_requirements = Column(Text, default="[]")
+
     engagement = relationship("Engagement", back_populates="jobs")
     applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
 
@@ -5801,6 +5804,15 @@ def _seed_default_stages(session):
         session.commit()
 
 
+# ---- Vetting Profiles — reusable sets of vetting check types ----
+class VettingProfile(Base):
+    __tablename__ = "vetting_profiles"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), default="")
+    checks = Column(Text, default="[]")  # JSON array of check type strings
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 from public import public_bp
 app.register_blueprint(public_bp)
 
@@ -5854,6 +5866,11 @@ def ensure_schema():
             pass
         try:
             conn.execute(text("ALTER TABLE jobs ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+        except Exception:
+            pass
+        # Job-level vetting requirements (JSON array of extra check types)
+        try:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN vetting_requirements TEXT DEFAULT '[]'"))
         except Exception:
             pass
         # DBS vetting criteria (migration 010). Self-healing ALTERs so the
@@ -6204,6 +6221,19 @@ def ensure_schema():
                 conn.execute(text(f"ALTER TABLE engagement_plans ADD COLUMN {coldef}"))
             except Exception:
                 pass
+
+        # ===== vetting_profiles table =====
+        try:
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS vetting_profiles (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name VARCHAR(200) DEFAULT '',
+              checks TEXT DEFAULT '[]',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """))
+        except Exception:
+            pass
 
         # ===== trustid_checks table =====
         try:
@@ -11701,7 +11731,17 @@ def create_engagement():
     # Pre-parse vetting_requirements JSON server-side so the template doesn't
     # need a custom Jinja filter (avoids standalone-parse errors).
     selected_checks = from_json_safe(form.vetting_requirements.data or "")
-    return render_template("create_engagement.html", form=form, selected_checks=selected_checks)
+    # Load vetting profiles for the dropdown
+    _vp_list = []
+    try:
+        with Session(engine) as _svp:
+            _vp_list = [
+                {"id": vp.id, "name": vp.name, "checks": from_json_safe(vp.checks or "[]")}
+                for vp in _svp.scalars(select(VettingProfile).order_by(VettingProfile.name)).all()
+            ]
+    except Exception:
+        pass
+    return render_template("create_engagement.html", form=form, selected_checks=selected_checks, vetting_profiles=_vp_list)
 
 # --- Edit engagement (name, ref, dates, vetting requirements) ---
 @app.route("/engagement/<int:eng_id>/edit", methods=["GET", "POST"])
@@ -11749,7 +11789,17 @@ def engagement_edit(eng_id):
 
     # Pre-parse vetting_requirements JSON server-side (see comment in create_engagement)
     selected_checks = from_json_safe(form.vetting_requirements.data or "")
-    return render_template("edit_engagement.html", form=form, engagement=engagement, selected_checks=selected_checks)
+    # Load vetting profiles for the dropdown
+    _vp_list_edit = []
+    try:
+        with Session(engine) as _svp2:
+            _vp_list_edit = [
+                {"id": vp.id, "name": vp.name, "checks": from_json_safe(vp.checks or "[]")}
+                for vp in _svp2.scalars(select(VettingProfile).order_by(VettingProfile.name)).all()
+            ]
+    except Exception:
+        pass
+    return render_template("edit_engagement.html", form=form, engagement=engagement, selected_checks=selected_checks, vetting_profiles=_vp_list_edit)
 
 @app.route("/engagements", methods=["GET"])
 @login_required
@@ -12068,6 +12118,7 @@ def job_new():
                 dbs_vulnerable_adults_in_environment=bool(request.form.get("dbs_vulnerable_adults_in_environment")),
                 dbs_is_volunteer=bool(request.form.get("dbs_is_volunteer")),
                 dbs_working_from_home=bool(request.form.get("dbs_working_from_home")),
+                vetting_requirements=json.dumps(request.form.getlist("job_vetting_check")),
             )
             s.add(job)
             s.commit()
@@ -12076,9 +12127,16 @@ def job_new():
                 return redirect(url_for("engagement_dashboard", eng_id=int(engagement_id)))
             return redirect(url_for("jobs"))
 
-        # GET request
+        # GET request — load engagement vetting for display
         roles = s.scalars(select(RoleType).order_by(RoleType.name.asc())).all()
-        return render_template("job_form.html", job=None, roles=roles, mode="create")
+        eng_vetting = []
+        eng_id_param = request.args.get("engagement_id", type=int)
+        if eng_id_param:
+            eng_obj = s.get(Engagement, eng_id_param)
+            if eng_obj and eng_obj.vetting_requirements:
+                eng_vetting = from_json_safe(eng_obj.vetting_requirements)
+        return render_template("job_form.html", job=None, roles=roles, mode="create",
+                               eng_vetting=eng_vetting, engagement_id=eng_id_param)
 
 
 @app.route("/job/<int:job_id>/edit", methods=["GET", "POST"])
@@ -12123,6 +12181,7 @@ def job_edit(job_id):
             job.dbs_vulnerable_adults_in_environment = bool(request.form.get("dbs_vulnerable_adults_in_environment"))
             job.dbs_is_volunteer = bool(request.form.get("dbs_is_volunteer"))
             job.dbs_working_from_home = bool(request.form.get("dbs_working_from_home"))
+            job.vetting_requirements = json.dumps(request.form.getlist("job_vetting_check"))
 
             s.commit()
             flash("Job updated successfully.", "success")
@@ -12130,8 +12189,16 @@ def job_edit(job_id):
                 return redirect(url_for("engagement_dashboard", eng_id=job.engagement_id))
             return redirect(url_for("projects"))
 
+        # GET — load engagement vetting for read-only display
+        eng_vetting = []
+        if job.engagement_id:
+            eng_obj = s.get(Engagement, job.engagement_id)
+            if eng_obj and eng_obj.vetting_requirements:
+                eng_vetting = from_json_safe(eng_obj.vetting_requirements)
+        job_vetting = from_json_safe(getattr(job, 'vetting_requirements', '[]') or '[]')
         roles = s.scalars(select(RoleType).order_by(RoleType.name.asc())).all()
-        return render_template("job_form.html", job=job, roles=roles, mode="edit")
+        return render_template("job_form.html", job=job, roles=roles, mode="edit",
+                               eng_vetting=eng_vetting, job_vetting=job_vetting)
 
 @app.route("/apply/<token>", methods=["GET", "POST"])
 def apply(token):
@@ -15991,6 +16058,14 @@ def candidate_profile(cand_id: int):
             if job and job.engagement_id:
                 engagement = s.get(Engagement, job.engagement_id)
 
+        # Build combined vetting requirements from engagement + job
+        required_vetting_checks = set()
+        if engagement and engagement.vetting_requirements:
+            required_vetting_checks.update(from_json_safe(engagement.vetting_requirements))
+        if job and getattr(job, 'vetting_requirements', None):
+            required_vetting_checks.update(from_json_safe(job.vetting_requirements))
+        required_vetting_checks = sorted(required_vetting_checks)
+
         # All active engagements with their open jobs (for contract engagement/role selector)
         all_engagements_for_contract = s.scalars(
             select(Engagement)
@@ -16783,6 +16858,7 @@ def candidate_profile(cand_id: int):
         contract_status=contract_status,
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
+        required_vetting_checks=required_vetting_checks,
         # === QC workflow: staff users for analyst dropdown ===
         all_staff_users=all_staff_users,
         jobs_for_quick_pick=jobs_for_quick_pick,
@@ -16846,6 +16922,34 @@ def create_manual_placement(cand_id):
         flash(f"Placement created for {cand.name} on {eng.name}.", "success")
 
     return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
+# -------- Add a single vetting check to a candidate --------
+@app.route("/candidate/<int:cand_id>/add-vetting-check", methods=["POST"])
+@login_required
+def candidate_add_vetting_check(cand_id: int):
+    """Add a new VettingCheck row for a candidate (only if it doesn't already exist)."""
+    check_type = request.form.get("check_type", "").strip()
+    ALL_VETTING_CHECKS = [
+        "Right to Work", "Identity Verification", "Address History", "DBS Check",
+        "Employment History", "References", "Qualifications", "Professional Registration",
+        "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+    ]
+    if not check_type or check_type not in ALL_VETTING_CHECKS:
+        flash("Invalid check type.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
+    with Session(engine) as s:
+        existing = s.scalar(
+            select(VettingCheck)
+            .where(VettingCheck.candidate_id == cand_id, VettingCheck.check_type == check_type)
+        )
+        if not existing:
+            s.add(VettingCheck(candidate_id=cand_id, check_type=check_type, status="NOT STARTED"))
+            s.commit()
+            flash(f"'{check_type}' check added.", "success")
+        else:
+            flash(f"'{check_type}' check already exists.", "info")
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
 
 
 # -------- Vetting Check Update --------
@@ -21233,6 +21337,21 @@ def taxonomy_manage():
     except Exception:
         pass
 
+    # Vetting profiles for config page
+    vetting_profiles = []
+    try:
+        with Session(engine) as s_vp:
+            vetting_profiles = s_vp.scalars(
+                select(VettingProfile).order_by(VettingProfile.name)
+            ).all()
+            # Detach-safe: copy to dicts
+            vetting_profiles = [
+                {"id": vp.id, "name": vp.name, "checks": from_json_safe(vp.checks or "[]"), "created_at": vp.created_at}
+                for vp in vetting_profiles
+            ]
+    except Exception:
+        vetting_profiles = []
+
     # Leave reasons for config page
     leave_reasons_list = []
     try:
@@ -21457,7 +21576,8 @@ Optimus - Financial Services Resourcing Specialists"""
                            assignment_templates=assignment_templates,
                            assignment_umbrella_options=assignment_umbrella_options,
                            offer_templates=offer_templates,
-                           leave_reasons=leave_reasons_list)
+                           leave_reasons=leave_reasons_list,
+                           vetting_profiles=vetting_profiles)
 
 @app.route("/taxonomy/category/add", methods=["POST"])
 @login_required
@@ -21539,6 +21659,50 @@ def taxonomy_tag_delete(tag_id):
         s.commit()
     flash("Tag deleted.", "success")
     return redirect(url_for("taxonomy_manage"))
+
+# ---- Vetting Profiles CRUD (admin/config) ----
+@app.route("/admin/vetting-profiles/create", methods=["POST"])
+@login_required
+def vetting_profile_create():
+    name = (request.form.get("profile_name") or "").strip()
+    if not name:
+        flash("Profile name is required.", "warning")
+        return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+    checks = request.form.getlist("profile_check")
+    with Session(engine) as s:
+        s.add(VettingProfile(name=name, checks=json.dumps(checks)))
+        s.commit()
+    flash(f"Vetting profile '{name}' created.", "success")
+    return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+
+
+@app.route("/admin/vetting-profiles/<int:vp_id>/delete", methods=["POST"])
+@login_required
+def vetting_profile_delete(vp_id):
+    with Session(engine) as s:
+        vp = s.get(VettingProfile, vp_id)
+        if not vp:
+            abort(404)
+        s.delete(vp)
+        s.commit()
+    flash("Vetting profile deleted.", "success")
+    return redirect(url_for("taxonomy_manage") + "#vetting-profiles")
+
+
+@app.route("/api/vetting-profiles", methods=["GET"])
+@login_required
+def api_vetting_profiles():
+    """Return all vetting profiles as JSON (used by engagement/job forms)."""
+    try:
+        with Session(engine) as s:
+            profiles = s.scalars(select(VettingProfile).order_by(VettingProfile.name)).all()
+            return jsonify([
+                {"id": p.id, "name": p.name, "checks": from_json_safe(p.checks or "[]")}
+                for p in profiles
+            ])
+    except Exception:
+        return jsonify([])
+
 
 @app.route("/action/taxonomy/retag_all", methods=["POST"])
 @login_required

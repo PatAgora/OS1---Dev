@@ -55,9 +55,8 @@
 
     <hr class="my-4">
 
-    {# DBS vetting criteria — staff-only, not shown on the public job advert.
-       Mirrors Verifile /orders/candidateentry CheckSpecificData fields. #}
-    <div class="mb-2">
+    {# DBS vetting criteria — hidden for now, may be needed in future #}
+    <div class="mb-2" style="display:none;"
       <h5 class="fw-bold mb-1">DBS Vetting Criteria</h5>
       <p class="text-muted small mb-0">
         Internal only — used when raising the Verifile background check.
@@ -197,6 +196,55 @@
         sync();
       })();
     </script>
+
+    <hr class="my-4">
+
+    {# Vetting requirements — engagement-inherited + job-specific extras #}
+    <div class="mb-2">
+      <h5 class="fw-bold mb-1">Vetting Requirements</h5>
+      <p class="text-muted small mb-0">
+        Engagement-level checks are shown as read-only. Tick additional checks needed for this specific role.
+      </p>
+    </div>
+
+    {% set all_vetting_checks = [
+      "Right to Work", "Identity Verification", "Address History", "DBS Check",
+      "Employment History", "References", "Qualifications", "Professional Registration",
+      "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+    ] %}
+    {% set eng_vet = eng_vetting if eng_vetting is defined and eng_vetting else [] %}
+    {% set job_vet = job_vetting if job_vetting is defined and job_vetting else [] %}
+
+    {% if eng_vet %}
+    <div class="mb-2 p-2 rounded" style="background: #f1f5f9;">
+      <small class="fw-semibold text-muted">Engagement vetting:</small>
+      <span class="small">{{ eng_vet | join(', ') }}</span>
+    </div>
+    {% else %}
+    <div class="mb-2">
+      <small class="text-muted">No engagement-level vetting requirements set.</small>
+    </div>
+    {% endif %}
+
+    <div class="row">
+      {% for ct in all_vetting_checks %}
+      {% set is_eng = ct in eng_vet %}
+      {% set is_job = ct in job_vet %}
+      <div class="col-md-4 col-sm-6 mb-2">
+        <div class="form-check">
+          {% if is_eng %}
+          <input class="form-check-input" type="checkbox" checked disabled>
+          <input type="hidden" name="job_vetting_check" value="{{ ct }}">
+          <label class="form-check-label small text-muted"><i class="fas fa-lock me-1" style="font-size:0.7rem;"></i>{{ ct }}</label>
+          {% else %}
+          <input class="form-check-input" type="checkbox" name="job_vetting_check" value="{{ ct }}" id="jvc_{{ loop.index }}"
+            {% if is_job %}checked{% endif %}>
+          <label class="form-check-label small" for="jvc_{{ loop.index }}">{{ ct }}</label>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
 
     <div class="mt-4 d-flex gap-2">
       <button class="btn btn-primary">{{ 'Update' if job else 'Create' }}</button>

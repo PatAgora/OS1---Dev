@@ -1429,6 +1429,91 @@ Following your offer of engagement with Optimus, the next step is to complete ou
   </div>
 </div>
 
+<!-- ==================================================================== -->
+<!-- Vetting Profiles                                                       -->
+<!-- ==================================================================== -->
+<div id="vetting-profiles" class="modern-card mb-4 p-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 collapsible-header" style="cursor: pointer;" onclick="toggleCollapse('vetting-profiles-body', this)">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fas fa-shield-alt me-2 text-primary"></i>Vetting Profiles</h5>
+      <small class="text-muted">Create reusable sets of vetting checks that can be applied to engagements and jobs.</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ vetting_profiles|length }} {{ 'profile' if vetting_profiles|length == 1 else 'profiles' }}</span>
+      <i class="fas fa-chevron-down collapse-icon text-muted"></i>
+    </div>
+  </div>
+  <div id="vetting-profiles-body" class="collapsible-body" style="display: none;">
+
+  <!-- Create new profile -->
+  <form method="POST" action="{{ url_for('vetting_profile_create') }}" class="mb-3 p-3 border rounded bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2">
+      <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Profile Name</label>
+      <input type="text" name="profile_name" class="form-control form-control-sm" placeholder="e.g. Standard Financial Services" required>
+    </div>
+    <div class="mb-2">
+      <label class="form-label fw-semibold mb-1" style="font-size: 0.8rem;">Checks</label>
+      <div class="row">
+        {% set profile_check_types = [
+          "Right to Work", "Identity Verification", "Address History", "DBS Check",
+          "Employment History", "References", "Qualifications", "Professional Registration",
+          "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+        ] %}
+        {% for ct in profile_check_types %}
+        <div class="col-md-4 col-sm-6 mb-1">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="profile_check" value="{{ ct }}" id="pc_{{ loop.index }}">
+            <label class="form-check-label small" for="pc_{{ loop.index }}">{{ ct }}</label>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="this.closest('form').querySelectorAll('input[name=profile_check]').forEach(c=>c.checked=true)">Select All</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="this.closest('form').querySelectorAll('input[name=profile_check]').forEach(c=>c.checked=false)">Clear All</button>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-success btn-sm">
+      <i class="fas fa-plus me-1"></i> Create Profile
+    </button>
+  </form>
+
+  {% if vetting_profiles %}
+  <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th>Name</th>
+          <th>Checks</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vp in vetting_profiles %}
+        <tr>
+          <td class="fw-semibold">{{ vp.name }}</td>
+          <td><small class="text-muted">{{ vp.checks | join(', ') }}</small></td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('vetting_profile_delete', vp_id=vp.id) }}" class="d-inline" onsubmit="return confirm('Delete this vetting profile?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Delete profile {{ vp.name }}"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-3 text-muted">
+    <i class="fas fa-inbox mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
+    <p class="mb-0">No vetting profiles defined yet.</p>
+  </div>
+  {% endif %}
+  </div><!-- end collapsible-body -->
+</div>
+
 <script>
 function editJobTemplate(roleType, btn) {
   document.getElementById('tplRoleType').value = roleType;

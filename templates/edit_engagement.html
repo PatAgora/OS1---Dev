@@ -68,6 +68,19 @@
     <div class="mt-3">
       <label class="form-label fw-semibold">Vetting Requirements</label>
       <div class="form-text mb-2">Select the pre-employment vetting checks required for this engagement.</div>
+
+      {% if vetting_profiles %}
+      <div class="mb-2">
+        <label class="form-label fw-semibold" style="font-size:0.85rem;">Apply a Vetting Profile</label>
+        <select id="vettingProfileSelect" class="form-select form-select-sm" onchange="applyVettingProfile(this)">
+          <option value="">-- Select a profile --</option>
+          {% for vp in vetting_profiles %}
+          <option value="{{ vp.checks | tojson | e }}">{{ vp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
       <div class="row">
         {% set all_checks = [
           "Right to Work", "Identity Verification", "Address History", "DBS Check",
@@ -97,6 +110,18 @@
         {{ form.vetting_requirements(type="hidden") }}
       </div>
     </div>
+
+    <script>
+    function applyVettingProfile(sel) {
+      if (!sel.value) return;
+      try {
+        var checks = JSON.parse(sel.value);
+        document.querySelectorAll('input[name=vetting_check]').forEach(function(cb) {
+          cb.checked = checks.indexOf(cb.value) !== -1;
+        });
+      } catch(e) {}
+    }
+    </script>
 
     <div class="mt-4 d-flex gap-2">
       <button class="btn btn-primary">Save Changes</button>

@@ -1006,6 +1006,38 @@
               Vetting Checks
             </div>
           </div>
+
+          {# Required vetting checks driven by engagement + job #}
+          {% if required_vetting_checks is defined and required_vetting_checks %}
+          <div class="mb-2 p-2 rounded" style="background: #eff6ff; border: 1px solid #bfdbfe;">
+            <small class="fw-semibold" style="color:#1e40af;"><i class="fas fa-clipboard-list me-1"></i>Required checks (engagement + job):</small>
+            <span class="small">{{ required_vetting_checks | join(', ') }}</span>
+          </div>
+          {% endif %}
+
+          {# Add extra check type — only shows types not already present #}
+          {% set existing_types = vetting_checks | map(attribute='type') | list %}
+          {% set available_extras = [] %}
+          {% for ct in VETTING_CHECK_TYPES %}
+            {% if ct not in existing_types %}
+              {% if available_extras.append(ct) %}{% endif %}
+            {% endif %}
+          {% endfor %}
+          {% if available_extras %}
+          <div class="mb-2">
+            <form method="POST" action="{{ url_for('candidate_add_vetting_check', cand_id=cand.id) }}" class="d-flex gap-2 align-items-end">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <select name="check_type" class="form-select form-select-sm" style="width:auto; font-size:0.8rem;">
+                <option value="">Add check...</option>
+                {% for ct in available_extras %}
+                <option value="{{ ct }}">{{ ct }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-plus me-1"></i>Add</button>
+            </form>
+          </div>
+          {% endif %}
+
           <div class="mb-3 p-2 rounded" style="background: #f1f5f9;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
               <span class="fw-semibold" style="font-size: 0.85rem; color: #1f2937;">
