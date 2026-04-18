@@ -14511,12 +14511,9 @@ def api_vetting_trigger(cand_id):
                     ))
                     na_count += 1
 
-        # Move application to Vetting In-Flight
-        # C-8: Default stage name — update if workflow stages are reconfigured
-        if appn:
-            appn.status = "Vetting In-Flight"
-
-        cand.status = "In Vetting"
+        # Move application to Ready to Contract on the kanban
+        if appn and appn.status in ("Accepted", "Offer Accepted"):
+            appn.status = "Ready to Contract"
 
         msg = f'Vetting triggered for {cand.name}: {created} checks set to In Progress'
         if na_count:
