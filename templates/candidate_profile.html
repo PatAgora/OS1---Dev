@@ -957,20 +957,33 @@
               Interview
             </div>
           </div>
-          {% if interview_app and interview_app.interview_scheduled_at %}
-            <div class="p-3 rounded" style="background: #f0fdf4; border-left: 3px solid #10b981;">
-              <div class="fw-semibold" style="font-size: 0.85rem;">
-                <i class="fas fa-calendar-check me-1 text-success"></i>
-                Scheduled: {{ interview_app.interview_scheduled_at.strftime('%d %b %Y at %H:%M') }}
+          {% if interview_history %}
+            {% for iv in interview_history %}
+            <div class="p-3 rounded mb-2" style="background: {{ '#f0fdf4' if iv.completed_at else '#eff6ff' }}; border-left: 3px solid {{ '#10b981' if iv.completed_at else '#3b82f6' }};">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="fw-semibold" style="font-size: 0.85rem;">
+                    {{ iv.role }}{% if iv.project %} <span class="text-muted fw-normal">— {{ iv.project }}</span>{% endif %}
+                  </div>
+                  <div class="mt-1" style="font-size: 0.8rem;">
+                    <i class="fas fa-calendar-check me-1 {{ 'text-success' if iv.completed_at else 'text-primary' }}"></i>
+                    {{ iv.scheduled_at.strftime('%d %b %Y at %H:%M') }}
+                  </div>
+                </div>
+                <div>
+                  {% if iv.completed_at %}
+                    <span class="badge bg-success" style="font-size: 0.65rem;">Completed</span>
+                  {% else %}
+                    <span class="badge bg-primary" style="font-size: 0.65rem;">Scheduled</span>
+                  {% endif %}
+                </div>
               </div>
-              {% if interview_app.interview_completed_at %}
-              <div class="mt-1" style="font-size: 0.8rem;">
-                <i class="fas fa-check-circle me-1 text-success"></i>
-                Completed: {{ interview_app.interview_completed_at.strftime('%d %b %Y at %H:%M') }}
-              </div>
-              {% endif %}
             </div>
-          {% else %}
+            {% endfor %}
+          {% endif %}
+
+          {# Always show the schedule form for new interviews #}
+          {% if not interview_app or not interview_app.interview_scheduled_at or interview_app.interview_completed_at %}
             <div class="py-3" style="background: #f9fafb; border-radius: 8px; padding: 16px !important;">
               <p class="text-muted small mb-2 text-center"><i class="fas fa-calendar me-1"></i>No interview scheduled</p>
               <form method="POST" action="{{ url_for('schedule_interview', cand_id=cand.id) }}" enctype="multipart/form-data">

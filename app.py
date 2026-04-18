@@ -16251,10 +16251,21 @@ def candidate_profile(cand_id: int):
             select(Application).where(Application.candidate_id == cand_id)
             .order_by(Application.created_at.desc())
         ).all()
+        interview_history = []
         for _ia in _all_apps_for_interview:
             if _ia.interview_scheduled_at:
-                interview_app = _ia
-                break
+                if not interview_app:
+                    interview_app = _ia
+                _ia_job = s.get(Job, _ia.job_id) if _ia.job_id else None
+                _ia_eng = s.get(Engagement, _ia_job.engagement_id) if _ia_job and _ia_job.engagement_id else None
+                interview_history.append({
+                    "role": (_ia_job.title if _ia_job else "") or "Unknown Role",
+                    "project": (_ia_eng.name if _ia_eng else "") or "",
+                    "scheduled_at": _ia.interview_scheduled_at,
+                    "completed_at": _ia.interview_completed_at,
+                    "app_id": _ia.id,
+                    "is_current": interview_app and _ia.id == interview_app.id,
+                })
         if not interview_app:
             interview_app = newest_app
 
@@ -17051,6 +17062,7 @@ def candidate_profile(cand_id: int):
         appn=latest_app,            # can be None
         latest_app=latest_app,
         interview_app=interview_app,
+        interview_history=interview_history,
         cand=cand,
         job=job,
         docs=docs,
