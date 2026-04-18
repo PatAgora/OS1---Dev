@@ -2594,10 +2594,19 @@ def schedule_interview(cand_id: int):
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
+        # Prefer the newest non-placed application for interview scheduling
+        # (a new Pipeline app is the one being interviewed, not an existing Placed one)
         latest_app = s.scalar(
-            select(Application).where(Application.candidate_id == cand_id)
-            .order_by(Application.created_at.desc())
+            select(Application).where(
+                Application.candidate_id == cand_id,
+                Application.status.notin_(["Placed", "Contract Signed", "Contracted", "Active", "Hired"])
+            ).order_by(Application.created_at.desc())
         )
+        if not latest_app:
+            latest_app = s.scalar(
+                select(Application).where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            )
         if not latest_app:
             flash("No application found for this candidate.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
@@ -16229,6 +16238,26 @@ def candidate_profile(cand_id: int):
                 .order_by(Application.created_at.desc())
             )
 
+        # newest_app: always the most recent application (for interview scheduling)
+        newest_app = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+
+        # interview_app: the app that has an interview scheduled, or newest
+        interview_app = None
+        _all_apps_for_interview = s.scalars(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        ).all()
+        for _ia in _all_apps_for_interview:
+            if _ia.interview_scheduled_at:
+                interview_app = _ia
+                break
+        if not interview_app:
+            interview_app = newest_app
+
         job = None
         job_open = False
         applied_on = None
@@ -17021,6 +17050,7 @@ def candidate_profile(cand_id: int):
         "candidate_profile.html",
         appn=latest_app,            # can be None
         latest_app=latest_app,
+        interview_app=interview_app,
         cand=cand,
         job=job,
         docs=docs,
