@@ -17043,13 +17043,20 @@ def candidate_profile(cand_id: int):
             'created_at': af.get('timestamp'),
         })())
 
-    # Vetting history per project/role — for the collapsible Previous Vetting section
+    # Vetting grouped by project/role — collapsible within the Vetting Checks section
+    CHECK_EXPIRY_MONTHS = {
+        "Right to Work": 12, "Identity Verification": 36, "Address History": 36,
+        "DBS Check": 12, "Employment History": 36, "References": 36,
+        "Qualifications": 0, "Professional Registration": 12,
+        "Credit Check": 12, "Directorship / Disqualification": 12,
+        "Sanctions / PEP": 12, "Social Media Review": 6,
+    }
     vetting_by_project = []
     try:
         with Session(engine) as _svh:
-            # Find all engagements this candidate has been linked to via applications
             _cand_apps = _svh.execute(
-                select(Application.id, Application.status, Job.title, Job.id.label("job_id"),
+                select(Application.id, Application.status, Application.created_at.label("app_created"),
+                       Job.title, Job.id.label("job_id"),
                        Engagement.id.label("eng_id"), Engagement.name.label("eng_name"),
                        Engagement.client, Engagement.vetting_requirements)
                 .select_from(Application)
@@ -17064,14 +17071,30 @@ def candidate_profile(cand_id: int):
             ).all()
             _vc_map = {}
             for vc in _all_vc:
+                completed = vc.completed_at
+                expiry = getattr(vc, "expiry_date", None)
+                if not expiry and completed:
+                    months = CHECK_EXPIRY_MONTHS.get(vc.check_type, 12)
+                    if months > 0:
+                        expiry = completed + datetime.timedelta(days=months * 30)
                 _vc_map[vc.check_type] = {
+                    "id": vc.id,
                     "status": vc.status or "NOT STARTED",
-                    "completed_at": vc.completed_at,
-                    "expiry_date": getattr(vc, "expiry_date", None),
+                    "completed_at": completed,
+                    "expiry_date": expiry,
+                    "assigned_to": vc.assigned_to,
+                    "qc_assigned_to": vc.qc_assigned_to,
+                    "qc_reviewed_by_name": "",
+                    "qc_reviewed_at": vc.qc_reviewed_at,
+                    "qc_notes": vc.qc_notes or "",
+                    "colour": vc.colour or "white",
+                    "referral_approved_by_name": "",
+                    "referral_approved_at": vc.referral_approved_at,
                 }
 
             _seen_eng = set()
-            for _ca in _cand_apps:
+            _now = datetime.datetime.utcnow()
+            for idx, _ca in enumerate(_cand_apps):
                 eng_key = _ca.eng_id or f"job_{_ca.job_id}"
                 if eng_key in _seen_eng:
                     continue
@@ -17079,18 +17102,27 @@ def candidate_profile(cand_id: int):
                 required = from_json_safe(_ca.vetting_requirements or "[]")
                 if not required:
                     continue
+                is_latest = (idx == 0)
                 checks_detail = []
                 for check_type in required:
                     vc_data = _vc_map.get(check_type, {})
                     completed = vc_data.get("completed_at")
                     expiry = vc_data.get("expiry_date")
-                    expired = bool(expiry and expiry < datetime.datetime.utcnow())
+                    expired = bool(expiry and expiry < _now)
+                    still_in_date = bool(not is_latest and completed and expiry and not expired)
+                    prev_in_date = False
+                    if is_latest and completed and expiry and not expired:
+                        prev_in_date = True
                     checks_detail.append({
                         "type": check_type,
                         "status": vc_data.get("status", "NOT STARTED"),
                         "completed_at": completed,
                         "expiry_date": expiry,
                         "expired": expired,
+                        "prev_in_date": prev_in_date,
+                        "colour": vc_data.get("colour", "white"),
+                        "assigned_to": vc_data.get("assigned_to"),
+                        "qc_assigned_to": vc_data.get("qc_assigned_to"),
                     })
                 vetting_by_project.append({
                     "eng_id": _ca.eng_id,
@@ -17098,9 +17130,10 @@ def candidate_profile(cand_id: int):
                     "client": _ca.client or "",
                     "role": _ca.title or "Unknown Role",
                     "app_status": _ca.status or "",
+                    "is_latest": is_latest,
                     "checks": checks_detail,
                     "total": len(checks_detail),
-                    "complete": sum(1 for c in checks_detail if c["status"].upper() in ("COMPLETE", "QC COMPLETE", "N/A", "REFERRAL APPROVED")),
+                    "complete": sum(1 for c in checks_detail if c["status"].upper() in ("COMPLETE", "QC COMPLETE", "N/A", "REFERRAL APPROVED", "QC NOT REQUIRED")),
                 })
     except Exception:
         pass
