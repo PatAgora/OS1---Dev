@@ -570,7 +570,7 @@
               AI Summary
             </div>
             {% if latest_app %}
-              <a class="btn btn-modern-outline btn-sm" href="{{ url_for('applications') }}">
+              <a class="btn btn-modern-outline btn-sm" href="{{ url_for('applications', candidate_id=cand.id) }}">
                 <i class="fas fa-file-alt"></i> View Applications
               </a>
             {% endif %}

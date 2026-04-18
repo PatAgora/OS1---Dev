@@ -19756,8 +19756,16 @@ def applications():
     q               = (request.args.get("q") or "").strip()
     job_id          = request.args.get("job_id")
     engagement_id   = request.args.get("engagement_id")
+    candidate_id    = request.args.get("candidate_id", type=int)
     page            = max(1, int(request.args.get("page") or 1))
     per_page        = max(5, min(100, int(request.args.get("per_page") or 25)))
+
+    # If filtering by candidate, pre-fill search with their name
+    if candidate_id and not q:
+        with Session(engine) as _cs:
+            _cand = _cs.get(Candidate, candidate_id)
+            if _cand:
+                q = _cand.name or ""
 
     # Global view (no engagement filter), still hide closed jobs by default
     return _render_applications_table(
@@ -19768,7 +19776,7 @@ def applications():
         page=page,
         per_page=per_page,
         hide_closed=True,
-        exclude_shortlisted_if_eng=False,  # not in an engagement scope
+        exclude_shortlisted_if_eng=False,
     )
 
 # --- imports you likely already have ---
