@@ -4714,7 +4714,8 @@ def vacancy_detail(job_id):
             already_applied = existing is not None
 
         # Check if applications are blocked (on contract)
-        cand_check = s.get(Candidate, cand_id) if Candidate else None
+        _Candidate = _model("Candidate")
+        cand_check = s.get(_Candidate, cand_id) if _Candidate else None
         applications_blocked = bool(cand_check and getattr(cand_check, "applications_blocked", False))
 
         # Check if associate has a CV on file
