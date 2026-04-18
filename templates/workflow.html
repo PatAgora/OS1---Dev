@@ -1021,9 +1021,6 @@
              class="btn btn-primary btn-sm" title="Schedule Interview">
             <i class="fas fa-calendar-plus"></i>
           </a>
-          <button class="btn btn-success btn-sm" onclick="advanceStage({{ card.id }}, 'I&A')" title="Pass Tele-screen">
-            <i class="fas fa-phone-alt"></i>
-          </button>
           {% elif stage.id == 'ia' %}
           <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#interview-section"
              class="btn btn-primary btn-sm" title="Schedule Interview">
