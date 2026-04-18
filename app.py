@@ -7572,7 +7572,7 @@ CV:
                 model=GEMINI_MODEL_NAME,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
-                    max_output_tokens=800,
+                    max_output_tokens=4096,
                     temperature=0.4,
                 ),
             )
@@ -21699,10 +21699,13 @@ def recalculate_match_score():
             .order_by(Document.uploaded_at.desc())
         )
         cv_text = extract_cv_text(doc) if doc else ""
-        jd_text = (job.description or "").strip()
-        if not cv_text or not jd_text:
-            flash("CV or job description missing — cannot score.", "warning")
+        jd_text = (job.description or job.title or "").strip()
+        if not cv_text:
+            flash("No CV found — cannot score.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
+        if not jd_text:
+            jd_text = job.title or "General role"
+        print(f"[AI-SCORE] cand={cand_id} job={job.id} cv_chars={len(cv_text)} jd_chars={len(jd_text)}", flush=True)
         try:
             score_result = ai_score_with_explanation(jd_text, cv_text)
             if score_result and latest_app:
