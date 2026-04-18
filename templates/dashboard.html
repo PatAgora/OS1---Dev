@@ -1043,17 +1043,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     label: 'Contracted',
                     data: chartData.map(d => d.contracted || 0),
                     backgroundColor: '#22c55e',
-                    borderRadius: 4,
+                    borderRadius: 0,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'progress'
                 },
                 {
-                    label: 'Associates Offered',
-                    data: chartData.map(d => d.offered),
+                    label: 'Offered (not yet contracted)',
+                    data: chartData.map(d => Math.max(0, (d.offered || 0) - (d.contracted || 0))),
                     backgroundColor: '#f97316',
                     borderRadius: 4,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'progress'
                 },
                 {
                     label: 'Delivery Target',
@@ -1061,7 +1063,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     backgroundColor: '#1e3a8a',
                     borderRadius: 4,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'target'
                 }
             ]
         },
@@ -1079,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     callbacks: {
                         afterLabel: function(context) {
                             const data = chartData[context.dataIndex];
-                            return `Client: ${data.client}\nContracted: ${data.contracted || 0}\nProgress: ${data.pct}%`;
+                            return `Client: ${data.client}\nContracted: ${data.contracted || 0}\nOffered: ${data.offered}\nProgress: ${data.pct}%`;
                         }
                     }
                 }
@@ -1131,17 +1134,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     label: 'Contracted',
                     data: lookaheadData.map(d => d.contracted || 0),
                     backgroundColor: '#22c55e',
-                    borderRadius: 4,
+                    borderRadius: 0,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'progress'
                 },
                 {
-                    label: 'Associates Offered',
-                    data: lookaheadData.map(d => d.offered),
+                    label: 'Offered (not yet contracted)',
+                    data: lookaheadData.map(d => Math.max(0, (d.offered || 0) - (d.contracted || 0))),
                     backgroundColor: '#f97316',
                     borderRadius: 4,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'progress'
                 },
                 {
                     label: 'Delivery Target',
@@ -1149,7 +1154,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     backgroundColor: '#1e3a8a',
                     borderRadius: 4,
                     barPercentage: 0.7,
-                    categoryPercentage: 0.8
+                    categoryPercentage: 0.8,
+                    stack: 'target'
                 }
             ]
         },
@@ -1167,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     callbacks: {
                         afterLabel: function(context) {
                             const data = lookaheadData[context.dataIndex];
-                            return `Client: ${data.client}\nIntake: ${data.intake_date}\nContracted: ${data.contracted || 0}\nProgress: ${data.pct}%`;
+                            return `Client: ${data.client}\nIntake: ${data.intake_date}\nContracted: ${data.contracted || 0}\nOffered: ${data.offered}\nProgress: ${data.pct}%`;
                         }
                     }
                 }
