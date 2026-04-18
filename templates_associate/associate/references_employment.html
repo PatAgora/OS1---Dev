@@ -503,13 +503,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
 
-        // When user finishes typing (blur), do an exact case-insensitive
-        // lookup to auto-fill the referee email even if they didn't click
-        // a suggestion from the dropdown.
-        companyInput.addEventListener('blur', function() {
-            var typed = this.value.trim();
-            if (typed.length < 2) return;
-            suggestionsDiv.style.display = 'none';
+        // When user finishes typing, do an exact case-insensitive lookup
+        // to auto-fill the referee email even if they didn't pick from
+        // the suggestion list. Fires on both blur AND after a 1s typing
+        // pause so the email appears as they finish the name.
+        var exactTimer;
+        function doExactLookup() {
+            var typed = companyInput.value.trim();
+            if (typed.length < 3) return;
             fetch('/portal/api/company-lookup?q=' + encodeURIComponent(typed) + '&exact=1', {
                 headers: { 'X-CSRFToken': csrfToken }
             })
@@ -517,12 +518,20 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (data.results && data.results.length > 0) {
                     var match = data.results[0];
-                    if (match.referee_email && refereeEmail && !refereeEmail.value) {
+                    if (match.referee_email && refereeEmail) {
                         refereeEmail.value = match.referee_email;
                     }
                 }
             })
             .catch(function() {});
+        }
+        companyInput.addEventListener('blur', function() {
+            clearTimeout(exactTimer);
+            doExactLookup();
+        });
+        companyInput.addEventListener('input', function() {
+            clearTimeout(exactTimer);
+            exactTimer = setTimeout(doExactLookup, 1000);
         });
 
         document.addEventListener('click', function(e) {
