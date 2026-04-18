@@ -5731,6 +5731,8 @@ class VettingCheck(Base):
     referral_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     referral_approved_at = Column(DateTime, nullable=True)
     expiry_date = Column(DateTime, nullable=True)
+    verifile_confirmed = Column(Boolean, default=False)
+    verifile_confirmed_at = Column(DateTime, nullable=True)
 
 # ---- CandidateNote model (Notes & Activity panel) ----
 class CandidateNote(Base):
@@ -6655,6 +6657,8 @@ def ensure_schema():
             "qc_reviewed_at TIMESTAMP",
             "qc_notes TEXT DEFAULT ''",
             "expiry_date TIMESTAMP",
+            "verifile_confirmed BOOLEAN DEFAULT FALSE",
+            "verifile_confirmed_at TIMESTAMP",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE vetting_check ADD COLUMN {coldef}"))
@@ -6867,6 +6871,8 @@ try:
             "ALTER TABLE applications ADD COLUMN offer_engagement_type VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN offer_expected_duration VARCHAR(100) DEFAULT ''",
             "ALTER TABLE vetting_check ADD COLUMN expiry_date TIMESTAMP",
+            "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed_at TIMESTAMP",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -14187,9 +14193,19 @@ def webhook_verifile():
         new_status = status_map.get(raw_status, "In Progress")
         old_status = vc.status
 
-        vc.status = new_status
         vc.external_result = json.dumps(payload)[:19999]
-        if new_status == "Complete":
+
+        # Set Verifile confirmed flag regardless of manual status
+        if raw_status in ("complete", "completed", "passed", "clear", "failed", "rejected"):
+            vc.verifile_confirmed = True
+            vc.verifile_confirmed_at = datetime.datetime.utcnow()
+
+        # Only auto-update status if not already manually progressed past Verifile's result
+        manual_advanced = (vc.status or "").upper() in ("SENT TO QC", "QC IN PROGRESS", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "CHECK STILL IN DATE")
+        if not manual_advanced:
+            vc.status = new_status
+
+        if new_status == "Complete" and not vc.completed_at:
             vc.completed_at = datetime.datetime.utcnow()
 
         cand_id = vc.candidate_id
@@ -17146,8 +17162,8 @@ def candidate_profile(cand_id: int):
                     "qc_reviewed_at": vc.qc_reviewed_at,
                     "qc_notes": vc.qc_notes or "",
                     "colour": vc.colour or "white",
-                    "referral_approved_by_name": "",
-                    "referral_approved_at": vc.referral_approved_at,
+                    "verifile_confirmed": getattr(vc, "verifile_confirmed", False) or False,
+                    "verifile_confirmed_at": getattr(vc, "verifile_confirmed_at", None),
                 }
 
             _seen_eng = set()
@@ -17181,6 +17197,8 @@ def candidate_profile(cand_id: int):
                         "colour": vc_data.get("colour", "white"),
                         "assigned_to": vc_data.get("assigned_to"),
                         "qc_assigned_to": vc_data.get("qc_assigned_to"),
+                        "verifile_confirmed": vc_data.get("verifile_confirmed", False),
+                        "verifile_confirmed_at": vc_data.get("verifile_confirmed_at"),
                     })
                 vetting_by_project.append({
                     "eng_id": _ca.eng_id,
