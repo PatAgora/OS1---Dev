@@ -804,12 +804,13 @@ def _calc_completeness(s, candidate_id: int) -> dict:
             if earliest_start and earliest_start <= three_years_ago:
                 checks_score += 1
 
-    # Vetting checks
+    # Vetting checks — all 12 must be complete
     if VettingCheck:
-        completed = s.query(VettingCheck).filter_by(candidate_id=candidate_id).filter(
-            VettingCheck.status.in_(["Complete", "Completed", "Pass"])
+        total_vc = s.query(VettingCheck).filter_by(candidate_id=candidate_id).count()
+        completed_vc = s.query(VettingCheck).filter_by(candidate_id=candidate_id).filter(
+            func.upper(VettingCheck.status).in_(["COMPLETE", "N/A", "QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"])
         ).count()
-        if completed >= 1:
+        if total_vc >= 12 and completed_vc >= total_vc:
             checks_score += 1
 
     checks_pct = int(round(checks_score / checks_total * 100)) if checks_total else 0
