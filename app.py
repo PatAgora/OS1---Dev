@@ -7548,19 +7548,20 @@ def ai_summarise(text: str, max_chars: int = 4000, job_description: str = "") ->
     model = get_gemini_model()
     if model:
         try:
-            prompt = f"""Analyse this CV and produce a concise summary of the candidate's last 2 years of employment only.
+            prompt = f"""You are a senior UK financial services recruiter. Read this CV and write a brief recruiter summary — NOT a copy of the CV.
 
-For each role within the last 2 years, write:
-1. One line: Job Title — Employer (Month Year – Month Year or Present)
-2. Then 3-4 short bullet points summarising the KEY points only — what they actually did, any notable achievements, and relevant skills/regulations.
+Output format (start immediately, no preamble):
 
-Do NOT copy the CV text verbatim. Distil each role into its essence.
-Do NOT include roles older than 2 years.
-Do NOT include any introduction, preamble, or closing remarks — start directly with the first role.
+**[Job Title]** — [Employer] ([dates])
+• [One sentence: what they did]
+• [One sentence: key achievement or specialism]
+• [One sentence: relevant regulations/tech]
 
-If the CV is empty or unreadable, respond with: Unable to retrieve information from CV.
+Cover the last 2-3 roles only. Each bullet must be ONE short sentence you wrote yourself — do not paste text from the CV. Total output should be under 200 words.
 
-CV text:
+If the CV is empty, respond: Unable to retrieve information from CV.
+
+CV:
 {text}"""
             from google import genai as genai_new
             from google.genai import types as genai_types
@@ -7571,8 +7572,8 @@ CV text:
                 model=GEMINI_MODEL_NAME,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
-                    max_output_tokens=2000,
-                    temperature=0.3,
+                    max_output_tokens=800,
+                    temperature=0.4,
                 ),
             )
             out = (resp.text or "").strip()
