@@ -17359,6 +17359,12 @@ def update_vetting_check(cand_id: int):
         
         if existing:
             old_status_value = existing.status
+
+            # QC gate: cannot mark as COMPLETE unless QC has been done
+            if new_status.upper() == "COMPLETE" and (existing.status or "").upper() not in ("QC COMPLETE", "QC NOT REQUIRED", "REFERRAL APPROVED"):
+                flash(f"{check_type}: cannot mark as Complete — must go through QC first.", "danger")
+                return redirect(redirect_url)
+
             existing.status = new_status
             existing.notes = notes
             if new_status.upper() == "COMPLETE":
@@ -17824,7 +17830,11 @@ def assign_analyst(cand_id: int):
         )
         if not vc:
             flash("Vetting check not found.", "danger")
-            return
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        if analyst_id and vc.qc_assigned_to and analyst_id == vc.qc_assigned_to:
+            flash(f"{check_type}: Assignee cannot be the same person as the QC reviewer.", "danger")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         vc.assigned_to = analyst_id
         analyst_name = "Unassigned"
@@ -17887,6 +17897,10 @@ def assign_qc_reviewer(cand_id: int):
         )
         if not vc:
             return jsonify({"ok": False, "msg": "Check not found"}), 404
+
+        if reviewer_id and vc.assigned_to and reviewer_id == vc.assigned_to:
+            flash(f"{check_type}: QC reviewer cannot be the same person as the assignee.", "danger")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         vc.qc_assigned_to = reviewer_id
         reviewer_name = "Unassigned"

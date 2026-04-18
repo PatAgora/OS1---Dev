@@ -1150,10 +1150,14 @@
                         <select name="status" class="form-select form-select-sm" style="font-size:0.7rem; flex:1;">
                           <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
                           <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                          <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
                           <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                          <option value="AWAITING QC" {% if s_upper == 'AWAITING QC' %}selected{% endif %}>Awaiting QC</option>
+                          <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
+                          <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
                           <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
                           <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
+                          <option value="COMPLETE" {% if s_upper == 'COMPLETE' %}selected{% endif %}>Complete</option>
+                          <option value="REFERRAL APPROVED" {% if s_upper == 'REFERRAL APPROVED' %}selected{% endif %}>Referral Approved</option>
                           <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
                         </select>
                         <button type="submit" class="btn btn-outline-primary" style="font-size:0.6rem; padding:0.2rem 0.4rem;">
