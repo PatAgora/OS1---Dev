@@ -1007,6 +1007,16 @@ Following your offer of engagement with Optimus, the next step is to complete ou
   </form>
 
   {% if ref_contacts %}
+  <div class="mb-2 mt-3 d-flex justify-content-between align-items-center">
+    <h6 class="fw-bold mb-0" style="cursor:pointer;" onclick="document.getElementById('refContactsList').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+      <i class="fas fa-list me-1"></i> Contact List ({{ ref_contacts_total }} entries)
+      <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+    </h6>
+    <a href="{{ url_for('admin_reference_contacts_export') }}" class="btn btn-sm btn-outline-primary">
+      <i class="fas fa-download me-1"></i> Export CSV
+    </a>
+  </div>
+  <div id="refContactsList" class="hidden">
   <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
     <table class="table table-hover table-sm align-middle mb-0">
       <thead class="table-light sticky-top">
@@ -1057,6 +1067,7 @@ Following your offer of engagement with Optimus, the next step is to complete ou
   </nav>
   {% endif %}
 
+  </div>
   {% else %}
   <div class="text-center py-3 text-muted">
     <i class="fas fa-address-book mb-2" style="font-size: 1.8rem; opacity: 0.3;"></i>
@@ -1141,14 +1152,19 @@ Following your offer of engagement with Optimus, the next step is to complete ou
 
   {% if ref_houses %}
   {% set latest_house = ref_houses|sort(attribute='created_at', reverse=true)|first if ref_houses else none %}
-  <div class="mb-2 mt-3">
-    <h6 class="fw-bold mb-1" style="cursor:pointer;" onclick="document.getElementById('refHousesList').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
-      <i class="fas fa-list me-1"></i> Uploaded List ({{ ref_houses|length }} entries)
-      <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
-    </h6>
-    {% if latest_house and latest_house.created_at %}
-    <small class="text-muted">Last updated: {{ latest_house.created_at.strftime('%d %b %Y at %H:%M') }}</small>
-    {% endif %}
+  <div class="mb-2 mt-3 d-flex justify-content-between align-items-center">
+    <div>
+      <h6 class="fw-bold mb-0" style="cursor:pointer;" onclick="document.getElementById('refHousesList').classList.toggle('hidden');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-down');this.querySelector('.fa-chevron-down,.fa-chevron-up').classList.toggle('fa-chevron-up');">
+        <i class="fas fa-list me-1"></i> Uploaded List ({{ ref_houses|length }} entries)
+        <i class="fas fa-chevron-down ms-2" style="font-size:0.7rem;"></i>
+      </h6>
+      {% if latest_house and latest_house.created_at %}
+      <small class="text-muted">Last updated: {{ latest_house.created_at.strftime('%d %b %Y at %H:%M') }}</small>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('admin_reference_houses_export') }}" class="btn btn-sm btn-outline-warning text-dark">
+      <i class="fas fa-download me-1"></i> Export CSV
+    </a>
   </div>
   <div id="refHousesList" class="hidden">
   <div class="table-responsive">

@@ -23907,6 +23907,65 @@ def admin_reference_houses():
     return render_template("admin_reference_houses.html", houses=houses)
 
 
+@app.route("/admin/reference-contacts/export")
+@login_required
+def admin_reference_contacts_export():
+    """Export all reference contacts as CSV."""
+    import csv, io as io_mod
+    ReferenceContact = _portal_models.get("ReferenceContact") if _portal_models else None
+    if not ReferenceContact:
+        flash("Model not available.", "danger")
+        return redirect(url_for("taxonomy_manage"))
+    buf = io_mod.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Company Name", "Referee Email", "Last Amended"])
+    with Session(engine) as s:
+        rows = s.scalars(select(ReferenceContact).order_by(ReferenceContact.company_name)).all()
+        for r in rows:
+            writer.writerow([
+                r.company_name or "",
+                r.referee_email or "",
+                r.last_amended.strftime("%d/%m/%Y") if r.last_amended else "",
+            ])
+    output = buf.getvalue()
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=reference_contacts_{datetime.datetime.utcnow().strftime('%Y%m%d')}.csv"}
+    )
+
+
+@app.route("/admin/reference-houses/export")
+@login_required
+def admin_reference_houses_export():
+    """Export all flagged reference houses as CSV."""
+    import csv, io as io_mod
+    FlaggedReferenceHouse = _portal_models.get("FlaggedReferenceHouse") if _portal_models else None
+    if not FlaggedReferenceHouse:
+        flash("Model not available.", "danger")
+        return redirect(url_for("taxonomy_manage"))
+    buf = io_mod.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Name", "Candidate Count", "End Clients", "Website", "Companies House URL", "Notes"])
+    with Session(engine) as s:
+        rows = s.scalars(select(FlaggedReferenceHouse).order_by(FlaggedReferenceHouse.name)).all()
+        for r in rows:
+            writer.writerow([
+                r.name or "",
+                r.candidate_count or "",
+                r.end_clients or "",
+                r.website or "",
+                r.companies_house_url or "",
+                r.notes or "",
+            ])
+    output = buf.getvalue()
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=reference_houses_{datetime.datetime.utcnow().strftime('%Y%m%d')}.csv"}
+    )
+
+
 @app.route("/admin/reference-houses/add", methods=["POST"])
 @login_required
 def admin_reference_house_add():
