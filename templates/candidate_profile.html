@@ -972,7 +972,7 @@
           {% else %}
             <div class="py-3" style="background: #f9fafb; border-radius: 8px; padding: 16px !important;">
               <p class="text-muted small mb-2 text-center"><i class="fas fa-calendar me-1"></i>No interview scheduled</p>
-              <form method="POST" action="{{ url_for('schedule_interview', cand_id=cand.id) }}">
+              <form method="POST" action="{{ url_for('schedule_interview', cand_id=cand.id) }}" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-2">
                   <div class="col-md-5">
@@ -985,6 +985,10 @@
                     <button type="submit" class="btn btn-sm btn-primary w-100">
                       <i class="fas fa-calendar-plus me-1"></i> Schedule
                     </button>
+                  </div>
+                  <div class="col-md-12 mt-1">
+                    <label class="form-label small text-muted mb-0">Attachments (JD, CV, etc.)</label>
+                    <input type="file" name="attachments" class="form-control form-control-sm" multiple accept=".pdf,.doc,.docx,.jpg,.png">
                   </div>
                 </div>
               </form>
@@ -1346,7 +1350,7 @@
               <h5 class="modal-title" id="refEmailPreviewModalLabel"><i class="fas fa-envelope me-2"></i>Preview Reference Request Email</h5>
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" id="refEmailSendForm" action="">
+            <form method="POST" id="refEmailSendForm" action="" enctype="multipart/form-data">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="ref_id" id="refEmailRefId" value="">
               <input type="hidden" name="company_name" id="refEmailCompanyName" value="">
@@ -1367,6 +1371,10 @@
                 </div>
                 <div class="mb-2 p-2 rounded" style="background: #f1f5f9;">
                   <small class="text-muted"><i class="fas fa-info-circle me-1"></i>You can edit the subject and body before sending. The signed consent form (if available) will be attached automatically.</small>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label fw-semibold" style="font-size: 0.85rem;">Attach Document (optional)</label>
+                  <input type="file" name="attachment" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.jpg,.png">
                 </div>
                 <!-- Live HTML preview -->
                 <div class="mb-0">

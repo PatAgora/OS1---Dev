@@ -2606,7 +2606,17 @@ def schedule_interview(cand_id: int):
                     body = body.replace("{" + key + "}", val)
                 # Convert plain text body to HTML paragraphs
                 html_body = "<br>".join(body.split("\n"))
-                send_email(cand.email, subject, html_body)
+                # Collect user-uploaded attachments
+                interview_attachments = []
+                for f in request.files.getlist("attachments"):
+                    if f and f.filename:
+                        interview_attachments.append((
+                            f.filename,
+                            f.read(),
+                            f.content_type or "application/octet-stream",
+                        ))
+                send_email(cand.email, subject, html_body,
+                           attachments=interview_attachments if interview_attachments else None)
                 flash(f"Interview invitation emailed to {cand.email}.", "success")
         except Exception as mail_exc:
             current_app.logger.exception("Interview email failed: %s", mail_exc)
@@ -17509,6 +17519,10 @@ def send_reference(cand_id: int):
             s.add(ref_req)
             s.flush()
 
+        # Update referee email if the user changed it in the modal
+        if referee_email and ref_req.referee_email != referee_email:
+            ref_req.referee_email = referee_email
+
         if not ref_req.referee_email:
             flash("No referee email address provided.", "danger")
             return
@@ -17601,6 +17615,15 @@ def send_reference(cand_id: int):
                             f.read(),
                             "application/pdf"
                         ))
+            # User-uploaded attachment from the modal
+            user_file = request.files.get("attachment")
+            if user_file and user_file.filename:
+                attachments.append((
+                    user_file.filename,
+                    user_file.read(),
+                    user_file.content_type or "application/octet-stream",
+                ))
+
             send_email(ref_req.referee_email, email_subject, html_body,
                        attachments=attachments if attachments else None)
             ref_req.status = "sent"
