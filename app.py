@@ -6797,6 +6797,13 @@ def ensure_schema():
 # Skipping it avoids Postgres table locks that block live requests.
 Base.metadata.create_all(engine)
 
+# Ensure vetting_expiry_config table exists (new table, create_all may miss on existing DB)
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _vtc:
+        _vtc.execute(text("CREATE TABLE IF NOT EXISTS vetting_expiry_config (id SERIAL PRIMARY KEY, config TEXT DEFAULT '{}')"))
+except Exception:
+    pass
+
 # Add new columns that create_all won't add to existing tables
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _mc:
