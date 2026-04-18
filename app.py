@@ -14426,6 +14426,98 @@ def api_vetting_trigger_referencing(cand_id):
     })
 
 
+@app.route("/api/vetting/email-preview/<int:cand_id>")
+@login_required
+def api_vetting_email_preview(cand_id):
+    """Return the vetting commencement email template pre-filled for this candidate."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "vetting_commencement"))
+        subject = (tpl.subject if tpl else "Optimus – Commencement of Vetting") or ""
+        body = (tpl.body if tpl else "") or ""
+        name = cand.name if cand else "Associate"
+        subject = subject.replace("{associate_name}", name)
+        body = body.replace("{associate_name}", name)
+    return jsonify({"subject": subject, "body": body})
+
+
+@app.route("/candidate/<int:cand_id>/start-vetting-with-email", methods=["POST"])
+@login_required
+def start_vetting_with_email(cand_id):
+    """Send the vetting commencement email + trigger all vetting checks."""
+    to_email = (request.form.get("to_email") or "").strip()
+    email_subject = (request.form.get("email_subject") or "").strip()
+    email_body = (request.form.get("email_body") or "").strip()
+
+    # Send email first (instant feedback to user)
+    if to_email and email_body:
+        try:
+            html_body = "<br>".join(email_body.split("\n"))
+            attachments = []
+            user_file = request.files.get("attachment")
+            if user_file and user_file.filename:
+                attachments.append((
+                    user_file.filename,
+                    user_file.read(),
+                    user_file.content_type or "application/octet-stream",
+                ))
+            send_email(to_email, email_subject, html_body,
+                       attachments=attachments if attachments else None)
+            flash(f"Vetting commencement email sent to {to_email}.", "success")
+        except Exception as exc:
+            flash(f"Email failed: {exc}", "warning")
+
+    # Now trigger vetting checks (same logic as api_vetting_trigger)
+    try:
+        with Session(engine) as s:
+            cand = s.get(Candidate, cand_id)
+            if not cand:
+                flash("Candidate not found.", "danger")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+            DEFAULT_VETTING_CHECKS = [
+                "Right to Work", "Identity Verification", "Address History", "DBS Check",
+                "Employment History", "References", "Qualifications", "Professional Registration",
+                "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review"
+            ]
+            existing = {
+                vc.check_type: vc
+                for vc in s.scalars(select(VettingCheck).where(VettingCheck.candidate_id == cand_id)).all()
+            }
+            now = datetime.datetime.utcnow()
+            created = 0
+            for ct in DEFAULT_VETTING_CHECKS:
+                if ct in existing:
+                    if (existing[ct].status or "NOT STARTED").upper() == "NOT STARTED":
+                        existing[ct].status = "In Progress"
+                        created += 1
+                else:
+                    s.add(VettingCheck(candidate_id=cand_id, check_type=ct, status="In Progress"))
+                    created += 1
+
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="system",
+                content=f"Full vetting started: {created} checks initialised.",
+            ))
+            s.commit()
+
+            # Submit to Verifile in background
+            if VERIFILE_APIM_KEY:
+                try:
+                    verifile_submit_all_checks(cand_id, cand.name, cand.email, DEFAULT_VETTING_CHECKS, s)
+                    s.commit()
+                except Exception as ve:
+                    print(f"[VETTING] Verifile submit failed: {ve}", flush=True)
+
+        flash(f"Vetting started: {created} checks initialised.", "success")
+    except Exception as exc:
+        flash(f"Vetting trigger failed: {exc}", "danger")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/api/vetting/trigger/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_trigger(cand_id):
