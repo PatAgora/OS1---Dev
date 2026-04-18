@@ -4713,6 +4713,10 @@ def vacancy_detail(job_id):
             ).first()
             already_applied = existing is not None
 
+        # Check if applications are blocked (on contract)
+        cand_check = s.get(Candidate, cand_id) if Candidate else None
+        applications_blocked = bool(cand_check and getattr(cand_check, "applications_blocked", False))
+
         # Check if associate has a CV on file
         Document = _model("Document")
         has_cv = False
@@ -4728,6 +4732,7 @@ def vacancy_detail(job_id):
             engagement=engagement,
             already_applied=already_applied,
             has_cv=has_cv,
+            applications_blocked=applications_blocked,
         )
 
 
@@ -4752,6 +4757,12 @@ def vacancy_apply(job_id):
         if not job:
             flash("Vacancy not found.", "danger")
             return redirect(url_for("associate.vacancies"))
+
+        # Block applications for associates currently on contract
+        cand_check = s.get(Candidate, cand_id) if Candidate else None
+        if cand_check and getattr(cand_check, "applications_blocked", False):
+            flash("Please contact Optimus Solutions to discuss your application.", "warning")
+            return redirect(url_for("associate.vacancy_detail", job_id=job_id))
 
         if Application:
             existing = s.query(Application).filter_by(

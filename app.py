@@ -4335,6 +4335,7 @@ def admin_portal_user_detail(cand_id: int):
         _ = cand.name, cand.email, cand.phone, cand.status, cand.source
         _ = cand.email_verified, cand.email_verified_at, cand.created_at
         _ = cand.last_login_at, cand.last_activity_at
+        _ = getattr(cand, 'applications_blocked', False)
         if hasattr(cand, 'about'):
             _ = cand.about
 
@@ -4369,6 +4370,26 @@ def admin_portal_user_verify(cand_id: int):
         
         flash(f"Email verified for {cand.name}", "success")
     
+    return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
+
+@app.route("/admin/portal-users/<int:cand_id>/reset-applications", methods=["POST"])
+@login_required
+def admin_portal_user_reset_applications(cand_id: int):
+    """Unblock applications for a portal user who is on contract."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            flash("Associate not found", "danger")
+            return redirect(url_for("admin_portal_users"))
+
+        cand.applications_blocked = False
+        s.commit()
+
+        log_audit_event("update", "admin",
+            f"Applications unblocked for {cand.name}",
+            "candidate", cand_id)
+        flash(f"Applications re-enabled for {cand.name}", "success")
+
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
 @app.route("/admin/portal-users/<int:cand_id>/set-password", methods=["POST"])
@@ -5342,6 +5363,9 @@ class Candidate(Base):
     owner_id = Column(Integer, nullable=True)
     owner_name = Column(String(200), default="")
 
+    # Block applications while on contract — staff can reset via Portal User Management
+    applications_blocked = Column(Boolean, default=False)
+
     # Status and availability fields per wireframe requirements
     status = Column(String(50), default="Available")  # Available, On Assignment, On Hold, Unavailable, etc.
     availability = Column(String(100), default="Immediately available")  # Immediately available, 2 weeks notice, etc.
@@ -6000,6 +6024,10 @@ def ensure_schema():
             pass
         try:
             conn.execute(text("ALTER TABLE candidates ADD COLUMN owner_name VARCHAR(200) DEFAULT ''"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN applications_blocked BOOLEAN DEFAULT FALSE"))
         except Exception:
             pass
         for coldef in [
@@ -6723,6 +6751,7 @@ try:
             "ALTER TABLE candidates ADD COLUMN secondary_job_signed_name VARCHAR(300) DEFAULT ''",
             "ALTER TABLE candidates ADD COLUMN owner_id INTEGER",
             "ALTER TABLE candidates ADD COLUMN owner_name VARCHAR(200) DEFAULT ''",
+            "ALTER TABLE candidates ADD COLUMN applications_blocked BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_opted_in BOOLEAN",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_decision_at TIMESTAMP",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_signed_name VARCHAR(300) DEFAULT ''",
@@ -10891,6 +10920,7 @@ def workflow_move():
             if new_status in ["Placed", "Contract Signed"]:
                 # Associate is now ON CONTRACT / On Assignment
                 cand.status = "On Assignment"
+                cand.applications_blocked = True
                 candidate_status_updated = True
                 
                 # Update interview result if not already set

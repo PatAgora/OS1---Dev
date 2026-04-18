@@ -99,7 +99,18 @@
 
         <!-- Action -->
         <div style="border-top: 1px solid var(--color-gray-100); padding-top: 24px; margin-top: 32px;">
-            {% if already_applied %}
+            {% if applications_blocked %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Applications Unavailable</strong>
+                    <p class="mb-0 text-sm">Please contact Optimus Solutions to discuss your application.</p>
+                </div>
+            </div>
+            <a href="/portal/vacancies" class="btn-secondary" style="margin-top: 8px;">
+                Back to Vacancies
+            </a>
+            {% elif already_applied %}
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i>
                 <div>
