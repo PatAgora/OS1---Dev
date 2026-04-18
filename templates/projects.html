@@ -1621,6 +1621,23 @@ function handlePipelineDrop(event) {
   targetStageBody.appendChild(draggedPipelineCard);
   draggedPipelineCard.dataset.stage = targetStage;
 
+  // Add or remove Won/Lost buttons based on target stage
+  var existingActions = draggedPipelineCard.querySelector('.project-actions');
+  if (targetStage === 'Procurement') {
+    if (!existingActions) {
+      var actionsDiv = document.createElement('div');
+      actionsDiv.className = 'project-actions';
+      actionsDiv.style.cssText = 'display:flex;gap:0.375rem;margin-top:0.5rem;border-top:1px solid #e5e7eb;padding-top:0.5rem;';
+      actionsDiv.onclick = function(e) { e.stopPropagation(); };
+      actionsDiv.innerHTML =
+        '<button type="button" class="btn btn-sm" style="flex:1;background:#059669;color:white;border:none;border-radius:6px;font-size:0.7rem;padding:0.3rem 0.5rem;" onclick="markOpportunity(' + cardData.id + ', \'Closed Won\')" title="Mark as Won"><i class="fas fa-trophy me-1"></i>Won</button>' +
+        '<button type="button" class="btn btn-sm" style="flex:1;background:#dc2626;color:white;border:none;border-radius:6px;font-size:0.7rem;padding:0.3rem 0.5rem;" onclick="markOpportunity(' + cardData.id + ', \'Closed Lost\')" title="Mark as Lost"><i class="fas fa-times-circle me-1"></i>Lost</button>';
+      draggedPipelineCard.appendChild(actionsDiv);
+    }
+  } else if (existingActions) {
+    existingActions.remove();
+  }
+
   // Update column counts
   updatePipelineCounts();
 
