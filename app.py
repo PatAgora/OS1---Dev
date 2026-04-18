@@ -7048,7 +7048,9 @@ _cleanup_stmts = [
     "DELETE FROM associate_profiles WHERE candidate_id != 271",
     "DELETE FROM company_details WHERE candidate_id != 271",
     "DELETE FROM employment_history WHERE candidate_id != 271",
-    "DELETE FROM timesheets WHERE candidate_id != 271",
+    "DELETE FROM timesheets",
+    "DELETE FROM consent_records WHERE candidate_id != 271",
+    "DELETE FROM invoices",
     # Now delete candidates
     "DELETE FROM candidates WHERE id != 271",
     # PW-TEST users and taxonomy
