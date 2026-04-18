@@ -13106,21 +13106,13 @@ def _verifile_headers():
 
 
 # Checks that can be placed as client-entry (we supply the data, no candidate portal needed)
-CLIENT_ENTRY_CHECKS = {
-    "Sanctions / PEP",              # GlobalFraudandSanctionsSearch — just name + DOB
-    "Directorship / Disqualification",  # UKInvestigativeDirectorshipsSearch — just name
-    "Social Media Review",          # ClassicSocialMediaSearch — just name
-    "Credit Check",                 # UKCreditCheckExperian — name + address + DOB
-    "Identity Verification",        # UKOnlineIDCheck — name + address + DOB
-    "Employment History",           # EmploymentHistoryUK — built from portal data
-    "References",                   # CharacterProfessionalReferenceUK — built from portal data
-    "Qualifications",               # AcademicQualificationUK — built from portal data
-    "Professional Registration",    # ProfessionalMembershipQualificationUK — built from portal data
-}
+CLIENT_ENTRY_CHECKS = set()  # All checks via candidate-entry for now
 
-# Checks requiring candidate-entry (candidate fills in details via Verifile portal)
+# All checks go via candidate-entry (candidate fills in details via Verifile portal)
 CANDIDATE_ENTRY_CHECKS = {
-    "DBS Check", "Right to Work", "Address History",
+    "Right to Work", "Identity Verification", "Address History", "DBS Check",
+    "Employment History", "References", "Qualifications", "Professional Registration",
+    "Credit Check", "Directorship / Disqualification", "Sanctions / PEP", "Social Media Review",
 }
 
 # Data-rich client-entry checks that need per-check Checks array instead of CheckGroups.
