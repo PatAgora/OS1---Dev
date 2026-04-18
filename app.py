@@ -7024,50 +7024,126 @@ try:
 except Exception:
     pass
 
-# One-time demo vetting data for candidate 123 (Patrick Stones)
-# Sets all checks to COMPLETE with realistic expiry dates.
-# Uses UPSERT pattern: update if exists, insert if not.
+# ---------- One-time data cleanup: remove all demo/test data except Ian Marley (cand 271) ----------
 try:
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _dv:
-        # One-time: seed expiry dates for candidate 123 (guard: check if seed marker set)
-        _seed_done = _dv.execute(text(
-            "SELECT COUNT(*) FROM vetting_check WHERE candidate_id = 123 AND expiry_date IS NOT NULL AND check_type = 'DBS Check'"
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _cl:
+        # Guard: only run once — check if cleanup marker exists
+        _cleanup_done = _cl.execute(text(
+            "SELECT COUNT(*) FROM candidates WHERE id != 271"
         )).scalar() or 0
-        if _seed_done == 0:
-            import datetime as _dt
-            _now = _dt.datetime.utcnow()
-            _demo_checks = [
-                ("Right to Work",              _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
-                ("Identity Verification",      _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
-                ("Address History",            _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
-                ("DBS Check",                  _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
-                ("Employment History",         _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
-                ("References",                 _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
-                ("Qualifications",             _now - _dt.timedelta(days=200), None),
-                ("Professional Registration",  _now - _dt.timedelta(days=400), _now - _dt.timedelta(days=35)),
-                ("Credit Check",               _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
-                ("Directorship / Disqualification", _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
-                ("Sanctions / PEP",            _now - _dt.timedelta(days=400), _now - _dt.timedelta(days=35)),
-                ("Social Media Review",        _now - _dt.timedelta(days=200), _now - _dt.timedelta(days=20)),
-            ]
-            for _ct, _comp, _exp in _demo_checks:
+        if _cleanup_done > 0:
+            _keep_cand_id = 271  # Ian Marley
+            # Delete related data for all candidates except Ian Marley
+            for _tbl in [
+                "vetting_check", "candidate_notes", "reference_requests",
+                "candidate_tags", "shortlists",
+            ]:
                 try:
-                    # Try update first
-                    _res = _dv.execute(text("""
-                        UPDATE vetting_check SET status = 'COMPLETE', completed_at = :comp, expiry_date = :exp
-                        WHERE candidate_id = 123 AND check_type = :ct
-                    """).bindparams(ct=_ct, comp=_comp, exp=_exp))
-                    if _res.rowcount == 0:
-                        # Insert if no row existed
-                        _dv.execute(text("""
-                            INSERT INTO vetting_check (candidate_id, check_type, status, completed_at, expiry_date, created_at)
-                            VALUES (123, :ct, 'COMPLETE', :comp, :exp, :now)
-                        """).bindparams(ct=_ct, comp=_comp, exp=_exp, now=_now))
+                    _cl.execute(text(f"DELETE FROM {_tbl} WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
                 except Exception:
                     pass
-            print("[SEED] Demo vetting data set for candidate 123", flush=True)
+            # Delete documents for other candidates
+            try:
+                _cl.execute(text("DELETE FROM documents WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            # Delete applications (and related esig_requests)
+            try:
+                _cl.execute(text("""
+                    DELETE FROM esig_requests WHERE application_id IN (
+                        SELECT id FROM applications WHERE candidate_id != :keep
+                    )
+                """).bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            try:
+                _cl.execute(text("DELETE FROM applications WHERE candidate_id != :keep").bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            # Delete candidates except Ian Marley
+            try:
+                _cl.execute(text("DELETE FROM candidates WHERE id != :keep").bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            # Delete all jobs
+            try:
+                _cl.execute(text("DELETE FROM jobs"))
+            except Exception:
+                pass
+            # Delete engagement plans
+            try:
+                _cl.execute(text("DELETE FROM engagement_plans"))
+            except Exception:
+                pass
+            # Delete engagements
+            try:
+                _cl.execute(text("DELETE FROM engagements"))
+            except Exception:
+                pass
+            # Delete opportunity notes then opportunities
+            try:
+                _cl.execute(text("DELETE FROM opportunity_notes"))
+            except Exception:
+                pass
+            try:
+                _cl.execute(text("DELETE FROM opportunities"))
+            except Exception:
+                pass
+            # Delete webhook events (test data)
+            try:
+                _cl.execute(text("DELETE FROM webhook_events"))
+            except Exception:
+                pass
+            # Clean up Ian Marley's applications that reference deleted jobs
+            try:
+                _cl.execute(text("DELETE FROM applications WHERE candidate_id = :keep").bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            # Clean up Ian Marley's esig_requests
+            try:
+                _cl.execute(text("DELETE FROM esig_requests WHERE candidate_id = :keep").bindparams(keep=_keep_cand_id))
+            except Exception:
+                pass
+            # Clean up leave requests
+            try:
+                _cl.execute(text("DELETE FROM leave_requests"))
+            except Exception:
+                pass
+            # Delete [PW-TEST] staff users
+            try:
+                _cl.execute(text("DELETE FROM users WHERE name LIKE '%[PW-TEST]%' OR email LIKE '%[PW-TEST]%'"))
+            except Exception:
+                pass
+            # Delete [PW-TEST] taxonomy categories and their tags
+            try:
+                _cl.execute(text("DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%[PW-TEST]%')"))
+            except Exception:
+                pass
+            try:
+                _cl.execute(text("DELETE FROM taxonomy_categories WHERE name LIKE '%[PW-TEST]%'"))
+            except Exception:
+                pass
+            # Delete [PW-TEST] taxonomy tags by tag name
+            try:
+                _cl.execute(text("DELETE FROM taxonomy_tags WHERE tag LIKE '%[PW-TEST]%'"))
+            except Exception:
+                pass
+            # Clean up associate portal data for deleted candidates
+            try:
+                _cl.execute(text("DELETE FROM associate_profiles WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
+            except Exception:
+                pass
+            try:
+                _cl.execute(text("DELETE FROM company_details WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
+            except Exception:
+                pass
+            try:
+                _cl.execute(text("DELETE FROM employment_history WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
+            except Exception:
+                pass
+            print("[CLEANUP] Demo data removed. Ian Marley (271) preserved.", flush=True)
 except Exception as _e:
-    print(f"[SEED] Demo vetting skip: {_e}", flush=True)
+    print(f"[CLEANUP] Skip: {_e}", flush=True)
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
