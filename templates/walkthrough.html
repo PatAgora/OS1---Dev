@@ -518,6 +518,7 @@
           <li><span class="field-name">Delivery Plan Table:</span> Breakdown by role type showing planned headcount vs actual fill</li>
           <li><span class="field-name">Jobs list:</span> All jobs under this project</li>
           <li><span class="field-name">Applications:</span> All applications linked to jobs in this project</li>
+          <li><span class="field-name">Vetting Requirements:</span> Collapsible tile at the bottom showing all 12 checks &mdash; green tick for selected, grey circle for unselected. Click to expand. Links to Edit page to change selections.</li>
         </ul>
       </div>
     </div>
@@ -639,6 +640,17 @@
 
         <div class="wt-sub-heading">How to Move Candidates</div>
         <p>Drag application cards between columns. Stage transitions are controlled by ALLOWED_TRANSITIONS rules (prevents invalid jumps). Exception: staff can force-skip with confirmation.</p>
+
+        <div class="wt-sub-heading">Kanban Action Buttons</div>
+        <p>Each card has quick-action buttons that open the same forms as the candidate profile:</p>
+        <table class="wt-detail-table">
+          <tr><th>Button</th><th>Stage</th><th>What It Does</th></tr>
+          <tr><td><i class="fas fa-calendar-plus text-primary me-1"></i> Schedule Interview</td><td>Shortlist / I&amp;A</td><td>Opens the candidate profile with the interview form focused and ready to fill</td></tr>
+          <tr><td><i class="fas fa-hand-holding-usd text-success me-1"></i> Make Offer</td><td>Client Review</td><td>Opens the Offer Capture Sheet directly (same as "Send to Offer" on candidate profile)</td></tr>
+          <tr><td><i class="fas fa-envelope text-info me-1"></i> Start Referencing</td><td>All stages</td><td>Opens the candidate profile and triggers the referencing confirmation automatically</td></tr>
+          <tr><td><i class="fas fa-shield-alt text-warning me-1"></i> Start Full Vetting</td><td>All stages</td><td>Opens the candidate profile and the vetting email preview modal pops up automatically</td></tr>
+          <tr><td><i class="fas fa-file-signature text-success me-1"></i> Issue Contract</td><td>Ready to Contract</td><td>Opens the Assignment Schedule Capture Sheet directly (same as "Issue Contract" on candidate profile)</td></tr>
+        </table>
 
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
@@ -1006,6 +1018,7 @@
             <li>Application status &rarr; <strong>"Placed"</strong></li>
             <li>Candidate status &rarr; <strong>"On Contract"</strong> (or "On Assignment")</li>
             <li>Candidate appears in the <strong>Placements page</strong> (<strong>/placements</strong>)</li>
+            <li><strong>Portal applications blocked:</strong> The associate can no longer apply for new roles via the portal. If they try, they see: <em>"Please contact an Optimus representative to discuss your application."</em> Staff can re-enable applications from <strong>Admin &rarr; Portal User Management</strong>.</li>
           </ul>
         </div>
 
@@ -1115,6 +1128,14 @@
           <tr><td>Do Not Contact</td><td><i class="fas fa-phone-slash text-danger"></i></td><td>Must not be contacted</td></tr>
         </table>
         <p>Click any status option &mdash; form auto-submits and updates immediately. No save button required.</p>
+
+        <div class="wt-sub-heading">Portal Application Access</div>
+        <p>Navigate to <strong>Admin &rarr; Portal User Management</strong> &rarr; click on the associate.</p>
+        <table class="wt-detail-table">
+          <tr><th>Button</th><th>When Shown</th><th>Action</th></tr>
+          <tr><td><i class="fas fa-lock me-1"></i> <strong>Block Applications</strong></td><td>Applications currently enabled</td><td>Prevents the associate from applying for new roles on the portal. Automatically applied when a contract is signed.</td></tr>
+          <tr><td><i class="fas fa-unlock me-1"></i> <strong>Re-enable Applications</strong></td><td>Applications currently blocked</td><td>Allows the associate to apply for roles again (e.g. after a contract ends). Logged in the audit trail.</td></tr>
+        </table>
       </div>
     </div>
 
@@ -1415,10 +1436,17 @@
         <ol style="font-size: 0.82rem; padding-left: 1.25rem; margin: 0.5rem 0;">
           <li>Click <strong>"View Details"</strong> on a job card</li>
           <li>Review full job description and requirements</li>
-          <li>Click <strong>"Apply"</strong></li>
-          <li>Write a cover note / cover letter</li>
-          <li>Click <strong>"Submit Application"</strong></li>
+          <li>Click <strong>"Apply Now"</strong></li>
+          <li>If no CV is on file, upload a CV (PDF, DOC, or DOCX)</li>
+          <li>Click <strong>"Apply Now"</strong> to submit</li>
         </ol>
+
+        <div class="wt-gate">
+          <i class="fas fa-lock"></i>
+          <div>
+            <strong>GATE:</strong> Associates who are currently <strong>on contract</strong> (Placed / On Assignment) cannot apply for new roles. The Apply button is replaced with: <em>"Please contact an Optimus representative to discuss your application."</em> Staff can re-enable applications via <strong>Admin &rarr; Portal User Management &rarr; Re-enable Applications</strong>.
+          </div>
+        </div>
 
         <div class="wt-sub-heading">What Happens (System)</div>
         <div class="wt-system-box">
