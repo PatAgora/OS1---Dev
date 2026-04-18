@@ -7060,6 +7060,11 @@ _cleanup_stmts = [
     "DELETE FROM timesheets",
     "DELETE FROM consent_records WHERE candidate_id != 271",
     "DELETE FROM declaration_records WHERE candidate_id != 271",
+    "DELETE FROM qualification_records WHERE candidate_id != 271",
+    "DELETE FROM professional_registrations WHERE candidate_id != 271",
+    "DELETE FROM address_history WHERE candidate_id != 271",
+    "DELETE FROM timesheet_expenses",
+    "DELETE FROM timesheet_entries",
     "DELETE FROM invoices",
     "DELETE FROM trustid_checks",
     # Now delete candidates
