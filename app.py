@@ -7016,6 +7016,41 @@ try:
 except Exception:
     pass
 
+# One-time demo vetting data for candidate 123 (Patrick Stones)
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _dv:
+        _existing = _dv.execute(text(
+            "SELECT COUNT(*) FROM vetting_check WHERE candidate_id = 123 AND completed_at IS NOT NULL"
+        )).scalar() or 0
+        if _existing == 0:
+            import datetime as _dt
+            _now = _dt.datetime.utcnow()
+            _demo_checks = [
+                ("Right to Work",              "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
+                ("Identity Verification",      "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
+                ("Address History",            "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
+                ("DBS Check",                  "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
+                ("Employment History",         "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
+                ("References",                 "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=880)),
+                ("Qualifications",             "COMPLETE",     _now - _dt.timedelta(days=200), None),
+                ("Professional Registration",  "COMPLETE",     _now - _dt.timedelta(days=400), _now - _dt.timedelta(days=35)),
+                ("Credit Check",               "COMPLETE",     _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
+                ("Directorship / Disqualification", "COMPLETE", _now - _dt.timedelta(days=200), _now + _dt.timedelta(days=165)),
+                ("Sanctions / PEP",            "COMPLETE",     _now - _dt.timedelta(days=400), _now - _dt.timedelta(days=35)),
+                ("Social Media Review",        "COMPLETE",     _now - _dt.timedelta(days=200), _now - _dt.timedelta(days=20)),
+            ]
+            for _ct, _st, _comp, _exp in _demo_checks:
+                try:
+                    _dv.execute(text("""
+                        INSERT INTO vetting_check (candidate_id, check_type, status, completed_at, expiry_date, created_at)
+                        VALUES (123, :ct, :st, :comp, :exp, :now)
+                    """).bindparams(ct=_ct, st=_st, comp=_comp, exp=_exp, now=_now))
+                except Exception:
+                    pass
+            print("[SEED] Demo vetting data inserted for candidate 123", flush=True)
+except Exception as _e:
+    print(f"[SEED] Demo vetting skip: {_e}", flush=True)
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
