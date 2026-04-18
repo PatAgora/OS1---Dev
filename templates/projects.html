@@ -1241,6 +1241,10 @@ function toggleOption(item, dropdownId) {
   item.classList.toggle('selected', checkbox.checked);
   updateDropdownText(dropdownId);
   event.stopPropagation();
+  // Auto-apply filters and cascade other dropdowns on every selection change
+  if (dropdownId.startsWith('eng-')) {
+    applyEngagementsFilters();
+  }
 }
 
 function updateDropdownText(dropdownId) {
