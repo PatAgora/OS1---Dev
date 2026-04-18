@@ -2605,50 +2605,6 @@ def schedule_interview(cand_id: int):
         if latest_app.status in ("Pipeline", "Shortlist", "I&A", "New", "Applied", "Screening"):
             latest_app.status = "I&A"
 
-        # Load job + engagement for email placeholders
-        job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
-        eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
-
-        # Send interview invitation email using the configured template
-        try:
-            tpl = s.scalar(
-                select(EmailTemplate).where(EmailTemplate.name == "interview_invitation")
-            )
-            if tpl and cand.email:
-                placeholders = {
-                    "associate_name": cand.name or "Associate",
-                    "client_name": (eng.client if eng else "") or "",
-                    "role": (job.title if job else "") or latest_app.offer_role_title or "",
-                    "date": scheduled_dt.strftime("%d %B %Y"),
-                    "time": scheduled_dt.strftime("%H:%M"),
-                    "client_contact_name": (eng.client_contact_name if eng and hasattr(eng, "client_contact_name") else "") or "",
-                    "client_role": (eng.client_contact_role if eng and hasattr(eng, "client_contact_role") else "") or "",
-                    "company_name": (eng.client if eng else "") or "",
-                    "company_website": "",
-                }
-                subject = tpl.subject or "Interview Confirmation"
-                body = tpl.body or ""
-                for key, val in placeholders.items():
-                    subject = subject.replace("{" + key + "}", val)
-                    body = body.replace("{" + key + "}", val)
-                # Convert plain text body to HTML paragraphs
-                html_body = "<br>".join(body.split("\n"))
-                # Collect user-uploaded attachments
-                interview_attachments = []
-                for f in request.files.getlist("attachments"):
-                    if f and f.filename:
-                        interview_attachments.append((
-                            f.filename,
-                            f.read(),
-                            f.content_type or "application/octet-stream",
-                        ))
-                send_email(cand.email, subject, html_body,
-                           attachments=interview_attachments if interview_attachments else None)
-                flash(f"Interview invitation emailed to {cand.email}.", "success")
-        except Exception as mail_exc:
-            current_app.logger.exception("Interview email failed: %s", mail_exc)
-            flash(f"Interview scheduled but email failed: {mail_exc}", "warning")
-
         s.add(CandidateNote(
             candidate_id=cand_id,
             user_email=getattr(current_user, "email", "staff") or "staff",
@@ -2658,6 +2614,71 @@ def schedule_interview(cand_id: int):
         ))
         s.commit()
     flash(f"Interview scheduled for {scheduled_dt.strftime('%d %b %Y at %H:%M')}.", "success")
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "?action=send_interview_email")
+
+
+@app.route("/api/interview/email-preview/<int:cand_id>")
+@login_required
+def api_interview_email_preview(cand_id):
+    """Return the interview invitation email template pre-filled for this candidate."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"subject": "", "body": ""}), 404
+        latest_app = s.scalar(
+            select(Application).where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        job = s.get(Job, latest_app.job_id) if latest_app and latest_app.job_id else None
+        eng = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+        scheduled_dt = latest_app.interview_scheduled_at if latest_app else None
+
+        tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "interview_invitation"))
+        subject = (tpl.subject if tpl else "Interview Confirmation") or "Interview Confirmation"
+        body = (tpl.body if tpl else "") or ""
+
+        placeholders = {
+            "associate_name": cand.name or "Associate",
+            "client_name": (eng.client if eng else "") or "",
+            "role": (job.title if job else "") or "",
+            "date": scheduled_dt.strftime("%d %B %Y") if scheduled_dt else "",
+            "time": scheduled_dt.strftime("%H:%M") if scheduled_dt else "",
+            "client_contact_name": (getattr(eng, "client_contact_name", "") or "") if eng else "",
+            "client_role": (getattr(eng, "client_contact_role", "") or "") if eng else "",
+            "company_name": (eng.client if eng else "") or "",
+            "company_website": "",
+        }
+        for key, val in placeholders.items():
+            subject = subject.replace("{" + key + "}", val)
+            body = body.replace("{" + key + "}", val)
+
+    return jsonify({"subject": subject, "body": body, "to_email": cand.email or ""})
+
+
+@app.route("/candidate/<int:cand_id>/send-interview-email", methods=["POST"])
+@login_required
+def send_interview_email(cand_id: int):
+    """Send interview invitation email after staff review."""
+    to_email = (request.form.get("to_email") or "").strip()
+    email_subject = (request.form.get("email_subject") or "").strip()
+    email_body = (request.form.get("email_body") or "").strip()
+    if to_email and email_body:
+        try:
+            html_body = "<br>".join(email_body.split("\n"))
+            attachments = []
+            for f in request.files.getlist("attachments"):
+                if f and f.filename:
+                    attachments.append((
+                        f.filename, f.read(),
+                        f.content_type or "application/octet-stream",
+                    ))
+            send_email(to_email, email_subject, html_body,
+                       attachments=attachments if attachments else None)
+            flash(f"Interview invitation sent to {to_email}.", "success")
+        except Exception as exc:
+            flash(f"Email failed: {exc}", "warning")
+    else:
+        flash("No email sent — missing email address or body.", "warning")
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 

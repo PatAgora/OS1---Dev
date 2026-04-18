@@ -1381,6 +1381,46 @@
         </div>
       </div>
 
+      <!-- Interview Invitation Email Modal -->
+      <div class="modal fade" id="interviewEmailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white;">
+              <h5 class="modal-title"><i class="fas fa-calendar-check me-2"></i>Send Interview Invitation Email</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('send_interview_email', cand_id=cand.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label fw-semibold" style="font-size:0.85rem;">To</label>
+                  <input type="email" class="form-control form-control-sm" value="{{ cand.email }}" name="to_email">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-semibold" style="font-size:0.85rem;">Subject</label>
+                  <input type="text" class="form-control form-control-sm" name="email_subject" id="interviewEmailSubject" value="">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-semibold" style="font-size:0.85rem;">Email Body</label>
+                  <textarea name="email_body" class="form-control" id="interviewEmailBody" rows="14" style="font-family:monospace; font-size:0.8rem;"></textarea>
+                  <div class="form-text"><i class="fas fa-info-circle me-1"></i>Paste a Teams meeting link into the body above before sending.</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-semibold" style="font-size:0.85rem;">Attachments (JD, CV, briefing docs)</label>
+                  <input type="file" name="attachments" class="form-control form-control-sm" multiple accept=".pdf,.doc,.docx,.jpg,.png">
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="fas fa-paper-plane me-1"></i> Send Interview Invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <!-- Vetting Commencement Email Modal -->
       <div class="modal fade" id="vettingEmailModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -2468,8 +2508,32 @@ document.addEventListener('DOMContentLoaded', function() {
         if (dateInput) dateInput.focus();
       }
     }, 400);
+  } else if (autoAction === 'send_interview_email') {
+    setTimeout(function() { openInterviewEmailModal(); }, 400);
   }
 });
+
+function openInterviewEmailModal() {
+  fetch('/api/interview/email-preview/{{ cand.id }}', {
+    headers: { 'X-CSRFToken': _csrfToken() },
+    credentials: 'same-origin'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    document.getElementById('interviewEmailSubject').value = data.subject || 'Interview Confirmation';
+    document.getElementById('interviewEmailBody').value = data.body || '';
+    var toField = document.querySelector('#interviewEmailModal input[name="to_email"]');
+    if (toField && data.to_email) toField.value = data.to_email;
+    var modal = new bootstrap.Modal(document.getElementById('interviewEmailModal'));
+    modal.show();
+  })
+  .catch(function() {
+    document.getElementById('interviewEmailSubject').value = 'Interview Confirmation';
+    document.getElementById('interviewEmailBody').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('interviewEmailModal'));
+    modal.show();
+  });
+}
 </script>
 </div>
 {% endblock %}
