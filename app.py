@@ -7027,7 +7027,8 @@ except Exception:
 # ---------- One-time data cleanup ----------
 print("[CLEANUP] Starting data cleanup...", flush=True)
 _cleanup_stmts = [
-    "DELETE FROM esig_requests",
+    # Transactional tables (no FK deps on these)
+    "DELETE FROM esign_requests",
     "DELETE FROM applications",
     "DELETE FROM shortlists",
     "DELETE FROM engagement_plans",
@@ -7037,11 +7038,20 @@ _cleanup_stmts = [
     "DELETE FROM jobs",
     "DELETE FROM engagements",
     "DELETE FROM opportunities",
+    # Candidate-linked data
     "DELETE FROM vetting_check WHERE candidate_id != 271",
     "DELETE FROM candidate_notes WHERE candidate_id != 271",
     "DELETE FROM reference_requests WHERE candidate_id != 271",
     "DELETE FROM documents WHERE candidate_id != 271",
+    "DELETE FROM candidate_tags WHERE candidate_id != 271",
+    # Portal tables that reference candidates (must delete before candidates)
+    "DELETE FROM associate_profiles WHERE candidate_id != 271",
+    "DELETE FROM company_details WHERE candidate_id != 271",
+    "DELETE FROM employment_history WHERE candidate_id != 271",
+    "DELETE FROM timesheets WHERE candidate_id != 271",
+    # Now delete candidates
     "DELETE FROM candidates WHERE id != 271",
+    # PW-TEST users and taxonomy
     "DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%'",
     "DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')",
     "DELETE FROM taxonomy_categories WHERE name LIKE '%PW-TEST%'",
