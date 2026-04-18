@@ -1039,9 +1039,16 @@
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})" title="Start Referencing">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
+              {% set vetting_started = vetting_summary.in_progress > 0 or vetting_summary.complete > 0 %}
+              {% if vetting_started %}
+              <button class="btn btn-outline-warning btn-sm flex-fill" onclick="if(confirm('Vetting has already been started for this associate. Do you want to re-trigger?')){openVettingEmailModal();}">
+                <i class="fas fa-exclamation-triangle me-1"></i> Vetting Already Started
+              </button>
+              {% else %}
               <button class="btn btn-warning btn-sm flex-fill" onclick="openVettingEmailModal()" title="Start Full Vetting">
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>
+              {% endif %}
               <button class="btn btn-outline-danger btn-sm" onclick="resetVetting({{ cand.id }})" title="Reset all vetting checks to Not Started">
                 <i class="fas fa-undo me-1"></i> Reset
               </button>
