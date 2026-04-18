@@ -7051,8 +7051,12 @@ _cleanup_stmts = [
     "DELETE FROM timesheets",
     "DELETE FROM consent_records WHERE candidate_id != 271",
     "DELETE FROM invoices",
+    "DELETE FROM trustid_checks WHERE candidate_id != 271",
+    "DELETE FROM password_history WHERE user_id IN (SELECT id FROM candidates WHERE id != 271)",
     # Now delete candidates
     "DELETE FROM candidates WHERE id != 271",
+    # Clear audit_logs for PW-TEST users before deleting them
+    "DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%')",
     # PW-TEST users and taxonomy
     "DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%'",
     "DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')",
