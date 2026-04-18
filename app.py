@@ -8920,12 +8920,20 @@ def index():
             for lr, cand in leave_leavers:
                 if cand.name in existing_names:
                     continue
+                _dl_app = s.scalar(
+                    select(Application)
+                    .where(Application.candidate_id == cand.id)
+                    .where(Application.status.in_(["Placed", "Contract Signed", "On Assignment"]))
+                    .order_by(Application.created_at.desc())
+                )
+                _dl_job = s.get(Job, _dl_app.job_id) if _dl_app and _dl_app.job_id else None
+                _dl_eng = s.get(Engagement, _dl_job.engagement_id) if _dl_job and _dl_job.engagement_id else None
                 upcoming_leavers.append({
                     "name": cand.name or "Unknown",
-                    "role": "",
-                    "client": "",
+                    "role": _dl_job.title if _dl_job else "",
+                    "client": _dl_eng.client if _dl_eng else "",
                     "end_date": lr.notice_end_date.strftime("%d %b %Y") if lr.notice_end_date else "TBC",
-                    "engagement": "",
+                    "engagement": _dl_eng.name if _dl_eng else "",
                     "reason": lr.reason or "",
                 })
         except Exception:
@@ -11541,10 +11549,19 @@ def _placements_inner():
                     continue
                 end_date = lr.notice_end_date
                 days_until = (end_date - today_date).days if end_date else 0
+                # Look up the candidate's active placement for job/engagement context
+                _lr_app = s.scalar(
+                    select(Application)
+                    .where(Application.candidate_id == cand.id)
+                    .where(Application.status.in_(["Placed", "Contract Signed", "On Assignment"]))
+                    .order_by(Application.created_at.desc())
+                )
+                _lr_job = s.get(Job, _lr_app.job_id) if _lr_app and _lr_app.job_id else None
+                _lr_eng = s.get(Engagement, _lr_job.engagement_id) if _lr_job and _lr_job.engagement_id else None
                 scheduled_leavers.append({
                     "candidate": cand,
-                    "job": None,
-                    "engagement": None,
+                    "job": _lr_job,
+                    "engagement": _lr_eng,
                     "end_date": end_date,
                     "days_until": days_until,
                     "reason": lr.reason or "",
