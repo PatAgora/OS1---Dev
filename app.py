@@ -15026,6 +15026,60 @@ def api_vetting_trigger(cand_id):
     return jsonify({"ok": True, "message": result_msg})
 
 
+@app.route("/api/vetting/reset-current/<int:cand_id>", methods=["POST"])
+@login_required
+def api_vetting_reset_current(cand_id):
+    """Reset only the current (latest) project's vetting checks to NOT STARTED."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"ok": False, "error": "Candidate not found"}), 404
+
+        # Find the latest application's engagement vetting requirements
+        latest_app = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        )
+        current_check_types = []
+        if latest_app and latest_app.job_id:
+            job = s.get(Job, latest_app.job_id)
+            if job and job.engagement_id:
+                eng = s.get(Engagement, job.engagement_id)
+                if eng and eng.vetting_requirements:
+                    current_check_types = from_json_safe(eng.vetting_requirements or "[]")
+
+        if not current_check_types:
+            return jsonify({"ok": False, "error": "No vetting requirements found for current project"}), 400
+
+        checks = s.scalars(
+            select(VettingCheck)
+            .where(VettingCheck.candidate_id == cand_id)
+            .where(VettingCheck.check_type.in_(current_check_types))
+        ).all()
+
+        reset_count = 0
+        for vc in checks:
+            vc.status = "NOT STARTED"
+            vc.completed_at = None
+            vc.qc_status = ""
+            vc.qc_reviewed_by = None
+            vc.qc_reviewed_at = None
+            vc.qc_notes = ""
+            reset_count += 1
+
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=current_user.email if current_user.is_authenticated else "System",
+            note_type="system",
+            content=f"Current project vetting reset ({reset_count} checks) to Not Started.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+
+    return jsonify({"ok": True, "message": f"{reset_count} checks reset to Not Started."})
+
+
 @app.route("/api/vetting/reset/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_reset(cand_id):
