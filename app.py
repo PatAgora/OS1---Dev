@@ -14938,9 +14938,12 @@ def api_vetting_trigger(cand_id):
         na_count = 0
         for ct in DEFAULT_VETTING_CHECKS:
             if ct in checks_to_trigger:
-                # This check is required — set to In Progress
+                # This check is required — set to In Progress (skip if already done or still in date)
                 if ct in existing:
-                    if (existing[ct].status or "NOT STARTED").upper() == "NOT STARTED":
+                    current_status = (existing[ct].status or "NOT STARTED").upper()
+                    if current_status == "CHECK STILL IN DATE":
+                        continue
+                    if current_status == "NOT STARTED":
                         existing[ct].status = "In Progress"
                         existing[ct].created_at = now
                         created += 1
