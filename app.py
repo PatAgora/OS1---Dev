@@ -6783,9 +6783,13 @@ def ensure_schema():
         except Exception:
             pass
 
-        # -- P8: Gender on associate_profiles --
+        # -- P8: Gender + unsubscribed on associate_profiles --
         try:
             conn.execute(text("ALTER TABLE associate_profiles ADD COLUMN gender VARCHAR(20) DEFAULT ''"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE associate_profiles ADD COLUMN unsubscribed BOOLEAN DEFAULT FALSE"))
         except Exception:
             pass
 
