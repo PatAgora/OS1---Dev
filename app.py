@@ -11387,18 +11387,23 @@ def _placements_inner():
                     if nearest_expiry_days is None or days_left < nearest_expiry_days:
                         nearest_expiry_days = days_left
 
-            if all_complete and nearest_expiry_days is not None and nearest_expiry_days <= 90:
+            in_progress = sum(1 for vc in cand_checks if (vc.status or "").upper() in ("IN PROGRESS", "SENT TO QC", "QC IN PROGRESS", "AWAITING QC", "QC REWORK NEEDED"))
+
+            if all_complete and nearest_expiry_days is not None and nearest_expiry_days <= 40:
                 p["vetting_status"] = f"Expiring in {nearest_expiry_days} days"
                 p["vetting_class"] = "warning"
             elif all_complete:
                 p["vetting_status"] = "Complete"
                 p["vetting_class"] = "success"
+            elif in_progress > 0:
+                p["vetting_status"] = "In Progress"
+                p["vetting_class"] = "info"
             elif total == 0:
-                p["vetting_status"] = "No checks"
+                p["vetting_status"] = "Not Started"
                 p["vetting_class"] = "muted"
             else:
-                p["vetting_status"] = f"{done}/{total}"
-                p["vetting_class"] = "info"
+                p["vetting_status"] = "Not Started"
+                p["vetting_class"] = "muted"
 
         # Pie chart data (by client)
         pie_chart_data = [
