@@ -17214,7 +17214,8 @@ def candidate_profile(cand_id: int):
                     "is_latest": is_latest,
                     "checks": checks_detail,
                     "total": len(checks_detail),
-                    "complete": sum(1 for c in checks_detail if c["status"].upper() in ("COMPLETE", "QC COMPLETE", "N/A", "REFERRAL APPROVED", "QC NOT REQUIRED")),
+                    "complete": sum(1 for c in checks_detail if c["status"].upper() in ("COMPLETE", "QC COMPLETE", "N/A", "QC NOT REQUIRED", "CHECK STILL IN DATE")),
+                    "in_progress": sum(1 for c in checks_detail if c["status"].upper() in ("IN PROGRESS", "SENT TO QC", "QC IN PROGRESS", "AWAITING QC", "QC REWORK NEEDED")),
                 })
     except Exception:
         pass
