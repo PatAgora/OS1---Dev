@@ -7024,66 +7024,47 @@ try:
 except Exception:
     pass
 
-# ---------- One-time data cleanup: remove all demo/test data except Ian Marley (cand 271) ----------
+# ---------- One-time data cleanup ----------
+print("[CLEANUP] Starting data cleanup...", flush=True)
+_cleanup_stmts = [
+    "DELETE FROM esig_requests",
+    "DELETE FROM applications",
+    "DELETE FROM shortlists",
+    "DELETE FROM engagement_plans",
+    "DELETE FROM leave_requests",
+    "DELETE FROM webhook_events",
+    "DELETE FROM opportunity_notes",
+    "DELETE FROM jobs",
+    "DELETE FROM engagements",
+    "DELETE FROM opportunities",
+    "DELETE FROM vetting_check WHERE candidate_id != 271",
+    "DELETE FROM candidate_notes WHERE candidate_id != 271",
+    "DELETE FROM reference_requests WHERE candidate_id != 271",
+    "DELETE FROM documents WHERE candidate_id != 271",
+    "DELETE FROM candidates WHERE id != 271",
+    "DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%'",
+    "DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')",
+    "DELETE FROM taxonomy_categories WHERE name LIKE '%PW-TEST%'",
+    "DELETE FROM taxonomy_tags WHERE tag LIKE '%PW-TEST%'",
+]
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _cl:
-        # Use TRUNCATE CASCADE for clean wipe of transactional tables
-        # Then selectively delete candidates (keep Ian Marley 271)
-        _eng_count = _cl.execute(text("SELECT COUNT(*) FROM engagements")).scalar() or 0
-        _cand_count = _cl.execute(text("SELECT COUNT(*) FROM candidates WHERE id != 271")).scalar() or 0
-        if _eng_count > 0 or _cand_count > 0:
-            # Truncate all transactional tables (CASCADE handles FK deps)
-            _truncate_tables = [
-                "esig_requests", "applications", "shortlists", "engagement_plans",
-                "jobs", "opportunity_notes", "leave_requests", "webhook_events",
-            ]
-            for _tt in _truncate_tables:
-                try:
-                    _cl.execute(text(f"TRUNCATE TABLE {_tt} CASCADE"))
-                except Exception:
-                    pass
-            # Now engagements and opportunities (after their deps are gone)
+        for _stmt in _cleanup_stmts:
             try:
-                _cl.execute(text("TRUNCATE TABLE engagements CASCADE"))
+                _r = _cl.execute(text(_stmt))
+                if _r.rowcount and _r.rowcount > 0:
+                    print(f"[CLEANUP] {_stmt[:60]}... -> {_r.rowcount} rows", flush=True)
+            except Exception as _e2:
+                print(f"[CLEANUP] FAILED: {_stmt[:60]}... -> {_e2}", flush=True)
+        # Orphaned portal data
+        for _pt in ["associate_profiles", "company_details", "employment_history", "candidate_tags"]:
+            try:
+                _cl.execute(text(f"DELETE FROM {_pt} WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
             except Exception:
                 pass
-            try:
-                _cl.execute(text("TRUNCATE TABLE opportunities CASCADE"))
-            except Exception:
-                pass
-            # Delete all candidate-linked data for non-Ian-Marley
-            for _tbl in ["vetting_check", "candidate_notes", "reference_requests",
-                         "candidate_tags", "documents"]:
-                try:
-                    _cl.execute(text(f"DELETE FROM {_tbl} WHERE candidate_id != 271"))
-                except Exception:
-                    pass
-            # Delete candidates except Ian Marley
-            try:
-                _cl.execute(text("DELETE FROM candidates WHERE id != 271"))
-            except Exception:
-                pass
-            # Delete [PW-TEST] staff users
-            try:
-                _cl.execute(text("DELETE FROM users WHERE name LIKE '%PW-TEST%' OR email LIKE '%PW-TEST%' OR email LIKE '%pw-test%'"))
-            except Exception:
-                pass
-            # Delete [PW-TEST] taxonomy
-            try:
-                _cl.execute(text("DELETE FROM taxonomy_tags WHERE category_id IN (SELECT id FROM taxonomy_categories WHERE name LIKE '%PW-TEST%')"))
-                _cl.execute(text("DELETE FROM taxonomy_categories WHERE name LIKE '%PW-TEST%'"))
-                _cl.execute(text("DELETE FROM taxonomy_tags WHERE tag LIKE '%PW-TEST%'"))
-            except Exception:
-                pass
-            # Clean up orphaned portal data
-            for _pt in ["associate_profiles", "company_details", "employment_history"]:
-                try:
-                    _cl.execute(text(f"DELETE FROM {_pt} WHERE candidate_id NOT IN (SELECT id FROM candidates)"))
-                except Exception:
-                    pass
-            print("[CLEANUP] All demo data removed. Ian Marley (271) preserved.", flush=True)
+    print("[CLEANUP] Done. Ian Marley (271) preserved.", flush=True)
 except Exception as _e:
-    print(f"[CLEANUP] Skip: {_e}", flush=True)
+    print(f"[CLEANUP] FATAL: {_e}", flush=True)
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
