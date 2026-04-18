@@ -7035,6 +7035,12 @@ def _create_engagement_from_opportunity(s: Session, opp: Opportunity) -> Engagem
     return e
 
 def create_engagement_for_opportunity(s, opp: Opportunity) -> Engagement:
+    # If an engagement already exists for this opportunity, return it
+    if opp._engagement_id:
+        existing = s.get(Engagement, opp._engagement_id)
+        if existing:
+            return existing
+
     # create the engagement with sensible defaults
     e = Engagement(
         name=opp.name or f"Engagement for {opp.client or 'Unknown Client'}",

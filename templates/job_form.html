@@ -2,6 +2,7 @@
 {% block title %}{{ 'Edit Job' if job else 'New Job' }}{% endblock %}
 
 {% block content %}
+<style>.hidden{display:none!important;}</style>
 <div class="container-fluid px-4 pt-3 pb-4">
 <div class="container-xxl">
   <h2 class="fw-bold mb-3">{{ 'Edit Job' if job else 'Create New Job' }}</h2>
@@ -55,16 +56,17 @@
 
     <hr class="my-4">
 
-    {# DBS vetting criteria — hidden for now, may be needed in future #}
-    <div class="mb-2" style="display:none;"
-      <h5 class="fw-bold mb-1">DBS Vetting Criteria</h5>
+    {# DBS vetting criteria — collapsed by default, expandable if needed #}
+    <div class="mb-2">
+      <h5 class="fw-bold mb-1" style="cursor:pointer;" onclick="document.getElementById('dbsSection').classList.toggle('hidden');this.querySelector('i.chevron').classList.toggle('fa-chevron-down');this.querySelector('i.chevron').classList.toggle('fa-chevron-up');">
+        DBS Vetting Criteria <i class="fas fa-chevron-down chevron ms-2" style="font-size:0.7rem;"></i>
+      </h5>
       <p class="text-muted small mb-0">
         Internal only — used when raising the Verifile background check.
-        This section is not displayed on the public job advert.
       </p>
     </div>
 
-    <div class="row g-3">
+    <div class="row g-3 hidden" id="dbsSection">
       <div class="col-md-4">
         <label class="form-label fw-semibold">DBS Level</label>
         <select name="dbs_level" id="dbs_level" class="form-select">
