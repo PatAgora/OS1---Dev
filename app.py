@@ -4372,6 +4372,26 @@ def admin_portal_user_verify(cand_id: int):
     
     return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
 
+@app.route("/admin/portal-users/<int:cand_id>/block-applications", methods=["POST"])
+@login_required
+def admin_portal_user_block_applications(cand_id: int):
+    """Block applications for a portal user."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            flash("Associate not found", "danger")
+            return redirect(url_for("admin_portal_users"))
+
+        cand.applications_blocked = True
+        s.commit()
+
+        log_audit_event("update", "admin",
+            f"Applications blocked for {cand.name}",
+            "candidate", cand_id)
+        flash(f"Applications blocked for {cand.name}", "success")
+
+    return redirect(url_for("admin_portal_user_detail", cand_id=cand_id))
+
 @app.route("/admin/portal-users/<int:cand_id>/reset-applications", methods=["POST"])
 @login_required
 def admin_portal_user_reset_applications(cand_id: int):
