@@ -18635,6 +18635,7 @@ def _engagement_dashboard_inner(eng_id):
                 job_declared={}, job_shortlisted={}, engagement_finished=True,
                 tile_shortlist=0, tile_interview_sched=0, tile_interview_done=0,
                 tile_vetting=0, tile_contract_issued=0, tile_contract_signed=0,
+                eng_vetting_checks=from_json_safe(engagement.vetting_requirements or "[]"),
             )
 
         # ---------- ACTIVE engagement logic ----------
@@ -19195,6 +19196,7 @@ def _engagement_dashboard_inner(eng_id):
             all_candidates_slim=all_candidates_slim,
             rate_data=rate_data,
             intake_by_role=intake_by_role,
+            eng_vetting_checks=from_json_safe(engagement.vetting_requirements or "[]"),
         )
 
 # -------- Search Associates API for Engagement Dashboard --------
