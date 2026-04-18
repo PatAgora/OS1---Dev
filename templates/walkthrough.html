@@ -301,7 +301,7 @@
           <li><span class="field-name">6 months</span> &mdash; typical for Social Media Review</li>
           <li><span class="field-name">36 months</span> &mdash; typical for Identity Verification, Address History</li>
         </ul>
-        <p>Expired checks are flagged in red on the candidate profile. When an associate moves to a new project, checks still in date from the previous project are flagged as <strong>"Previous [check] still in date"</strong>.</p>
+        <p>Expired checks are flagged in red on the candidate profile with a warning icon. Checks approaching expiry (within 40 days) are flagged as <strong>"Expiring in X days"</strong> on the Placements page.</p>
       </div>
     </div>
 
@@ -902,22 +902,21 @@
           <strong>Email sent:</strong> Vetting Commencement email to the associate. Subject and body from the configured template. Can include file attachments (e.g. vetting guidelines document).
         </div>
 
-        <div class="wt-sub-heading">Vetting Checks — Per-Project Groups</div>
-        <p>The Vetting Checks section on the candidate profile shows checks <strong>grouped by project/role</strong>:</p>
+        <div class="wt-sub-heading">Vetting Checks on the Candidate Profile</div>
+        <p>The Vetting Checks section shows a flat list of all 12 check types for the candidate:</p>
         <ul class="wt-field-list">
-          <li><span class="field-name">Current project</span> &mdash; expanded by default with a blue <strong>"CURRENT"</strong> badge, showing the role and project name</li>
-          <li><span class="field-name">Previous projects</span> &mdash; collapsed, click to expand. Shows historical vetting for each project the associate has been linked to</li>
-          <li><span class="field-name">Progress counter</span> &mdash; e.g. "4/12 complete &mdash; KYC Analyst" scoped to the current project only</li>
+          <li><span class="field-name">Progress counter</span> &mdash; e.g. "4/12 complete" showing how many checks are done</li>
           <li><span class="field-name">Per-check tiles</span> &mdash; each check shows: status badge, completion date, expiry date, assigned analyst, QC reviewer</li>
-          <li><span class="field-name">Bulk assign:</span> "Assign all to..." and "QC assign all to..." dropdowns for the current project</li>
+          <li><span class="field-name">Bulk assign:</span> "Assign all to..." and "QC assign all to..." dropdowns</li>
+          <li><span class="field-name">Verifile flag:</span> When Verifile confirms a check, a purple <strong>"Verifile &mdash; Complete/Passed/Failed"</strong> flag appears with the date</li>
         </ul>
 
-        <div class="wt-sub-heading">Expiry Dates &amp; Reusable Checks</div>
-        <p>Each completed check shows its expiry date (calculated from the configured Vetting Expiry Periods in Config C1). When an associate moves to a new project:</p>
+        <div class="wt-sub-heading">Expiry Dates</div>
+        <p>Each completed check shows its expiry date (calculated from the configured Vetting Expiry Periods in Config C1).</p>
         <ul class="wt-field-list">
-          <li>Checks that are <strong>still in date</strong> from the previous project show a green flag: <em>"Previous [check] still in date"</em></li>
-          <li>Checks that have <strong>expired</strong> show a red expiry date with a warning icon &mdash; new vetting required</li>
-          <li>The <strong>"Check Still In Date"</strong> status can be set by the assignee to acknowledge a reusable check</li>
+          <li>Checks that have <strong>expired</strong> show a red expiry date with a warning icon</li>
+          <li>The <strong>"Check Still In Date"</strong> status can be set by the assignee to acknowledge a check that doesn't need repeating</li>
+          <li>Checks marked <strong>"Check Still In Date"</strong> are skipped by Start Full Vetting and count as complete</li>
         </ul>
 
         <div class="wt-sub-heading">Role-Based Status Controls</div>
@@ -930,12 +929,12 @@
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
           <div>
-            <strong>CONTROLS:</strong> A check cannot be marked as <strong>Complete</strong> unless it has been through QC (QC Complete or QC Not Required). The <strong>assignee and QC reviewer cannot be the same person</strong>.
+            <strong>CONTROLS:</strong> A check cannot be marked as <strong>Complete</strong> unless it has been through QC (QC Complete or QC Not Required) or is set by the QC reviewer directly. The <strong>assignee and QC reviewer cannot be the same person</strong> &mdash; the system blocks this with an alert.
           </div>
         </div>
 
         <div class="wt-sub-heading">Reset</div>
-        <p>The <strong>"Reset"</strong> button resets only the <strong>current project's</strong> vetting checks to Not Started. Previous project vetting is preserved.</p>
+        <p>The <strong>"Reset"</strong> button resets <strong>all</strong> vetting checks for the candidate back to Not Started.</p>
 
         <div class="wt-sub-heading">What the Associate Sees</div>
         <div class="wt-mirror-box">
@@ -948,11 +947,11 @@
           <i class="fas fa-plug me-1" style="color: #7c3aed;"></i>
           <strong>Verifile API:</strong> DBS screening orders created automatically using the DBS criteria configured on the job (Level, Sector, Purpose, Position, Employer Name). Verifile contacts the associate directly for identity verification documents.
         </div>
-        <p>When Verifile completes a check, a webhook updates the candidate profile automatically:</p>
+        <p>When Verifile completes a check, a webhook at <strong>/webhook/verifile</strong> updates the candidate profile automatically:</p>
         <ul class="wt-field-list">
-          <li>A purple <strong>"Verifile &mdash; Complete"</strong>, <strong>"Verifile &mdash; Passed"</strong>, or <strong>"Verifile &mdash; Failed"</strong> flag appears on the check tile with the date</li>
-          <li>The check status auto-updates only if staff hasn't already manually advanced it past the Verifile result</li>
-          <li>The manual status dropdown remains the primary status driver &mdash; the Verifile flag is an independent confirmation</li>
+          <li>A purple <strong>"Verifile &mdash; Complete"</strong>, <strong>"Verifile &mdash; Passed"</strong>, or <strong>"Verifile &mdash; Failed"</strong> flag appears on the check tile with the confirmation date</li>
+          <li>The check status auto-updates to match the Verifile result &mdash; but only if staff hasn't already manually advanced the status past it</li>
+          <li>The staff status dropdown remains the primary status driver &mdash; the Verifile flag is an independent confirmation that sits alongside the manual status</li>
         </ul>
       </div>
     </div>
@@ -974,7 +973,7 @@
         <div class="wt-gate">
           <i class="fas fa-lock"></i>
           <div>
-            <strong>GATE:</strong> All vetting checks must be <strong>Complete / QC Complete / QC Not Required / Referral Approved</strong> before "Issue Contract" is enabled. If vetting is incomplete, the button is disabled with a message showing how many checks remain (e.g. "3/12 checks incomplete &mdash; complete vetting before issuing contract").
+            <strong>GATE:</strong> All vetting checks must be <strong>Complete / QC Complete / QC Not Required / Check Still In Date</strong> before "Issue Contract" is enabled. If vetting is incomplete, the button is disabled with a message showing how many checks remain (e.g. "3/12 checks incomplete &mdash; complete vetting before issuing contract").
           </div>
         </div>
 
@@ -1061,7 +1060,7 @@
             <li>Contract Status &rarr; <strong>"Signed"</strong></li>
             <li>Application status &rarr; <strong>"Placed"</strong></li>
             <li>Candidate status &rarr; <strong>"On Contract"</strong> (or "On Assignment")</li>
-            <li>Candidate appears in the <strong>Placements page</strong> (<strong>/placements</strong>)</li>
+            <li>Candidate appears in the <strong>Placements page</strong> (<strong>/placements</strong>) with a <strong>Vetting Status</strong> column showing: Not Started, In Progress, Complete, or "Expiring in X days" (if any check expires within 40 days)</li>
             <li><strong>Portal applications blocked:</strong> The associate can no longer apply for new roles via the portal. If they try, they see: <em>"Please contact an Optimus representative to discuss your application."</em> Staff can re-enable applications from <strong>Admin &rarr; Portal User Management</strong>.</li>
           </ul>
         </div>
