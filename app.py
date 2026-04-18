@@ -6721,6 +6721,8 @@ try:
             "ALTER TABLE candidates ADD COLUMN secondary_job_has_secondary BOOLEAN DEFAULT FALSE",
             "ALTER TABLE candidates ADD COLUMN secondary_job_title VARCHAR(500) DEFAULT ''",
             "ALTER TABLE candidates ADD COLUMN secondary_job_signed_name VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE candidates ADD COLUMN owner_id INTEGER",
+            "ALTER TABLE candidates ADD COLUMN owner_name VARCHAR(200) DEFAULT ''",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_opted_in BOOLEAN",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_decision_at TIMESTAMP",
             "ALTER TABLE candidates ADD COLUMN conduct_regs_signed_name VARCHAR(300) DEFAULT ''",
