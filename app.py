@@ -11373,7 +11373,7 @@ def _placements_inner():
                 "esig": esig,
                 "pay_rate": plan.pay_rate if plan else 0,
                 "bill_rate": plan.charge_rate if plan else 0,
-                "start_date": esig.signed_at if esig else (eng.start_date if eng else None),
+                "start_date": getattr(app, 'assignment_start_date', None) or (eng.start_date if eng else None),
                 "end_date": eng.end_date if eng else None,
                 # Additional fields for template
                 "associate_name": cand.name,
