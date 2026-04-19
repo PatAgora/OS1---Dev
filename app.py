@@ -16624,6 +16624,24 @@ def candidate_profile(cand_id: int):
             if job and job.engagement_id:
                 engagement = s.get(Engagement, job.engagement_id)
 
+        # Vetting expiry config (needed for check display below)
+        _DEFAULT_EXPIRY = {
+            "Right to Work": 12, "Identity Verification": 36, "Address History": 36,
+            "DBS Check": 12, "Employment History": 36, "References": 36,
+            "Qualifications": 0, "Professional Registration": 12,
+            "Credit Check": 12, "Directorship / Disqualification": 12,
+            "Sanctions / PEP": 12, "Social Media Review": 6,
+        }
+        CHECK_EXPIRY_MONTHS = dict(_DEFAULT_EXPIRY)
+        try:
+            _ec_row = s.scalar(select(VettingExpiryConfig))
+            if _ec_row:
+                _db_config = json.loads(_ec_row.config or "{}")
+                if isinstance(_db_config, dict):
+                    CHECK_EXPIRY_MONTHS.update({k: int(v) for k, v in _db_config.items()})
+        except Exception:
+            pass
+
         # Build combined vetting requirements from engagement + job
         required_vetting_checks = set()
         if engagement and engagement.vetting_requirements:
@@ -17387,23 +17405,6 @@ def candidate_profile(cand_id: int):
 
     # Vetting grouped by project/role — collapsible within the Vetting Checks section
     # Load vetting expiry config from DB (fallback to defaults if not configured)
-    _DEFAULT_EXPIRY = {
-        "Right to Work": 12, "Identity Verification": 36, "Address History": 36,
-        "DBS Check": 12, "Employment History": 36, "References": 36,
-        "Qualifications": 0, "Professional Registration": 12,
-        "Credit Check": 12, "Directorship / Disqualification": 12,
-        "Sanctions / PEP": 12, "Social Media Review": 6,
-    }
-    CHECK_EXPIRY_MONTHS = dict(_DEFAULT_EXPIRY)
-    try:
-        with Session(engine) as _sec:
-            _ec_row = _sec.scalar(select(VettingExpiryConfig))
-            if _ec_row:
-                _db_config = json.loads(_ec_row.config or "{}")
-                if isinstance(_db_config, dict):
-                    CHECK_EXPIRY_MONTHS.update({k: int(v) for k, v in _db_config.items()})
-    except Exception:
-        pass
     vetting_by_project = []
     try:
         with Session(engine) as _svh:
