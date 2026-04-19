@@ -6918,6 +6918,10 @@ try:
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed_at TIMESTAMP",
             "ALTER TABLE vetting_check ADD COLUMN verifile_result VARCHAR(50)",
+            "ALTER TABLE esign_requests ADD COLUMN candidate_id INTEGER REFERENCES candidates(id)",
+            "ALTER TABLE esign_requests ADD COLUMN engagement_id INTEGER REFERENCES engagements(id)",
+            "ALTER TABLE esign_requests ADD COLUMN signing_url VARCHAR(500)",
+            "ALTER TABLE esign_requests ADD COLUMN end_date TIMESTAMP",
         ]:
             try:
                 _mc.execute(text(_stmt))
