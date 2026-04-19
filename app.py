@@ -16610,7 +16610,8 @@ def candidate_profile(cand_id: int):
                     _user_name_cache[uid] = u.name if u else f"User #{uid}"
                 return _user_name_cache[uid]
 
-            for check_type in VETTING_CHECK_TYPES:
+            _display_checks = required_vetting_checks if required_vetting_checks else VETTING_CHECK_TYPES
+            for check_type in _display_checks:
                 if check_type in existing_checks:
                     check = existing_checks[check_type]
                     _completed = check.completed_at
