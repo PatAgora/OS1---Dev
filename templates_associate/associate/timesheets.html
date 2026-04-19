@@ -141,7 +141,21 @@
                             {% for day in week_days %}
                             <td style="text-align: center;" class="day-amount" id="amount_{{ loop.index0 }}">-</td>
                             {% endfor %}
-                            <td style="text-align: center; color: var(--color-success);" id="totalAmount">&pound;0.00</td>
+                            <td style="text-align: center; color: var(--color-success);" id="totalDayAmount">&pound;0.00</td>
+                        </tr>
+                        <tr style="background: #eff6ff; font-weight: 700;">
+                            <td>OT Amount</td>
+                            {% for day in week_days %}
+                            <td style="text-align: center;" id="otamount_{{ loop.index0 }}">-</td>
+                            {% endfor %}
+                            <td style="text-align: center; color: #1d4ed8;" id="totalOTAmount">&pound;0.00</td>
+                        </tr>
+                        <tr style="background: var(--color-gray-50); font-weight: 700; border-top: 2px solid var(--color-gray-300);">
+                            <td>Day Amount</td>
+                            {% for day in week_days %}
+                            <td style="text-align: center;" id="dayamount_{{ loop.index0 }}">-</td>
+                            {% endfor %}
+                            <td style="text-align: center; color: var(--color-success); font-size: 14px;" id="totalAmount">&pound;0.00</td>
                         </tr>
                     </tbody>
                 </table>
@@ -470,11 +484,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             var mult = parseFloat(multInputs[d].value) || 1;
-            otAmount += hrs * otRate * mult;
+            var dayOT = hrs * otRate * mult;
+            otAmount += dayOT;
+            // Per-day OT amount cell
+            var otEl = document.getElementById('otamount_' + d);
+            if (otEl) otEl.textContent = dayOT > 0 ? '\u00a3' + dayOT.toFixed(2) : '-';
+            // Per-day combined (standard + OT)
+            var stdVal = 0;
+            var stdInputs2 = document.querySelectorAll('[name$="Standard__Time"]');
+            if (stdInputs2[d]) stdVal = parseFloat(stdInputs2[d].value) || 0;
+            var dayCombined = (stdVal * dayRate) + dayOT;
+            var dcEl = document.getElementById('dayamount_' + d);
+            if (dcEl) dcEl.textContent = dayCombined > 0 ? '\u00a3' + dayCombined.toFixed(2) : '-';
         }
         var dayAmount = totalDays * dayRate;
         var expTotal = calcExpenseTotal();
         var total = dayAmount + otAmount + expTotal;
+
+        // OT and combined totals
+        var otTotalEl = document.getElementById('totalOTAmount');
+        if (otTotalEl) otTotalEl.textContent = '\u00a3' + otAmount.toFixed(2);
+        var dayTotalEl = document.getElementById('totalDayAmount');
+        if (dayTotalEl) dayTotalEl.textContent = '\u00a3' + dayAmount.toFixed(2);
 
         var elDays = document.getElementById('totalBillableDays');
         if (elDays) elDays.textContent = totalDays.toFixed(1);
