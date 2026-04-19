@@ -8200,6 +8200,28 @@ def send_email(
     SMTP ports are blocked), falls back to SMTP if Brevo key not configured.
     Returns True on success, raises exception on failure.
     """
+    # Append email signature with logo to all outgoing emails
+    _base_url = _resolve_app_base_url()
+    _email_signature = f'''
+<br><br>
+<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; font-size: 12px; color: #6b7280; line-height: 1.6;">
+  <tr>
+    <td style="padding-bottom: 10px;">
+      <img src="{_base_url}/static/images/optimus-email-logo.png" alt="Optimus" style="height: 30px; width: auto;" />
+    </td>
+  </tr>
+  <tr>
+    <td style="border-top: 2px solid #2563eb; padding-top: 10px;">
+      71-75 Shelton Street | London | WC2H 9JQ<br>
+      <a href="mailto:compliance@optimussolutions.co.uk" style="color: #2563eb; text-decoration: none;">compliance@optimussolutions.co.uk</a><br>
+      <strong style="color: #1e3a8a;">Optimus</strong> — Financial Services Resourcing Specialists
+    </td>
+  </tr>
+</table>
+'''
+    if '<optimus-no-signature>' not in html_body:
+        html_body = html_body + _email_signature
+
     # --- Microsoft 365 OAuth2 (primary — client's own mailbox) ---
     if (M365_TENANT_ID or "").strip() and (M365_CLIENT_ID or "").strip() and (M365_CLIENT_SECRET or "").strip():
         try:
