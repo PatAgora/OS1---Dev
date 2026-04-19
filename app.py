@@ -1984,7 +1984,7 @@ def api_engagement_invoice_lines(eng_id):
                     except ValueError:
                         pass
             lines.append({
-                "description": f"{name} — {title or 'Associate'}",
+                "description": title or "Associate",
                 "quantity": 1,
                 "rate": rate,
             })
