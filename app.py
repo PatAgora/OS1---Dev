@@ -16740,7 +16740,6 @@ def candidate_profile(cand_id: int):
                 return _user_name_cache[uid]
 
             _display_checks = required_vetting_checks if required_vetting_checks else VETTING_CHECK_TYPES
-            print(f"[VETTING-DISPLAY] cand={cand_id} engagement={engagement.id if engagement else None} req_checks={required_vetting_checks} display={len(_display_checks)} existing={list(existing_checks.keys())}", flush=True)
             for check_type in _display_checks:
                 if check_type in existing_checks:
                     check = existing_checks[check_type]
