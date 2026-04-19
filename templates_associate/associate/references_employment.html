@@ -78,9 +78,9 @@
         {% if employment_entries and employment_entries|length > 0 %}
         <div class="employment-timeline">
             {% for entry in employment_entries %}
-            <div class="timeline-item {% if entry.entry_type is defined and entry.entry_type == 'gap' %}timeline-gap{% endif %}">
+            <div class="timeline-item {% if entry.is_gap %}timeline-gap{% endif %}">
                 <div class="timeline-marker">
-                    {% if entry.entry_type is defined and entry.entry_type == 'gap' %}
+                    {% if entry.is_gap %}
                     <i class="fas fa-pause-circle text-warning"></i>
                     {% else %}
                     <i class="fas fa-briefcase text-primary"></i>
@@ -88,9 +88,9 @@
                 </div>
                 <div class="timeline-content">
                     <div class="timeline-header">
-                        {% if entry.entry_type is defined and entry.entry_type == 'gap' %}
-                        <h5>Career Gap</h5>
-                        <span class="badge bg-warning text-dark">{{ entry.reason if entry.reason else 'Not specified' }}</span>
+                        {% if entry.is_gap %}
+                        <h5>Gap Entry</h5>
+                        <span class="badge bg-warning text-dark">{{ entry.gap_reason if entry.gap_reason else 'Not specified' }}</span>
                         {% else %}
                         <h5>{{ entry.company_name }}</h5>
                         <span class="badge bg-primary">{{ entry.job_title }}</span>
@@ -109,7 +109,7 @@
                     {% if entry.reason_for_leaving is defined and entry.reason_for_leaving %}
                     <p class="text-muted mb-1"><small>Reason for leaving: {{ entry.reason_for_leaving }}</small></p>
                     {% endif %}
-                    {% if entry.entry_type is not defined or entry.entry_type != 'gap' %}
+                    {% if not entry.is_gap %}
                     <p class="mb-1">
                         {% if entry.permission_to_request is defined and entry.permission_to_request == false %}
                         <span class="badge bg-danger" style="font-size: 0.7rem;"><i class="fas fa-times me-1"></i>Do not contact</span>
@@ -127,7 +127,7 @@
                     </p>
                     {% endif %}
                     <div class="timeline-actions mt-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary edit-entry-btn" data-entry-id="{{ entry.id }}" data-entry-type="{{ entry.entry_type if entry.entry_type is defined else 'employment' }}">
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-entry-btn" data-entry-id="{{ entry.id }}" data-entry-type="{{ 'gap' if entry.is_gap else 'employment' }}">
                             <i class="fas fa-edit"></i> Edit
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-danger delete-entry-btn" data-entry-id="{{ entry.id }}">
@@ -154,8 +154,8 @@
     {% for entry in employment_entries %}
     {
       "id": {{ entry.id }},
-      "is_gap": {% if entry.entry_type is defined and entry.entry_type == 'gap' %}true{% else %}false{% endif %},
-      "label": {% if entry.entry_type is defined and entry.entry_type == 'gap' %}"Career gap"{% else %}{{ (entry.company_name or 'Employment')|tojson }}{% endif %},
+      "is_gap": {% if entry.is_gap %}true{% else %}false{% endif %},
+      "label": {% if entry.is_gap %}"Career gap"{% else %}{{ (entry.company_name or 'Employment')|tojson }}{% endif %},
       "start_date": {{ (entry.start_date.strftime('%Y-%m-%d') if entry.start_date else None)|tojson }},
       "end_date": {{ (entry.end_date.strftime('%Y-%m-%d') if entry.end_date else None)|tojson }},
       "company_name": {{ (entry.company_name or '')|tojson }},
