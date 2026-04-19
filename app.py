@@ -17027,9 +17027,10 @@ def candidate_profile(cand_id: int):
                     vetting_summary["na"] += 1
                 else:
                     vetting_summary["not_started"] += 1
-        except Exception:
-            # VettingCheck table might not exist yet
-            for check_type in VETTING_CHECK_TYPES:
+        except Exception as _vc_exc:
+            print(f"[VETTING-ERROR] cand={cand_id}: {_vc_exc}", flush=True)
+            import traceback; traceback.print_exc()
+            for check_type in _display_checks:
                 vetting_checks.append({
                     "id": None,
                     "type": check_type,
