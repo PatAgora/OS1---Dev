@@ -1956,6 +1956,41 @@ def admin_create_invoice():
         engagements = s.scalars(select(Engagement).order_by(Engagement.name)).all()
         return render_template("admin_invoice_create.html", engagements=engagements)
 
+@app.route("/api/engagement/<int:eng_id>/invoice-lines")
+@login_required
+def api_engagement_invoice_lines(eng_id):
+    """Return placed associates for an engagement as invoice line items."""
+    with Session(engine) as s:
+        results = s.execute(
+            select(Candidate.name, Job.title, Application.offer_day_rate, Application.assignment_fee)
+            .select_from(Application)
+            .join(Candidate, Candidate.id == Application.candidate_id)
+            .join(Job, Job.id == Application.job_id)
+            .where(Job.engagement_id == eng_id)
+            .where(Application.status.in_(["Placed", "Contract Signed", "On Assignment", "Active", "Contracted"]))
+            .order_by(Candidate.name)
+        ).all()
+        lines = []
+        for name, title, offer_rate, assign_fee in results:
+            rate = 0
+            if offer_rate:
+                rate = float(offer_rate)
+            elif assign_fee:
+                import re as _re
+                nums = _re.findall(r"[\d,]+\.?\d*", str(assign_fee).replace(",", ""))
+                if nums:
+                    try:
+                        rate = float(nums[0])
+                    except ValueError:
+                        pass
+            lines.append({
+                "description": f"{name} — {title or 'Associate'}",
+                "quantity": 1,
+                "rate": rate,
+            })
+    return jsonify(lines)
+
+
 @app.route("/admin/invoices/<int:invoice_id>")
 @login_required
 def admin_view_invoice(invoice_id):

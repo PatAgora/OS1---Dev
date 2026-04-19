@@ -11,7 +11,10 @@
     .page-header h1 {
         font-size: 1.75rem;
         font-weight: 700;
-        color: #1f2937;
+        color: #ffffff;
+    }
+    .page-header p {
+        color: rgba(255,255,255,0.8) !important;
     }
     .invoice-form-card {
         background: white;
@@ -236,15 +239,41 @@
 function updateEngagementDetails() {
     const select = document.getElementById('engagementSelect');
     const option = select.options[select.selectedIndex];
-    
+
     if (option.value) {
         document.getElementById('clientName').value = option.dataset.client || '';
         document.getElementById('engagementName').value = option.dataset.name || '';
-        
+
         // Set default due date to 30 days from now
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         document.getElementById('dueDate').value = dueDate.toISOString().split('T')[0];
+
+        // Fetch placed associates as line items
+        fetch('/api/engagement/' + option.value + '/invoice-lines', {
+            headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(lines) {
+            if (lines && lines.length > 0) {
+                var tbody = document.getElementById('lineItemsBody');
+                tbody.innerHTML = '';
+                lines.forEach(function(line) {
+                    var row = document.createElement('tr');
+                    row.className = 'line-item-row';
+                    row.innerHTML =
+                        '<td><input type="text" name="item_description[]" value="' + (line.description || '').replace(/"/g, '&quot;') + '" onchange="calculateTotals()"></td>' +
+                        '<td><input type="number" name="item_quantity[]" value="' + (line.quantity || 1) + '" min="0" step="0.5" onchange="calculateTotals()"></td>' +
+                        '<td><input type="number" name="item_rate[]" value="' + (line.rate || 0) + '" min="0" step="0.01" onchange="calculateTotals()"></td>' +
+                        '<td class="line-amount">£0.00</td>' +
+                        '<td><button type="button" class="remove-line-btn" onclick="removeLine(this)"><i class="fas fa-times"></i></button></td>';
+                    tbody.appendChild(row);
+                });
+                calculateTotals();
+            }
+        })
+        .catch(function() {});
     }
 }
 
