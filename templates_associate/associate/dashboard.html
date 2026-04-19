@@ -141,27 +141,4 @@
     </div>
 </div>
 
-<!-- Recent Activity -->
-{% if recent_activity and recent_activity|length > 0 %}
-<div class="portal-card mt-4">
-    <div class="portal-card-header">
-        <h3><i class="fas fa-clock-rotate-left me-2"></i>Recent Activity</h3>
-    </div>
-    <div class="portal-card-body">
-        <div class="activity-feed">
-            {% for item in recent_activity %}
-            <div class="activity-item">
-                <div class="activity-dot"></div>
-                <div class="activity-content">
-                    <p class="activity-text">{{ item.content if item.content is defined else item }}</p>
-                    {% if item.created_at is defined %}
-                    <span class="activity-time">{{ item.created_at.strftime('%d %b %Y, %H:%M') }}</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endif %}
 {% endblock %}
