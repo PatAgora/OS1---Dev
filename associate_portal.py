@@ -4414,6 +4414,8 @@ def timesheets_save():
         # Calculate totals
         day_rate = getattr(ts, "day_rate", 0) or 0
         ot_rate = getattr(ts, "overtime_rate", 0) or 0
+        if not ot_rate and day_rate:
+            ot_rate = round(day_rate / 7.5, 2)
         ts.total_amount = (ts.billable_days * day_rate) + (ts.billable_hours * ot_rate)
         ts.expense_total = expense_total
         ts.grand_total = ts.total_amount + ts.expense_total
@@ -4511,6 +4513,8 @@ def timesheets_submit():
         # Calculate totals
         day_rate = getattr(ts, "day_rate", 0) or 0
         ot_rate = getattr(ts, "overtime_rate", 0) or 0
+        if not ot_rate and day_rate:
+            ot_rate = round(day_rate / 7.5, 2)
         ts.total_amount = (ts.billable_days * day_rate) + (ts.billable_hours * ot_rate)
         ts.expense_total = expense_total
         ts.grand_total = ts.total_amount + ts.expense_total

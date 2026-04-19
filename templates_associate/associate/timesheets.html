@@ -67,9 +67,7 @@
                 <div><strong>Period:</strong> {{ current_ts.period_start.strftime('%d/%m/%Y') if current_ts.period_start else '' }} – {{ current_ts.period_end.strftime('%d/%m/%Y') if current_ts.period_end else '' }}</div>
                 <div><strong>Status:</strong> {{ current_ts.status or 'Draft' }}</div>
                 <div><strong>Day Rate:</strong> &pound;{{ "%.2f"|format(current_ts.day_rate or 0) }}/d</div>
-                {% if current_ts.overtime_rate %}
-                <div><strong>OT Rate:</strong> &pound;{{ "%.2f"|format(current_ts.overtime_rate) }}/h</div>
-                {% endif %}
+                <div><strong>OT Rate:</strong> &pound;{{ "%.2f"|format(current_ts.overtime_rate if current_ts.overtime_rate else ((current_ts.day_rate or 0) / 7.5)) }}/h</div>
             </div>
 
             <!-- Weekly Grid -->
@@ -211,7 +209,8 @@
                 </div>
                 <div>
                     <div class="text-muted text-xs">OT Amount</div>
-                    <div class="font-semibold" id="summaryOTAmount">&pound;{{ "%.2f"|format((current_ts.billable_hours or 0) * (current_ts.overtime_rate or 0)) }}</div>
+                    {% set _ot_rate = current_ts.overtime_rate if current_ts.overtime_rate else ((current_ts.day_rate or 0) / 7.5) %}
+                    <div class="font-semibold" id="summaryOTAmount">&pound;{{ "%.2f"|format((current_ts.billable_hours or 0) * _ot_rate) }}</div>
                 </div>
                 <div>
                     <div class="text-muted text-xs">Expenses</div>
@@ -408,6 +407,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     var dayRate = {{ (current_ts.day_rate or 0) if current_ts else 0 }};
     var otRate = {{ (current_ts.overtime_rate or 0) if current_ts else 0 }};
+    if (!otRate && dayRate) otRate = Math.round(dayRate / 7.5 * 100) / 100;
     var inputs = document.querySelectorAll('.ts-input');
 
     function recalc() {
