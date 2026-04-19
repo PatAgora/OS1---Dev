@@ -4626,8 +4626,8 @@ def timesheets_generate_invoice():
 
         # Table header
         pdf.set_font("Helvetica", "B", 9)
-        col_w = [55, 25, 25, 30, 30, 25]
-        headers = ["Period", "Days", "OT Hours", "Day Rate", "Amount", "Status"]
+        col_w = [45, 20, 20, 25, 25, 25, 30]
+        headers = ["Period", "Days", "OT Hrs", "Day Amt", "OT Amt", "Expenses", "Total"]
         for i, h in enumerate(headers):
             pdf.cell(col_w[i], 8, h, border=1, align="C")
         pdf.ln()
@@ -4637,6 +4637,7 @@ def timesheets_generate_invoice():
         grand_total = 0
         total_days = 0
         total_hours = 0
+        total_expenses = 0
         for ts in sheets:
             period = ""
             if ts.period_start and ts.period_end:
@@ -4647,27 +4648,38 @@ def timesheets_generate_invoice():
             days = ts.billable_days or 0
             hours = ts.billable_hours or 0
             rate = ts.day_rate or 0
-            amount = ts.grand_total or ts.total_amount or 0
+            ot_rate_inv = getattr(ts, "overtime_rate", 0) or 0
+            if not ot_rate_inv and rate:
+                ot_rate_inv = round(rate / 7.5, 2)
+            day_amount = days * rate
+            ot_amount = (ts.total_amount or 0) - day_amount if (ts.total_amount or 0) > day_amount else hours * ot_rate_inv
+            expenses = getattr(ts, "expense_total", 0) or 0
+            line_total = day_amount + ot_amount + expenses
             total_days += days
             total_hours += hours
-            grand_total += amount
+            total_expenses += expenses
+            grand_total += line_total
 
             pdf.cell(col_w[0], 7, period, border=1)
             pdf.cell(col_w[1], 7, f"{days:.1f}", border=1, align="C")
             pdf.cell(col_w[2], 7, f"{hours:.1f}", border=1, align="C")
-            pdf.cell(col_w[3], 7, f"£{rate:.2f}", border=1, align="R")
-            pdf.cell(col_w[4], 7, f"£{amount:.2f}", border=1, align="R")
-            pdf.cell(col_w[5], 7, ts.status or "", border=1, align="C")
+            pdf.cell(col_w[3], 7, f"£{day_amount:.2f}", border=1, align="R")
+            pdf.cell(col_w[4], 7, f"£{ot_amount:.2f}", border=1, align="R")
+            pdf.cell(col_w[5], 7, f"£{expenses:.2f}", border=1, align="R")
+            pdf.cell(col_w[6], 7, f"£{line_total:.2f}", border=1, align="R")
             pdf.ln()
 
         # Totals row
         pdf.set_font("Helvetica", "B", 9)
+        total_day_amt = total_days * (sheets[0].day_rate or 0) if sheets else 0
+        total_ot_amt = grand_total - total_day_amt - total_expenses
         pdf.cell(col_w[0], 8, "TOTAL", border=1, align="R")
         pdf.cell(col_w[1], 8, f"{total_days:.1f}", border=1, align="C")
         pdf.cell(col_w[2], 8, f"{total_hours:.1f}", border=1, align="C")
-        pdf.cell(col_w[3], 8, "", border=1)
-        pdf.cell(col_w[4], 8, f"£{grand_total:.2f}", border=1, align="R")
-        pdf.cell(col_w[5], 8, "", border=1)
+        pdf.cell(col_w[3], 8, f"£{total_day_amt:.2f}", border=1, align="R")
+        pdf.cell(col_w[4], 8, f"£{total_ot_amt:.2f}", border=1, align="R")
+        pdf.cell(col_w[5], 8, f"£{total_expenses:.2f}", border=1, align="R")
+        pdf.cell(col_w[6], 8, f"£{grand_total:.2f}", border=1, align="R")
         pdf.ln(12)
 
         # Footer
