@@ -2489,6 +2489,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Auto-trigger actions from kanban links (?action=...)
   var params = new URLSearchParams(window.location.search);
   var autoAction = params.get('action');
+  if (autoAction) {
+    // Clear the action param from URL so it doesn't re-trigger on reload
+    params.delete('action');
+    var cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+    window.history.replaceState({}, '', cleanUrl);
+  }
   if (autoAction === 'start_vetting') {
     setTimeout(function() { openVettingEmailModal(); }, 400);
   } else if (autoAction === 'start_referencing') {
