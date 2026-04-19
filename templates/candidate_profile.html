@@ -1088,7 +1088,10 @@
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
-              {% set vetting_started = vetting_summary.in_progress > 0 or vetting_summary.complete > 0 %}
+              {% set ref_types = ['References', 'Employment History'] %}
+              {% set non_ref_in_progress = vetting_checks|selectattr('status', 'in', ['In Progress', 'SENT TO QC', 'QC IN PROGRESS'])|rejectattr('type', 'in', ref_types)|list|length %}
+              {% set non_ref_complete = vetting_checks|selectattr('status', 'in', ['COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'CHECK STILL IN DATE'])|rejectattr('type', 'in', ref_types)|list|length %}
+              {% set vetting_started = non_ref_in_progress > 0 or non_ref_complete > 0 %}
               {% if vetting_started %}
               <span class="btn btn-outline-secondary btn-sm flex-fill" style="cursor:default; opacity:0.7;">
                 <i class="fas fa-check-circle me-1"></i> Vetting Already Started
