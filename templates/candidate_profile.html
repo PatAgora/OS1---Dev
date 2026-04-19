@@ -990,7 +990,12 @@
                       <input type="date" name="interview_date" class="form-control form-control-sm" required>
                     </div>
                     <div class="col-3">
-                      <input type="time" name="interview_time" class="form-control form-control-sm" required>
+                      <select name="interview_time" class="form-select form-select-sm" required>
+                      <option value="">Time</option>
+                      {% for h in range(7, 20) %}{% for m in ['00', '30'] %}
+                      <option value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>
+                      {% endfor %}{% endfor %}
+                    </select>
                     </div>
                     <div class="col-4">
                       <button type="submit" class="btn btn-sm btn-primary w-100">
@@ -1016,7 +1021,12 @@
                     <input type="date" name="interview_date" class="form-control form-control-sm" required>
                   </div>
                   <div class="col-md-3">
-                    <input type="time" name="interview_time" class="form-control form-control-sm" required>
+                    <select name="interview_time" class="form-select form-select-sm" required>
+                      <option value="">Time</option>
+                      {% for h in range(7, 20) %}{% for m in ['00', '30'] %}
+                      <option value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>
+                      {% endfor %}{% endfor %}
+                    </select>
                   </div>
                   <div class="col-md-4">
                     <button type="submit" class="btn btn-sm btn-primary w-100">
