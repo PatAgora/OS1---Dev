@@ -1260,9 +1260,9 @@ function handleDrop(event) {
 
   // Confirmation gate for Offered stage
   if (targetStage === 'offered') {
-    if (!confirm('Have you issued the offer to the Associate before moving the card?')) {
-      return;
-    }
+    _pendingOfferDrop = { targetColumn: targetColumn, draggedCard: draggedCard, originalColumn: originalColumn, dataTransfer: event.dataTransfer.getData('text/plain') };
+    document.getElementById('offerConfirmModal').style.display = 'flex';
+    return;
   }
 
   const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
@@ -1837,6 +1837,47 @@ function updateSummaryCounts(filter) {
     }
   }
 }
+var _pendingOfferDrop = null;
+
+function offerConfirmYes() {
+  document.getElementById('offerConfirmModal').style.display = 'none';
+  if (!_pendingOfferDrop) return;
+  var d = _pendingOfferDrop;
+  _pendingOfferDrop = null;
+  var cardData = JSON.parse(d.dataTransfer);
+  d.targetColumn.appendChild(d.draggedCard);
+  fetch('/api/workflow/move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ card_id: cardData.id, card_type: cardData.type, from_stage: d.originalColumn, to_stage: 'offered' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) { showToast('Error: ' + data.error, 'danger'); setTimeout(function() { location.reload(); }, 500); }
+    else { showToast('Stage updated', 'success'); setTimeout(function() { location.reload(); }, 500); }
+  })
+  .catch(function() { showToast('Failed to update', 'danger'); setTimeout(function() { location.reload(); }, 500); });
+}
+
+function offerConfirmNo() {
+  document.getElementById('offerConfirmModal').style.display = 'none';
+  _pendingOfferDrop = null;
+}
 </script>
+
+<!-- Offer Confirmation Modal -->
+<div id="offerConfirmModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:2rem; max-width:420px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center;">
+    <i class="fas fa-question-circle" style="font-size:2.5rem; color:#f59e0b; margin-bottom:1rem;"></i>
+    <h5 style="margin-bottom:0.5rem; font-weight:700;">Offer Confirmation</h5>
+    <p style="color:#6b7280; font-size:0.9rem; margin-bottom:1.5rem;">Have you issued the offer to the Associate before moving the card?</p>
+    <div style="display:flex; gap:0.75rem; justify-content:center;">
+      <button onclick="offerConfirmYes()" style="background:#22c55e; color:white; border:none; border-radius:8px; padding:0.6rem 2rem; font-weight:600; font-size:0.9rem; cursor:pointer;">Yes</button>
+      <button onclick="offerConfirmNo()" style="background:#ef4444; color:white; border:none; border-radius:8px; padding:0.6rem 2rem; font-weight:600; font-size:0.9rem; cursor:pointer;">No</button>
+    </div>
+  </div>
+</div>
+
 </div>
 {% endblock %}
