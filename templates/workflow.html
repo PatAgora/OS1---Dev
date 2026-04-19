@@ -1258,6 +1258,13 @@ function handleDrop(event) {
     return;
   }
 
+  // Confirmation gate for Offered stage
+  if (targetStage === 'offered') {
+    if (!confirm('Have you issued the offer to the Associate before moving the card?')) {
+      return;
+    }
+  }
+
   const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
 
   // Move the card visually first for better UX
