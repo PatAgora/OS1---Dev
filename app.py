@@ -3081,6 +3081,30 @@ def offer_capture(cand_id: int):
                                         for key, value in remaining.items():
                                             _replace_in_para(para, "{" + key + "}", value)
 
+                    # Second pass: [Square Bracket] replacements (e.g. [First Name])
+                    _bracket_map = {
+                        "[First Name]": vals.get("first_name", ""),
+                        "[Candidate Name]": vals.get("candidate_name", ""),
+                        "[Project Name]": vals.get("project_name", ""),
+                        "[Job Title]": vals.get("job_title", ""),
+                        "[Location]": vals.get("location", ""),
+                        "[Day Rate]": vals.get("day_rate", ""),
+                        "[Engagement Type]": vals.get("engagement_type", ""),
+                        "[Start Date]": vals.get("start_date", ""),
+                        "[Expected Duration]": vals.get("expected_duration", ""),
+                    }
+                    for para in doc.paragraphs:
+                        for bracket_key, bracket_val in _bracket_map.items():
+                            if bracket_key in para.text:
+                                _replace_in_para(para, bracket_key, bracket_val)
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                for para in cell.paragraphs:
+                                    for bracket_key, bracket_val in _bracket_map.items():
+                                        if bracket_key in para.text:
+                                            _replace_in_para(para, bracket_key, bracket_val)
+
                     current_app.logger.info(
                         "Offer template filled: %d/%d fields matched (%s)",
                         len(filled_keys), len(vals),
