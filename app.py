@@ -10821,7 +10821,7 @@ def api_workflow_move():
                 if _done < len(_ALL_CHECKS):
                     return jsonify({
                         "ok": False,
-                        "error": f"Vetting incomplete: {_done}/{len(_ALL_CHECKS)} checks done. Override to proceed?",
+                        "error": f"Vetting incomplete: {_done}/{len(_ALL_CHECKS)} checks done. Please complete all vetting checks before proceeding.",
                         "vetting_incomplete": True,
                         "allow_override": True,
                         "card_id": card_id,
@@ -11046,7 +11046,7 @@ def workflow_move():
             if completed_count < len(ALL_VETTING_CHECKS):
                 return jsonify({
                     "ok": False,
-                    "error": f"Vetting incomplete: {completed_count}/{len(ALL_VETTING_CHECKS)} checks done. Override to proceed?",
+                    "error": f"Vetting incomplete: {completed_count}/{len(ALL_VETTING_CHECKS)} checks done. Please complete all vetting checks before proceeding.",
                     "validation_error": True,
                     "vetting_incomplete": True,
                     "allow_override": True,

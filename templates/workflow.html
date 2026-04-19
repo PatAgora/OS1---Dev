@@ -1311,8 +1311,9 @@ function handleDrop(event) {
       if (originalColumnEl && draggedCard) {
         originalColumnEl.appendChild(draggedCard);
       }
-      if (confirm(data.error + '\n\nThis will be logged in the audit trail.')) {
-        // Re-send with force flag
+      showToast(data.error, 'danger');
+      if (false) {
+        // Override disabled — vetting must be completed before proceeding
         fetch('/api/workflow/move', {
           method: 'POST',
           headers: {
@@ -1565,7 +1566,8 @@ function advanceStage(cardId, newStatus) {
   .then(function(data) {
     if (data.error) {
       if (data.allow_override) {
-        if (confirm(data.error + '\n\nThis will be logged in the audit trail.')) {
+        showToast(data.error, 'danger');
+        if (false) {
           fetch('/api/workflow/move', {
             method: 'POST',
             headers: {
