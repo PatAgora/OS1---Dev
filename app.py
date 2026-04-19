@@ -2977,8 +2977,12 @@ def offer_capture(cand_id: int):
                     from docx import Document as DocxDocument
                     import io, re
 
+                    _cand_name = cand.name or ""
+                    _first_name = _cand_name.split()[0] if _cand_name.strip() else ""
                     vals = {
                         "project_name": project_name,
+                        "candidate_name": _cand_name,
+                        "first_name": _first_name,
                         "job_title": latest_app.offer_role_title or "",
                         "location": latest_app.offer_location or "",
                         "day_rate": f"£{latest_app.offer_day_rate:,.2f}" if latest_app.offer_day_rate else "",
@@ -2989,6 +2993,8 @@ def offer_capture(cand_id: int):
 
                     LABEL_TO_FIELD = {
                         "project name": "project_name",
+                        "candidate name": "candidate_name",
+                        "first name": "first_name",
                         "job title": "job_title",
                         "location": "location",
                         "day rate": "day_rate",
