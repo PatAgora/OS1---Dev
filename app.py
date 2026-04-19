@@ -2389,10 +2389,48 @@ def admin_export_invoices():
 @app.route("/admin/invoices/settings", methods=["GET", "POST"])
 @login_required
 def admin_invoice_settings():
-    """Invoice settings page"""
-    # For now, just render a settings page
-    # In a full implementation, these would be stored in a settings table
-    return render_template("admin_invoice_settings.html")
+    """Invoice settings page — editable for admin users."""
+    settings = {}
+    try:
+        with Session(engine) as s:
+            row = s.execute(text("SELECT config FROM invoice_settings LIMIT 1")).first()
+            if row and row[0]:
+                settings = json.loads(row[0])
+    except Exception:
+        pass
+
+    if request.method == "POST":
+        settings = {
+            "company_name": request.form.get("company_name", "").strip(),
+            "company_reg": request.form.get("company_reg", "").strip(),
+            "vat_number": request.form.get("vat_number", "").strip(),
+            "default_vat_rate": request.form.get("default_vat_rate", "20").strip(),
+            "company_address": request.form.get("company_address", "").strip(),
+            "payment_terms": request.form.get("payment_terms", "Net 30").strip(),
+            "invoice_prefix": request.form.get("invoice_prefix", "INV").strip(),
+            "default_notes": request.form.get("default_notes", "").strip(),
+            "bank_name": request.form.get("bank_name", "").strip(),
+            "account_name": request.form.get("account_name", "").strip(),
+            "sort_code": request.form.get("sort_code", "").strip(),
+            "account_number": request.form.get("account_number", "").strip(),
+        }
+        try:
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as c:
+                try:
+                    c.execute(text("CREATE TABLE IF NOT EXISTS invoice_settings (id SERIAL PRIMARY KEY, config TEXT DEFAULT '{}')"))
+                except Exception:
+                    pass
+                existing = c.execute(text("SELECT id FROM invoice_settings LIMIT 1")).first()
+                if existing:
+                    c.execute(text("UPDATE invoice_settings SET config = :cfg WHERE id = :id").bindparams(cfg=json.dumps(settings), id=existing[0]))
+                else:
+                    c.execute(text("INSERT INTO invoice_settings (config) VALUES (:cfg)").bindparams(cfg=json.dumps(settings)))
+            flash("Invoice settings saved.", "success")
+        except Exception as e:
+            flash(f"Failed to save settings: {e}", "danger")
+        return redirect(url_for("admin_invoice_settings"))
+
+    return render_template("admin_invoice_settings.html", settings=settings)
 
 @app.route("/admin/workflow-stages")
 @login_required
