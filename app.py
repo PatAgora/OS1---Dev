@@ -7174,6 +7174,13 @@ try:
             WHERE candidate_id = 271 AND check_type = 'Right to Work'
         """))
         print("[VERIFILE] Set VF1034786 on candidate 271 checks, RTW marked as Verifile Complete", flush=True)
+        # Patrick Stones (273) - VF1034789
+        _vf.execute(text("""
+            UPDATE vetting_check
+            SET external_ref = 'VF1034789', external_provider = 'verifile'
+            WHERE candidate_id = 273 AND (external_ref IS NULL OR external_ref = '')
+        """))
+        print("[VERIFILE] Set VF1034789 on candidate 273 checks", flush=True)
 except Exception as _e:
     print(f"[VERIFILE] Skip: {_e}", flush=True)
 
