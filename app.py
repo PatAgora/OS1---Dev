@@ -7144,13 +7144,16 @@ try:
 except Exception:
     pass
 
-# One-time: reset consent, declaration, secondary job for candidate 273
+# One-time: reset consent/declaration/secondary-job for candidate 273 + clear self-healing notes
 try:
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
         _rc.execute(text("DELETE FROM consent_records WHERE candidate_id = 273"))
         _rc.execute(text("DELETE FROM declaration_records WHERE candidate_id = 273"))
         _rc.execute(text("UPDATE candidates SET secondary_job_declaration_signed = FALSE, secondary_job_declaration_signed_at = NULL, secondary_job_has_secondary = FALSE, secondary_job_title = '', secondary_job_signed_name = '' WHERE id = 273"))
-        print("[RESET] Done for candidate 273", flush=True)
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Consent Form signed via Signable%'"))
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Declaration%signed%Signable%'"))
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Secondary Job%signed%'"))
+        print("[RESET] Done for candidate 273 (including self-heal notes)", flush=True)
 except Exception as _e:
     print(f"[RESET] Skip: {_e}", flush=True)
 
@@ -17133,16 +17136,16 @@ def candidate_profile(cand_id: int):
             pass
         if consent_record is None:
             try:
-                _cr = s.execute(text("SELECT consent_given, signed_date, legal_name FROM consent_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
+                _cr = s.execute(text("SELECT consent_given, signed_date, legal_name, reference_consent, secondary_employment, secondary_employment_details FROM consent_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
                 if _cr:
-                    consent_record = type("CR", (), {"consent_given": _cr[0], "signed_date": _cr[1], "legal_name": _cr[2]})()
+                    consent_record = type("CR", (), {"consent_given": _cr[0], "signed_date": _cr[1], "legal_name": _cr[2], "reference_consent": _cr[3], "secondary_employment": _cr[4], "secondary_employment_details": _cr[5] or ""})()
             except Exception:
                 pass
         if declaration_record is None:
             try:
-                _dr = s.execute(text("SELECT signed_date, legal_name FROM declaration_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
+                _dr = s.execute(text("SELECT signed_date, legal_name, work_restrictions, work_restrictions_detail, criminal_convictions, criminal_convictions_detail, ccj_debt, ccj_debt_detail, bankruptcy, bankruptcy_detail, dismissed, dismissed_detail, referencing_issues, referencing_issues_detail FROM declaration_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
                 if _dr:
-                    declaration_record = type("DR", (), {"signed_date": _dr[0], "legal_name": _dr[1]})()
+                    declaration_record = type("DR", (), {"signed_date": _dr[0], "legal_name": _dr[1], "work_restrictions": _dr[2], "work_restrictions_detail": _dr[3] or "", "criminal_convictions": _dr[4], "criminal_convictions_detail": _dr[5] or "", "ccj_debt": _dr[6], "ccj_debt_detail": _dr[7] or "", "bankruptcy": _dr[8], "bankruptcy_detail": _dr[9] or "", "dismissed": _dr[10], "dismissed_detail": _dr[11] or "", "referencing_issues": _dr[12], "referencing_issues_detail": _dr[13] or ""})()
             except Exception:
                 pass
 
