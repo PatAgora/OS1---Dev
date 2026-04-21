@@ -835,151 +835,153 @@
               Declarations & Consent
             </div>
           </div>
+          {# Clickable rows with collapsible detail sub-sections #}
           <div class="mt-3">
-            <table class="table mb-0" style="font-size:0.85rem;">
-              <tbody>
-                <tr>
-                  <td style="width:40%;"><i class="fas fa-scroll me-2 text-muted"></i>Consent Form</td>
-                  <td>
-                    {% if consent_record and consent_record.consent_given %}
-                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
-                      {% if consent_record.signed_date %}
-                        <span class="text-muted small ms-2">{{ consent_record.signed_date.strftime('%d %b %Y') }}</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td><i class="fas fa-file-alt me-2 text-muted"></i>Declaration</td>
-                  <td>
-                    {% if declaration_record and declaration_record.signed_date %}
-                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
-                      <span class="text-muted small ms-2">{{ declaration_record.signed_date.strftime('%d %b %Y') }}</span>
-                    {% else %}
-                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td><i class="fas fa-briefcase me-2 text-muted"></i>Secondary Job Declaration</td>
-                  <td>
-                    {% if cand.secondary_job_declaration_signed %}
-                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
-                      {% if cand.secondary_job_declaration_signed_at %}
-                        <span class="text-muted small ms-2">{{ cand.secondary_job_declaration_signed_at.strftime('%d %b %Y') }}</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td><i class="fas fa-balance-scale me-2 text-muted"></i>Conduct Regulations 2003</td>
-                  <td>
-                    {% if cand.conduct_regs_opted_in is not none %}
-                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</span>
-                      {% if cand.conduct_regs_decision_at %}
-                        <span class="text-muted small ms-2">{{ cand.conduct_regs_decision_at.strftime('%d %b %Y') }}</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Decided</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td><i class="fas fa-file-signature me-2 text-muted"></i>Employment Reference Declaration</td>
-                  <td>
-                    {% if cand.employment_ref_declaration_signed %}
-                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-double me-1"></i>Signed (Signable)</span>
-                      {% if cand.employment_ref_declaration_signed_at %}
-                        <span class="text-muted small ms-2">{{ cand.employment_ref_declaration_signed_at.strftime('%d %b %Y') }}</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Signed</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
 
-          {# Consent Form sub-section #}
-          <div class="mt-3 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-scroll me-1 text-muted"></i>Consent Form</div>
-            {% if consent_record and consent_record.consent_given %}
-            <div class="row g-2">
-              <div class="col-md-6"><span class="text-muted">Reference consent:</span> <strong>{{ 'Yes' if consent_record.reference_consent else 'No' }}</strong></div>
-              <div class="col-md-6"><span class="text-muted">Secondary employment:</span> <strong>{{ 'Yes' if consent_record.secondary_employment else 'No' }}</strong></div>
-              {% if consent_record.secondary_employment and consent_record.secondary_employment_details %}
-              <div class="col-12"><span class="text-muted">Details:</span> {{ consent_record.secondary_employment_details }}</div>
-              {% endif %}
+            {# Consent Form #}
+            <div class="decl-row d-flex justify-content-between align-items-center py-2 px-2 rounded mb-1" style="cursor:pointer; border:1px solid #e5e7eb;" onclick="var d=this.nextElementSibling; d.style.display=d.style.display==='none'?'':'none';">
+              <span style="font-size:0.85rem;"><i class="fas fa-scroll me-2 text-muted"></i>Consent Form</span>
+              <span>
+                {% if consent_record and consent_record.consent_given %}
+                  <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
+                  {% if consent_record.signed_date %}<span class="text-muted small ms-2">{{ consent_record.signed_date.strftime('%d %b %Y') }}</span>{% endif %}
+                {% else %}
+                  <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
+                {% endif %}
+              </span>
             </div>
-            {% else %}
-            <div class="text-muted"><em>Not yet confirmed</em></div>
-            {% endif %}
-          </div>
-
-          {# Declaration sub-section #}
-          <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-file-alt me-1 text-muted"></i>Declaration</div>
-            {% if declaration_record and declaration_record.signed_date %}
-            {% set decl_questions = [
-              ('Work restrictions', declaration_record.work_restrictions, declaration_record.work_restrictions_detail),
-              ('Criminal convictions', declaration_record.criminal_convictions, declaration_record.criminal_convictions_detail),
-              ('CCJ / Debt relief', declaration_record.ccj_debt, declaration_record.ccj_debt_detail),
-              ('Bankruptcy / IVA', declaration_record.bankruptcy, declaration_record.bankruptcy_detail),
-              ('Dismissed from employment', declaration_record.dismissed, declaration_record.dismissed_detail),
-              ('Referencing issues', declaration_record.referencing_issues, declaration_record.referencing_issues_detail),
-            ] %}
-            {% for label, answer, detail in decl_questions %}
-            <div class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid #f3f4f6;">
-              <span style="min-width:220px;" class="text-muted">{{ label }}:</span>
-              {% if answer %}
-                <span class="badge bg-danger" style="font-size:0.6rem;">YES</span>
-                {% if detail %}<span class="ms-1">{{ detail }}</span>{% endif %}
+            <div style="display:none;" class="p-2 mb-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
+              {% if consent_record and consent_record.consent_given %}
+              <div class="p-2 rounded" style="background:#f9fafb; font-size:0.8rem;">
+                <div class="row g-2">
+                  <div class="col-md-6"><span class="text-muted">Reference consent:</span> <strong>{{ 'Yes' if consent_record.reference_consent else 'No' }}</strong></div>
+                  <div class="col-md-6"><span class="text-muted">Secondary employment:</span> <strong>{{ 'Yes' if consent_record.secondary_employment else 'No' }}</strong></div>
+                  {% if consent_record.secondary_employment and consent_record.secondary_employment_details %}
+                  <div class="col-12"><span class="text-muted">Details:</span> {{ consent_record.secondary_employment_details }}</div>
+                  {% endif %}
+                </div>
+              </div>
               {% else %}
-                <span class="badge bg-success" style="font-size:0.6rem;">NO</span>
+              <div class="text-muted p-2" style="font-size:0.8rem;"><em>Not yet confirmed</em></div>
               {% endif %}
             </div>
-            {% endfor %}
-            {% else %}
-            <div class="text-muted"><em>Not yet confirmed</em></div>
-            {% endif %}
-          </div>
 
-          {# Secondary Job sub-section #}
-          <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-briefcase me-1 text-muted"></i>Secondary Job Declaration</div>
-            {% if cand.secondary_job_declaration_signed %}
-            <div class="row g-2">
-              <div class="col-md-6"><span class="text-muted">Has secondary employment:</span> <strong>{{ 'Yes' if cand.secondary_job_has_secondary else 'No' }}</strong></div>
-              {% if cand.secondary_job_has_secondary and cand.secondary_job_title %}
-              <div class="col-md-6"><span class="text-muted">Role:</span> <strong>{{ cand.secondary_job_title }}</strong></div>
+            {# Declaration #}
+            <div class="decl-row d-flex justify-content-between align-items-center py-2 px-2 rounded mb-1" style="cursor:pointer; border:1px solid #e5e7eb;" onclick="var d=this.nextElementSibling; d.style.display=d.style.display==='none'?'':'none';">
+              <span style="font-size:0.85rem;"><i class="fas fa-file-alt me-2 text-muted"></i>Declaration</span>
+              <span>
+                {% if declaration_record and declaration_record.signed_date %}
+                  <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
+                  <span class="text-muted small ms-2">{{ declaration_record.signed_date.strftime('%d %b %Y') }}</span>
+                {% else %}
+                  <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
+                {% endif %}
+              </span>
+            </div>
+            <div style="display:none;" class="p-2 mb-2">
+              {% if declaration_record and declaration_record.signed_date %}
+              <div class="p-2 rounded" style="background:#f9fafb; font-size:0.8rem;">
+                {% set decl_questions = [
+                  ('Work restrictions', declaration_record.work_restrictions, declaration_record.work_restrictions_detail),
+                  ('Criminal convictions', declaration_record.criminal_convictions, declaration_record.criminal_convictions_detail),
+                  ('CCJ / Debt relief', declaration_record.ccj_debt, declaration_record.ccj_debt_detail),
+                  ('Bankruptcy / IVA', declaration_record.bankruptcy, declaration_record.bankruptcy_detail),
+                  ('Dismissed from employment', declaration_record.dismissed, declaration_record.dismissed_detail),
+                  ('Referencing issues', declaration_record.referencing_issues, declaration_record.referencing_issues_detail),
+                ] %}
+                {% for label, answer, detail in decl_questions %}
+                <div class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid #f3f4f6;">
+                  <span style="min-width:220px;" class="text-muted">{{ label }}:</span>
+                  {% if answer %}
+                    <span class="badge bg-danger" style="font-size:0.6rem;">YES</span>
+                    {% if detail %}<span class="ms-1">{{ detail }}</span>{% endif %}
+                  {% else %}
+                    <span class="badge bg-success" style="font-size:0.6rem;">NO</span>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-muted p-2" style="font-size:0.8rem;"><em>Not yet confirmed</em></div>
               {% endif %}
             </div>
-            {% else %}
-            <div class="text-muted"><em>Not yet confirmed</em></div>
-            {% endif %}
-          </div>
 
-          {# Conduct Regulations sub-section #}
-          <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-balance-scale me-1 text-muted"></i>Conduct Regulations 2003</div>
-            {% if cand.conduct_regs_opted_in is not none %}
-            <div class="row g-2">
-              <div class="col-md-6"><span class="text-muted">Preference:</span> <strong>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</strong></div>
-              {% if cand.conduct_regs_signed_name %}
-              <div class="col-md-6"><span class="text-muted">Signed by:</span> <strong>{{ cand.conduct_regs_signed_name }}</strong></div>
-              {% endif %}
-              {% if cand.conduct_regs_decision_at %}
-              <div class="col-12"><span class="text-muted">Recorded:</span> {{ cand.conduct_regs_decision_at.strftime('%d %b %Y') }}</div>
+            {# Secondary Job Declaration #}
+            <div class="decl-row d-flex justify-content-between align-items-center py-2 px-2 rounded mb-1" style="cursor:pointer; border:1px solid #e5e7eb;" onclick="var d=this.nextElementSibling; d.style.display=d.style.display==='none'?'':'none';">
+              <span style="font-size:0.85rem;"><i class="fas fa-briefcase me-2 text-muted"></i>Secondary Job Declaration</span>
+              <span>
+                {% if cand.secondary_job_declaration_signed %}
+                  <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
+                  {% if cand.secondary_job_declaration_signed_at %}<span class="text-muted small ms-2">{{ cand.secondary_job_declaration_signed_at.strftime('%d %b %Y') }}</span>{% endif %}
+                {% else %}
+                  <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Confirmed</span>
+                {% endif %}
+              </span>
+            </div>
+            <div style="display:none;" class="p-2 mb-2">
+              {% if cand.secondary_job_declaration_signed %}
+              <div class="p-2 rounded" style="background:#f9fafb; font-size:0.8rem;">
+                <div class="row g-2">
+                  <div class="col-md-6"><span class="text-muted">Has secondary employment:</span> <strong>{{ 'Yes' if cand.secondary_job_has_secondary else 'No' }}</strong></div>
+                  {% if cand.secondary_job_has_secondary and cand.secondary_job_title %}
+                  <div class="col-md-6"><span class="text-muted">Role:</span> <strong>{{ cand.secondary_job_title }}</strong></div>
+                  {% endif %}
+                </div>
+              </div>
+              {% else %}
+              <div class="text-muted p-2" style="font-size:0.8rem;"><em>Not yet confirmed</em></div>
               {% endif %}
             </div>
-            {% else %}
-            <div class="text-muted"><em>Not yet decided</em></div>
-            {% endif %}
+
+            {# Conduct Regulations 2003 #}
+            <div class="decl-row d-flex justify-content-between align-items-center py-2 px-2 rounded mb-1" style="cursor:pointer; border:1px solid #e5e7eb;" onclick="var d=this.nextElementSibling; d.style.display=d.style.display==='none'?'':'none';">
+              <span style="font-size:0.85rem;"><i class="fas fa-balance-scale me-2 text-muted"></i>Conduct Regulations 2003</span>
+              <span>
+                {% if cand.conduct_regs_opted_in is not none %}
+                  <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</span>
+                  {% if cand.conduct_regs_decision_at %}<span class="text-muted small ms-2">{{ cand.conduct_regs_decision_at.strftime('%d %b %Y') }}</span>{% endif %}
+                {% else %}
+                  <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Decided</span>
+                {% endif %}
+              </span>
+            </div>
+            <div style="display:none;" class="p-2 mb-2">
+              {% if cand.conduct_regs_opted_in is not none %}
+              <div class="p-2 rounded" style="background:#f9fafb; font-size:0.8rem;">
+                <div class="row g-2">
+                  <div class="col-md-6"><span class="text-muted">Preference:</span> <strong>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</strong></div>
+                  {% if cand.conduct_regs_signed_name %}
+                  <div class="col-md-6"><span class="text-muted">Signed by:</span> <strong>{{ cand.conduct_regs_signed_name }}</strong></div>
+                  {% endif %}
+                </div>
+              </div>
+              {% else %}
+              <div class="text-muted p-2" style="font-size:0.8rem;"><em>Not yet decided</em></div>
+              {% endif %}
+            </div>
+
+            {# Employment Reference Declaration #}
+            <div class="decl-row d-flex justify-content-between align-items-center py-2 px-2 rounded mb-1" style="cursor:pointer; border:1px solid #e5e7eb;" onclick="var d=this.nextElementSibling; d.style.display=d.style.display==='none'?'':'none';">
+              <span style="font-size:0.85rem;"><i class="fas fa-file-signature me-2 text-muted"></i>Employment Reference Declaration</span>
+              <span>
+                {% if cand.employment_ref_declaration_signed %}
+                  <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-double me-1"></i>Signed (Signable)</span>
+                  {% if cand.employment_ref_declaration_signed_at %}<span class="text-muted small ms-2">{{ cand.employment_ref_declaration_signed_at.strftime('%d %b %Y') }}</span>{% endif %}
+                {% else %}
+                  <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Signed</span>
+                {% endif %}
+              </span>
+            </div>
+            <div style="display:none;" class="p-2 mb-2">
+              <div class="text-muted p-2" style="font-size:0.8rem;">
+                {% if cand.employment_ref_declaration_signed %}
+                  <em>Signed via Signable e-signature{% if cand.employment_ref_declaration_signed_at %} on {{ cand.employment_ref_declaration_signed_at.strftime('%d %b %Y at %H:%M') }}{% endif %}</em>
+                {% else %}
+                  <em>Not yet signed — associate must sign via the Signable widget on the Associate Portal</em>
+                {% endif %}
+              </div>
+            </div>
+
           </div>
 
           {% if emp_timeline %}
