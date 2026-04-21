@@ -7144,6 +7144,16 @@ try:
 except Exception:
     pass
 
+# One-time: reset consent, declaration, secondary job for candidate 273
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        _rc.execute(text("DELETE FROM consent_records WHERE candidate_id = 273"))
+        _rc.execute(text("DELETE FROM declaration_records WHERE candidate_id = 273"))
+        _rc.execute(text("UPDATE candidates SET secondary_job_declaration_signed = FALSE, secondary_job_declaration_signed_at = NULL, secondary_job_has_secondary = FALSE, secondary_job_title = '', secondary_job_signed_name = '' WHERE id = 273"))
+        print("[RESET] Done for candidate 273", flush=True)
+except Exception as _e:
+    print(f"[RESET] Skip: {_e}", flush=True)
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
