@@ -37,49 +37,57 @@
     </div>
 </div>
 {% else %}
-<div class="portal-card mb-4">
-    <div class="portal-card-header">
-        <h3><i class="fas fa-briefcase me-2"></i>Secondary Job Declaration</h3>
+<form method="POST" action="/portal/secondary-job-declaration" id="secondaryJobForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="portal-card mb-4">
+        <div class="portal-card-header">
+            <h3><i class="fas fa-briefcase me-2"></i>Secondary Job Declaration</h3>
+        </div>
+        <div class="portal-card-body">
+            <p class="mb-3">Do you currently hold any other employment, directorships, or business interests?</p>
+            <div class="mb-3">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="has_secondary" id="has_secondary_yes" value="yes" required>
+                    <label class="form-check-label" for="has_secondary_yes">Yes</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="has_secondary" id="has_secondary_no" value="no">
+                    <label class="form-check-label" for="has_secondary_no">No</label>
+                </div>
+            </div>
+            <div id="secondaryJobDetails" style="display: none;">
+                <label class="form-label" for="job_title">Job Title / Role</label>
+                <input type="text" id="job_title" name="job_title" class="form-control" placeholder="Enter job title, company name, or nature of work">
+            </div>
+        </div>
     </div>
-    <div class="portal-card-body">
-        <p class="text-muted mb-3">If you currently hold any other employment, directorships, or business interests, please complete this declaration. This is only required if applicable to your circumstances.</p>
-        {% if widget_url %}
-        <div class="alert alert-warning mb-3" role="alert" style="border-radius:8px; display:flex; flex-direction:column; gap:0.45rem; align-items:flex-start;">
-            <p class="fw-bold mb-0" style="width:100%;">
-                <i class="fas fa-exclamation-triangle me-2"></i>Important
-            </p>
-            <p class="mb-0" style="width:100%;">
-                The full name you enter in the signing form below must <u>exactly match</u> the name on your Associate Portal profile.
-            </p>
-            {% if portal_name %}
-            <p class="mb-0" style="width:100%;">
-                Your Portal profile name: <strong>{{ portal_name }}</strong>
-            </p>
-            {% endif %}
-            <p class="mb-0" style="width:100%;">
-                If the names don't match, the portal will not register your signature automatically.
-            </p>
-        </div>
-        <iframe src="{{ widget_url }}" frameborder="0" style="border:0; width:100%; height:100vh;" scrolling="yes"></iframe>
-        <div class="portal-card-footer" style="padding: 1rem; border-top: 1px solid #e5e7eb; background: #f9fafb; margin-top: 1rem;">
-            <form method="POST" action="{{ url_for('associate.secondary_job_mark_signed') }}" style="margin:0;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <p class="text-muted text-sm mb-2">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Already completed the Signable form? Click below to mark it as signed.
-                </p>
-                <button type="submit" class="btn btn-outline-success">
-                    <i class="fas fa-check-circle me-1"></i> I've completed signing — mark as signed
-                </button>
-            </form>
-        </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            The secondary job declaration form is not yet configured. Please contact your Optimus representative if you need to make a declaration.
-        </div>
-        {% endif %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg" id="submitSecondaryJob">
+            <i class="fas fa-check-circle me-2"></i>I have read and understood
+        </button>
+        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
     </div>
-</div>
+</form>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var yesRadio = document.getElementById('has_secondary_yes');
+    var noRadio = document.getElementById('has_secondary_no');
+    var detailsDiv = document.getElementById('secondaryJobDetails');
+
+    if (yesRadio && noRadio && detailsDiv) {
+        yesRadio.addEventListener('change', function() {
+            detailsDiv.style.display = 'block';
+        });
+        noRadio.addEventListener('change', function() {
+            detailsDiv.style.display = 'none';
+        });
+    }
+});
+</script>
 {% endblock %}

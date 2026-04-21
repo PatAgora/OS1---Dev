@@ -2082,9 +2082,6 @@ def consent_form():
                     consent=consent,
                     already_signed=consent is not None,
                     reference_consent=reference_consent,
-                    signable_consent_widget_url=_widget_url_with_meta(
-                        os.getenv("SIGNABLE_CONSENT_WIDGET_URL", ""), cand_id
-                    ),
                     portal_name=portal_name,
                 )
         except Exception:
@@ -2139,53 +2136,17 @@ def consent_form():
                 s.add(consent)
                 _add_note(s, cand_id, f"Consent form uploaded manually (file: {manual_file.filename}).")
 
-                # Flush so consent.id is populated for the Signable wrapper
-                s.flush()
-
-                # Signable e-signature envelope (kill-switched — see _signable_send_consent_envelope).
-                Candidate = _model("Candidate")
-                cand = s.get(Candidate, cand_id) if Candidate else None
-                cand_name = (cand.name if cand and getattr(cand, "name", None) else consent.legal_name) or consent.legal_name
-                cand_email = (getattr(cand, "email", "") if cand else "") or ""
-                signable_warning_manual = None
-                try:
-                    sig_result = _signable_send_consent_envelope(
-                        candidate_name=cand_name,
-                        candidate_email=cand_email,
-                        consent_id=consent.id,
-                        legal_name=consent.legal_name,
-                    )
-                    if hasattr(consent, "signable_envelope_id"):
-                        consent.signable_envelope_id = sig_result.get("envelope_id", "") or ""
-                    try:
-                        current_app.logger.info(
-                            f"Consent {consent.id}: Signable wrapper returned status="
-                            f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
-                        )
-                    except Exception:
-                        pass
-                except Exception as sig_err:
-                    try:
-                        current_app.logger.warning(f"Consent {consent.id}: Signable wrapper failed: {sig_err}")
-                    except Exception:
-                        pass
-                    signable_warning_manual = (
-                        "Your consent form was saved, but the e-sign envelope could not be sent right now. "
-                        "Our compliance team will re-send it shortly."
-                    )
-
                 s.commit()
 
-                if signable_warning_manual:
-                    flash(signable_warning_manual, "warning")
                 flash("Signed consent form uploaded successfully.", "success")
                 return redirect(url_for("associate.dashboard"))
 
-            # Original digital consent flow
-            legal_name = _sanitise(request.form.get("legal_name", "")).strip()
+            # Original digital consent flow — legal_name auto-set from candidate
+            Candidate = _model("Candidate")
+            cand = s.get(Candidate, cand_id) if Candidate else None
+            legal_name = ((cand.name if cand and getattr(cand, "name", None) else "") or "").strip()
             if not legal_name:
-                flash("You must provide your legal name to sign.", "danger")
-                return redirect(url_for("associate.consent_form"))
+                legal_name = "Associate"
 
             consent = ConsentRecord(
                 candidate_id=cand_id,
@@ -2200,45 +2161,8 @@ def consent_form():
             s.add(consent)
             _add_note(s, cand_id, f"Consent form signed by '{legal_name}' from IP {request.remote_addr}.")
 
-            # Flush so consent.id is populated for the Signable wrapper
-            s.flush()
-
-            # Signable e-signature envelope (kill-switched — see _signable_send_consent_envelope).
-            Candidate = _model("Candidate")
-            cand = s.get(Candidate, cand_id) if Candidate else None
-            cand_name = (cand.name if cand and getattr(cand, "name", None) else legal_name) or legal_name
-            cand_email = (getattr(cand, "email", "") if cand else "") or ""
-            signable_warning = None
-            try:
-                sig_result = _signable_send_consent_envelope(
-                    candidate_name=cand_name,
-                    candidate_email=cand_email,
-                    consent_id=consent.id,
-                    legal_name=legal_name,
-                )
-                if hasattr(consent, "signable_envelope_id"):
-                    consent.signable_envelope_id = sig_result.get("envelope_id", "") or ""
-                try:
-                    current_app.logger.info(
-                        f"Consent {consent.id}: Signable wrapper returned status="
-                        f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
-                    )
-                except Exception:
-                    pass
-            except Exception as sig_err:
-                try:
-                    current_app.logger.warning(f"Consent {consent.id}: Signable wrapper failed: {sig_err}")
-                except Exception:
-                    pass
-                signable_warning = (
-                    "Your consent form was saved, but the e-sign envelope could not be sent right now. "
-                    "Our compliance team will re-send it shortly."
-                )
-
             s.commit()
 
-        if signable_warning:
-            flash(signable_warning, "warning")
         flash("Consent form submitted successfully.", "success")
         return redirect(url_for("associate.dashboard"))
 
@@ -2566,17 +2490,16 @@ def declaration_form():
                 "associate/declaration_form.html",
                 declaration=decl,
                 already_signed=decl is not None,
-                signable_declaration_widget_url=_widget_url_with_meta(
-                    os.getenv("SIGNABLE_DECLARATION_WIDGET_URL", ""), cand_id
-                ),
                 portal_name=portal_name,
             )
 
     with SASession(engine) as s:
-        legal_name = _sanitise(request.form.get("legal_name", "")).strip()
+        # Auto-set legal_name from the logged-in candidate
+        Candidate = _model("Candidate")
+        cand = s.get(Candidate, cand_id) if Candidate else None
+        legal_name = ((cand.name if cand and getattr(cand, "name", None) else "") or "").strip()
         if not legal_name:
-            flash("You must provide your legal name to sign.", "danger")
-            return redirect(url_for("associate.declaration_form"))
+            legal_name = "Associate"
 
         work_restrictions = _parse_bool(request.form.get("work_restrictions", False))
         criminal_convictions = _parse_bool(request.form.get("criminal_convictions", False))
@@ -2654,45 +2577,8 @@ def declaration_form():
         else:
             _add_note(s, cand_id, f"Declaration form signed by '{legal_name}'. No flags raised.")
 
-        # Flush so decl.id is populated for the Signable wrapper without committing yet.
-        s.flush()
-
-        # Req-005: Signable e-signature envelope (kill-switched — see _signable_send_declaration_envelope).
-        Candidate = _model("Candidate")
-        cand = s.get(Candidate, cand_id) if Candidate else None
-        cand_name = (cand.name if cand and getattr(cand, "name", None) else legal_name) or legal_name
-        cand_email = (getattr(cand, "email", "") if cand else "") or ""
-        signable_warning = None
-        try:
-            sig_result = _signable_send_declaration_envelope(
-                candidate_name=cand_name,
-                candidate_email=cand_email,
-                declaration_id=decl.id,
-                legal_name=legal_name,
-            )
-            if hasattr(decl, "signable_envelope_id"):
-                decl.signable_envelope_id = sig_result.get("envelope_id", "") or ""
-            try:
-                current_app.logger.info(
-                    f"Declaration {decl.id}: Signable wrapper returned status="
-                    f"{sig_result.get('status')!r} envelope_id={sig_result.get('envelope_id')!r}"
-                )
-            except Exception:
-                pass
-        except Exception as sig_err:
-            try:
-                current_app.logger.warning(f"Declaration {decl.id}: Signable wrapper failed: {sig_err}")
-            except Exception:
-                pass
-            signable_warning = (
-                "Your declaration was saved, but the e-sign envelope could not be sent right now. "
-                "Our compliance team will re-send it shortly."
-            )
-
         s.commit()
 
-    if signable_warning:
-        flash(signable_warning, "warning")
     flash("Declaration form submitted successfully.", "success")
     return redirect(url_for("associate.dashboard"))
 
@@ -2862,21 +2748,42 @@ def conduct_regulations():
     )
 
 
-@associate_bp.route("/secondary-job-declaration", methods=["GET"])
+@associate_bp.route("/secondary-job-declaration", methods=["GET", "POST"])
 @_require_login
 def secondary_job_declaration():
-    """Secondary Job Declaration — embedded Signable widget."""
-    # Accept either env var name (historical: SIGNABLE_SECOND_JOB_WIDGET_URL
-    # was the first one set on Railway; later code referred to the clearer
-    # SIGNABLE_SECONDARY_JOB_WIDGET_URL). Prefer SECOND since that's what's
-    # actually configured today.
-    widget_url = (
-        os.getenv("SIGNABLE_SECOND_JOB_WIDGET_URL")
-        or os.getenv("SIGNABLE_SECONDARY_JOB_WIDGET_URL")
-        or ""
-    )
+    """Secondary Job Declaration — in-app form."""
     cand_id = _get_associate_id()
     engine = _engine()
+
+    if request.method == "POST":
+        try:
+            Candidate = _model("Candidate")
+            with SASession(engine) as s:
+                cand = s.get(Candidate, cand_id) if Candidate else None
+                if not cand:
+                    flash("Session expired. Please log in again.", "warning")
+                    return redirect(url_for("associate.login"))
+
+                has_secondary = request.form.get("has_secondary") == "yes"
+                job_title = request.form.get("job_title", "").strip()
+
+                cand.secondary_job_declaration_signed = True
+                cand.secondary_job_declaration_signed_at = datetime.utcnow()
+                cand.secondary_job_has_secondary = has_secondary
+                cand.secondary_job_title = job_title if has_secondary else ""
+                cand.secondary_job_signed_name = cand.name or ""
+
+                _add_note(s, cand_id, "Secondary Job Declaration confirmed via portal.")
+                s.commit()
+
+            flash("Secondary Job Declaration submitted successfully.", "success")
+            return redirect(url_for("associate.secondary_job_declaration"))
+        except Exception:
+            current_app.logger.exception("Error saving secondary job declaration for candidate %s.", cand_id)
+            flash("An error occurred. Please try again.", "danger")
+            return redirect(url_for("associate.secondary_job_declaration"))
+
+    # GET handler
     portal_name = ""
     already_signed = False
     signing_ctx = {}
@@ -2898,7 +2805,6 @@ def secondary_job_declaration():
         portal_name = ""
     return render_template(
         "associate/secondary_job_declaration.html",
-        widget_url=_widget_url_with_meta(widget_url, cand_id),
         portal_name=portal_name,
         already_signed=already_signed,
         signing=signing_ctx,

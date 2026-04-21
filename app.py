@@ -17108,6 +17108,34 @@ def candidate_profile(cand_id: int):
             except Exception:
                 pass
         
+        # === Consent & Declaration records (from portal) ===
+        consent_record = None
+        declaration_record = None
+        try:
+            from associate_portal import _portal_model
+            _ConsentCls = _portal_model("ConsentRecord")
+            if _ConsentCls:
+                consent_record = s.scalar(select(_ConsentCls).where(_ConsentCls.candidate_id == cand_id))
+            _DeclCls = _portal_model("DeclarationRecord")
+            if _DeclCls:
+                declaration_record = s.scalar(select(_DeclCls).where(_DeclCls.candidate_id == cand_id))
+        except Exception:
+            pass
+        if consent_record is None:
+            try:
+                _cr = s.execute(text("SELECT consent_given, signed_date, legal_name FROM consent_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
+                if _cr:
+                    consent_record = type("CR", (), {"consent_given": _cr[0], "signed_date": _cr[1], "legal_name": _cr[2]})()
+            except Exception:
+                pass
+        if declaration_record is None:
+            try:
+                _dr = s.execute(text("SELECT signed_date, legal_name FROM declaration_records WHERE candidate_id = :cid").bindparams(cid=cand_id)).first()
+                if _dr:
+                    declaration_record = type("DR", (), {"signed_date": _dr[0], "legal_name": _dr[1]})()
+            except Exception:
+                pass
+
         # === Employment History (from portal) ===
         employment_history = []
         try:
@@ -17550,6 +17578,8 @@ def candidate_profile(cand_id: int):
         vetting_summary=vetting_summary,
         candidate_notes=candidate_notes,
         company_details=company_details,
+        consent_record=consent_record,
+        declaration_record=declaration_record,
         contract_status=contract_status,
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
@@ -17634,7 +17664,7 @@ def candidate_add_vetting_check(cand_id: int):
     ]
     if not check_type or check_type not in ALL_VETTING_CHECKS:
         flash("Invalid check type.", "warning")
-        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
+        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-vetting")
     with Session(engine) as s:
         existing = s.scalar(
             select(VettingCheck)
@@ -17646,7 +17676,7 @@ def candidate_add_vetting_check(cand_id: int):
             flash(f"'{check_type}' check added.", "success")
         else:
             flash(f"'{check_type}' check already exists.", "info")
-    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-vetting")
 
 
 # -------- Vetting Check Update --------
@@ -17666,9 +17696,9 @@ def update_vetting_check(cand_id: int):
     
     # Redirect back to referring page, anchored to vetting section
     referrer = request.referrer or url_for("candidate_profile", cand_id=cand_id)
-    # Append #vetting-checks anchor so page scrolls back to the vetting section
+    # Append #sec-vetting anchor so page scrolls back to the vetting section
     if "#" not in referrer:
-        redirect_url = referrer + "#vetting-checks"
+        redirect_url = referrer + "#sec-vetting"
     else:
         redirect_url = referrer
 

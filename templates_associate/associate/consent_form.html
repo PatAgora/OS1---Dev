@@ -83,46 +83,6 @@
 
 {% else %}
 <!-- Consent Form -->
-{% if signable_consent_widget_url %}
-<!-- Signable Embedded Widget -->
-<div class="portal-card mb-4">
-    <div class="portal-card-header">
-        <h3><i class="fas fa-file-signature me-2"></i>Consent Form — E-Signature</h3>
-    </div>
-    <div class="portal-card-body p-0">
-        <div class="alert alert-warning m-3 mb-0" role="alert" style="border-radius:8px; display:flex; flex-direction:column; gap:0.45rem; align-items:flex-start;">
-            <p class="fw-bold mb-0" style="width:100%;">
-                <i class="fas fa-exclamation-triangle me-2"></i>Important
-            </p>
-            <p class="mb-0" style="width:100%;">
-                The full name you enter in the signing form below must <u>exactly match</u> the name on your Associate Portal profile.
-            </p>
-            {% if portal_name %}
-            <p class="mb-0" style="width:100%;">
-                Your Portal profile name: <strong>{{ portal_name }}</strong>
-            </p>
-            {% endif %}
-            <p class="mb-0" style="width:100%;">
-                If the names don't match, the portal will not register your signature automatically.
-            </p>
-        </div>
-        <iframe src="{{ signable_consent_widget_url }}" frameborder="0" style="border:0; width:100%; height:100vh;" scrolling="yes"></iframe>
-    </div>
-    <div class="portal-card-footer" style="padding: 1rem; border-top: 1px solid #e5e7eb; background: #f9fafb;">
-        <form method="POST" action="{{ url_for('associate.consent_mark_signed') }}" style="margin:0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <p class="text-muted text-sm mb-2">
-                <i class="fas fa-info-circle me-1"></i>
-                Already completed the Signable form in another tab? Click below to mark it as signed.
-            </p>
-            <button type="submit" class="btn btn-outline-success">
-                <i class="fas fa-check-circle me-1"></i> I've completed signing — mark as signed
-            </button>
-        </form>
-    </div>
-</div>
-{% else %}
-<!-- Fallback: Built-in consent form -->
 <form method="POST" action="/portal/consent-form" id="consentForm" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -268,11 +228,6 @@
         <div class="portal-card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label" for="legal_name">Legal Name <span class="text-danger">*</span></label>
-                    <input type="text" id="legal_name" name="legal_name" class="form-control" placeholder="Enter your full legal name" required>
-                    <small class="text-muted">This will serve as your electronic signature</small>
-                </div>
-                <div class="col-md-6">
                     <label class="form-label" for="signature_date">Date</label>
                     <input type="text" id="signature_date" name="signature_date" class="form-control" value="{{ now().strftime('%d %B %Y') if now is defined else '' }}" readonly>
                 </div>
@@ -310,12 +265,11 @@
     <!-- Submit Button -->
     <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-lg" id="submitConsent">
-            <i class="fas fa-file-signature me-2"></i>Sign & Submit Consent Form
+            <i class="fas fa-check-circle me-2"></i>I have read and understood
         </button>
         <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
     </div>
 </form>
-{% endif %}{# signable_consent_widget_url #}
 {% endif %}{# already_signed #}
 {% endblock %}
 
