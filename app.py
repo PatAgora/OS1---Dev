@@ -7165,12 +7165,10 @@ try:
             SET external_ref = 'VF1034786', external_provider = 'verifile'
             WHERE candidate_id = 271 AND external_ref IS NULL OR external_ref = ''
         """))
-        # Mark Right to Work as Verifile confirmed (already completed in Verifile portal)
+        # Reset RTW Verifile confirmation — let the webhook handle it
         _vf.execute(text("""
             UPDATE vetting_check
-            SET verifile_confirmed = TRUE,
-                verifile_confirmed_at = NOW(),
-                verifile_result = 'Complete'
+            SET verifile_confirmed = FALSE, verifile_confirmed_at = NULL, verifile_result = NULL
             WHERE candidate_id = 271 AND check_type = 'Right to Work'
         """))
         print("[VERIFILE] Set VF1034786 on candidate 271 checks, RTW marked as Verifile Complete", flush=True)
@@ -14422,14 +14420,18 @@ def webhook_verifile():
             return jsonify({"ok": True, "note": "no matching check"})
 
         # Map Verifile status to our status
-        raw_status = (payload.get("status") or "unknown").lower()
+        raw_status = (payload.get("status") or "unknown").lower().strip()
+        # Normalise: "completed - green" → "completed", "completed - amber" → "completed"
+        raw_status_base = raw_status.split("-")[0].strip().split(" ")[0].strip()
         status_map = {
             "complete": "Complete", "completed": "Complete", "passed": "Complete", "clear": "Complete",
-            "failed": "Failed", "rejected": "Failed",
+            "green": "Complete",
+            "failed": "Failed", "rejected": "Failed", "red": "Failed",
+            "amber": "In Progress",
             "pending": "In Progress", "in_progress": "In Progress", "processing": "In Progress",
             "cancelled": "N/A",
         }
-        new_status = status_map.get(raw_status, "In Progress")
+        new_status = status_map.get(raw_status_base, status_map.get(raw_status, "In Progress"))
         old_status = vc.status
 
         vc.external_result = json.dumps(payload)[:19999]
