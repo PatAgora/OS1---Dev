@@ -918,6 +918,51 @@
               </tbody>
             </table>
           </div>
+
+          {% if emp_timeline %}
+          <div class="mt-3">
+            <div class="fw-semibold mb-2" style="font-size:0.85rem;"><i class="fas fa-history me-2 text-muted"></i>Employment History</div>
+            <table class="table table-sm mb-0" style="font-size:0.8rem;">
+              <thead>
+                <tr style="background:#f8fafc;">
+                  <th style="padding:0.4rem 0.6rem;">Employer</th>
+                  <th style="padding:0.4rem 0.6rem;">Role</th>
+                  <th style="padding:0.4rem 0.6rem;">Dates</th>
+                  <th style="padding:0.4rem 0.6rem;">Can Contact</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for emp in emp_timeline %}
+                <tr style="{{ 'background:#fef3c7;' if emp.is_gap else '' }}">
+                  <td style="padding:0.35rem 0.6rem;">
+                    {% if emp.is_gap %}
+                      <i class="fas fa-pause-circle text-warning me-1"></i><em>Gap{% if emp.gap_reason %}: {{ emp.gap_reason }}{% endif %}</em>
+                    {% else %}
+                      {{ emp.company or '—' }}
+                    {% endif %}
+                  </td>
+                  <td style="padding:0.35rem 0.6rem;">{{ emp.role if not emp.is_gap else '—' }}</td>
+                  <td style="padding:0.35rem 0.6rem;">
+                    {{ emp.start_date.strftime('%b %Y') if emp.start_date else '?' }} — {{ emp.end_date.strftime('%b %Y') if emp.end_date else 'Present' }}
+                  </td>
+                  <td style="padding:0.35rem 0.6rem;">
+                    {% if emp.is_gap %}
+                      —
+                    {% elif emp.can_contact %}
+                      <span class="badge bg-success" style="font-size:0.65rem;"><i class="fas fa-check me-1"></i>Yes</span>
+                    {% else %}
+                      <span class="badge bg-danger" style="font-size:0.65rem;"><i class="fas fa-times me-1"></i>No</span>
+                      {% if emp.no_contact_reason %}
+                        <span class="text-muted small d-block">{{ emp.no_contact_reason }}</span>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
         </div>
       </div>
 

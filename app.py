@@ -17136,6 +17136,28 @@ def candidate_profile(cand_id: int):
             except Exception:
                 pass
 
+        # === Employment History Timeline (for Declarations tile) ===
+        emp_timeline = []
+        try:
+            _emp_rows = s.execute(text(
+                "SELECT company_name, job_title, start_date, end_date, is_gap, gap_reason, "
+                "permission_to_request, permission_delay_reason "
+                "FROM employment_history WHERE candidate_id = :cid ORDER BY start_date DESC"
+            ).bindparams(cid=cand_id)).all()
+            for _er in _emp_rows:
+                emp_timeline.append({
+                    "company": _er[0] or "",
+                    "role": _er[1] or "",
+                    "start_date": _er[2],
+                    "end_date": _er[3],
+                    "is_gap": bool(_er[4]),
+                    "gap_reason": _er[5] or "",
+                    "can_contact": bool(_er[6]) if _er[6] is not None else True,
+                    "no_contact_reason": _er[7] or "",
+                })
+        except Exception:
+            pass
+
         # === Employment History (from portal) ===
         employment_history = []
         try:
@@ -17580,6 +17602,7 @@ def candidate_profile(cand_id: int):
         company_details=company_details,
         consent_record=consent_record,
         declaration_record=declaration_record,
+        emp_timeline=emp_timeline,
         contract_status=contract_status,
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
