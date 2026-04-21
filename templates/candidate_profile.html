@@ -929,6 +929,7 @@
                   <th style="padding:0.4rem 0.6rem;">Role</th>
                   <th style="padding:0.4rem 0.6rem;">Dates</th>
                   <th style="padding:0.4rem 0.6rem;">Can Contact</th>
+                  <th style="padding:0.4rem 0.6rem;">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -952,9 +953,13 @@
                       <span class="badge bg-success" style="font-size:0.65rem;"><i class="fas fa-check me-1"></i>Yes</span>
                     {% else %}
                       <span class="badge bg-danger" style="font-size:0.65rem;"><i class="fas fa-times me-1"></i>No</span>
-                      {% if emp.no_contact_reason %}
-                        <span class="text-muted small d-block">{{ emp.no_contact_reason }}</span>
-                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td style="padding:0.35rem 0.6rem;">
+                    {% if not emp.is_gap and not emp.can_contact and emp.no_contact_reason %}
+                      <span class="text-muted" style="font-size:0.75rem;">{{ emp.no_contact_reason }}</span>
+                    {% else %}
+                      —
                     {% endif %}
                   </td>
                 </tr>
