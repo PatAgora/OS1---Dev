@@ -1236,7 +1236,7 @@
 
                   {# Verifile status #}
                   {% if check.verifile_confirmed %}
-                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#ede9fe; border:1px solid #c4b5fd; color:#5b21b6;">
+                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#dcfce7; border:1px solid #86efac; color:#166534;">
                     <i class="fas fa-check-double me-1"></i>Verifile — {{ check.verifile_result or 'Confirmed' }}{% if check.verifile_confirmed_at %} ({{ check.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
                   </div>
                   {% elif check.verifile_result %}
