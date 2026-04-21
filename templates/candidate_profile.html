@@ -2657,6 +2657,43 @@ function openInterviewEmailModal() {
     modal.show();
   });
 }
+
+// Collapsible tiles — click section header/title to toggle content
+document.addEventListener('DOMContentLoaded', function() {
+  var mainCol = document.querySelector('.col-12.col-lg-8');
+  if (!mainCol) return;
+  mainCol.querySelectorAll('.modern-card').forEach(function(card) {
+    var cardBody = card.querySelector('.card-body');
+    if (!cardBody) return;
+    // Find the header row (section-header, section-title, or first d-flex)
+    var header = cardBody.querySelector('.section-header') || cardBody.querySelector('.section-title')?.closest('.d-flex') || cardBody.querySelector('.d-flex');
+    if (!header) return;
+    // Add chevron
+    var chevron = document.createElement('i');
+    chevron.className = 'fas fa-chevron-up';
+    chevron.style.cssText = 'color:#9ca3af; font-size:0.75rem; margin-left:auto; transition:transform 0.2s; flex-shrink:0;';
+    header.style.cursor = 'pointer';
+    header.appendChild(chevron);
+    // Collect all siblings after header inside card-body
+    var contentEls = [];
+    var sibling = header.nextElementSibling;
+    while (sibling) {
+      contentEls.push(sibling);
+      sibling = sibling.nextElementSibling;
+    }
+    header.addEventListener('click', function(e) {
+      if (e.target.closest('select, input, button, a, form')) return;
+      var isCollapsed = chevron.style.transform === 'rotate(180deg)';
+      if (isCollapsed) {
+        contentEls.forEach(function(el) { el.style.display = ''; });
+        chevron.style.transform = '';
+      } else {
+        contentEls.forEach(function(el) { el.style.display = 'none'; });
+        chevron.style.transform = 'rotate(180deg)';
+      }
+    });
+  });
+});
 </script>
 </div>
 {% endblock %}
