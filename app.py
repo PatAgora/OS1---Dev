@@ -15272,17 +15272,41 @@ def api_vetting_sync_verifile(cand_id):
             vf_checks = data.get("Checks") or []
             # Map Verifile check types to our check types
             VF_TYPE_MAP = {
+                # Right to Work
                 "ukrighttowor": "Right to Work", "ukrighttoworkdigitalconditional": "Right to Work",
+                "ukrighttowork": "Right to Work",
+                # Identity Verification
                 "ukonlineidcheck": "Identity Verification", "identityverification": "Identity Verification",
-                "ukcriminalrecordcheck": "DBS Check", "dbscheck": "DBS Check", "dbs": "DBS Check",
+                # DBS Check
+                "ukcriminalrecordcheck": "DBS Check", "ukcriminalrecordbasicenglandwales": "DBS Check",
+                "ukcriminalrecord": "DBS Check", "dbscheck": "DBS Check", "dbs": "DBS Check",
+                # Credit Check
                 "creditcheck": "Credit Check", "ukcreditcheck": "Credit Check",
+                "ukcreditcheckexperian": "Credit Check",
+                # Employment History
                 "employmentcheck": "Employment History", "employmenthistory": "Employment History",
+                "employmenthistoryuk": "Employment History",
+                # References
                 "referencecheck": "References", "references": "References",
+                "characterprofessionalreferenceuk": "References", "characterprofessionalreference": "References",
+                # Qualifications
                 "qualificationcheck": "Qualifications", "qualifications": "Qualifications",
+                "academicqualificationuk": "Qualifications", "academicqualification": "Qualifications",
+                # Professional Registration
                 "professionalregistration": "Professional Registration",
+                "professionalmembershipqualificationuk": "Professional Registration",
+                "professionalmembershipqualification": "Professional Registration",
+                # Directorship / Disqualification
                 "directorshipcheck": "Directorship / Disqualification",
+                "ukinvestigativedirectorshipssearch": "Directorship / Disqualification",
+                "ukinvestigativedirectorship": "Directorship / Disqualification",
+                # Sanctions / PEP
                 "sanctionscheck": "Sanctions / PEP", "sanctionspep": "Sanctions / PEP",
+                "globalfraudandsanctionssearch": "Sanctions / PEP", "globalfraudandsanctions": "Sanctions / PEP",
+                # Social Media Review
                 "socialmediacheck": "Social Media Review",
+                "classicsocialmediasearch": "Social Media Review", "classicsocialmedia": "Social Media Review",
+                # Address History
                 "addresscheck": "Address History", "addresshistory": "Address History",
             }
             status_map = {"completed": "Complete", "complete": "Complete", "passed": "Complete",
