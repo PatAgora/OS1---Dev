@@ -15283,21 +15283,43 @@ def api_vetting_sync_verifile(cand_id):
         updated = 0
         try:
             headers = _verifile_headers()
+            # Try the screening order endpoint
             resp = _req.get(f"{VERIFILE_BASE_URL}/orders/{screening_ref}", headers=headers, timeout=15)
+            print(f"[VERIFILE-SYNC] GET /orders/{screening_ref} -> {resp.status_code}", flush=True)
+            if resp.status_code == 404:
+                # Try alternate endpoint
+                resp = _req.get(f"{VERIFILE_BASE_URL}/screenings/{screening_ref}", headers=headers, timeout=15)
+                print(f"[VERIFILE-SYNC] GET /screenings/{screening_ref} -> {resp.status_code}", flush=True)
             if resp.status_code != 200:
-                return jsonify({"ok": False, "error": f"Verifile API returned {resp.status_code}"}), 502
+                return jsonify({"ok": False, "error": f"Verifile API returned {resp.status_code}", "ref": screening_ref}), 502
             data = resp.json()
-            # Extract check statuses from the order
-            order_checks = data.get("checks") or data.get("screeningChecks") or []
-            if isinstance(data.get("status"), str):
-                # Simple status on the order itself
-                raw = data["status"].lower().strip()
+            print(f"[VERIFILE-SYNC] Response keys: {list(data.keys()) if isinstance(data, dict) else type(data).__name__}", flush=True)
+            print(f"[VERIFILE-SYNC] Response (first 500): {json.dumps(data)[:500]}", flush=True)
+
+            # Try to find status from various response shapes
+            raw_status = None
+            if isinstance(data, dict):
+                raw_status = data.get("status") or data.get("Status") or data.get("orderStatus") or data.get("screeningStatus")
+                # Check nested checks/results
+                if not raw_status:
+                    for key in ("checks", "screeningChecks", "results", "CheckResults"):
+                        items = data.get(key)
+                        if isinstance(items, list) and items:
+                            for item in items:
+                                item_status = item.get("status") or item.get("Status") or item.get("checkStatus") or ""
+                                item_type = item.get("checkType") or item.get("type") or item.get("name") or ""
+                                print(f"[VERIFILE-SYNC] Check: {item_type} = {item_status}", flush=True)
+                            # Use the first non-empty status
+                            raw_status = items[0].get("status") or items[0].get("Status") or items[0].get("checkStatus")
+                            break
+
+            if raw_status:
+                raw = str(raw_status).lower().strip()
                 raw_base = raw.split("-")[0].strip().split(" ")[0].strip()
                 status_map = {"complete": "Complete", "completed": "Complete", "passed": "Complete",
                               "clear": "Complete", "green": "Complete", "failed": "Failed",
                               "red": "Failed", "amber": "In Progress", "pending": "In Progress",
                               "in_progress": "In Progress", "processing": "In Progress"}
-                mapped = status_map.get(raw_base, status_map.get(raw, "In Progress"))
                 verifile_result = raw.replace("-", " ").strip().title()
                 is_done = raw_base in ("complete", "completed", "passed", "clear", "green", "failed", "red")
                 for vc in checks:
@@ -15307,7 +15329,7 @@ def api_vetting_sync_verifile(cand_id):
                         vc.verifile_confirmed_at = datetime.datetime.utcnow()
                     updated += 1
             s.commit()
-            return jsonify({"ok": True, "message": f"Synced {updated} checks from Verifile", "status": data.get("status", "unknown")})
+            return jsonify({"ok": True, "message": f"Synced {updated} checks from Verifile", "status": str(raw_status or "unknown"), "ref": screening_ref})
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 500
 
