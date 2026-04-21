@@ -14407,7 +14407,7 @@ def webhook_verifile():
         if raw_status in ("complete", "completed", "passed", "clear", "failed", "rejected"):
             vc.verifile_confirmed = True
             vc.verifile_confirmed_at = datetime.datetime.utcnow()
-            vc.verifile_result = raw_status.capitalize()
+            vc.verifile_result = raw_status.capitalize()[:50]
 
         # Auto-update status based on Verifile result
         manual_advanced = (vc.status or "").upper() in ("SENT TO QC", "QC IN PROGRESS", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "CHECK STILL IN DATE")
@@ -15339,7 +15339,7 @@ def api_vetting_sync_verifile(cand_id):
                     raw = vf_state.lower().strip()
                     raw_base = raw.split("-")[0].strip().split(" ")[0].strip()
                     mapped = status_map.get(raw_base, status_map.get(raw, "In Progress"))
-                    vc.verifile_result = vf_state or "Unknown"
+                    vc.verifile_result = (vf_state or "Unknown")[:50]
                     is_done = raw_base in ("completed", "complete", "passed", "clear", "green", "failed", "red")
                     if is_done:
                         vc.verifile_confirmed = True
