@@ -2362,6 +2362,10 @@ function openVettingEmailModal() {
 }
 
 function syncVerifile(candidateId) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<div style="background:white;border-radius:12px;padding:2rem 3rem;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.2);"><i class="fas fa-sync fa-spin" style="font-size:2rem;color:#2563eb;margin-bottom:1rem;display:block;"></i><div style="font-weight:600;font-size:1rem;">Sync in progress</div><div style="color:#6b7280;font-size:0.85rem;margin-top:0.5rem;">Fetching latest status from Verifile...</div></div>';
+  document.body.appendChild(overlay);
   fetch('/api/vetting/sync-verifile/' + candidateId, {
     method: 'POST',
     headers: { 'X-CSRFToken': _csrfToken() },
@@ -2369,14 +2373,15 @@ function syncVerifile(candidateId) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
+    overlay.remove();
     if (data.ok) {
-      alert('Verifile sync: ' + (data.message || 'Done') + '\nStatus: ' + (data.status || 'unknown'));
+      alert('Verifile sync: ' + (data.message || 'Done'));
       location.reload();
     } else {
       alert('Verifile sync failed: ' + (data.error || 'Unknown error'));
     }
   })
-  .catch(function() { alert('Network error syncing Verifile'); });
+  .catch(function() { overlay.remove(); alert('Network error syncing Verifile'); });
 }
 
 function resetVettingAll(candidateId) {
