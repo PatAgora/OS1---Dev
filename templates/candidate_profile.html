@@ -559,35 +559,11 @@
     </div>
   </div>
 
-  <!-- Section Navigation Bar -->
-  <style>
-    .section-nav-btn { transition: all 0.2s; background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.3) !important; color: white !important; }
-    .section-nav-btn.active { background: #2563eb !important; border-color: #2563eb !important; }
-    .section-nav-btn:hover { background: rgba(37,99,235,0.5) !important; }
-    .section-tile .card-body { display: none; }
-    .section-tile.expanded .card-body { display: block; }
-    .section-tile .section-header { cursor: pointer; }
-    .section-tile .section-header .section-chevron { transition: transform 0.2s; }
-    .section-tile.expanded .section-header .section-chevron { transform: rotate(180deg); }
-  </style>
-  <div class="d-flex flex-wrap gap-1 mb-3 p-2 rounded" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1);">
-    <button class="btn btn-sm section-nav-btn" data-section="sec-ai-summary" onclick="toggleSection('sec-ai-summary')" title="AI Summary"><i class="fas fa-robot"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-documents" onclick="toggleSection('sec-documents')" title="Documents"><i class="fas fa-file-alt"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-company" onclick="toggleSection('sec-company')" title="Company Details"><i class="fas fa-building"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-secondary-job" onclick="toggleSection('sec-secondary-job')" title="Secondary Job"><i class="fas fa-briefcase"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-declarations" onclick="toggleSection('sec-declarations')" title="Declarations & Consent"><i class="fas fa-clipboard-check"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-conduct" onclick="toggleSection('sec-conduct')" title="Conduct Regulations"><i class="fas fa-balance-scale"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-notes" onclick="toggleSection('sec-notes')" title="Notes"><i class="fas fa-sticky-note"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-interview" onclick="toggleSection('sec-interview')" title="Interview"><i class="fas fa-comments"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-vetting" onclick="toggleSection('sec-vetting')" title="Vetting Checks"><i class="fas fa-shield-alt"></i></button>
-    <button class="btn btn-sm section-nav-btn" data-section="sec-references" onclick="toggleSection('sec-references')" title="References"><i class="fas fa-envelope"></i></button>
-  </div>
-
   <div class="row g-4">
     <!-- Main Content -->
     <div class="col-12 col-lg-8">
       <!-- AI Summary Card -->
-      <div class="modern-card mb-4 fade-in-up stagger-2 section-tile" id="sec-ai-summary">
+      <div class="modern-card mb-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="d-flex align-items-center justify-content-between mb-3">
             <div class="section-title mb-0">
@@ -632,7 +608,7 @@
       </div>
 
       <!-- Documents Card -->
-      <div class="modern-card fade-in-up stagger-2 section-tile" id="sec-documents">
+      <div class="modern-card fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -701,7 +677,7 @@
         </div>
       </div>
       <!-- Umbrella / Company Details Card -->
-      <div class="modern-card mt-4 fade-in-up stagger-2 section-tile" id="sec-company">
+      <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -839,7 +815,7 @@
       </div>
 
       <!-- Secondary Job Declaration -->
-      <div class="modern-card mt-4 fade-in-up stagger-2 section-tile" id="sec-secondary-job">
+      <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -878,7 +854,7 @@
       </div>
 
       <!-- Declarations & Consent Status -->
-      <div class="modern-card mt-4 fade-in-up stagger-2 section-tile" id="sec-declarations">
+      <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -946,7 +922,7 @@
       </div>
 
       <!-- Conduct Regulations 2003 -->
-      <div class="modern-card mt-4 fade-in-up stagger-2 section-tile" id="sec-conduct">
+      <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -991,7 +967,7 @@
       </div>
 
       <!-- General Notes Card -->
-      <div class="modern-card mt-4 fade-in-up stagger-2 section-tile" id="sec-notes">
+      <div class="modern-card mt-4 fade-in-up stagger-2">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -1041,7 +1017,7 @@
       </div>
 
       <!-- Interview Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-3 section-tile" id="sec-interview">
+      <div class="modern-card mt-4 fade-in-up stagger-3" id="interview-section">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -1137,7 +1113,7 @@
       </div>
 
       <!-- Vetting Checks Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-4 section-tile" id="sec-vetting">
+      <div class="modern-card mt-4 fade-in-up stagger-4" id="vetting-checks">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -1326,7 +1302,7 @@
       </div>
 
       <!-- Reference Requests Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-5 section-tile" id="sec-references">
+      <div class="modern-card mt-4 fade-in-up stagger-5" id="reference-requests">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -2382,43 +2358,6 @@ function issueContractDirect() {
 
 // === QC Workflow Functions ===
 
-// Add click-to-toggle on all section tile headers + add chevron
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.section-tile').forEach(function(tile) {
-    var header = tile.querySelector('.section-header');
-    if (!header) return;
-    // Add chevron icon
-    var chevron = document.createElement('i');
-    chevron.className = 'fas fa-chevron-down section-chevron';
-    chevron.style.cssText = 'color:#9ca3af; font-size:0.8rem; margin-left:auto;';
-    header.style.display = 'flex';
-    header.style.alignItems = 'center';
-    header.appendChild(chevron);
-    // Click to toggle
-    header.addEventListener('click', function() {
-      toggleSection(tile.id);
-    });
-  });
-});
-
-function toggleSection(sectionId) {
-  var el = document.getElementById(sectionId);
-  if (!el) return;
-  var isExpanded = el.classList.contains('expanded');
-  if (isExpanded) {
-    el.classList.remove('expanded');
-    document.querySelectorAll('.section-nav-btn').forEach(function(btn) {
-      if (btn.dataset.section === sectionId) btn.classList.remove('active');
-    });
-  } else {
-    el.classList.add('expanded');
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    document.querySelectorAll('.section-nav-btn').forEach(function(btn) {
-      if (btn.dataset.section === sectionId) btn.classList.add('active');
-    });
-  }
-}
-
 function _csrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content || '';
 }
@@ -2628,13 +2567,12 @@ document.addEventListener('DOMContentLoaded', function() {
     window.history.replaceState({}, '', cleanUrl);
   }
   if (autoAction === 'start_vetting') {
-    setTimeout(function() { var el=document.getElementById('sec-vetting'); if(el&&!el.classList.contains('expanded')) toggleSection('sec-vetting'); openVettingEmailModal(); }, 400);
+    setTimeout(function() { openVettingEmailModal(); }, 400);
   } else if (autoAction === 'start_referencing') {
-    setTimeout(function() { var el=document.getElementById('sec-references'); if(el&&!el.classList.contains('expanded')) toggleSection('sec-references'); triggerReferencing({{ cand.id }}); }, 400);
+    setTimeout(function() { triggerReferencing({{ cand.id }}); }, 400);
   } else if (autoAction === 'schedule_interview') {
     setTimeout(function() {
-      var secEl=document.getElementById('sec-interview'); if(secEl&&!secEl.classList.contains('expanded')) toggleSection('sec-interview');
-      var section = document.getElementById('sec-interview');
+      var section = document.getElementById('interview-section');
       if (section) {
         section.scrollIntoView({ behavior: 'smooth', block: 'center' });
         section.style.boxShadow = '0 0 0 3px #3b82f6';
