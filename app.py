@@ -2650,6 +2650,11 @@ def assign_candidate_owner(cand_id: int):
             user_row = s.execute(text("SELECT name FROM users WHERE id = :uid").bindparams(uid=owner_id)).first()
             cand.owner_id = owner_id
             cand.owner_name = user_row[0] if user_row else ""
+            # Also assign this owner to all unassigned vetting checks
+            s.execute(text("""
+                UPDATE vetting_check SET assigned_to = :uid
+                WHERE candidate_id = :cid AND (assigned_to IS NULL OR assigned_to = 0)
+            """).bindparams(uid=owner_id, cid=cand_id))
         else:
             cand.owner_id = None
             cand.owner_name = ""
@@ -14442,10 +14447,13 @@ def webhook_verifile():
             vc.verifile_confirmed_at = datetime.datetime.utcnow()
             vc.verifile_result = raw_status.capitalize()
 
-        # Only auto-update status if not already manually progressed past Verifile's result
+        # Auto-update status based on Verifile result
         manual_advanced = (vc.status or "").upper() in ("SENT TO QC", "QC IN PROGRESS", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "CHECK STILL IN DATE")
         if not manual_advanced:
-            vc.status = new_status
+            if new_status == "Complete":
+                vc.status = "SENT TO QC"
+            else:
+                vc.status = new_status
 
         if new_status == "Complete" and not vc.completed_at:
             vc.completed_at = datetime.datetime.utcnow()
@@ -15350,6 +15358,10 @@ def api_vetting_sync_verifile(cand_id):
                     if is_done:
                         vc.verifile_confirmed = True
                         vc.verifile_confirmed_at = datetime.datetime.utcnow()
+                        # Auto-advance to Sent to QC if not already past that stage
+                        current_upper = (vc.status or "").upper()
+                        if current_upper not in ("SENT TO QC", "QC IN PROGRESS", "QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "CHECK STILL IN DATE"):
+                            vc.status = "SENT TO QC"
                     updated += 1
 
             s.commit()
