@@ -7149,6 +7149,18 @@ try:
 except Exception:
     pass
 
+# One-time: reset declaration + employment ref declaration for Ian Marley (271)
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        _rc.execute(text("DELETE FROM declaration_records WHERE candidate_id = 271"))
+        _rc.execute(text("UPDATE candidates SET employment_ref_declaration_signed = FALSE, employment_ref_declaration_signed_at = NULL WHERE id = 271"))
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 271 AND content LIKE '%Declaration%signed%Signable%'"))
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 271 AND content LIKE '%Employment Reference%signed%'"))
+        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 271 AND content LIKE '%reference_declaration_signed%'"))
+        print("[RESET] Declaration + Emp Ref Declaration reset for candidate 271", flush=True)
+except Exception as _e:
+    print(f"[RESET] Skip: {_e}", flush=True)
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
