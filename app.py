@@ -7163,13 +7163,13 @@ try:
         _vf.execute(text("""
             UPDATE vetting_check
             SET external_ref = 'VF1034786', external_provider = 'verifile'
-            WHERE candidate_id = 271 AND external_ref IS NULL OR external_ref = ''
+            WHERE candidate_id = 271
         """))
-        # Reset RTW Verifile confirmation — let the webhook handle it
+        # Reset all Verifile results for candidate 271 (clear stale Cancelled status)
         _vf.execute(text("""
             UPDATE vetting_check
             SET verifile_confirmed = FALSE, verifile_confirmed_at = NULL, verifile_result = NULL
-            WHERE candidate_id = 271 AND check_type = 'Right to Work'
+            WHERE candidate_id = 271
         """))
         print("[VERIFILE] Set VF1034786 on candidate 271 checks, RTW marked as Verifile Complete", flush=True)
         # Patrick Stones (273) - VF1034789
