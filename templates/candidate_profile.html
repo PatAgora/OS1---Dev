@@ -565,7 +565,6 @@
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-docs')" title="Documents"><i class="fas fa-file-alt me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Docs</span></button>
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-company')" title="Company Details"><i class="fas fa-building me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Company</span></button>
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-decl')" title="Declarations"><i class="fas fa-clipboard-check me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Declarations</span></button>
-    <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-conduct')" title="Conduct Regs"><i class="fas fa-balance-scale me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Conduct</span></button>
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-notes')" title="Notes"><i class="fas fa-sticky-note me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Notes</span></button>
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-interview')" title="Interview"><i class="fas fa-comments me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Interview</span></button>
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-vetting')" title="Vetting"><i class="fas fa-shield-alt me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Vetting</span></button>
@@ -877,6 +876,19 @@
                   </td>
                 </tr>
                 <tr>
+                  <td><i class="fas fa-balance-scale me-2 text-muted"></i>Conduct Regulations 2003</td>
+                  <td>
+                    {% if cand.conduct_regs_opted_in is not none %}
+                      <span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-check-circle me-1"></i>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</span>
+                      {% if cand.conduct_regs_decision_at %}
+                        <span class="text-muted small ms-2">{{ cand.conduct_regs_decision_at.strftime('%d %b %Y') }}</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-times-circle me-1"></i>Not Decided</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
                   <td><i class="fas fa-file-signature me-2 text-muted"></i>Employment Reference Declaration</td>
                   <td>
                     {% if cand.employment_ref_declaration_signed %}
@@ -893,10 +905,10 @@
             </table>
           </div>
 
-          {# Sub-sections showing what was input #}
-          {% if consent_record and consent_record.consent_given %}
+          {# Consent Form sub-section #}
           <div class="mt-3 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-scroll me-1 text-muted"></i>Consent Form Details</div>
+            <div class="fw-semibold mb-1"><i class="fas fa-scroll me-1 text-muted"></i>Consent Form</div>
+            {% if consent_record and consent_record.consent_given %}
             <div class="row g-2">
               <div class="col-md-6"><span class="text-muted">Reference consent:</span> <strong>{{ 'Yes' if consent_record.reference_consent else 'No' }}</strong></div>
               <div class="col-md-6"><span class="text-muted">Secondary employment:</span> <strong>{{ 'Yes' if consent_record.secondary_employment else 'No' }}</strong></div>
@@ -904,12 +916,15 @@
               <div class="col-12"><span class="text-muted">Details:</span> {{ consent_record.secondary_employment_details }}</div>
               {% endif %}
             </div>
+            {% else %}
+            <div class="text-muted"><em>Not yet confirmed</em></div>
+            {% endif %}
           </div>
-          {% endif %}
 
-          {% if declaration_record and declaration_record.signed_date %}
+          {# Declaration sub-section #}
           <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-file-alt me-1 text-muted"></i>Declaration Details</div>
+            <div class="fw-semibold mb-1"><i class="fas fa-file-alt me-1 text-muted"></i>Declaration</div>
+            {% if declaration_record and declaration_record.signed_date %}
             {% set decl_questions = [
               ('Work restrictions', declaration_record.work_restrictions, declaration_record.work_restrictions_detail),
               ('Criminal convictions', declaration_record.criminal_convictions, declaration_record.criminal_convictions_detail),
@@ -920,7 +935,7 @@
             ] %}
             {% for label, answer, detail in decl_questions %}
             <div class="d-flex align-items-start gap-2 py-1" style="border-bottom:1px solid #f3f4f6;">
-              <span style="min-width:200px;" class="text-muted">{{ label }}:</span>
+              <span style="min-width:220px;" class="text-muted">{{ label }}:</span>
               {% if answer %}
                 <span class="badge bg-danger" style="font-size:0.6rem;">YES</span>
                 {% if detail %}<span class="ms-1">{{ detail }}</span>{% endif %}
@@ -929,20 +944,43 @@
               {% endif %}
             </div>
             {% endfor %}
+            {% else %}
+            <div class="text-muted"><em>Not yet confirmed</em></div>
+            {% endif %}
           </div>
-          {% endif %}
 
-          {% if cand.secondary_job_declaration_signed %}
+          {# Secondary Job sub-section #}
           <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
-            <div class="fw-semibold mb-1"><i class="fas fa-briefcase me-1 text-muted"></i>Secondary Job Declaration Details</div>
+            <div class="fw-semibold mb-1"><i class="fas fa-briefcase me-1 text-muted"></i>Secondary Job Declaration</div>
+            {% if cand.secondary_job_declaration_signed %}
             <div class="row g-2">
               <div class="col-md-6"><span class="text-muted">Has secondary employment:</span> <strong>{{ 'Yes' if cand.secondary_job_has_secondary else 'No' }}</strong></div>
               {% if cand.secondary_job_has_secondary and cand.secondary_job_title %}
               <div class="col-md-6"><span class="text-muted">Role:</span> <strong>{{ cand.secondary_job_title }}</strong></div>
               {% endif %}
             </div>
+            {% else %}
+            <div class="text-muted"><em>Not yet confirmed</em></div>
+            {% endif %}
           </div>
-          {% endif %}
+
+          {# Conduct Regulations sub-section #}
+          <div class="mt-2 p-2 rounded" style="background:#f9fafb; border:1px solid #e5e7eb; font-size:0.8rem;">
+            <div class="fw-semibold mb-1"><i class="fas fa-balance-scale me-1 text-muted"></i>Conduct Regulations 2003</div>
+            {% if cand.conduct_regs_opted_in is not none %}
+            <div class="row g-2">
+              <div class="col-md-6"><span class="text-muted">Preference:</span> <strong>{{ 'Opted In' if cand.conduct_regs_opted_in else 'Opted Out' }}</strong></div>
+              {% if cand.conduct_regs_signed_name %}
+              <div class="col-md-6"><span class="text-muted">Signed by:</span> <strong>{{ cand.conduct_regs_signed_name }}</strong></div>
+              {% endif %}
+              {% if cand.conduct_regs_decision_at %}
+              <div class="col-12"><span class="text-muted">Recorded:</span> {{ cand.conduct_regs_decision_at.strftime('%d %b %Y') }}</div>
+              {% endif %}
+            </div>
+            {% else %}
+            <div class="text-muted"><em>Not yet decided</em></div>
+            {% endif %}
+          </div>
 
           {% if emp_timeline %}
           <div class="mt-3">
@@ -993,51 +1031,6 @@
             </table>
           </div>
           {% endif %}
-        </div>
-      </div>
-
-      <!-- Conduct Regulations 2003 -->
-      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-conduct">
-        <div class="card-body p-4">
-          <div class="section-header">
-            <div class="section-title">
-              <i class="fas fa-balance-scale"></i>
-              Conduct Regulations 2003
-            </div>
-            <div class="section-subtitle">
-              {% if cand.conduct_regs_opted_in is none %}
-                Not yet decided
-              {% elif cand.conduct_regs_opted_in %}
-                Opted In
-              {% else %}
-                Opted Out
-              {% endif %}
-            </div>
-          </div>
-          <div class="mt-3 row g-3">
-            <div class="col-md-6">
-              <div class="text-muted small text-uppercase">Preference</div>
-              <div class="fw-semibold">
-                {% if cand.conduct_regs_opted_in is none %}
-                  —
-                {% elif cand.conduct_regs_opted_in %}
-                  Opted In — covered by the regulations
-                {% else %}
-                  Opted Out — not covered by the regulations
-                {% endif %}
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="text-muted small text-uppercase">Signed by</div>
-              <div class="fw-semibold">{{ cand.conduct_regs_signed_name or '—' }}</div>
-            </div>
-            {% if cand.conduct_regs_decision_at %}
-            <div class="col-12">
-              <div class="text-muted small text-uppercase">Decision recorded</div>
-              <div class="fw-semibold">{{ cand.conduct_regs_decision_at.strftime('%d %b %Y at %H:%M') }}</div>
-            </div>
-            {% endif %}
-          </div>
         </div>
       </div>
 
