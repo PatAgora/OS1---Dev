@@ -7157,6 +7157,26 @@ try:
 except Exception as _e:
     print(f"[RESET] Skip: {_e}", flush=True)
 
+# One-time: set Verifile ref VF1034786 on Ian Marley's vetting checks
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _vf:
+        _vf.execute(text("""
+            UPDATE vetting_check
+            SET external_ref = 'VF1034786', external_provider = 'verifile'
+            WHERE candidate_id = 271 AND external_ref IS NULL OR external_ref = ''
+        """))
+        # Mark Right to Work as Verifile confirmed (already completed in Verifile portal)
+        _vf.execute(text("""
+            UPDATE vetting_check
+            SET verifile_confirmed = TRUE,
+                verifile_confirmed_at = NOW(),
+                verifile_result = 'Complete'
+            WHERE candidate_id = 271 AND check_type = 'Right to Work'
+        """))
+        print("[VERIFILE] Set VF1034786 on candidate 271 checks, RTW marked as Verifile Complete", flush=True)
+except Exception as _e:
+    print(f"[VERIFILE] Skip: {_e}", flush=True)
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
