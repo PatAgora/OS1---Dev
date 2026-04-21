@@ -1234,14 +1234,13 @@
                     {% endif %}
                   </div>
 
-                  {# Verifile status #}
-                  {% if check.verifile_confirmed %}
-                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#dcfce7; border:1px solid #86efac; color:#166534;">
-                    <i class="fas fa-check-double me-1"></i>Verifile — {{ check.verifile_result or 'Confirmed' }}{% if check.verifile_confirmed_at %} ({{ check.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
-                  </div>
-                  {% elif check.verifile_result %}
-                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#f0f9ff; border:1px solid #bae6fd; color:#0369a1;">
-                    <i class="fas fa-sync me-1"></i>Verifile — {{ check.verifile_result }}
+                  {# Verifile status — single line #}
+                  {% if check.verifile_result %}
+                  {% set vf_lower = check.verifile_result|lower %}
+                  {% set vf_is_complete = 'completed' in vf_lower or 'complete' in vf_lower or 'green' in vf_lower or 'passed' in vf_lower %}
+                  {% set vf_is_failed = 'failed' in vf_lower or 'red' in vf_lower or 'void' in vf_lower or 'cancelled' in vf_lower %}
+                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:{{ '#dcfce7' if vf_is_complete else '#fee2e2' if vf_is_failed else '#f0f9ff' }}; border:1px solid {{ '#86efac' if vf_is_complete else '#fca5a5' if vf_is_failed else '#bae6fd' }}; color:{{ '#166534' if vf_is_complete else '#991b1b' if vf_is_failed else '#0369a1' }};">
+                    <i class="fas fa-{{ 'check-double' if vf_is_complete else 'times-circle' if vf_is_failed else 'sync' }} me-1"></i>Verifile — {{ check.verifile_result }}{% if check.verifile_confirmed_at %} ({{ check.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
                   </div>
                   {% endif %}
 
