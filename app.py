@@ -15255,6 +15255,63 @@ def api_vetting_trigger(cand_id):
     return jsonify({"ok": True, "message": result_msg})
 
 
+@app.route("/api/vetting/sync-verifile/<int:cand_id>", methods=["POST"])
+@login_required
+def api_vetting_sync_verifile(cand_id):
+    """Poll Verifile API for the latest screening status and update vetting checks."""
+    try:
+        import requests as _req
+    except ImportError:
+        return jsonify({"ok": False, "error": "requests library not available"}), 500
+
+    if not VERIFILE_APIM_KEY:
+        return jsonify({"ok": False, "error": "Verifile API key not configured"}), 400
+
+    with Session(engine) as s:
+        checks = s.scalars(
+            select(VettingCheck)
+            .where(VettingCheck.candidate_id == cand_id)
+            .where(VettingCheck.external_provider == "verifile")
+            .where(VettingCheck.external_ref != "")
+            .where(VettingCheck.external_ref.isnot(None))
+        ).all()
+
+        if not checks:
+            return jsonify({"ok": False, "error": "No Verifile-linked checks found"}), 404
+
+        screening_ref = checks[0].external_ref
+        updated = 0
+        try:
+            headers = _verifile_headers()
+            resp = _req.get(f"{VERIFILE_BASE_URL}/orders/{screening_ref}", headers=headers, timeout=15)
+            if resp.status_code != 200:
+                return jsonify({"ok": False, "error": f"Verifile API returned {resp.status_code}"}), 502
+            data = resp.json()
+            # Extract check statuses from the order
+            order_checks = data.get("checks") or data.get("screeningChecks") or []
+            if isinstance(data.get("status"), str):
+                # Simple status on the order itself
+                raw = data["status"].lower().strip()
+                raw_base = raw.split("-")[0].strip().split(" ")[0].strip()
+                status_map = {"complete": "Complete", "completed": "Complete", "passed": "Complete",
+                              "clear": "Complete", "green": "Complete", "failed": "Failed",
+                              "red": "Failed", "amber": "In Progress", "pending": "In Progress",
+                              "in_progress": "In Progress", "processing": "In Progress"}
+                mapped = status_map.get(raw_base, status_map.get(raw, "In Progress"))
+                verifile_result = raw.replace("-", " ").strip().title()
+                is_done = raw_base in ("complete", "completed", "passed", "clear", "green", "failed", "red")
+                for vc in checks:
+                    vc.verifile_result = verifile_result
+                    if is_done:
+                        vc.verifile_confirmed = True
+                        vc.verifile_confirmed_at = datetime.datetime.utcnow()
+                    updated += 1
+            s.commit()
+            return jsonify({"ok": True, "message": f"Synced {updated} checks from Verifile", "status": data.get("status", "unknown")})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.route("/api/vetting/reset-current/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_reset_current(cand_id):

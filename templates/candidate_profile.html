@@ -1204,6 +1204,9 @@
               <button class="btn btn-outline-danger btn-sm" onclick="resetVettingAll({{ cand.id }})">
                 <i class="fas fa-undo me-1"></i> Reset
               </button>
+              <button class="btn btn-outline-info btn-sm" onclick="syncVerifile({{ cand.id }})" title="Fetch latest status from Verifile">
+                <i class="fas fa-sync me-1"></i> Sync Verifile
+              </button>
             </div>
           </div>
 
@@ -1230,6 +1233,17 @@
                       <span class="badge" style="background:#e5e7eb; color:#6b7280; font-size:0.6rem;">{{ check.status }}</span>
                     {% endif %}
                   </div>
+
+                  {# Verifile status #}
+                  {% if check.verifile_confirmed %}
+                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#ede9fe; border:1px solid #c4b5fd; color:#5b21b6;">
+                    <i class="fas fa-check-double me-1"></i>Verifile — {{ check.verifile_result or 'Confirmed' }}{% if check.verifile_confirmed_at %} ({{ check.verifile_confirmed_at.strftime('%d %b %Y') }}){% endif %}
+                  </div>
+                  {% elif check.verifile_result %}
+                  <div class="py-1 px-2 rounded mt-1" style="font-size:0.7rem; background:#f0f9ff; border:1px solid #bae6fd; color:#0369a1;">
+                    <i class="fas fa-sync me-1"></i>Verifile — {{ check.verifile_result }}
+                  </div>
+                  {% endif %}
 
                   {# Expiry info #}
                   {% if check.completed_at %}
@@ -2345,6 +2359,24 @@ function openVettingEmailModal() {
     var modal = new bootstrap.Modal(document.getElementById('vettingEmailModal'));
     modal.show();
   });
+}
+
+function syncVerifile(candidateId) {
+  fetch('/api/vetting/sync-verifile/' + candidateId, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    credentials: 'same-origin'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      alert('Verifile sync: ' + (data.message || 'Done') + '\nStatus: ' + (data.status || 'unknown'));
+      location.reload();
+    } else {
+      alert('Verifile sync failed: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(function() { alert('Network error syncing Verifile'); });
 }
 
 function resetVettingAll(candidateId) {
