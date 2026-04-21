@@ -15281,7 +15281,8 @@ def api_vetting_sync_verifile(cand_id):
 
         screening_ref = checks[0].external_ref
         # Strip VF prefix if present for API call
-        api_ref = screening_ref.lstrip("VF").lstrip("vf").strip()
+        api_ref = screening_ref[2:] if screening_ref.upper().startswith("VF") else screening_ref
+        api_ref = api_ref.strip()
         updated = 0
         try:
             headers = _verifile_headers()
