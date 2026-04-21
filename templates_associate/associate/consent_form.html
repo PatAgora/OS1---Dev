@@ -183,30 +183,6 @@
         </div>
     </div>
 
-    <!-- Section 5: Secondary Employment -->
-    <div class="portal-card mb-4">
-        <div class="portal-card-header">
-            <h3><i class="fas fa-briefcase me-2"></i>Secondary Employment</h3>
-        </div>
-        <div class="portal-card-body">
-            <p>Do you currently hold any other employment, directorships, or business interests that may conflict with or impact your engagement?</p>
-            <div class="mb-3">
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="has_secondary_employment" id="secondary_yes" value="yes" required>
-                    <label class="form-check-label" for="secondary_yes">Yes</label>
-                </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="has_secondary_employment" id="secondary_no" value="no">
-                    <label class="form-check-label" for="secondary_no">No</label>
-                </div>
-            </div>
-            <div id="secondaryEmploymentDetails" style="display: none;">
-                <label class="form-label" for="secondary_employment_details">Please provide details of your secondary employment, directorships or business interests:</label>
-                <textarea id="secondary_employment_details" name="secondary_employment_details" class="form-control" rows="3" placeholder="Job title, company name, nature of work, hours per week..."></textarea>
-            </div>
-        </div>
-    </div>
-
     <!-- Section 6: Fraud Prevention -->
     <div class="portal-card mb-4">
         <div class="portal-card-header">
@@ -243,31 +219,12 @@
         </div>
     </div>
 
-    <!-- Manual Upload Fallback (Contradiction Fix 4) -->
-    <div class="portal-card mb-4">
-        <div class="portal-card-header">
-            <h3><i class="fas fa-upload me-2"></i>Upload Signed Consent (Optional)</h3>
-        </div>
-        <div class="portal-card-body">
-            <p class="text-muted">If you have already signed a physical consent form, you can upload the signed document here instead of using the e-signature above.</p>
-            <div class="mb-3">
-                <label class="form-label" for="manual_consent">Signed Consent Document</label>
-                <input type="file" id="manual_consent" name="manual_consent" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                <small class="text-muted">Accepted formats: PDF, DOC, DOCX, JPG, PNG</small>
-            </div>
-            <div class="alert alert-info small">
-                <i class="fas fa-info-circle me-2"></i>
-                If you upload a signed document, the e-signature fields above are not required. The uploaded document will be used as your consent record.
-            </div>
-        </div>
-    </div>
-
     <!-- Submit Button -->
-    <div class="form-actions">
-        <button type="submit" class="btn btn-primary btn-lg" id="submitConsent">
+    <div class="form-actions d-flex gap-2">
+        <button type="submit" class="btn btn-outline-secondary btn-lg flex-fill" id="submitConsent">
             <i class="fas fa-check-circle me-2"></i>I have read and understood
         </button>
-        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+        <a href="/portal/dashboard" class="btn btn-outline-secondary btn-lg flex-fill">Cancel</a>
     </div>
 </form>
 {% endif %}{# already_signed #}
