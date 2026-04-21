@@ -7149,44 +7149,6 @@ try:
 except Exception:
     pass
 
-# One-time: reset consent/declaration/secondary-job for candidate 273 + clear self-healing notes
-try:
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
-        _rc.execute(text("DELETE FROM consent_records WHERE candidate_id = 273"))
-        _rc.execute(text("DELETE FROM declaration_records WHERE candidate_id = 273"))
-        _rc.execute(text("UPDATE candidates SET secondary_job_declaration_signed = FALSE, secondary_job_declaration_signed_at = NULL, secondary_job_has_secondary = FALSE, secondary_job_title = '', secondary_job_signed_name = '' WHERE id = 273"))
-        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Consent Form signed via Signable%'"))
-        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Declaration%signed%Signable%'"))
-        _rc.execute(text("DELETE FROM candidate_notes WHERE candidate_id = 273 AND content LIKE '%Secondary Job%signed%'"))
-        print("[RESET] Done for candidate 273 (including self-heal notes)", flush=True)
-except Exception as _e:
-    print(f"[RESET] Skip: {_e}", flush=True)
-
-# One-time: set Verifile ref VF1034786 on Ian Marley's vetting checks
-try:
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _vf:
-        _vf.execute(text("""
-            UPDATE vetting_check
-            SET external_ref = 'VF1034786', external_provider = 'verifile'
-            WHERE candidate_id = 271
-        """))
-        # Reset all Verifile results for candidate 271 (clear stale Cancelled status)
-        _vf.execute(text("""
-            UPDATE vetting_check
-            SET verifile_confirmed = FALSE, verifile_confirmed_at = NULL, verifile_result = NULL
-            WHERE candidate_id = 271
-        """))
-        print("[VERIFILE] Set VF1034786 on candidate 271 checks, RTW marked as Verifile Complete", flush=True)
-        # Patrick Stones (273) - VF1034789
-        _vf.execute(text("""
-            UPDATE vetting_check
-            SET external_ref = 'VF1034789', external_provider = 'verifile'
-            WHERE candidate_id = 273 AND (external_ref IS NULL OR external_ref = '')
-        """))
-        print("[VERIFILE] Set VF1034789 on candidate 273 checks", flush=True)
-except Exception as _e:
-    print(f"[VERIFILE] Skip: {_e}", flush=True)
-
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
