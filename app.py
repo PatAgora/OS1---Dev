@@ -17687,7 +17687,7 @@ def candidate_add_vetting_check(cand_id: int):
     ]
     if not check_type or check_type not in ALL_VETTING_CHECKS:
         flash("Invalid check type.", "warning")
-        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
+        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-vetting")
     with Session(engine) as s:
         existing = s.scalar(
             select(VettingCheck)
@@ -17699,7 +17699,7 @@ def candidate_add_vetting_check(cand_id: int):
             flash(f"'{check_type}' check added.", "success")
         else:
             flash(f"'{check_type}' check already exists.", "info")
-    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#vetting-checks")
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-vetting")
 
 
 # -------- Vetting Check Update --------
@@ -17719,9 +17719,9 @@ def update_vetting_check(cand_id: int):
     
     # Redirect back to referring page, anchored to vetting section
     referrer = request.referrer or url_for("candidate_profile", cand_id=cand_id)
-    # Append #vetting-checks anchor so page scrolls back to the vetting section
+    # Append #sec-vetting anchor so page scrolls back to the vetting section
     if "#" not in referrer:
-        redirect_url = referrer + "#vetting-checks"
+        redirect_url = referrer + "#sec-vetting"
     else:
         redirect_url = referrer
 

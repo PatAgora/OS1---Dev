@@ -1017,12 +1017,12 @@
             <i class="fas fa-check"></i>
           </button>
           {% elif stage.id == 'shortlist' %}
-          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#interview-section"
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#sec-interview"
              class="btn btn-primary btn-sm" title="Schedule Interview">
             <i class="fas fa-calendar-plus"></i>
           </a>
           {% elif stage.id == 'ia' %}
-          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#interview-section"
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=schedule_interview#sec-interview"
              class="btn btn-primary btn-sm" title="Schedule Interview">
             <i class="fas fa-calendar-plus"></i>
           </a>
@@ -1052,11 +1052,11 @@
           {% endif %}
 
           {# Vetting triggers — link to candidate profile so staff sees the email preview #}
-          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_referencing#vetting-checks"
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_referencing#sec-vetting"
              class="btn btn-info btn-sm" title="Start Referencing">
             <i class="fas fa-envelope"></i>
           </a>
-          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_vetting#vetting-checks"
+          <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}?action=start_vetting#sec-vetting"
              class="btn btn-warning btn-sm" title="Start Full Vetting">
             <i class="fas fa-shield-alt"></i>
           </a>
@@ -1153,7 +1153,7 @@
               {% for item in qc_queue %}
               <tr>
                 <td>
-                  <a href="{{ url_for('candidate_profile', cand_id=item.candidate_id) }}#vetting-checks" class="text-decoration-none fw-semibold">
+                  <a href="{{ url_for('candidate_profile', cand_id=item.candidate_id) }}#sec-vetting" class="text-decoration-none fw-semibold">
                     {{ item.candidate_name }}
                   </a>
                 </td>
@@ -1173,7 +1173,7 @@
                 <td>{{ item.qc_assigned_to_name }}</td>
                 <td>{{ item.updated_at.strftime('%d %b %H:%M') if item.updated_at else '' }}</td>
                 <td>
-                  <a href="{{ url_for('candidate_profile', cand_id=item.candidate_id) }}#vetting-checks" class="btn btn-sm btn-outline-primary" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;">
+                  <a href="{{ url_for('candidate_profile', cand_id=item.candidate_id) }}#sec-vetting" class="btn btn-sm btn-outline-primary" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;">
                     <i class="fas fa-arrow-right"></i>
                   </a>
                 </td>

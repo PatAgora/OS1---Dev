@@ -559,11 +559,25 @@
     </div>
   </div>
 
+  <!-- Section Icon Bar -->
+  <div class="d-flex flex-wrap gap-2 mb-3 py-2 px-3 rounded" style="background:#fff; border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-ai')" title="AI Summary"><i class="fas fa-robot me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">AI</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-docs')" title="Documents"><i class="fas fa-file-alt me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Docs</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-company')" title="Company Details"><i class="fas fa-building me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Company</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-secjob')" title="Secondary Job"><i class="fas fa-briefcase me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Sec. Job</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-decl')" title="Declarations"><i class="fas fa-clipboard-check me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Declarations</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-conduct')" title="Conduct Regs"><i class="fas fa-balance-scale me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Conduct</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-notes')" title="Notes"><i class="fas fa-sticky-note me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Notes</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-interview')" title="Interview"><i class="fas fa-comments me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Interview</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-vetting')" title="Vetting"><i class="fas fa-shield-alt me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">Vetting</span></button>
+    <button class="btn btn-sm btn-outline-primary" onclick="openSection('sec-refs')" title="References"><i class="fas fa-envelope me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">References</span></button>
+  </div>
+
   <div class="row g-4">
     <!-- Main Content -->
     <div class="col-12 col-lg-8">
       <!-- AI Summary Card -->
-      <div class="modern-card mb-4 fade-in-up stagger-2">
+      <div class="modern-card mb-4 fade-in-up stagger-2" id="sec-ai">
         <div class="card-body p-4">
           <div class="d-flex align-items-center justify-content-between mb-3">
             <div class="section-title mb-0">
@@ -608,7 +622,7 @@
       </div>
 
       <!-- Documents Card -->
-      <div class="modern-card fade-in-up stagger-2">
+      <div class="modern-card fade-in-up stagger-2" id="sec-docs">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -677,7 +691,7 @@
         </div>
       </div>
       <!-- Umbrella / Company Details Card -->
-      <div class="modern-card mt-4 fade-in-up stagger-2">
+      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-company">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -815,7 +829,7 @@
       </div>
 
       <!-- Secondary Job Declaration -->
-      <div class="modern-card mt-4 fade-in-up stagger-2">
+      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-secjob">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -854,7 +868,7 @@
       </div>
 
       <!-- Declarations & Consent Status -->
-      <div class="modern-card mt-4 fade-in-up stagger-2">
+      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-decl">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -972,7 +986,7 @@
       </div>
 
       <!-- Conduct Regulations 2003 -->
-      <div class="modern-card mt-4 fade-in-up stagger-2">
+      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-conduct">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -1017,7 +1031,7 @@
       </div>
 
       <!-- General Notes Card -->
-      <div class="modern-card mt-4 fade-in-up stagger-2">
+      <div class="modern-card mt-4 fade-in-up stagger-2" id="sec-notes">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -1067,7 +1081,7 @@
       </div>
 
       <!-- Interview Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-3" id="interview-section">
+      <div class="modern-card mt-4 fade-in-up stagger-3" id="sec-interview">
         <div class="card-body p-4">
           <div class="section-header">
             <div class="section-title">
@@ -1163,7 +1177,7 @@
       </div>
 
       <!-- Vetting Checks Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-4" id="vetting-checks">
+      <div class="modern-card mt-4 fade-in-up stagger-4" id="sec-vetting">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -1352,7 +1366,7 @@
       </div>
 
       <!-- Reference Requests Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-5" id="reference-requests">
+      <div class="modern-card mt-4 fade-in-up stagger-5" id="sec-refs">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -2617,22 +2631,24 @@ document.addEventListener('DOMContentLoaded', function() {
     window.history.replaceState({}, '', cleanUrl);
   }
   if (autoAction === 'start_vetting') {
-    setTimeout(function() { openVettingEmailModal(); }, 400);
+    setTimeout(function() { openSection('sec-vetting'); openVettingEmailModal(); }, 500);
   } else if (autoAction === 'start_referencing') {
-    setTimeout(function() { triggerReferencing({{ cand.id }}); }, 400);
+    setTimeout(function() { openSection('sec-refs'); triggerReferencing({{ cand.id }}); }, 500);
   } else if (autoAction === 'schedule_interview') {
     setTimeout(function() {
-      var section = document.getElementById('interview-section');
-      if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        section.style.boxShadow = '0 0 0 3px #3b82f6';
-        setTimeout(function() { section.style.boxShadow = ''; }, 3000);
-        var dateInput = section.querySelector('input[name="interview_date"]');
-        if (dateInput) dateInput.focus();
-      }
-    }, 400);
+      openSection('sec-interview');
+      setTimeout(function() {
+        var section = document.getElementById('sec-interview');
+        if (section) {
+          section.style.boxShadow = '0 0 0 3px #3b82f6';
+          setTimeout(function() { section.style.boxShadow = ''; }, 3000);
+          var dateInput = section.querySelector('input[name="interview_date"]');
+          if (dateInput) dateInput.focus();
+        }
+      }, 200);
+    }, 500);
   } else if (autoAction === 'send_interview_email') {
-    setTimeout(function() { openInterviewEmailModal(); }, 400);
+    setTimeout(function() { openSection('sec-interview'); openInterviewEmailModal(); }, 500);
   }
 });
 
@@ -2658,42 +2674,53 @@ function openInterviewEmailModal() {
   });
 }
 
-// Collapsible tiles — click section header/title to toggle content
+// Collapsible tiles — start collapsed, click header or icon bar to toggle
 document.addEventListener('DOMContentLoaded', function() {
   var mainCol = document.querySelector('.col-12.col-lg-8');
   if (!mainCol) return;
   mainCol.querySelectorAll('.modern-card').forEach(function(card) {
     var cardBody = card.querySelector('.card-body');
     if (!cardBody) return;
-    // Find the header row (section-header, section-title, or first d-flex)
     var header = cardBody.querySelector('.section-header') || cardBody.querySelector('.section-title')?.closest('.d-flex') || cardBody.querySelector('.d-flex');
     if (!header) return;
-    // Add chevron
     var chevron = document.createElement('i');
-    chevron.className = 'fas fa-chevron-up';
+    chevron.className = 'fas fa-chevron-down';
     chevron.style.cssText = 'color:#9ca3af; font-size:0.75rem; margin-left:auto; transition:transform 0.2s; flex-shrink:0;';
     header.style.cursor = 'pointer';
     header.appendChild(chevron);
-    // Collect all siblings after header inside card-body
     var contentEls = [];
     var sibling = header.nextElementSibling;
-    while (sibling) {
-      contentEls.push(sibling);
-      sibling = sibling.nextElementSibling;
-    }
+    while (sibling) { contentEls.push(sibling); sibling = sibling.nextElementSibling; }
+    contentEls.forEach(function(el) { el.style.display = 'none'; });
+    card._contentEls = contentEls;
+    card._chevron = chevron;
+    card._collapsed = true;
     header.addEventListener('click', function(e) {
       if (e.target.closest('select, input, button, a, form')) return;
-      var isCollapsed = chevron.style.transform === 'rotate(180deg)';
-      if (isCollapsed) {
-        contentEls.forEach(function(el) { el.style.display = ''; });
-        chevron.style.transform = '';
-      } else {
-        contentEls.forEach(function(el) { el.style.display = 'none'; });
-        chevron.style.transform = 'rotate(180deg)';
-      }
+      _toggleCard(card);
     });
   });
 });
+function _toggleCard(card) {
+  if (!card._contentEls) return;
+  if (card._collapsed) {
+    card._contentEls.forEach(function(el) { el.style.display = ''; });
+    card._chevron.className = 'fas fa-chevron-up';
+    card._chevron.style.cssText = 'color:#9ca3af; font-size:0.75rem; margin-left:auto; transition:transform 0.2s; flex-shrink:0;';
+    card._collapsed = false;
+  } else {
+    card._contentEls.forEach(function(el) { el.style.display = 'none'; });
+    card._chevron.className = 'fas fa-chevron-down';
+    card._chevron.style.cssText = 'color:#9ca3af; font-size:0.75rem; margin-left:auto; transition:transform 0.2s; flex-shrink:0;';
+    card._collapsed = true;
+  }
+}
+function openSection(id) {
+  var card = document.getElementById(id);
+  if (!card) return;
+  if (card._collapsed) _toggleCard(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>
 </div>
 {% endblock %}
