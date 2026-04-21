@@ -15280,56 +15280,79 @@ def api_vetting_sync_verifile(cand_id):
             return jsonify({"ok": False, "error": "No Verifile-linked checks found"}), 404
 
         screening_ref = checks[0].external_ref
+        # Strip VF prefix if present for API call
+        api_ref = screening_ref.lstrip("VF").lstrip("vf").strip()
         updated = 0
         try:
             headers = _verifile_headers()
-            # Try the screening order endpoint
-            resp = _req.get(f"{VERIFILE_BASE_URL}/orders/{screening_ref}", headers=headers, timeout=15)
-            print(f"[VERIFILE-SYNC] GET /orders/{screening_ref} -> {resp.status_code}", flush=True)
-            if resp.status_code == 404:
-                # Try alternate endpoint
-                resp = _req.get(f"{VERIFILE_BASE_URL}/screenings/{screening_ref}", headers=headers, timeout=15)
-                print(f"[VERIFILE-SYNC] GET /screenings/{screening_ref} -> {resp.status_code}", flush=True)
+            resp = _req.get(f"{VERIFILE_BASE_URL}/orders/{api_ref}", headers=headers, timeout=15)
+            print(f"[VERIFILE-SYNC] GET /orders/{api_ref} -> {resp.status_code}", flush=True)
             if resp.status_code != 200:
                 return jsonify({"ok": False, "error": f"Verifile API returned {resp.status_code}", "ref": screening_ref}), 502
             data = resp.json()
-            print(f"[VERIFILE-SYNC] Response keys: {list(data.keys()) if isinstance(data, dict) else type(data).__name__}", flush=True)
-            print(f"[VERIFILE-SYNC] Response (first 500): {json.dumps(data)[:500]}", flush=True)
+            print(f"[VERIFILE-SYNC] Response keys: {list(data.keys()) if isinstance(data, dict) else 'not dict'}", flush=True)
 
-            # Try to find status from various response shapes
-            raw_status = None
-            if isinstance(data, dict):
-                raw_status = data.get("status") or data.get("Status") or data.get("orderStatus") or data.get("screeningStatus")
-                # Check nested checks/results
-                if not raw_status:
-                    for key in ("checks", "screeningChecks", "results", "CheckResults"):
-                        items = data.get(key)
-                        if isinstance(items, list) and items:
-                            for item in items:
-                                item_status = item.get("status") or item.get("Status") or item.get("checkStatus") or ""
-                                item_type = item.get("checkType") or item.get("type") or item.get("name") or ""
-                                print(f"[VERIFILE-SYNC] Check: {item_type} = {item_status}", flush=True)
-                            # Use the first non-empty status
-                            raw_status = items[0].get("status") or items[0].get("Status") or items[0].get("checkStatus")
+            # Parse Verifile response: OrderState.StateDescription + Checks[].CheckState.StateDescription
+            order_status = ""
+            if isinstance(data.get("OrderState"), dict):
+                order_status = data["OrderState"].get("StateDescription", "")
+            print(f"[VERIFILE-SYNC] OrderState: {order_status}", flush=True)
+
+            vf_checks = data.get("Checks") or []
+            # Map Verifile check types to our check types
+            VF_TYPE_MAP = {
+                "ukrighttowor": "Right to Work", "ukrighttoworkdigitalconditional": "Right to Work",
+                "ukonlineidcheck": "Identity Verification", "identityverification": "Identity Verification",
+                "ukcriminalrecordcheck": "DBS Check", "dbscheck": "DBS Check", "dbs": "DBS Check",
+                "creditcheck": "Credit Check", "ukcreditcheck": "Credit Check",
+                "employmentcheck": "Employment History", "employmenthistory": "Employment History",
+                "referencecheck": "References", "references": "References",
+                "qualificationcheck": "Qualifications", "qualifications": "Qualifications",
+                "professionalregistration": "Professional Registration",
+                "directorshipcheck": "Directorship / Disqualification",
+                "sanctionscheck": "Sanctions / PEP", "sanctionspep": "Sanctions / PEP",
+                "socialmediacheck": "Social Media Review",
+                "addresscheck": "Address History", "addresshistory": "Address History",
+            }
+            status_map = {"completed": "Complete", "complete": "Complete", "passed": "Complete",
+                          "clear": "Complete", "green": "Complete",
+                          "failed": "Failed", "rejected": "Failed", "red": "Failed",
+                          "cancelled": "N/A",
+                          "inprogress": "In Progress", "in progress": "In Progress",
+                          "pending": "In Progress", "processing": "In Progress"}
+
+            vc_by_type = {vc.check_type: vc for vc in checks}
+
+            for vf_check in vf_checks:
+                vf_type_raw = (vf_check.get("CheckType") or "").lower().replace(" ", "").replace("_", "")
+                vf_state = ""
+                if isinstance(vf_check.get("CheckState"), dict):
+                    vf_state = vf_check["CheckState"].get("StateDescription", "")
+                vf_products = ", ".join(vf_check.get("ProductNames") or [])
+                print(f"[VERIFILE-SYNC] Check: {vf_type_raw} ({vf_products}) = {vf_state}", flush=True)
+
+                # Match to our check type
+                our_type = VF_TYPE_MAP.get(vf_type_raw)
+                if not our_type:
+                    for vf_key, our_val in VF_TYPE_MAP.items():
+                        if vf_key in vf_type_raw:
+                            our_type = our_val
                             break
 
-            if raw_status:
-                raw = str(raw_status).lower().strip()
-                raw_base = raw.split("-")[0].strip().split(" ")[0].strip()
-                status_map = {"complete": "Complete", "completed": "Complete", "passed": "Complete",
-                              "clear": "Complete", "green": "Complete", "failed": "Failed",
-                              "red": "Failed", "amber": "In Progress", "pending": "In Progress",
-                              "in_progress": "In Progress", "processing": "In Progress"}
-                verifile_result = raw.replace("-", " ").strip().title()
-                is_done = raw_base in ("complete", "completed", "passed", "clear", "green", "failed", "red")
-                for vc in checks:
-                    vc.verifile_result = verifile_result
+                if our_type and our_type in vc_by_type:
+                    vc = vc_by_type[our_type]
+                    raw = vf_state.lower().strip()
+                    raw_base = raw.split("-")[0].strip().split(" ")[0].strip()
+                    mapped = status_map.get(raw_base, status_map.get(raw, "In Progress"))
+                    vc.verifile_result = vf_state or "Unknown"
+                    is_done = raw_base in ("completed", "complete", "passed", "clear", "green", "failed", "red")
                     if is_done:
                         vc.verifile_confirmed = True
                         vc.verifile_confirmed_at = datetime.datetime.utcnow()
                     updated += 1
+
             s.commit()
-            return jsonify({"ok": True, "message": f"Synced {updated} checks from Verifile", "status": str(raw_status or "unknown"), "ref": screening_ref})
+            return jsonify({"ok": True, "message": f"Synced {updated} checks from Verifile", "order_status": order_status, "ref": screening_ref})
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 500
 
