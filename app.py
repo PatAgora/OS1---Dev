@@ -79,7 +79,17 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 SECRET_KEY   = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///ats.db")
 
-engine = create_engine(DATABASE_URL, future=True)
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+_engine_kwargs = {"future": True}
+if not _is_sqlite:
+    _engine_kwargs.update(
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_timeout=10,
+    )
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 Base = declarative_base()
 
 class RoleType(Base):
