@@ -16984,16 +16984,45 @@ def candidate_profile(cand_id: int):
         job = None
         job_open = False
         applied_on = None
-        docs = s.scalars(select(Document).where(Document.candidate_id == cand.id)).all()
+        docs = s.scalars(
+            select(Document)
+            .where(Document.candidate_id == cand.id)
+            .order_by(Document.uploaded_at.desc().nullslast())
+        ).all()
+
+        # Map slugified doc_types from the associate portal categories to the
+        # human-readable labels staff see on the tile. Anything unknown falls
+        # back to a title-cased version of the slug.
+        DOC_TYPE_LABELS = {
+            "proof_of_identity": "Proof of Identity",
+            "proof_of_address": "Proof of Address",
+            "right_to_work": "Right to Work",
+            "cv": "CV / Resume",
+            "cv_resume": "CV / Resume",
+            "qualifications": "Qualifications",
+            "other": "Other",
+            "gap_evidence": "Gap Evidence",
+            "expense_receipt": "Expense Receipt",
+            "consent_signed": "Signed Consent",
+            "signed_contract": "Signed Contract",
+            "verifile_report": "Verifile Report",
+            "reference_evidence": "Reference Evidence",
+            "hmrc_employment_record": "HMRC Employment Record",
+        }
 
         # Build documents_ctx inside session to avoid DetachedInstanceError
         documents_ctx = []
         for d in docs:
+            doc_type_raw = (getattr(d, 'doc_type', '') or '').lower()
             documents_ctx.append({
                 'id': d.id,
                 'name': getattr(d, 'original_name', None) or d.filename or 'Untitled',
                 'filename': d.filename,
-                'doc_type': getattr(d, 'doc_type', 'cv') or 'cv',
+                'doc_type': doc_type_raw or 'cv',
+                'doc_type_label': DOC_TYPE_LABELS.get(
+                    doc_type_raw,
+                    (doc_type_raw or 'Document').replace('_', ' ').title(),
+                ),
                 'ts': d.uploaded_at.strftime('%d %b %Y') if getattr(d, 'uploaded_at', None) else '',
             })
 

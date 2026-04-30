@@ -647,6 +647,9 @@
                     {% else %}
                       <span class="fw-semibold">{{ d.name }}</span>
                     {% endif %}
+                    {% if d.doc_type_label %}
+                      <span class="badge bg-light text-dark ms-1" style="font-size:0.65rem; font-weight:500;">{{ d.doc_type_label }}</span>
+                    {% endif %}
                     {% if d.ts %}
                       <span class="document-meta">· {{ d.ts }}</span>
                     {% endif %}
@@ -666,7 +669,7 @@
                 <i class="fas fa-file-upload"></i>
               </div>
               <div class="mb-2"><strong>No Documents</strong></div>
-              <div>Upload a CV below to get started.</div>
+              <div>Upload a CV below — or ask the associate to upload Proof of Identity, Address, Right to Work, Qualifications and other documents from their portal.</div>
             </div>
           {% endif %}
           
