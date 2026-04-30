@@ -1085,8 +1085,6 @@ def register():
     surname = _sanitise(request.form.get("surname", "")).strip()
     name = _sanitise(request.form.get("name", "")).strip() or f"{first_name} {surname}".strip()
     phone = _sanitise(request.form.get("phone", "")).strip()
-    contact_current_employer = request.form.get("current_employer_contact_ok", "").strip().lower()
-    contact_ok = True if contact_current_employer == "yes" else (False if contact_current_employer == "no" else None)
 
     if not email or not name:
         flash("Please provide your name and email address.", "danger")
@@ -1122,13 +1120,15 @@ def register():
             flash("Check your email to complete registration.", "success")
             return render_template("associate/auth_check_email.html", email=email)
 
+        # current_employer_contact_ok defaults at the column level (True);
+        # the per-employer Yes/No on the Employment History page now drives
+        # actual reference-contact behaviour.
         cand = Candidate(
             name=name,
             email=email,
             phone=phone,
             email_verified=False,
             source="associate-portal",
-            current_employer_contact_ok=contact_ok,
         )
         s.add(cand)
         s.commit()
@@ -1515,20 +1515,8 @@ def personal_details():
         contact_number = _sanitise(request.form.get("contact_number", "")).strip()
         if contact_number:
             cand.phone = contact_number
-        # Sync contact current employer to Candidate model
-        raw_contact = request.form.getlist("contact_current_employer")
-        contact_val = "1" in raw_contact
-        current_app.logger.info(f"[SAVE] contact_current_employer form values: {raw_contact}, resolved: {contact_val}")
-        cand.current_employer_contact_ok = contact_val
-        # Force via raw SQL
-        try:
-            s.execute(
-                text("UPDATE candidates SET current_employer_contact_ok = :val WHERE id = :cid"),
-                {"val": contact_val, "cid": cand_id}
-            )
-            current_app.logger.info(f"[SAVE] SQL UPDATE candidates SET current_employer_contact_ok = {contact_val} WHERE id = {cand_id}")
-        except Exception as sql_err:
-            current_app.logger.error(f"[SAVE] SQL UPDATE failed: {sql_err}")
+        # Reference-contact preference removed from Personal Details — captured
+        # per-employer on the Employment History page instead.
 
         # Update profile fields
         if profile:
@@ -1572,29 +1560,21 @@ def personal_details():
         _add_note(s, cand_id, "Personal details updated via Associate Portal.")
         try:
             s.commit()
-            current_app.logger.info(f"Personal details saved for candidate {cand_id}, contact_employer={cand.current_employer_contact_ok}")
-        except Exception as e:
+            current_app.logger.info(f"Personal details saved for candidate {cand_id}")
+        except Exception:
             s.rollback()
-            # Might be missing columns — try adding them
+            # Might be missing column on the profile — try to self-heal then
+            # retry the save.
             try:
                 eng = _engine()
                 with eng.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
                     for stmt in [
                         "ALTER TABLE associate_profiles ADD COLUMN most_recent_employer VARCHAR(300) DEFAULT ''",
-                        "ALTER TABLE associate_profiles ADD COLUMN contact_current_employer BOOLEAN DEFAULT TRUE",
                     ]:
                         try:
                             conn.execute(text(stmt))
                         except Exception:
                             pass
-                # Retry the save
-                with SASession(eng) as s2:
-                    cand2 = s2.get(Candidate, cand_id)
-                    if cand2:
-                        cand2.current_employer_contact_ok = request.form.get("contact_current_employer") == "1"
-                        s2.commit()
-                        flash("Personal details saved.", "success")
-                        return redirect(url_for("associate.personal_details"))
             except Exception:
                 pass
             current_app.logger.error(f"Personal details save failed for candidate {cand_id}: {e}")

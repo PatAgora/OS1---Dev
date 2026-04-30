@@ -46,17 +46,9 @@
             <input type="tel" id="phone" name="phone" placeholder="+44 7xxx xxx xxx" required>
         </div>
 
-        <div class="os-field">
-            <label>Are you happy for us to contact your current employer for a reference?</label>
-            <div style="margin-top: 0.75rem;">
-              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; margin-bottom:0.5rem; font-size:0.9rem;">
-                <input type="radio" name="current_employer_contact_ok" value="yes" style="width:18px; height:18px; margin:0;"> Yes
-              </label>
-              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem;">
-                <input type="radio" name="current_employer_contact_ok" value="no" style="width:18px; height:18px; margin:0;"> No
-              </label>
-            </div>
-        </div>
+        {# Reference-contact preference is now captured per-employer on the
+           Employment History page; removed from registration to avoid
+           putting people off before they've even signed up. #}
 
         <button type="submit" class="os-btn-primary">Create Account</button>
     </form>

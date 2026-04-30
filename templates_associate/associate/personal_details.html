@@ -199,19 +199,9 @@
         </div>
     </div>
 
-    <!-- Contact Current Employer -->
-    <div class="portal-card mb-4">
-        <div class="portal-card-body">
-            <div class="form-check">
-                <input type="hidden" name="contact_current_employer" value="0">
-                <input type="checkbox" class="form-check-input" id="contact_current_employer" name="contact_current_employer" value="1" {% if associate and associate.current_employer_contact_ok %}checked{% endif %}>
-                <label class="form-check-label" for="contact_current_employer">
-                    <strong>Can we contact your current employer for a reference?</strong>
-                </label>
-                <small class="d-block text-muted mt-1">If unchecked, we will not contact your current employer until you give permission.</small>
-            </div>
-        </div>
-    </div>
+    {# Reference-contact preference is now captured per-employer on the
+       Employment History page; removed from Personal Details so the
+       associate isn't asked twice up-front. #}
 
     <!-- NI Number & Gender -->
     <div class="portal-card mb-4">
