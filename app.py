@@ -5754,6 +5754,9 @@ class ESigRequest(Base):
     created_at = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     signing_url = Column(String(500), nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    end_reason = Column(String(50), nullable=True)
+    end_notes = Column(Text, nullable=True)
 
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
@@ -7010,6 +7013,9 @@ try:
             "ALTER TABLE esign_requests ADD COLUMN engagement_id INTEGER REFERENCES engagements(id)",
             "ALTER TABLE esign_requests ADD COLUMN signing_url VARCHAR(500)",
             "ALTER TABLE esign_requests ADD COLUMN end_date TIMESTAMP",
+            "ALTER TABLE esign_requests ADD COLUMN ended_at TIMESTAMP",
+            "ALTER TABLE esign_requests ADD COLUMN end_reason VARCHAR(50)",
+            "ALTER TABLE esign_requests ADD COLUMN end_notes TEXT",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -15732,6 +15738,109 @@ def action_contract_terminate(contract_id):
     flash("Contract terminated.", "warning")
     return redirect(request.referrer or url_for("resource_pool"))
 
+
+END_ASSIGNMENT_REASONS = {
+    "completed":         "Contract Completed",
+    "associate_resigned":"Associate Resigned",
+    "client_terminated": "Terminated by Client",
+    "optimus_terminated":"Terminated by Optimus",
+    "other":             "Other",
+}
+
+@app.route("/candidate/<int:cand_id>/end-assignment", methods=["POST"])
+@login_required
+def end_assignment(cand_id: int):
+    """End the candidate's currently active placement.
+    A candidate has at most one active contract at a time, so we operate on the
+    most-recent ESigRequest with a live signed/completed status and no ended_at.
+    """
+    end_date_str = (request.form.get("end_date") or "").strip()
+    reason_key   = (request.form.get("reason") or "").strip().lower()
+    end_notes    = (request.form.get("end_notes") or "").strip()
+
+    if not end_date_str:
+        flash("End date is required.", "danger")
+        return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+    if reason_key not in END_ASSIGNMENT_REASONS:
+        flash("Please choose a valid reason.", "danger")
+        return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+    try:
+        end_dt = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
+    except ValueError:
+        flash("End date must be a valid date.", "danger")
+        return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+    reason_label = END_ASSIGNMENT_REASONS[reason_key]
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        # Find the most-recent live placement that hasn't already been ended.
+        placement = s.scalar(
+            select(ESigRequest)
+            .where(ESigRequest.candidate_id == cand_id)
+            .where(func.lower(ESigRequest.status).in_(["signed", "completed", "sent"]))
+            .where(ESigRequest.ended_at.is_(None))
+            .order_by(ESigRequest.created_at.desc())
+        )
+
+        if not placement:
+            flash("No active assignment found to end.", "warning")
+            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+        old_status = cand.status or "Available"
+
+        placement.ended_at = end_dt
+        placement.end_reason = reason_label
+        placement.end_notes = end_notes
+        placement.status = "ended"
+
+        # Reason → candidate status mapping. Optimus-side terminations move the
+        # associate to DNU so they don't accidentally get re-engaged; everything
+        # else returns them to Available.
+        if reason_key == "optimus_terminated":
+            cand.status = "DNU"
+        else:
+            cand.status = "Available"
+
+        cand.last_activity_at = datetime.datetime.utcnow()
+
+        note_content = (
+            f"Assignment ended on {end_dt.strftime('%d %b %Y')} — {reason_label}"
+            + (f": {end_notes}" if end_notes else "")
+            + f". Candidate status: '{old_status}' → '{cand.status}'."
+        )
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=getattr(current_user, "email", "staff") or "staff",
+            note_type="activity",
+            content=note_content,
+            created_at=datetime.datetime.utcnow(),
+        ))
+
+        s.commit()
+
+        try:
+            log_audit_event(
+                "update", "placement",
+                f"Assignment ended for {cand.name}: {reason_label}",
+                "esign_request", placement.id,
+                {
+                    "end_date": end_dt.isoformat(),
+                    "reason": reason_label,
+                    "old_candidate_status": old_status,
+                    "new_candidate_status": cand.status,
+                },
+            )
+        except Exception:
+            current_app.logger.exception("end_assignment audit log failed")
+
+    flash(f"Assignment ended ({reason_label}).", "success")
+    return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
 @app.route("/action/contract/update/<int:contract_id>", methods=["POST"])
 @login_required
 def action_contract_update(contract_id):
@@ -17769,6 +17878,7 @@ def candidate_profile(cand_id: int):
         declaration_record=declaration_record,
         emp_timeline=emp_timeline,
         contract_status=contract_status,
+        today_iso=datetime.date.today().isoformat(),
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
         required_vetting_checks=required_vetting_checks,
