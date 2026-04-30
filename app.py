@@ -16990,9 +16990,26 @@ def candidate_profile(cand_id: int):
             .order_by(Document.uploaded_at.desc().nullslast())
         ).all()
 
-        # Map slugified doc_types from the associate portal categories to the
-        # human-readable labels staff see on the tile. Anything unknown falls
-        # back to a title-cased version of the slug.
+        # The staff Documents tile mirrors the 6 categories on the associate
+        # portal Documents page (plus CV uploaded via /portal/upload-cv from
+        # the Personal Details page). Other doc_types belong to their own
+        # tiles and must NOT appear here:
+        #   - gap_evidence       -> Employment History timeline
+        #   - expense_receipt    -> Timesheet approvals
+        #   - consent_signed     -> Declarations / Consent tile
+        #   - signed_contract    -> Contract card
+        #   - verifile_report    -> Vetting Checks tile
+        #   - reference_evidence -> Reference Requests
+        #   - hmrc_*             -> Employment History timeline
+        PORTAL_DOC_TYPES = {
+            "proof_of_identity",
+            "proof_of_address",
+            "right_to_work",
+            "cv",
+            "cv_resume",
+            "qualifications",
+            "other",
+        }
         DOC_TYPE_LABELS = {
             "proof_of_identity": "Proof of Identity",
             "proof_of_address": "Proof of Address",
@@ -17001,27 +17018,26 @@ def candidate_profile(cand_id: int):
             "cv_resume": "CV / Resume",
             "qualifications": "Qualifications",
             "other": "Other",
-            "gap_evidence": "Gap Evidence",
-            "expense_receipt": "Expense Receipt",
-            "consent_signed": "Signed Consent",
-            "signed_contract": "Signed Contract",
-            "verifile_report": "Verifile Report",
-            "reference_evidence": "Reference Evidence",
-            "hmrc_employment_record": "HMRC Employment Record",
         }
 
-        # Build documents_ctx inside session to avoid DetachedInstanceError
+        # Build documents_ctx inside session to avoid DetachedInstanceError.
+        # Legacy docs with NULL / empty doc_type are treated as CV uploads
+        # (the historical default before the column existed) so they still
+        # surface in this tile.
         documents_ctx = []
         for d in docs:
             doc_type_raw = (getattr(d, 'doc_type', '') or '').lower()
+            doc_type_norm = doc_type_raw or 'cv'
+            if doc_type_norm not in PORTAL_DOC_TYPES:
+                continue
             documents_ctx.append({
                 'id': d.id,
                 'name': getattr(d, 'original_name', None) or d.filename or 'Untitled',
                 'filename': d.filename,
-                'doc_type': doc_type_raw or 'cv',
+                'doc_type': doc_type_norm,
                 'doc_type_label': DOC_TYPE_LABELS.get(
-                    doc_type_raw,
-                    (doc_type_raw or 'Document').replace('_', ' ').title(),
+                    doc_type_norm,
+                    doc_type_norm.replace('_', ' ').title(),
                 ),
                 'ts': d.uploaded_at.strftime('%d %b %Y') if getattr(d, 'uploaded_at', None) else '',
             })
