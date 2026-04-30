@@ -783,6 +783,7 @@ def job_apply_post(job_id: int):
         if not job or (job.status or "Open") != "Open":
             flash("Job not found or not open", "warning")
             return redirect(url_for("public.jobs_index"))
+        job_title_for_flash = job.title or "this role"
 
         cand = s.get(Candidate, user_id)
         if not cand:
@@ -1016,6 +1017,19 @@ def job_apply_post(job_id: int):
             run_cv_scoring(app_id)
     except Exception:
         current_app.logger.exception("run_cv_scoring failed for app_id=%s", app_id)
+
+    # If the applicant is signed in to the associate portal (which they
+    # should be — apply requires login), drop them on their portal Summary
+    # page with a confirmation flash. Stops people landing on the orphan
+    # "thanks" page and wondering what to do next.
+    associate_user_id = session.get("associate_user_id")
+    if associate_user_id:
+        flash(
+            f"Your application for {job_title_for_flash} has been submitted ✓ — "
+            "we'll be in touch shortly.",
+            "success",
+        )
+        return redirect(url_for("associate.dashboard"))
 
     return redirect(url_for("public.apply_done", job_id=job_id, app_id=app_id))
 
