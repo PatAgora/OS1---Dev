@@ -79,7 +79,7 @@
             <hr>
             <div style="font-size: 14px; line-height: 1.8; color: var(--color-gray-700);">
                 {% if job.description %}
-                {{ job.description|safe }}
+                {{ job.description|md|safe }}
                 {% else %}
                 <p class="text-muted">No description provided.</p>
                 {% endif %}
@@ -92,7 +92,7 @@
             <h3><i class="fas fa-list-check me-2"></i> Requirements</h3>
             <hr>
             <div style="font-size: 14px; line-height: 1.8; color: var(--color-gray-700);">
-                {{ job.requirements|safe }}
+                {{ job.requirements|md|safe }}
             </div>
         </div>
         {% endif %}

@@ -381,7 +381,7 @@
                         Job Description
                     </h2>
                     <div class="job-description">
-                        {{ job.description|safe if job.description else 'No description provided.' }}
+                        {% if job.description %}{{ job.description|md|safe }}{% else %}No description provided.{% endif %}
                     </div>
                 </div>
                 

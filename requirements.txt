@@ -40,3 +40,6 @@ openpyxl==3.1.5
 pdfplumber==0.11.4
 python-docx==1.1.2
 PyPDF2==3.0.1
+
+# Markdown rendering for job descriptions in the public/associate-portal vacancy view
+markdown==3.6

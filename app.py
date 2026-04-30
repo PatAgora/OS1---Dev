@@ -8679,6 +8679,40 @@ def from_json_safe(value):
     except (json.JSONDecodeError, TypeError):
         return []
 
+
+@app.template_filter("md")
+def render_markdown(value: str) -> str:
+    """Render Markdown to bleach-sanitised HTML. Used for job descriptions
+    so that bullets / headings / numbered lists carry through to the
+    candidate-facing vacancy view instead of collapsing into one paragraph.
+    Falls back to a paragraph-wrapped escaped version if markdown isn't
+    importable (so the page never 500s)."""
+    if not value:
+        return ""
+    try:
+        import markdown as _md
+        html = _md.markdown(
+            value,
+            extensions=["extra", "sane_lists", "nl2br"],
+            output_format="html5",
+        )
+    except Exception:
+        from markupsafe import escape as _esc
+        return f"<p>{_esc(value).replace(chr(10), '<br>')}</p>"
+    try:
+        import bleach as _bleach
+        allowed_tags = list(_bleach.sanitizer.ALLOWED_TAGS) + [
+            "p", "br", "h1", "h2", "h3", "h4", "h5", "h6",
+            "ul", "ol", "li", "strong", "em", "code", "pre",
+            "blockquote", "hr", "table", "thead", "tbody",
+            "tr", "th", "td",
+        ]
+        allowed_attrs = {"a": ["href", "title", "rel", "target"]}
+        html = _bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs, strip=True)
+    except Exception:
+        pass
+    return html
+
 def slugify_role(name: str) -> str:
     s = (name or "").lower().replace(" ", "_")
     return re.sub(r"[^a-z0-9_]", "", s)

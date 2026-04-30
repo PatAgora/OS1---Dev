@@ -20,7 +20,10 @@
       </div>
       <div class="col-12">
         <label class="form-label fw-semibold">Description</label>
-        <textarea name="description" class="form-control" rows="6">{{ job.description if job else '' }}</textarea>
+        <textarea name="description" class="form-control" rows="8">{{ job.description if job else '' }}</textarea>
+        <small class="form-text text-muted">
+          Markdown supported — use <code>-</code> or <code>*</code> for bullets, <code>**bold**</code>, and <code>## Heading</code>. Bullets and structure carry through to the candidate view.
+        </small>
       </div>
       <div class="col-md-4">
         <label class="form-label fw-semibold">Location</label>

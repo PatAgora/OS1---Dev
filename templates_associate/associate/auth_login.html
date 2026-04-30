@@ -21,8 +21,17 @@
         {% endif %}
     {% endwith %}
 
-    <form method="POST" action="/portal/login">
+    {% set _next = next or request.args.get('next', '') %}
+    <form method="POST" action="/portal/login{% if _next %}?next={{ _next|urlencode }}{% endif %}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if _next %}<input type="hidden" name="next" value="{{ _next }}">{% endif %}
+
+        {% if _next and 'apply' in _next %}
+        <div class="os-alert os-alert-info" style="margin-bottom: 1rem;">
+            <i class="fas fa-info-circle"></i>
+            Sign in or create an account to complete your application.
+        </div>
+        {% endif %}
 
         <div class="os-field">
             <label for="email">Email Address *</label>

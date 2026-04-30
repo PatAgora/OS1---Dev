@@ -460,6 +460,59 @@ def _get_associate_id() -> Optional[int]:
     return session.get("associate_user_id")
 
 
+def _next_vetting_stage_url(cand_id: Optional[int]) -> str:
+    """Return the URL of the next outstanding vetting stage for the associate.
+    Used to auto-advance them after a successful stage submission so they're
+    not stuck on the page they just completed.
+
+    Order: Personal Details → Company Details → Consent → Declaration →
+    Secondary Job → Employment Reference Declaration → Documents.
+    Returns /portal/vetting-progress when everything is done so the user
+    sees their overall progress.
+    """
+    fallback = url_for("associate.vetting_progress")
+    if not cand_id:
+        return fallback
+
+    Candidate = _model("Candidate")
+    ConsentRecord = _portal_model("ConsentRecord")
+    DeclarationRecord = _portal_model("DeclarationRecord")
+    if not Candidate:
+        return fallback
+
+    try:
+        with SASession(_engine()) as s:
+            cand = s.get(Candidate, cand_id)
+            if not cand:
+                return fallback
+
+            consent_signed = False
+            if ConsentRecord:
+                rec = s.query(ConsentRecord).filter_by(candidate_id=cand_id).first()
+                consent_signed = bool(rec and getattr(rec, "consent_given", False))
+
+            declaration_signed = False
+            if DeclarationRecord:
+                rec = s.query(DeclarationRecord).filter_by(candidate_id=cand_id).first()
+                declaration_signed = bool(rec and getattr(rec, "signed_date", None))
+
+            secondary_signed = bool(getattr(cand, "secondary_job_declaration_signed", False))
+            emp_ref_signed = bool(getattr(cand, "employment_ref_declaration_signed", False))
+
+        if not consent_signed:
+            return url_for("associate.consent_form")
+        if not declaration_signed:
+            return url_for("associate.declaration_form")
+        if not secondary_signed:
+            return url_for("associate.secondary_job_declaration")
+        if not emp_ref_signed:
+            return url_for("associate.references_employment")
+        return fallback
+    except Exception:
+        current_app.logger.exception("_next_vetting_stage_url failed")
+        return fallback
+
+
 def _get_current_associate():
     """Return the Candidate object for the logged-in associate, or None."""
     cid = _get_associate_id()
@@ -2122,8 +2175,8 @@ def consent_form():
 
                 s.commit()
 
-                flash("Signed consent form uploaded successfully.", "success")
-                return redirect(url_for("associate.dashboard"))
+                flash("Signed consent form uploaded ✓ — moving you to the next stage.", "success")
+                return redirect(_next_vetting_stage_url(cand_id))
 
             # Original digital consent flow — legal_name auto-set from candidate
             Candidate = _model("Candidate")
@@ -2150,8 +2203,8 @@ def consent_form():
 
             s.commit()
 
-        flash("Consent form submitted successfully.", "success")
-        return redirect(url_for("associate.dashboard"))
+        flash("Consent form signed ✓ — moving you to the next stage.", "success")
+        return redirect(_next_vetting_stage_url(cand_id))
 
     except Exception:
         current_app.logger.exception("Error saving consent form for candidate %s.", cand_id)
@@ -2192,7 +2245,8 @@ def consent_mark_signed():
                 "(Signable widget manual confirmation).",
             )
             s.commit()
-        flash("Consent form marked as signed. Thank you.", "success")
+        flash("Consent form marked as signed ✓ — moving you to the next stage.", "success")
+        return redirect(_next_vetting_stage_url(cand_id))
     except Exception:
         current_app.logger.exception(
             "consent_mark_signed failed for candidate %s", cand_id
@@ -2231,7 +2285,8 @@ def declaration_mark_signed():
                 "(Signable widget manual confirmation).",
             )
             s.commit()
-        flash("Declaration form marked as signed. Thank you.", "success")
+        flash("Declaration form marked as signed ✓ — moving you to the next stage.", "success")
+        return redirect(_next_vetting_stage_url(cand_id))
     except Exception:
         current_app.logger.exception(
             "declaration_mark_signed failed for candidate %s", cand_id
@@ -2266,7 +2321,8 @@ def secondary_job_mark_signed():
                 "(Signable widget manual confirmation).",
             )
             s.commit()
-        flash("Secondary Job Declaration marked as signed. Thank you.", "success")
+        flash("Secondary Job Declaration marked as signed ✓ — moving you to the next stage.", "success")
+        return redirect(_next_vetting_stage_url(cand_id))
     except Exception:
         current_app.logger.exception(
             "secondary_job_mark_signed failed for candidate %s", cand_id
@@ -2566,8 +2622,8 @@ def declaration_form():
 
         s.commit()
 
-    flash("Declaration form submitted successfully.", "success")
-    return redirect(url_for("associate.dashboard"))
+    flash("Declaration form signed ✓ — moving you to the next stage.", "success")
+    return redirect(_next_vetting_stage_url(cand_id))
 
 
 @associate_bp.route("/intro-to-vetting")
@@ -2763,8 +2819,8 @@ def secondary_job_declaration():
                 _add_note(s, cand_id, "Secondary Job Declaration confirmed via portal.")
                 s.commit()
 
-            flash("Secondary Job Declaration submitted successfully.", "success")
-            return redirect(url_for("associate.secondary_job_declaration"))
+            flash("Secondary Job Declaration signed ✓ — moving you to the next stage.", "success")
+            return redirect(_next_vetting_stage_url(cand_id))
         except Exception:
             current_app.logger.exception("Error saving secondary job declaration for candidate %s.", cand_id)
             flash("An error occurred. Please try again.", "danger")
