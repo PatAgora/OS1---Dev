@@ -2926,6 +2926,20 @@ def references_gap_evidence_replace(entry_id: int):
             flash("Evidence can only be attached to gap entries.", "warning")
             return redirect(url_for("associate.references_employment"))
 
+        # Delete the previous file + Document row when replacing.
+        if entry.gap_evidence_doc_id and Document:
+            old = s.query(Document).filter_by(id=entry.gap_evidence_doc_id, candidate_id=cand_id).first()
+            if old:
+                old_path = _resolve_document_path(getattr(old, "filename", "") or "")
+                if old_path and os.path.isfile(old_path):
+                    try:
+                        os.remove(old_path)
+                    except OSError:
+                        current_app.logger.exception(
+                            "gap evidence replace: failed to delete prior file %s", old_path,
+                        )
+                s.delete(old)
+
         new_doc_id = None
         if Document:
             new_doc = Document(
@@ -2950,8 +2964,9 @@ def references_gap_evidence_replace(entry_id: int):
 @associate_bp.route("/references/gap-evidence/remove/<int:entry_id>", methods=["POST"])
 @_require_login
 def references_gap_evidence_remove(entry_id: int):
-    """Detach the evidence document from a gap entry (file row left in place)."""
+    """Fully delete the evidence document on a gap entry (file + DB row)."""
     EmploymentHistory = _portal_model("EmploymentHistory")
+    Document = _model("Document")
     engine = _engine()
     cand_id = _get_associate_id()
 
@@ -2968,11 +2983,30 @@ def references_gap_evidence_remove(entry_id: int):
             flash("Evidence can only be attached to gap entries.", "warning")
             return redirect(url_for("associate.references_employment"))
 
+        doc_id = entry.gap_evidence_doc_id
+        deleted_name = ""
+        if doc_id and Document:
+            doc = s.query(Document).filter_by(id=doc_id, candidate_id=cand_id).first()
+            if doc:
+                deleted_name = getattr(doc, "original_name", "") or getattr(doc, "filename", "")
+                filepath = _resolve_document_path(getattr(doc, "filename", "") or "")
+                if filepath and os.path.isfile(filepath):
+                    try:
+                        os.remove(filepath)
+                    except OSError:
+                        current_app.logger.exception(
+                            "gap evidence remove: failed to delete file %s", filepath,
+                        )
+                s.delete(doc)
+
         entry.gap_evidence_doc_id = None
-        _add_note(s, cand_id, "Gap evidence removed.")
+        _add_note(
+            s, cand_id,
+            f"Gap evidence deleted{(': ' + deleted_name) if deleted_name else ''}.",
+        )
         s.commit()
 
-    flash("Gap evidence removed.", "success")
+    flash("Gap evidence deleted.", "success")
     return redirect(url_for("associate.references_employment"))
 
 
@@ -4220,6 +4254,37 @@ def api_add_qualification():
     return jsonify({"success": True, "id": qual_id})
 
 
+def _resolve_document_path(filename: str) -> Optional[str]:
+    """Locate a stored associate document on disk, in priority order:
+    Railway persistent volume (/data), legacy static folder, UPLOAD_FOLDER.
+    Mirrors app._doc_file_path so the associate portal stays in sync.
+    """
+    if not filename:
+        return None
+
+    rel = filename
+    for prefix in ("uploads/associate_docs/", "uploads/cvs/", "uploads/"):
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+            break
+
+    candidates = []
+    if os.path.isdir("/data"):
+        candidates.append(os.path.join("/data", filename))
+        candidates.append(os.path.join("/data/uploads/associate_docs", rel))
+        candidates.append(os.path.join("/data/uploads/cvs", rel))
+
+    app_root = current_app.root_path
+    candidates.append(os.path.join(app_root, "static", filename))
+    candidates.append(os.path.join(app_root, "static", "uploads", "associate_docs", rel))
+    candidates.append(os.path.join(app_root, "static", "uploads", "cvs", rel))
+
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
 @associate_bp.route("/api/download-document/<int:doc_id>")
 @_require_login
 def api_download_document(doc_id):
@@ -4235,8 +4300,12 @@ def api_download_document(doc_id):
         doc = s.query(Document).filter_by(id=doc_id, candidate_id=cand_id).first()
         if not doc:
             abort(404)
-        filepath = os.path.join(current_app.root_path, "static", doc.filename)
-        if not os.path.isfile(filepath):
+        filepath = _resolve_document_path(doc.filename or "")
+        if not filepath:
+            current_app.logger.warning(
+                "api_download_document: file not found on disk for doc_id=%s filename=%s",
+                doc_id, doc.filename,
+            )
             abort(404)
         download_name = getattr(doc, "original_name", None) or os.path.basename(doc.filename)
         return send_file(filepath, as_attachment=True, download_name=download_name)
