@@ -155,10 +155,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 continue;
             }
 
-            // Validate file type
-            var validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-            if (!validTypes.includes(file.type)) {
-                alert('File "' + file.name + '" is not a supported format. Please upload PDF, JPG, JPEG, or PNG files.');
+            // Validate file type. Accept by MIME OR by extension (browsers
+            // often report Office documents with an empty or oddball MIME).
+            var validMimes = [
+                'application/pdf',
+                'image/jpeg', 'image/jpg', 'image/png',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ];
+            var validExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg'];
+            var ext = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+            var mimeOk = file.type && validMimes.indexOf(file.type) !== -1;
+            var extOk = validExts.indexOf(ext) !== -1;
+            if (!mimeOk && !extOk) {
+                alert('File "' + file.name + '" is not a supported format. Please upload PDF, Word, Excel, JPG, JPEG, or PNG files.');
                 continue;
             }
 
