@@ -43,9 +43,9 @@
             <div class="upload-zone-content">
                 <i class="fas fa-cloud-upload-alt upload-icon"></i>
                 <p class="upload-text">Drag & drop files here or <span class="upload-browse">click to browse</span></p>
-                <p class="upload-hint">PDF, JPG, JPEG, PNG - Max 10MB</p>
+                <p class="upload-hint">PDF, Word, Excel, JPG, JPEG, PNG - Max 10MB</p>
             </div>
-            <input type="file" class="upload-input" id="file-{{ cat.key }}" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;">
+            <input type="file" class="upload-input" id="file-{{ cat.key }}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" multiple style="display: none;">
         </div>
 
         {% if cat.has_expiry %}

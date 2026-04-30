@@ -2122,11 +2122,15 @@ def consent_form():
                     )
                     s.add(new_doc)
 
-                # Create ConsentRecord for the manual upload
+                # Create ConsentRecord for the manual upload.
+                # The Reference Consent question was removed from the digital
+                # form (referencing permission is now captured per-employer on
+                # the Employment History page); default to True so downstream
+                # checks that read the flag don't regress.
                 consent = ConsentRecord(
                     candidate_id=cand_id,
                     consent_given=True,
-                    reference_consent=request.form.get("reference_consent") == "yes",
+                    reference_consent=True,
                     secondary_employment=request.form.get("has_secondary_employment") == "yes",
                     secondary_employment_details=_sanitise(request.form.get("secondary_employment_details", "")),
                     legal_name=_sanitise(request.form.get("legal_name", "Manual Upload")).strip() or "Manual Upload",
@@ -2151,7 +2155,10 @@ def consent_form():
             consent = ConsentRecord(
                 candidate_id=cand_id,
                 consent_given=True,  # signing the form implies consent
-                reference_consent=request.form.get("reference_consent") == "yes",
+                # Reference Consent question removed from the digital form
+                # (per-employer permissions cover this); default True so
+                # downstream gates don't regress.
+                reference_consent=True,
                 secondary_employment=request.form.get("has_secondary_employment") == "yes",
                 secondary_employment_details=_sanitise(request.form.get("secondary_employment_details", "")),
                 legal_name=legal_name,
@@ -3034,6 +3041,14 @@ def references_add_gap():
     evidence_doc_id = None
     evidence_file = request.files.get("evidence")
     if evidence_file and evidence_file.filename:
+        gap_allowed_ext = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg"}
+        ext = os.path.splitext(evidence_file.filename)[1].lower()
+        if ext not in gap_allowed_ext:
+            flash(
+                "Gap evidence must be one of: PDF, Word, Excel, PNG, JPG.",
+                "danger",
+            )
+            return redirect(url_for("associate.references_employment"))
         saved = _save_file(evidence_file)
         if saved:
             Document = _model("Document")
@@ -3875,7 +3890,7 @@ def api_upload_document():
     if not file or not file.filename:
         return jsonify({"error": "No file provided"}), 400
 
-    allowed = {"pdf", "doc", "docx", "jpg", "jpeg", "png"}
+    allowed = {"pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png"}
     ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
     if ext not in allowed:
         return jsonify({"error": f"File type .{ext} not allowed"}), 400

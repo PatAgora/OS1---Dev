@@ -26,7 +26,7 @@
 
         <div class="consent-text-readonly">
             <h5>Declaration of Consent</h5>
-            <p>I hereby provide all required permissions for Optimus Solutions to undertake all such searches that are deemed to be necessary, the output from which may be used in order to verify information that I have provided.</p>
+            <p>I hereby provide all required permissions for Optimus to undertake all such searches that are deemed to be necessary, the output from which may be used in order to verify information that I have provided.</p>
 
             <h6 class="mt-3">This consent covers:</h6>
             <ul>
@@ -43,13 +43,6 @@
 
             <h6 class="mt-3">Data Processing</h6>
             <p>I understand that my personal data will be processed in accordance with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018. My data will be stored securely and used solely for the purposes of vetting, compliance, and engagement management.</p>
-
-            <h6 class="mt-3">Reference Consent</h6>
-            {% if consent.reference_consent %}
-            <p><strong>Yes</strong> — Consent given to request references from previous employers.</p>
-            {% else %}
-            <p><strong>No</strong> — Consent not given to request references from previous employers.</p>
-            {% endif %}
 
             <h6 class="mt-3">Secondary Employment</h6>
             {% if consent.secondary_employment %}
@@ -146,7 +139,7 @@
         </div>
         <div class="portal-card-body">
             <div class="consent-text">
-                <p>By providing Optimus Solutions with your personal details, you agree to accept and be bound by the terms of our statement of fair processing. When you supply any personal data we have legal obligations towards you in the way we deal with your data:</p>
+                <p>By providing Optimus with your personal details, you agree to accept and be bound by the terms of our statement of fair processing. When you supply any personal data we have legal obligations towards you in the way we deal with your data:</p>
                 <ul>
                     <li>We hold your personal information on our systems for as long as needed to meet the service required and remove it in the event that the purpose has been met.</li>
                     <li>We will ensure that all personal information supplied is held securely, in accordance with the Data Protection Act 2018.</li>
@@ -162,26 +155,9 @@
         </div>
     </div>
 
-    <!-- Section 4: Reference Consent -->
-    <div class="portal-card mb-4">
-        <div class="portal-card-header">
-            <h3><i class="fas fa-user-check me-2"></i>Reference Consent</h3>
-        </div>
-        <div class="portal-card-body">
-            <p>Are you happy for us to request references from your previous employers?</p>
-            <div class="d-flex gap-4 mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="reference_consent" id="reference_consent_yes" value="yes" {% if reference_consent %}checked{% endif %} required>
-                    <label class="form-check-label" for="reference_consent_yes">Yes</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="reference_consent" id="reference_consent_no" value="no" {% if not reference_consent %}checked{% endif %}>
-                    <label class="form-check-label" for="reference_consent_no">No</label>
-                </div>
-            </div>
-            <small class="text-muted">This applies to all employment history entries. You can update this at any time by re-signing the consent form.</small>
-        </div>
-    </div>
+    {# Section 4 (Reference Consent) intentionally removed — referencing
+       permission is captured per-employer on the Employment History page and
+       on the signed Employment Reference Declaration. #}
 
     <!-- Section 6: Fraud Prevention -->
     <div class="portal-card mb-4">
@@ -191,7 +167,7 @@
         <div class="portal-card-body">
             <div class="consent-text">
                 <p>I understand that personal information I have provided will be shared with <strong>Cifas</strong> who will use it to prevent fraud, other unlawful or dishonest conduct, malpractice, and other seriously improper conduct. If any of these are detected, I could be refused certain services or employment.</p>
-                <p>My personal information will also be used to verify my identity. Further details of how my information will be used by Optimus Solutions and Cifas, and my data protection rights, can be obtained by contacting Optimus Solutions at <a href="mailto:compliance@optimussolutions.co.uk">compliance@optimussolutions.co.uk</a>.</p>
+                <p>My personal information will also be used to verify my identity. Further details of how my information will be used by Optimus and Cifas, and my data protection rights, can be obtained by contacting Optimus at <a href="mailto:compliance@optimussolutions.co.uk">compliance@optimussolutions.co.uk</a>.</p>
             </div>
         </div>
     </div>
