@@ -2848,11 +2848,13 @@ def employment_reference_declaration():
 def references_employment():
     """Employment history sub-page: timeline + add employment + add gap forms."""
     EmploymentHistory = _portal_model("EmploymentHistory")
+    Document = _model("Document")
     engine = _engine()
     cand_id = _get_associate_id()
 
     entries = []
     gaps = []
+    gap_evidence = {}  # entry_id -> {id, original_name, filename}
     with SASession(engine) as s:
         if EmploymentHistory:
             entries = s.query(EmploymentHistory).filter_by(candidate_id=cand_id).order_by(
@@ -2860,11 +2862,118 @@ def references_employment():
             ).all()
             gaps = _detect_gaps(entries)
 
+            if Document:
+                doc_ids = [
+                    e.gap_evidence_doc_id for e in entries
+                    if getattr(e, "is_gap", False) and getattr(e, "gap_evidence_doc_id", None)
+                ]
+                if doc_ids:
+                    docs = s.query(Document).filter(Document.id.in_(doc_ids)).all()
+                    docs_by_id = {d.id: d for d in docs}
+                    for e in entries:
+                        if getattr(e, "is_gap", False) and getattr(e, "gap_evidence_doc_id", None):
+                            d = docs_by_id.get(e.gap_evidence_doc_id)
+                            if d:
+                                gap_evidence[e.id] = {
+                                    "id": d.id,
+                                    "original_name": getattr(d, "original_name", "") or getattr(d, "filename", "") or "evidence",
+                                    "filename": getattr(d, "filename", ""),
+                                }
+
     return render_template(
         "associate/references_employment.html",
         employment_entries=entries,
         gaps_detected=gaps,
+        gap_evidence=gap_evidence,
     )
+
+
+@associate_bp.route("/references/gap-evidence/replace/<int:entry_id>", methods=["POST"])
+@_require_login
+def references_gap_evidence_replace(entry_id: int):
+    """Replace (or add) the evidence document on a gap entry."""
+    EmploymentHistory = _portal_model("EmploymentHistory")
+    Document = _model("Document")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not EmploymentHistory:
+        flash("Employment history not available.", "danger")
+        return redirect(url_for("associate.references_employment"))
+
+    new_file = request.files.get("evidence")
+    if not new_file or not new_file.filename:
+        flash("Please choose a file to upload.", "warning")
+        return redirect(url_for("associate.references_employment"))
+
+    gap_allowed_ext = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg"}
+    ext = os.path.splitext(new_file.filename)[1].lower()
+    if ext not in gap_allowed_ext:
+        flash("Gap evidence must be one of: PDF, Word, Excel, PNG, JPG.", "danger")
+        return redirect(url_for("associate.references_employment"))
+
+    saved = _save_file(new_file)
+    if not saved:
+        flash("Could not save the uploaded file. Please try again.", "danger")
+        return redirect(url_for("associate.references_employment"))
+
+    with SASession(engine) as s:
+        entry = s.query(EmploymentHistory).filter_by(id=entry_id, candidate_id=cand_id).first()
+        if not entry:
+            flash("Gap entry not found.", "danger")
+            return redirect(url_for("associate.references_employment"))
+        if not getattr(entry, "is_gap", False):
+            flash("Evidence can only be attached to gap entries.", "warning")
+            return redirect(url_for("associate.references_employment"))
+
+        new_doc_id = None
+        if Document:
+            new_doc = Document(
+                candidate_id=cand_id,
+                doc_type="gap_evidence",
+                filename=saved["filename"],
+                original_name=saved["original_name"],
+                uploaded_at=datetime.utcnow(),
+            )
+            s.add(new_doc)
+            s.flush()
+            new_doc_id = new_doc.id
+
+        entry.gap_evidence_doc_id = new_doc_id
+        _add_note(s, cand_id, f"Gap evidence uploaded: {saved['original_name']}.")
+        s.commit()
+
+    flash("Gap evidence updated.", "success")
+    return redirect(url_for("associate.references_employment"))
+
+
+@associate_bp.route("/references/gap-evidence/remove/<int:entry_id>", methods=["POST"])
+@_require_login
+def references_gap_evidence_remove(entry_id: int):
+    """Detach the evidence document from a gap entry (file row left in place)."""
+    EmploymentHistory = _portal_model("EmploymentHistory")
+    engine = _engine()
+    cand_id = _get_associate_id()
+
+    if not EmploymentHistory:
+        flash("Employment history not available.", "danger")
+        return redirect(url_for("associate.references_employment"))
+
+    with SASession(engine) as s:
+        entry = s.query(EmploymentHistory).filter_by(id=entry_id, candidate_id=cand_id).first()
+        if not entry:
+            flash("Gap entry not found.", "danger")
+            return redirect(url_for("associate.references_employment"))
+        if not getattr(entry, "is_gap", False):
+            flash("Evidence can only be attached to gap entries.", "warning")
+            return redirect(url_for("associate.references_employment"))
+
+        entry.gap_evidence_doc_id = None
+        _add_note(s, cand_id, "Gap evidence removed.")
+        s.commit()
+
+    flash("Gap evidence removed.", "success")
+    return redirect(url_for("associate.references_employment"))
 
 
 @associate_bp.route("/references/vetting-checks", methods=["GET"])

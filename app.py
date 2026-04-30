@@ -17448,10 +17448,24 @@ def candidate_profile(cand_id: int):
         try:
             _emp_rows = s.execute(text(
                 "SELECT company_name, job_title, start_date, end_date, is_gap, gap_reason, "
-                "permission_to_request, permission_delay_reason "
+                "permission_to_request, permission_delay_reason, gap_evidence_doc_id "
                 "FROM employment_history WHERE candidate_id = :cid ORDER BY start_date DESC"
             ).bindparams(cid=cand_id)).all()
+
+            _gap_doc_ids = [int(r[8]) for r in _emp_rows if r[8]]
+            _gap_docs = {}
+            if _gap_doc_ids:
+                try:
+                    for d in s.scalars(select(Document).where(Document.id.in_(_gap_doc_ids))).all():
+                        _gap_docs[d.id] = {
+                            "id": d.id,
+                            "original_name": getattr(d, "original_name", "") or getattr(d, "filename", "") or "evidence",
+                        }
+                except Exception:
+                    pass
+
             for _er in _emp_rows:
+                ev = _gap_docs.get(int(_er[8])) if _er[8] else None
                 emp_timeline.append({
                     "company": _er[0] or "",
                     "role": _er[1] or "",
@@ -17461,6 +17475,7 @@ def candidate_profile(cand_id: int):
                     "gap_reason": _er[5] or "",
                     "can_contact": bool(_er[6]) if _er[6] is not None else True,
                     "no_contact_reason": _er[7] or "",
+                    "gap_evidence": ev,
                 })
         except Exception:
             pass

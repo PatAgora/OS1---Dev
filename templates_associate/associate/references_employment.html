@@ -100,6 +100,53 @@
                         <i class="fas fa-calendar me-1"></i>
                         {{ entry.start_date.strftime('%b %Y') if entry.start_date else 'N/A' }} - {{ entry.end_date.strftime('%b %Y') if entry.end_date else 'Present' }}
                     </p>
+
+                    {# Gap evidence — show the saved doc + Download/Remove/Replace, or a Upload form if none yet. #}
+                    {% if entry.is_gap %}
+                    {% set ev = gap_evidence.get(entry.id) if gap_evidence else None %}
+                    <div class="p-2 rounded mt-2 mb-2" style="background:#fffbeb; border:1px solid #fde68a; font-size:0.8rem;">
+                      {% if ev %}
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                          <div><i class="fas fa-paperclip me-1 text-muted"></i><strong>Evidence:</strong> {{ ev.original_name }}</div>
+                          <a href="/portal/api/download-document/{{ ev.id }}" class="btn btn-sm btn-outline-primary" title="Download evidence">
+                            <i class="fas fa-download"></i> Download
+                          </a>
+                          <form method="POST" action="{{ url_for('associate.references_gap_evidence_remove', entry_id=entry.id) }}"
+                                onsubmit="return confirm('Remove this evidence file?');" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove">
+                              <i class="fas fa-trash"></i> Remove
+                            </button>
+                          </form>
+                          <button type="button" class="btn btn-sm btn-outline-secondary"
+                                  onclick="document.getElementById('replaceForm{{ entry.id }}').style.display=document.getElementById('replaceForm{{ entry.id }}').style.display==='none'?'':'none';">
+                            <i class="fas fa-arrows-rotate"></i> Replace
+                          </button>
+                        </div>
+                        <form method="POST" action="{{ url_for('associate.references_gap_evidence_replace', entry_id=entry.id) }}"
+                              enctype="multipart/form-data" id="replaceForm{{ entry.id }}" style="display:none; margin-top:0.5rem;">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <div class="d-flex flex-wrap align-items-center gap-2">
+                            <input type="file" name="evidence" class="form-control form-control-sm" style="max-width:280px;"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                            <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-upload me-1"></i>Upload replacement</button>
+                          </div>
+                        </form>
+                      {% else %}
+                        <form method="POST" action="{{ url_for('associate.references_gap_evidence_replace', entry_id=entry.id) }}"
+                              enctype="multipart/form-data">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <div class="d-flex flex-wrap align-items-center gap-2">
+                            <div><i class="fas fa-paperclip me-1 text-muted"></i><strong>Evidence:</strong> <em>none uploaded</em></div>
+                            <input type="file" name="evidence" class="form-control form-control-sm" style="max-width:280px;"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                            <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-upload me-1"></i>Upload</button>
+                          </div>
+                        </form>
+                      {% endif %}
+                    </div>
+                    {% endif %}
+
                     {% if entry.agency_name is defined and entry.agency_name %}
                     <p class="text-muted mb-1"><small>Agency: {{ entry.agency_name }}</small></p>
                     {% endif %}
