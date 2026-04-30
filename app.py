@@ -5757,6 +5757,12 @@ class ESigRequest(Base):
     ended_at = Column(DateTime, nullable=True)
     end_reason = Column(String(50), nullable=True)
     end_notes = Column(Text, nullable=True)
+    # Snapshot of the candidate.umbrella_assignment_* flags captured at end
+    # so the "Previous Contract" tile can show the historical assignment state
+    # while the live flags are reset to leave the Contract card blank.
+    assignment_sent_at = Column(DateTime, nullable=True)
+    assignment_signed = Column(Boolean, default=False)
+    assignment_signed_at = Column(DateTime, nullable=True)
 
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
@@ -7016,6 +7022,9 @@ try:
             "ALTER TABLE esign_requests ADD COLUMN ended_at TIMESTAMP",
             "ALTER TABLE esign_requests ADD COLUMN end_reason VARCHAR(50)",
             "ALTER TABLE esign_requests ADD COLUMN end_notes TEXT",
+            "ALTER TABLE esign_requests ADD COLUMN assignment_sent_at TIMESTAMP",
+            "ALTER TABLE esign_requests ADD COLUMN assignment_signed BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE esign_requests ADD COLUMN assignment_signed_at TIMESTAMP",
         ]:
             try:
                 _mc.execute(text(_stmt))
@@ -15798,6 +15807,30 @@ def end_assignment(cand_id: int):
         placement.end_notes = end_notes
         placement.status = "ended"
 
+        # Snapshot the live umbrella_assignment_* flags onto the placement so
+        # the Previous Contract tile can still show the historical assignment
+        # state, then clear the live flags so the Contract card renders blank.
+        placement.assignment_sent_at   = getattr(cand, "umbrella_assignment_sent_at", None)
+        placement.assignment_signed    = bool(getattr(cand, "umbrella_assignment_signed", False))
+        placement.assignment_signed_at = getattr(cand, "umbrella_assignment_signed_at", None)
+
+        if hasattr(cand, "umbrella_assignment_sent"):
+            cand.umbrella_assignment_sent = False
+        if hasattr(cand, "umbrella_assignment_sent_at"):
+            cand.umbrella_assignment_sent_at = None
+        if hasattr(cand, "umbrella_assignment_signed"):
+            cand.umbrella_assignment_signed = False
+        if hasattr(cand, "umbrella_assignment_signed_at"):
+            cand.umbrella_assignment_signed_at = None
+
+        # Close the application tied to the ended placement so the Contract
+        # card stops rendering "Applied For" / Offer banners for it. A new
+        # application (post-rehire) will surface naturally as latest_app.
+        if placement.application_id:
+            ended_app = s.get(Application, placement.application_id)
+            if ended_app:
+                ended_app.status = "Closed"
+
         # Reason → candidate status mapping. Optimus-side terminations move the
         # associate to DNU so they don't accidentally get re-engaged; everything
         # else returns them to Available.
@@ -17484,16 +17517,53 @@ def candidate_profile(cand_id: int):
             pass
 
         # === Contract Status ===
+        # Only the most recent NON-ended ESigRequest drives the live Contract
+        # card. Ended placements are surfaced separately via previous_placement
+        # so the Contract card can reset to "no contract" once an assignment
+        # has been ended.
         contract_status = None
         esig_request = None
         try:
             esig_request = s.scalar(
                 select(ESigRequest)
                 .where(ESigRequest.candidate_id == cand_id)
+                .where(ESigRequest.ended_at.is_(None))
+                .where(func.lower(ESigRequest.status) != "ended")
                 .order_by(ESigRequest.created_at.desc())
             )
             if esig_request:
                 contract_status = esig_request.status
+        except Exception:
+            pass
+
+        # === Previous Contract (most recent ended placement) ===
+        previous_placement = None
+        try:
+            row = s.execute(
+                select(ESigRequest, Job, Engagement)
+                .select_from(ESigRequest)
+                .outerjoin(Application, Application.id == ESigRequest.application_id)
+                .outerjoin(Job, Job.id == Application.job_id)
+                .outerjoin(Engagement, Engagement.id == ESigRequest.engagement_id)
+                .where(ESigRequest.candidate_id == cand_id)
+                .where(ESigRequest.ended_at.isnot(None))
+                .order_by(ESigRequest.ended_at.desc())
+            ).first()
+            if row:
+                _esig, _job, _eng = row
+                previous_placement = {
+                    "id": _esig.id,
+                    "application_id": _esig.application_id,
+                    "client": (_eng.client if _eng else None),
+                    "engagement_name": (_eng.name if _eng else None),
+                    "role": (_job.title if _job else None),
+                    "ended_at": _esig.ended_at,
+                    "end_reason": _esig.end_reason,
+                    "end_notes": _esig.end_notes,
+                    "assignment_sent_at": _esig.assignment_sent_at,
+                    "assignment_signed": bool(_esig.assignment_signed),
+                    "assignment_signed_at": _esig.assignment_signed_at,
+                }
         except Exception:
             pass
         
@@ -17878,6 +17948,7 @@ def candidate_profile(cand_id: int):
         declaration_record=declaration_record,
         emp_timeline=emp_timeline,
         contract_status=contract_status,
+        previous_placement=previous_placement,
         today_iso=datetime.date.today().isoformat(),
         active_apps_count=active_apps_count,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
