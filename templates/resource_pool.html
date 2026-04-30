@@ -646,9 +646,9 @@
                   <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
                   <option value="On Contract" {{ 'selected' if request.args.get('associate_status') == 'On Contract' else '' }}>On Contract</option>
                   <option value="On Notice" {{ 'selected' if request.args.get('associate_status') == 'On Notice' else '' }}>On Notice</option>
+                  <option value="5" {{ 'selected' if request.args.get('associate_status') == '5' else '' }}>5</option>
                   <option value="Ex-Associate" {{ 'selected' if request.args.get('associate_status') == 'Ex-Associate' else '' }}>Ex-Associate</option>
                   <option value="Unavailable" {{ 'selected' if request.args.get('associate_status') == 'Unavailable' else '' }}>Unavailable</option>
-                  <option value="DNU" {{ 'selected' if request.args.get('associate_status') == 'DNU' else '' }}>DNU (Do Not Use)</option>
                   <option value="Do Not Contact" {{ 'selected' if request.args.get('associate_status') == 'Do Not Contact' else '' }}>Do Not Contact</option>
                 </select>
               </div>
@@ -1085,8 +1085,8 @@
                     <span class="badge bg-secondary">Ex-Associate</span>
                   {% elif cs == 'Unavailable' %}
                     <span class="badge bg-secondary">Unavailable</span>
-                  {% elif cs == 'DNU' or cs == 'Do Not Use' %}
-                    <span class="badge bg-danger">DNU</span>
+                  {% elif cs == '5' or cs == 'DNU' or cs == 'Do Not Use' %}
+                    <span class="badge bg-danger">5</span>
                   {% elif cs == 'Do Not Contact' %}
                     <span class="badge bg-danger">Do Not Contact</span>
                   {% elif cs == 'Available' %}

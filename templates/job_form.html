@@ -36,7 +36,7 @@
       <div class="col-md-4">
         <label class="form-label fw-semibold">Status</label>
         <select name="status" class="form-select">
-          {% for s in ['Open','Closed','On Hold','Withdrawn'] %}
+          {% for s in ['Open','Filled','On Hold','Cancelled'] %}
           <option value="{{ s }}" {{ 'selected' if job and job.status == s else '' }}>{{ s }}</option>
           {% endfor %}
         </select>

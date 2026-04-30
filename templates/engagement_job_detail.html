@@ -389,10 +389,10 @@
         <a class="btn btn-modern btn-modern-outline" href="{{ url_for('engagement_dashboard', eng_id=engagement.id) }}">
           <i class="fas fa-chart-line me-2"></i>Dashboard
         </a>
-        {% if (job.status or 'Open') != 'Withdrawn' %}
+        {% if (job.status or 'Open') != 'Cancelled' %}
         <form method="post" action="{{ url_for('engagement_jobs_withdraw', eng_id=engagement.id, job_id=job.id) }}">
-          <button class="btn btn-modern btn-modern-danger" onclick="return confirm('Withdraw this job?')">
-            <i class="fas fa-times-circle me-2"></i>Withdraw
+          <button class="btn btn-modern btn-modern-danger" onclick="return confirm('Cancel this job?')">
+            <i class="fas fa-times-circle me-2"></i>Cancel
           </button>
         </form>
         {% endif %}

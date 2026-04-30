@@ -852,7 +852,7 @@
           <div class="mb-3">
             <div class="d-flex align-items-center gap-2 mb-2">
               {% set status = cand.status or 'Available' %}
-              <span class="badge {% if status == 'Available' %}bg-success{% elif status == 'On Contract' %}bg-info{% elif status == 'On Assignment' %}bg-primary{% elif status == 'On Notice' %}bg-warning text-dark{% elif status == 'Ex-Associate' %}bg-secondary{% elif status == 'Unavailable' %}bg-purple{% elif status == 'DNU' %}bg-danger{% elif status == 'Do Not Contact' %}bg-danger{% else %}bg-light text-dark{% endif %}" style="{% if status == 'Unavailable' %}background-color: #a855f7 !important;{% endif %}">
+              <span class="badge {% if status == 'Available' %}bg-success{% elif status == 'On Contract' %}bg-info{% elif status == 'On Assignment' %}bg-primary{% elif status == 'On Notice' %}bg-warning text-dark{% elif status == 'Ex-Associate' %}bg-secondary{% elif status == 'Unavailable' %}bg-purple{% elif status in ('5', 'DNU') %}bg-danger{% elif status == 'Do Not Contact' %}bg-danger{% else %}bg-light text-dark{% endif %}" style="{% if status == 'Unavailable' %}background-color: #a855f7 !important;{% endif %}">
                 {{ status }}
               </span>
               {% if cand.security_clearance %}
@@ -943,9 +943,9 @@
                 <option value="On Contract" {{ 'selected' if cand.status == 'On Contract' else '' }}>On Contract</option>
                 <option value="On Assignment" {{ 'selected' if cand.status == 'On Assignment' else '' }}>On Assignment</option>
                 <option value="On Notice" {{ 'selected' if cand.status == 'On Notice' else '' }}>On Notice</option>
+                <option value="5" {{ 'selected' if cand.status == '5' else '' }}>5</option>
                 <option value="Ex-Associate" {{ 'selected' if cand.status == 'Ex-Associate' else '' }}>Ex-Associate</option>
                 <option value="Unavailable" {{ 'selected' if cand.status == 'Unavailable' else '' }}>Unavailable</option>
-                <option value="DNU" {{ 'selected' if cand.status == 'DNU' else '' }}>DNU (Do Not Use)</option>
                 <option value="Do Not Contact" {{ 'selected' if cand.status == 'Do Not Contact' else '' }}>Do Not Contact</option>
               </select>
             </div>

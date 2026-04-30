@@ -506,7 +506,7 @@
             {% elif status in ('On Notice',) %}bg-warning text-dark
             {% elif status in ('Ex-Associate',) %}bg-secondary
             {% elif status == 'Unavailable' %}bg-purple
-            {% elif status in ('DNU', 'Do Not Use', 'Do Not Contact') %}bg-danger
+            {% elif status in ('5', 'DNU', 'Do Not Use', 'Do Not Contact') %}bg-danger
             {% elif status in ('Interviewing', 'I&A', 'Client Review') %}bg-warning text-dark
             {% elif status in ('Pipeline', 'Shortlist', 'Shortlisted') %}bg-info
             {% elif status in ('Offered', 'Accepted') %}bg-success
@@ -1690,23 +1690,23 @@
                     onclick="setStatus('On Contract')" data-status="On Contract">
                 <i class="fas fa-file-signature me-1"></i> On Contract
               </span>
-              <span class="status-option on-notice {% if current_status == 'On Notice' %}active{% endif %}" 
+              <span class="status-option on-notice {% if current_status == 'On Notice' %}active{% endif %}"
                     onclick="setStatus('On Notice')" data-status="On Notice">
                 <i class="fas fa-clock me-1"></i> On Notice
               </span>
-              <span class="status-option ex-associate {% if current_status == 'Ex-Associate' %}active{% endif %}" 
+              <span class="status-option dnu {% if current_status == '5' %}active{% endif %}"
+                    onclick="setStatus('5')" data-status="5">
+                <i class="fas fa-ban me-1"></i> 5
+              </span>
+              <span class="status-option ex-associate {% if current_status == 'Ex-Associate' %}active{% endif %}"
                     onclick="setStatus('Ex-Associate')" data-status="Ex-Associate">
                 <i class="fas fa-user-clock me-1"></i> Ex-Associate
               </span>
-              <span class="status-option unavailable {% if current_status == 'Unavailable' %}active{% endif %}" 
+              <span class="status-option unavailable {% if current_status == 'Unavailable' %}active{% endif %}"
                     onclick="setStatus('Unavailable')" data-status="Unavailable">
                 <i class="fas fa-user-slash me-1"></i> Unavailable
               </span>
-              <span class="status-option dnu {% if current_status == 'DNU' %}active{% endif %}" 
-                    onclick="setStatus('DNU')" data-status="DNU">
-                <i class="fas fa-ban me-1"></i> DNU
-              </span>
-              <span class="status-option do-not-contact {% if current_status == 'Do Not Contact' %}active{% endif %}" 
+              <span class="status-option do-not-contact {% if current_status == 'Do Not Contact' %}active{% endif %}"
                     onclick="setStatus('Do Not Contact')" data-status="Do Not Contact">
                 <i class="fas fa-phone-slash me-1"></i> Do Not Contact
               </span>

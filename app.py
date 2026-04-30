@@ -7226,6 +7226,32 @@ try:
 except Exception:
     pass
 
+# Req 37 — rename legacy Job statuses to the new convention.
+# Closed → Filled, Withdrawn → Cancelled. UPDATE … WHERE is a no-op if no
+# rows match, so this is safe to leave running on every boot.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        for _old, _new in (("Closed", "Filled"), ("Withdrawn", "Cancelled")):
+            try:
+                _rc.execute(text(
+                    "UPDATE jobs SET status = :new WHERE status = :old"
+                ).bindparams(old=_old, new=_new))
+            except Exception:
+                pass
+except Exception:
+    pass
+
+# Req 45 — the "DNU" associate status label is being replaced with the
+# bare literal "5". One-time idempotent update to migrate legacy rows.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        try:
+            _rc.execute(text("UPDATE candidates SET status = '5' WHERE status = 'DNU'"))
+        except Exception:
+            pass
+except Exception:
+    pass
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
@@ -13177,7 +13203,7 @@ def candidate_update_status(cand_id):
     """Update candidate global status from profile page."""
     VALID_STATUSES = [
         "Available", "On Assignment", "On Contract", "On Notice",
-        "Ex-Associate", "Unavailable", "DNU", "Do Not Contact"
+        "5", "Ex-Associate", "Unavailable", "Do Not Contact"
     ]
     
     with Session(engine) as s:
@@ -15909,7 +15935,7 @@ def end_assignment(cand_id: int):
         # associate to DNU so they don't accidentally get re-engaged; everything
         # else returns them to Available.
         if reason_key == "optimus_terminated":
-            cand.status = "DNU"
+            cand.status = "5"
         else:
             cand.status = "Available"
 
@@ -17765,7 +17791,7 @@ def candidate_profile(cand_id: int):
             pass
 
         # === Auto-link status to "On Assignment" if active signed placement exists ===
-        if placements_active and (cand.status or "Available") not in ("DNU", "Do Not Contact", "Do Not Use"):
+        if placements_active and (cand.status or "Available") not in ("5", "Do Not Contact", "Do Not Use", "DNU"):
             if cand.status != "On Assignment":
                 cand.status = "On Assignment"
                 s.commit()
@@ -20517,7 +20543,7 @@ def engagement_jobs_withdraw(eng_id: int, job_id: int):
         job = s.scalar(select(Job).where(Job.id == job_id, Job.engagement_id == eng_id))
         if not job: abort(404)
 
-        job.status = "Withdrawn"
+        job.status = "Cancelled"
         s.add(job)
 
         app_rows = s.execute(
@@ -24036,9 +24062,9 @@ def job_withdraw(job_id):
         if not job:
             abort(404)
 
-        # If already withdrawn, do nothing
-        was_withdrawn = (job.status or "").lower() == "withdrawn"
-        job.status = "Withdrawn"
+        # If already cancelled, do nothing
+        was_withdrawn = (job.status or "").lower() in ("withdrawn", "cancelled")
+        job.status = "Cancelled"
 
         # Find applications with NO Verifile vetting
         apps = s.execute(
