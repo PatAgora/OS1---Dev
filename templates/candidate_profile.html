@@ -2437,21 +2437,50 @@ function revertToApplied() {
 }
 
 function triggerReferencing(candidateId) {
+  // Req 30 — slow / 502 responses returned HTML, which JSON.parse threw
+  // on as "Unexpected token … is not valid JSON". Read the response body
+  // as text first, attempt to parse, and surface a clean banner on
+  // non-JSON / timeout cases instead of the raw error.
   if (!confirm('Start referencing for this associate?')) return;
+
+  var ctrl = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, 60000);  // 60s — covers Signable / Brevo round-trips
+
   fetch('/api/vetting/trigger-referencing/' + candidateId, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-CSRFToken': _csrfToken()
     },
-    credentials: 'same-origin'
+    credentials: 'same-origin',
+    signal: ctrl.signal
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    clearTimeout(timer);
+    var ct = r.headers.get('content-type') || '';
+    if (!r.ok || ct.indexOf('json') === -1) {
+      // Read the body for a useful message if possible, but don't try to JSON-parse.
+      return r.text().then(function(body) {
+        var msg = (r.status === 502 || r.status === 503 || r.status === 504)
+          ? 'Service temporarily unavailable while sending references. Please try again in a moment.'
+          : ('Failed (HTTP ' + r.status + '). Please try again.');
+        return { ok: false, error: msg };
+      });
+    }
+    return r.json();
+  })
   .then(function(data) {
-    if (data.ok) { alert(data.msg || 'Referencing started'); location.reload(); }
-    else { alert(data.error || 'Failed'); }
+    if (data && data.ok) { alert(data.msg || 'Referencing started'); location.reload(); }
+    else { alert((data && data.error) || 'Failed'); }
   })
-  .catch(function(e) { alert('Error: ' + e.message); });
+  .catch(function(e) {
+    clearTimeout(timer);
+    if (e && e.name === 'AbortError') {
+      alert('Referencing is taking longer than expected. The request may still complete in the background — refresh the page in a moment to check.');
+    } else {
+      alert('Error: ' + e.message);
+    }
+  });
 }
 
 function openVettingEmailModal() {

@@ -9727,6 +9727,20 @@ def opportunities_():
             s.add(opp)
             s.flush()  # now opp.id exists
 
+            # Req 20 — also write the typed notes into the OpportunityNote
+            # timeline so the edit page (which reads OpportunityNote rows,
+            # not the legacy opp.notes text field) shows what the user
+            # typed at create time.
+            initial_notes = (form.notes.data or "").strip()
+            if initial_notes:
+                s.add(OpportunityNote(
+                    opportunity_id=opp.id,
+                    user_email=getattr(current_user, "email", "staff") or "staff",
+                    content=initial_notes,
+                    note_type="note",
+                    created_at=datetime.datetime.utcnow(),
+                ))
+
             # if they immediately saved it as Closed Won, auto-create engagement
             if (opp.stage or "").strip().lower() == "closed won":
                 e = create_engagement_for_opportunity(s, opp)
@@ -14997,6 +15011,14 @@ def api_vetting_trigger_referencing(cand_id):
                     .order_by(EmpHistory.end_date.desc())
                 ).all()
                 for i, emp in enumerate(emp_rows):
+                    # Req 29 — gaps don't get reference requests. The gap
+                    # already has its own evidence trail (gap_evidence_doc_id
+                    # surfaced on the staff Employment History timeline) and
+                    # creating a row here just produced an unlabelled
+                    # "unknown" entry on the references list.
+                    if getattr(emp, "is_gap", False):
+                        continue
+
                     # Check if reference already exists for this employment
                     existing_ref = s.scalar(
                         select(ReferenceRequest)
@@ -15745,17 +15767,19 @@ def action_contract_issue(cand_id, eng_id):
         except ValueError:
             pass
 
-        # Create ESigRequest record
-        esig = ESigRequest(
-            application_id=appn.id if appn else None,
+        # Get or create ESigRequest. The placements view dedupes signed
+        # rows by application_id, so we never want two non-retracted
+        # ESigRequests for the same application — that would surface as
+        # duplicate placement rows on /placements (Req 19).
+        esig = _get_or_create_active_esig(
+            s,
             candidate_id=cand_id,
+            application_id=appn.id if appn else None,
             engagement_id=eng_id,
             provider="signable",
             status="pending",
-            created_at=datetime.datetime.utcnow(),
             end_date=end_dt,
         )
-        s.add(esig)
         s.flush()
 
         # Update application status
@@ -15839,6 +15863,81 @@ def action_contract_extend(contract_id):
     """Extend contract."""
     flash("Contract extended.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
+
+
+def _get_or_create_active_esig(
+    s,
+    *,
+    candidate_id,
+    application_id=None,
+    engagement_id=None,
+    status="pending",
+    provider=None,
+    end_date=None,
+    signed_at=None,
+    sent_at=None,
+    **_extra,  # tolerate legacy kwargs like signer_email; ignored silently
+):
+    """Req 19 — return the candidate's existing active ESigRequest, or
+    create a new one if none exists. "Active" = not Retracted and not
+    Ended (i.e. not yet replaced). This stops Issue Contract / Paystream
+    capture / Manual Placement creating sibling ESigRequest rows that
+    later both transition to 'signed' and surface as duplicate placement
+    rows on /placements.
+
+    Lookup priority:
+      1. (candidate_id, application_id) when application_id given
+      2. (candidate_id, engagement_id) when engagement_id given
+      3. candidate_id alone
+    """
+    BLOCKING_STATUSES = ("retracted", "ended")
+    base = (
+        select(ESigRequest)
+        .where(ESigRequest.candidate_id == candidate_id)
+        .where(func.lower(ESigRequest.status).notin_(BLOCKING_STATUSES))
+        .where(ESigRequest.ended_at.is_(None))
+        .order_by(ESigRequest.created_at.desc())
+    )
+
+    existing = None
+    if application_id is not None:
+        existing = s.scalars(base.where(ESigRequest.application_id == application_id)).first()
+    if not existing and engagement_id is not None:
+        existing = s.scalars(base.where(ESigRequest.engagement_id == engagement_id)).first()
+    if not existing:
+        existing = s.scalars(base).first()
+
+    if existing:
+        # Refresh the in-flight fields if the caller asked for new values.
+        if status:
+            existing.status = status
+        if provider:
+            existing.provider = provider
+        if application_id and not existing.application_id:
+            existing.application_id = application_id
+        if engagement_id and not existing.engagement_id:
+            existing.engagement_id = engagement_id
+        if end_date and not existing.end_date:
+            existing.end_date = end_date
+        if signed_at and not existing.signed_at:
+            existing.signed_at = signed_at
+        if sent_at and not existing.sent_at:
+            existing.sent_at = sent_at
+        return existing
+
+    new_esig = ESigRequest(
+        candidate_id=candidate_id,
+        application_id=application_id,
+        engagement_id=engagement_id,
+        provider=provider or "signable",
+        status=status,
+        created_at=datetime.datetime.utcnow(),
+        end_date=end_date,
+        signed_at=signed_at,
+        sent_at=sent_at,
+    )
+    s.add(new_esig)
+    return new_esig
 
 @app.route("/action/contract/terminate/<int:contract_id>", methods=["POST"])
 @login_required
@@ -18153,8 +18252,11 @@ def create_manual_placement(cand_id):
             flash("Candidate or engagement not found.", "error")
             return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
-        # Create an ESigRequest record to represent the manual placement
-        esig = ESigRequest(
+        # Get or create ESigRequest representing the manual placement
+        # (Req 19 — never duplicate active ESigRequests for the same
+        # candidate+engagement; the placements list joins on this row).
+        esig = _get_or_create_active_esig(
+            s,
             candidate_id=cand_id,
             engagement_id=engagement_id,
             provider="manual",
@@ -18162,7 +18264,6 @@ def create_manual_placement(cand_id):
             signer_email=cand.email or "",
             signed_at=datetime.datetime.utcnow(),
         )
-        s.add(esig)
 
         # Update candidate status
         cand.status = "On Assignment"
@@ -19366,14 +19467,13 @@ def issue_candidate_contract(cand_id: int):
         if not cand:
             abort(404)
         
-        # Create an ESigRequest
-        esig = ESigRequest(
+        # Get or create the active ESigRequest (Req 19 — never duplicate).
+        esig = _get_or_create_active_esig(
+            s,
             candidate_id=cand_id,
             engagement_id=int(engagement_id) if engagement_id else None,
             status="pending",
-            created_at=datetime.datetime.utcnow()
         )
-        s.add(esig)
         
         # GAP 7.2: Auto-update workflow when contract is issued
         # Find the most recent application for this candidate
