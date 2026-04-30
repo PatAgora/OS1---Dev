@@ -340,29 +340,110 @@
                 </tr>
                 <tr id="tsDetail{{ ts.id }}" class="hidden">
                     <td colspan="8" style="background:#f8fafc; padding:16px 24px;">
-                        {% if ts.entries %}
-                        <table class="table table-sm mb-2" style="font-size:0.8rem;">
-                            <thead><tr><th>Date</th><th>Type</th><th>Value</th></tr></thead>
-                            <tbody>
-                                {% for e in ts.entries %}
-                                <tr>
-                                    <td>{{ e.date }}</td>
-                                    <td>{{ e.time_type }}</td>
-                                    <td>{{ e.value }} {{ e.unit }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        {# Week grid — mirrors the associate portal layout. Only
+                           time-type rows that the associate actually entered
+                           are shown; OT Multiplier row only appears if any OT
+                           hours were submitted. #}
+                        {% if ts.week_days and ts.time_types_used %}
+                        <div style="overflow-x:auto;">
+                            <table class="table table-sm mb-2" style="font-size:0.8rem; min-width:600px;">
+                                <thead>
+                                    <tr style="background:#f1f5f9;">
+                                        <th style="min-width:140px;">Time Type</th>
+                                        {% for d in ts.week_days %}
+                                        <th style="text-align:center; min-width:64px;">{{ d.short }}<br><small class="text-muted">{{ d.dom }}</small></th>
+                                        {% endfor %}
+                                        <th style="text-align:center;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tt in ts.time_types_used %}
+                                    {% set is_ot = 'overtime' in tt|lower %}
+                                    {% set row_total = namespace(v=0) %}
+                                    <tr>
+                                        <td style="font-weight:600; white-space:nowrap;">{{ tt }}</td>
+                                        {% for d in ts.week_days %}
+                                            {% set v = ts.entries_grid.get((d.date, tt), 0) %}
+                                            {% if v %}{% set _ = row_total.__setattr__('v', row_total.v + v) %}{% endif %}
+                                            <td style="text-align:center;">
+                                                {% if v %}
+                                                    {% if is_ot %}{{ "%.1f"|format(v) }}h{% else %}{% if v == 0.5 %}½{% else %}{{ "%.0f"|format(v) }}{% endif %}{% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                        <td style="text-align:center; font-weight:600;">
+                                            {% if is_ot %}{{ "%.1f"|format(row_total.v) }}h{% else %}{{ "%.1f"|format(row_total.v) }}{% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if ts.has_ot and ts.ot_multipliers %}
+                                    <tr style="background:#fffbeb;">
+                                        <td style="font-weight:600; white-space:nowrap;">OT Multiplier</td>
+                                        {% for d in ts.week_days %}
+                                            {% set m = ts.ot_multipliers.get(d.date) %}
+                                            <td style="text-align:center;">
+                                                {% if m %}{{ m }}x{% else %}<span class="text-muted">—</span>{% endif %}
+                                            </td>
+                                        {% endfor %}
+                                        <td></td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background:#f8fafc;">
+                                        <td style="font-weight:700;">Totals</td>
+                                        <td colspan="{{ ts.week_days|length }}" style="text-align:right; font-weight:600;">
+                                            {{ "%.1f"|format(ts.total_days) }} day{{ 's' if ts.total_days != 1 }}
+                                            {% if ts.total_hours %} &middot; {{ "%.1f"|format(ts.total_hours) }} OT hours{% endif %}
+                                        </td>
+                                        <td style="text-align:center; font-weight:700; color:#059669;">&pound;{{ "%.2f"|format(ts.total_amount) }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        {% if ts.day_rate %}
+                        <div class="text-muted small mb-2">
+                            Day Rate: &pound;{{ "%.2f"|format(ts.day_rate) }}
+                            {% if ts.overtime_rate %} &middot; OT Rate: &pound;{{ "%.2f"|format(ts.overtime_rate) }}/h{% endif %}
+                        </div>
+                        {% endif %}
                         {% else %}
                         <p class="text-muted small mb-0">No time entries recorded.</p>
                         {% endif %}
+
                         {% if ts.expenses %}
-                        <div class="fw-semibold small mt-2 mb-1">Expenses</div>
+                        <div class="fw-semibold small mt-3 mb-1"><i class="fas fa-receipt me-1"></i>Expenses</div>
                         <table class="table table-sm mb-0" style="font-size:0.8rem;">
-                            <thead><tr><th>Type</th><th>Amount</th></tr></thead>
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th style="text-align:right;">Amount</th>
+                                    <th>Receipt</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 {% for exp in ts.expenses %}
-                                <tr><td>{{ exp.type }}</td><td>&pound;{{ "%.2f"|format(exp.amount) }}</td></tr>
+                                <tr>
+                                    <td>{{ exp.date or '—' }}</td>
+                                    <td>{{ exp.type }}</td>
+                                    <td>{{ exp.description or '—' }}</td>
+                                    <td style="text-align:right;">&pound;{{ "%.2f"|format(exp.amount) }}</td>
+                                    <td>
+                                        {% if exp.receipt_doc_id %}
+                                        <a href="{{ url_for('download_document', doc_id=exp.receipt_doc_id) }}"
+                                           class="btn btn-sm btn-outline-primary" style="font-size:0.7rem;"
+                                           title="{{ exp.receipt_original_name }}" target="_blank" rel="noopener">
+                                            <i class="fas fa-paperclip me-1"></i>{{ exp.receipt_original_name|truncate(20, True, '…') }}
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">No receipt</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>

@@ -1599,25 +1599,81 @@ def _admin_approvals_inner():
                 TSEntry = TSExpense = None
 
             for ts, cand in all_ts:
-                entries = []
+                # Build the week grid the same way the associate portal does
+                # so the approvals view mirrors what the associate submitted.
+                week_start = getattr(ts, "week_start", None) or (
+                    ts.period_start.date() if ts.period_start else None
+                )
+                week_days = []
+                if week_start:
+                    for i in range(7):
+                        d = week_start + datetime.timedelta(days=i)
+                        week_days.append({
+                            "date": d.strftime("%Y-%m-%d"),
+                            "short": d.strftime("%a"),
+                            "dom": d.strftime("%d"),
+                        })
+
+                # entries_grid[(YYYY-MM-DD, time_type)] = value
+                entries_grid = {}
+                ot_multipliers = {}  # YYYY-MM-DD -> multiplier (only days with OT)
+                time_types_used = []
                 if TSEntry:
                     try:
-                        for e in s.query(TSEntry).filter_by(timesheet_id=ts.id).order_by(TSEntry.entry_date).all():
-                            entries.append({
-                                "date": e.entry_date.strftime("%a %d/%m") if e.entry_date else "",
-                                "time_type": e.time_type or "",
-                                "value": f"{e.value:.1f}" if e.value else "0",
-                                "unit": e.value_unit or "days",
-                            })
+                        rows = s.query(TSEntry).filter_by(timesheet_id=ts.id).all()
+                        for e in rows:
+                            v = float(e.value or 0)
+                            if v <= 0:
+                                continue
+                            d_iso = e.entry_date.strftime("%Y-%m-%d") if e.entry_date else ""
+                            tt = e.time_type or ""
+                            if not d_iso or not tt:
+                                continue
+                            if tt == "OT Multiplier":
+                                ot_multipliers[d_iso] = v
+                            else:
+                                entries_grid[(d_iso, tt)] = v
+                                if tt not in time_types_used:
+                                    time_types_used.append(tt)
                     except Exception:
                         pass
+
+                # Sort time types in a sensible order: Standard Time first,
+                # then Overtime, then everything else as encountered.
+                preferred_order = ["Standard Time", "Overtime", "Holiday", "Sickness", "Unplanned Absence"]
+                time_types_used.sort(
+                    key=lambda t: preferred_order.index(t) if t in preferred_order else 999,
+                )
+
+                # Show OT Multiplier row only if there are OT hours on any day
+                has_ot = any("overtime" in tt.lower() for tt in time_types_used)
+
                 expenses = []
                 if TSExpense:
                     try:
                         for exp in s.query(TSExpense).filter_by(timesheet_id=ts.id).all():
+                            receipt_id = getattr(exp, "receipt_doc_id", None)
+                            receipt_name = ""
+                            if receipt_id:
+                                try:
+                                    rdoc = s.get(Document, receipt_id)
+                                    if rdoc:
+                                        receipt_name = (
+                                            getattr(rdoc, "original_name", "")
+                                            or os.path.basename(getattr(rdoc, "filename", "") or "")
+                                            or "receipt"
+                                        )
+                                except Exception:
+                                    pass
+                            exp_date = getattr(exp, "entry_date", None) or getattr(exp, "created_at", None)
                             expenses.append({
-                                "type": exp.expense_type or exp.description or "Other",
+                                "id": exp.id,
+                                "date": exp_date.strftime("%d/%m/%Y") if exp_date else "",
+                                "type": exp.expense_type or "Other",
+                                "description": getattr(exp, "description", "") or "",
                                 "amount": exp.amount or 0,
+                                "receipt_doc_id": receipt_id,
+                                "receipt_original_name": receipt_name,
                             })
                     except Exception:
                         pass
@@ -1632,9 +1688,15 @@ def _admin_approvals_inner():
                     "total_days": ts.billable_days or 0,
                     "total_hours": ts.billable_hours or 0,
                     "total_amount": ts.grand_total or ts.total_amount or 0,
+                    "day_rate": getattr(ts, "day_rate", 0) or 0,
+                    "overtime_rate": getattr(ts, "overtime_rate", 0) or 0,
                     "status": ts.status,
                     "submitted_at": ts.submitted_at.strftime("%d/%m/%Y %H:%M") if ts.submitted_at else "",
-                    "entries": entries,
+                    "week_days": week_days,
+                    "entries_grid": entries_grid,
+                    "ot_multipliers": ot_multipliers,
+                    "time_types_used": time_types_used,
+                    "has_ot": has_ot,
                     "expenses": expenses,
                 })
                 if ts.status == "Submitted":
