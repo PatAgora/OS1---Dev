@@ -3538,7 +3538,7 @@ def documents():
         return redirect(url_for("associate.documents"))
 
     # Validate extension
-    allowed = {"pdf", "doc", "docx", "jpg", "jpeg", "png"}
+    allowed = {"pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png"}
     ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
     if ext not in allowed:
         flash(f"File type .{ext} not allowed. Accepted: {', '.join(sorted(allowed))}.", "danger")
