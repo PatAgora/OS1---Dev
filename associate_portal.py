@@ -465,10 +465,11 @@ def _next_vetting_stage_url(cand_id: Optional[int]) -> str:
     Used to auto-advance them after a successful stage submission so they're
     not stuck on the page they just completed.
 
-    Order: Personal Details → Company Details → Consent → Declaration →
-    Secondary Job → Employment Reference Declaration → Documents.
-    Returns /portal/vetting-progress when everything is done so the user
-    sees their overall progress.
+    Order: Consent → Declaration → Secondary Job → Employment Reference
+    Declaration. The walk DELIBERATELY STOPS at the Employment Reference
+    Declaration — it does NOT chain on to /portal/documents. Once all four
+    stages are signed the helper returns /portal/vetting-progress so the
+    associate lands on the overview, not Documents.
     """
     fallback = url_for("associate.vetting_progress")
     if not cand_id:
