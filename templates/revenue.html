@@ -1093,7 +1093,12 @@
                     <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
                     <td class="number" style="color: {% if client.total_actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
                     <td class="number">
-                        {% set variance = client.total_actual_revenue - client.total_forecast_revenue %}
+                        {# Variance now compares Actual Margin against the
+                           CUMULATIVE forecast margin (forecast_margin time-
+                           pro-rated to elapsed weeks). Comparing against the
+                           full-project margin would always read red until
+                           the project completes. #}
+                        {% set variance = client.total_actual_margin - (client.total_cumulative_forecast_margin or 0) %}
                         <span style="color: {% if variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
                             £{{ "{:,.0f}".format(variance) }}
                         </span>
@@ -1206,7 +1211,9 @@
                         <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
                         <td class="number" style="color: {% if eng.actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
                         <td class="number">
-                            {% set eng_variance = eng.actual_revenue - eng.forecast_revenue %}
+                            {# Variance = Actual Margin − Cumulative Forecast
+                               Margin (time-pro-rated). See note above. #}
+                            {% set eng_variance = eng.actual_margin - (eng.cumulative_forecast_margin or 0) %}
                             <span style="color: {% if eng_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
                                 £{{ "{:,.0f}".format(eng_variance) }}
                             </span>

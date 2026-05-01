@@ -22556,6 +22556,7 @@ def revenue():
             # the sum of the per-week Forecast cells for elapsed weeks.
             weekly_breakdown = []
             cumulative_forecast = 0.0
+            cumulative_forecast_margin = 0.0
             eng_start_d = None
             eng_end_d = None
             today = now.date() if hasattr(now, "date") else now
@@ -22621,6 +22622,14 @@ def revenue():
                     # counted until it's complete.
                     elapsed_weeks = sum(1 for ws, we in weeks_iter if we <= today)
                     cumulative_forecast = per_week_forecast * elapsed_weeks
+                    # Cumulative forecast MARGIN — same time-pro-rated
+                    # treatment for the margin so the Variance column
+                    # below can compare actual_margin against the
+                    # margin-to-date instead of full lifetime margin.
+                    if len(weeks_iter):
+                        cumulative_forecast_margin = forecast_margin * (elapsed_weeks / len(weeks_iter))
+                    else:
+                        cumulative_forecast_margin = 0.0
             except Exception:
                 current_app.logger.exception("weekly breakdown failed for eng %s", eng.id)
 
@@ -22671,10 +22680,12 @@ def revenue():
                 "actual_cost": actual_cost,
                 "actual_margin": actual_margin,
                 "cumulative_forecast": cumulative_forecast,
+                "cumulative_forecast_margin": cumulative_forecast_margin,
                 "is_off_track": is_off_track,
                 "weekly_breakdown": weekly_breakdown,
             })
             client_data[client_name].setdefault("cumulative_forecast", 0)
+            client_data[client_name].setdefault("cumulative_forecast_margin", 0)
             client_data[client_name].setdefault("off_track_count", 0)
             client_data[client_name]["headcount"] += on_contract_count
             client_data[client_name]["forecast_revenue"] += forecast_revenue
@@ -22684,6 +22695,7 @@ def revenue():
             client_data[client_name]["actual_cost"] += actual_cost
             client_data[client_name]["actual_margin"] += actual_margin
             client_data[client_name]["cumulative_forecast"] += cumulative_forecast
+            client_data[client_name]["cumulative_forecast_margin"] += cumulative_forecast_margin
             if is_off_track:
                 client_data[client_name]["off_track_count"] += 1
         
@@ -22735,6 +22747,7 @@ def revenue():
             c.total_actual_cost = data.get("actual_cost", 0)
             c.total_actual_margin = data.get("actual_margin", 0)
             c.total_cumulative_forecast = data.get("cumulative_forecast", 0)
+            c.total_cumulative_forecast_margin = data.get("cumulative_forecast_margin", 0)
             c.off_track_count = data.get("off_track_count", 0)
             clients.append(c)
         
