@@ -13522,38 +13522,74 @@ def candidate_profile_update(cand_id):
 @app.route("/candidate/<int:cand_id>/update-status", methods=["POST"])
 @login_required
 def candidate_update_status(cand_id):
-    """Update candidate global status from profile page."""
+    """Update candidate global status from profile page.
+
+    Req 9 — when the status pill is set to "Interview Passed" or
+    "Interview Failed/No Show" we also propagate the outcome through
+    to the most-recent scheduled Application (sets
+    optimus_interview_result, advances the kanban). That stops the two
+    paths (status pill vs. Outcome dropdown) drifting out of sync,
+    which the user reported when ticking the pill.
+    """
     VALID_STATUSES = [
         "Available", "Interview Passed", "Interview Failed/No Show",
         "On Assignment", "On Contract", "On Notice",
         "5", "Ex-Associate", "Unavailable", "Do Not Contact"
     ]
-    
+
+    # Map pill status → outcome key for _apply_interview_outcome.
+    PILL_STATUS_TO_OUTCOME = {
+        "Interview Passed":         "pass",
+        "Interview Failed/No Show": "fail",
+    }
+
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             flash("Associate not found.", "danger")
             return redirect(request.referrer or url_for("resource_pool"))
-        
+
         status = request.form.get("status", "Available").strip()
-        if status in VALID_STATUSES:
-            old_status = cand.status or "Unknown"
-            cand.status = status
-            cand.last_activity_at = datetime.datetime.utcnow()
-            
-            # Add activity entry for status change (audit trail)
-            note = CandidateNote(
-                candidate_id=cand_id,
-                note_type="status",
-                content=f"Status changed from '{old_status}' to '{status}'",
-                created_at=datetime.datetime.utcnow()
-            )
-            s.add(note)
-            s.commit()
-            flash(f"Status updated to {status}.", "success")
-        else:
+        if status not in VALID_STATUSES:
             flash("Invalid status.", "warning")
-    
+            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+        old_status = cand.status or "Unknown"
+        cand.status = status
+        cand.last_activity_at = datetime.datetime.utcnow()
+
+        # If this is an interview-outcome status, find the most-recent
+        # interview-scheduled application and apply the same canonical
+        # transition the Outcome dropdown uses (optimus_interview_result,
+        # interview_completed_at, Application.status, audit log).
+        outcome_key = PILL_STATUS_TO_OUTCOME.get(status)
+        outcome_applied_msg = ""
+        if outcome_key:
+            target_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand_id)
+                .where(Application.interview_scheduled_at.isnot(None))
+                .order_by(Application.interview_scheduled_at.desc())
+            )
+            if target_app:
+                _apply_interview_outcome(s, target_app, outcome_key, source="status_pill")
+                outcome_applied_msg = (
+                    f" Outcome '{INTERVIEW_OUTCOMES[outcome_key]['result']}' "
+                    f"applied to the most recent interview; kanban moved to "
+                    f"'{INTERVIEW_OUTCOMES[outcome_key]['app_status']}'."
+                )
+
+        # Activity entry for the status pill itself
+        note = CandidateNote(
+            candidate_id=cand_id,
+            note_type="status",
+            content=f"Status changed from '{old_status}' to '{status}'",
+            created_at=datetime.datetime.utcnow()
+        )
+        s.add(note)
+        s.commit()
+        flash(f"Status updated to {status}.{outcome_applied_msg}", "success")
+
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
 @app.route("/candidate/<int:cand_id>/add-activity", methods=["POST"])
