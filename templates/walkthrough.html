@@ -239,6 +239,7 @@
       <div class="d-flex flex-wrap">
         <a href="#section-config"><i class="fas fa-cog"></i> Configuration</a>
         <a href="#section-staff"><i class="fas fa-user-tie"></i> Staff Operational Guide</a>
+        <a href="#section-revenue"><i class="fas fa-pound-sign"></i> Revenue Tab</a>
         <a href="#section-associate"><i class="fas fa-user"></i> Associate Operational Guide</a>
       </div>
     </div>
@@ -1181,6 +1182,180 @@
       </div>
     </div>
 
+  </div>
+
+
+  <!-- ============================================================ -->
+  <!-- SECTION: REVENUE TAB — what each column means + data source   -->
+  <!-- ============================================================ -->
+  <div id="section-revenue">
+    <div class="wt-section-header">
+      <div class="icon-circle" style="background: linear-gradient(135deg, #0e7490, #2563eb);">
+        <i class="fas fa-pound-sign"></i>
+      </div>
+      <div>
+        <h2>Revenue Tab</h2>
+        <p>What each column on <strong>/revenue</strong> represents and where the data comes from. Applies to both the Client Summary and the per-client engagement table.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R1</span>
+        <span class="wt-step-title"><i class="fas fa-chart-line me-2"></i>Forecast Rev</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Σ(charge_rate × planned_count) × working_days × 0.90</code></p>
+
+        <div class="wt-sub-heading">Data sources</div>
+        <ul>
+          <li><strong>charge_rate</strong> &mdash; from <strong>EngagementPlan</strong>, set per role on the engagement plan.</li>
+          <li><strong>planned_count</strong> &mdash; planned headcount per role on the same engagement plan.</li>
+          <li><strong>working_days</strong> &mdash; <code>(eng_end − eng_start) × 5/7</code> (calendar days converted to weekday-equivalents). Narrowed to the active filter window if Date From / Date To / Quarter / Month / Week is set.</li>
+          <li><strong>× 0.90</strong> &mdash; 10% shrinkage applied per Req 63 to allow for non-realised days (sickness, holiday, ramp-up, etc.).</li>
+        </ul>
+
+        <div class="wt-sub-heading">What it represents</div>
+        <p>The realistic revenue ceiling for the engagement over the selected window. Full planned headcount × charge rate × working days, minus 10%.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R2</span>
+        <span class="wt-step-title"><i class="fas fa-stopwatch me-2"></i>Cumulative Forecast</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Forecast Rev × (elapsed_days_in_window / total_days_in_window)</code></p>
+
+        <div class="wt-sub-heading">Data sources</div>
+        <ul>
+          <li><strong>Forecast Rev</strong> &mdash; the column to its left (already shrunk by 10%).</li>
+          <li><strong>total_days</strong> &mdash; <code>(eng_end − eng_start)</code> over the engagement window.</li>
+          <li><strong>elapsed_days</strong> &mdash; <code>(today − eng_start)</code>, capped at <code>eng_end</code> and floored at 0.</li>
+        </ul>
+
+        <div class="wt-sub-heading">What it represents</div>
+        <p>"Where we should be by today" &mdash; the slice of the full forecast that should already have been billed if delivery is on track. Lets you compare today's <strong>Actual Rev</strong> against today's expected position rather than against the full lifetime forecast.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R3</span>
+        <span class="wt-step-title"><i class="fas fa-cash-register me-2"></i>Actual Rev</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Σ(billable_days × day_rate) for every Approved Timesheet on the engagement, period-bounded</code></p>
+
+        <div class="wt-sub-heading">Data sources</div>
+        <ul>
+          <li><strong>Timesheet rows</strong> &mdash; only rows where <code>engagement_id = eng.id</code> AND <code>LOWER(status) = 'approved'</code>.</li>
+          <li>Optionally narrowed to <code>period_end ≥ filter_start</code> AND <code>period_start ≤ filter_end</code> when a date window is active.</li>
+          <li>For each row: <code>billable_days × day_rate</code> summed up.</li>
+        </ul>
+
+        <div class="wt-sub-heading">What it represents</div>
+        <p>Real money the client has been billed (or will be billed) based on what's actually been worked + approved.</p>
+
+        <div class="wt-sub-heading">Why an unstarted engagement reads £0</div>
+        <p>If no timesheets have been approved for that engagement yet (e.g. associate hasn't started), this column is <strong>£0</strong>. That's correct &mdash; before Req 63 this column was a random simulation, which is why an unstarted engagement could still show a number.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R4</span>
+        <span class="wt-step-title"><i class="fas fa-percent me-2"></i>Forecast Margin</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Forecast Rev − (Σ pay_rate × planned_count × working_days)</code></p>
+
+        <div class="wt-sub-heading">Data sources</div>
+        <ul>
+          <li><strong>Forecast Rev</strong> &mdash; already shrunk by 10%.</li>
+          <li><strong>forecast_cost</strong> = <code>Σ(EngagementPlan.pay_rate × EngagementPlan.planned_count) × working_days</code> &mdash; the daily pay you'd be paying associates if planned headcount were billing every day in the window.</li>
+        </ul>
+
+        <div class="wt-sub-heading">Note on shrinkage</div>
+        <p>Shrinkage is applied to the revenue side only &mdash; cost is on a "best case" full-headcount basis. So Forecast Margin reflects expected gross margin assuming the plan delivers fully.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R5</span>
+        <span class="wt-step-title"><i class="fas fa-coins me-2"></i>Actual Margin</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Actual Rev − (Actual Rev × cost_ratio)</code></p>
+        <p>where <code>cost_ratio = planned_daily_cost / planned_daily_revenue</code>.</p>
+
+        <div class="wt-sub-heading">Data sources</div>
+        <ul>
+          <li><strong>Actual Rev</strong> &mdash; from approved timesheets (R3 above).</li>
+          <li><strong>cost_ratio</strong> &mdash; derived from the engagement plan: <code>planned_daily_cost / planned_daily_revenue</code>. Since timesheets only carry <code>day_rate</code> (charge rate) and not the per-worker pay rate, we proportion the cost using the plan's overall cost-to-revenue ratio.</li>
+        </ul>
+
+        <div class="wt-sub-heading">Caveat</div>
+        <p>This is a <strong>proxy</strong> rather than a perfect figure &mdash; if an actual associate's pay rate differs from the plan's average, the apportioning will be slightly off. For exact margin we'd need to join Application/EngagementPlan to each timesheet to find the specific worker's pay rate.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-staff" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-staff">R6</span>
+        <span class="wt-step-title"><i class="fas fa-arrows-up-down me-2"></i>Variance</span>
+        <span class="wt-step-badge badge-staff">STAFF VIEW</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <div class="wt-sub-heading">Formula</div>
+        <p><code>Actual Rev − Forecast Rev</code> (computed in the template, not the backend).</p>
+
+        <div class="wt-sub-heading">What it represents</div>
+        <p>How far the engagement is over (positive, green) or under (negative, red) the full lifetime forecast.</p>
+
+        <div class="wt-sub-heading">Watch out</div>
+        <p>Not useful early in an engagement &mdash; Forecast Rev covers the entire window, not just elapsed time. Compare <strong>Actual Rev vs Cumulative Forecast</strong> for real-time progress against plan; use Variance only to assess delivery against the full lifetime forecast.</p>
+      </div>
+    </div>
+
+    <div class="wt-step border-config" onclick="toggleStep(this)">
+      <div class="wt-step-header">
+        <span class="wt-step-num num-config">R7</span>
+        <span class="wt-step-title"><i class="fas fa-database me-2"></i>Where it lives in code</span>
+        <span class="wt-step-badge badge-config">REFERENCE</span>
+        <i class="fas fa-chevron-down wt-step-chevron"></i>
+      </div>
+      <div class="wt-step-body">
+        <ul>
+          <li><strong>Per-engagement calculation:</strong> <code>app.py</code> &mdash; the loop building <code>client_data[client_name]["engagements"]</code> in the <code>/revenue</code> route.</li>
+          <li><strong>Per-client roll-up:</strong> the <code>+=</code> accumulators inside the same loop.</li>
+          <li><strong>Cumulative Forecast formula:</strong> inline in the same loop just before the per-engagement append.</li>
+          <li><strong>Actuals SQL:</strong> the approved-Timesheet query bounded by the same date filters.</li>
+          <li><strong>Header labels:</strong> <code>templates/revenue.html</code> &mdash; Client Summary table and per-client engagement table use identical column orders.</li>
+        </ul>
+
+        <div class="wt-sub-heading">Sanity check if numbers look off</div>
+        <p>Empty <strong>EngagementPlan</strong> rows produce £0 Forecast Rev (and therefore £0 cumulative + 0 margin). If a client reads zero across the board: check the engagement has at least one EngagementPlan row with <code>charge_rate</code> and <code>pay_rate</code> filled in.</p>
+      </div>
+    </div>
   </div>
 
 
