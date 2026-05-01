@@ -45,7 +45,7 @@
   <form method="POST" action="{{ url_for('paystream_capture', cand_id=cand.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <!-- Worker & Assignment Details (from Paystream template) -->
+    <!-- Worker & Assignment Details -->
     <div class="card mb-3">
       <div class="card-header fw-semibold">
         <i class="fas fa-user-tie me-1"></i> Worker &amp; Assignment Details
@@ -85,8 +85,8 @@
                    value="{{ captured.nature_of_work }}"
                    placeholder="e.g. Completion of KYC reviews and other adhoc KYC tasks">
             <div class="form-text">
-              One line describing the nature of the work — as per the
-              Paystream template ("Position and nature of the work").
+              One line describing the nature of the work
+              (matches the umbrella template's "Position and nature of the work" field).
             </div>
           </div>
 
@@ -111,7 +111,7 @@
 
           <!-- Fee / Rate (auto-populated, editable) -->
           <div class="col-md-4">
-            <label for="fee_display" class="form-label small">Fee (Agency to PayStream, ex VAT)</label>
+            <label for="fee_display" class="form-label small">Fee (Agency to Umbrella, ex VAT)</label>
             <input type="text" id="fee_display" name="fee_display"
                    class="form-control form-control-sm bg-success-subtle"
                    value="{{ captured.fee_display }}">
@@ -233,10 +233,10 @@
                    placeholder="e.g. 1 week">
           </div>
 
-          <!-- Notice period (PayStream) -->
+          <!-- Notice period (Umbrella) -->
           <div class="col-md-6">
             <label for="notice_paystream" class="form-label small">
-              Notice period (by PayStream, without cause) <span class="text-danger">*</span>
+              Notice period (by Umbrella, without cause) <span class="text-danger">*</span>
             </label>
             <input type="text" id="notice_paystream" name="notice_paystream"
                    class="form-control form-control-sm {% if not captured.notice_paystream %}bg-warning-subtle{% endif %}"
