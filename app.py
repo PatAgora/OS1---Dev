@@ -2702,53 +2702,29 @@ def mark_umbrella_assignment_signed(cand_id: int):
         if not cand:
             abort(404)
         was = getattr(cand, "umbrella_assignment_signed", None)
-        cand.umbrella_assignment_signed = (choice == "yes")
-        cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
 
         if choice == "yes":
-            # Update ESigRequest status to "signed"
-            esig = s.scalar(
-                select(ESigRequest)
-                .where(ESigRequest.candidate_id == cand_id)
-                .where(ESigRequest.status.notin_(["Retracted", "Signed", "Completed"]))
-                .order_by(ESigRequest.created_at.desc())
-            )
-            # Update Application status
-            latest_app = s.scalar(
-                select(Application)
-                .where(Application.candidate_id == cand_id)
-                .order_by(Application.created_at.desc())
-            )
-            if esig:
-                esig.status = "signed"
-                esig.signed_at = datetime.datetime.utcnow()
-                # Backfill application_id + engagement_id if missing
-                # (ESigRequests created before this logic was added
-                # may have NULLs, which breaks the placements query)
-                if not esig.application_id and latest_app:
-                    esig.application_id = latest_app.id
-                if not esig.engagement_id and latest_app:
-                    job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
-                    if job and job.engagement_id:
-                        esig.engagement_id = job.engagement_id
-            if latest_app and latest_app.status in ("Contract Issued", "Contract Sent", "sent"):
-                latest_app.status = "Placed"
-            # Update Candidate status — vetting done + contract signed = Active
-            if cand.status in ("In Vetting", "Contract Issued"):
-                cand.status = "Active"
-
-        user_email = getattr(current_user, "email", "staff") or "staff"
-        s.add(CandidateNote(
-            candidate_id=cand_id,
-            user_email=user_email,
-            note_type="activity",
-            content=(
-                f"Umbrella Assignment Schedule marked as "
-                f"{'SIGNED' if choice == 'yes' else 'NOT signed yet'} "
-                f"(was {'signed' if was else 'not signed' if was is False else 'not recorded'})."
-            ),
-            created_at=datetime.datetime.utcnow(),
-        ))
+            # Req 17 — Profile "Confirm signed" tick now routes through
+            # the same helper as the kanban "Confirm Contract Signed"
+            # tick so the kanban card moves to Placed, the candidate
+            # status becomes "On Assignment", the ESigRequest is flipped
+            # to "signed", and the audit log + CandidateNote both fire
+            # consistently.
+            _apply_contract_signed(s, cand, source="profile_confirm_signed")
+        else:
+            cand.umbrella_assignment_signed = False
+            cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
+            user_email = getattr(current_user, "email", "staff") or "staff"
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=user_email,
+                note_type="activity",
+                content=(
+                    f"Umbrella Assignment Schedule marked as NOT signed yet "
+                    f"(was {'signed' if was else 'not signed' if was is False else 'not recorded'})."
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
         s.commit()
     flash(
         f"Assignment Schedule recorded as {'signed' if choice == 'yes' else 'not signed yet'}.",
@@ -16470,75 +16446,106 @@ def action_contract_extend(contract_id):
     return redirect(request.referrer or url_for("resource_pool"))
 
 
+def _apply_contract_signed(s, cand, *, source: str = "manual"):
+    """Req 17 — canonical "contract signed" state transition. Both the
+    kanban "Confirm Contract Signed" tick AND the profile Assignment
+    Schedule "Confirm signed" button now go through this helper so
+    they're guaranteed to update every dependent field:
+
+      - ESigRequest.status = 'signed' (+ signed_at, application_id,
+        engagement_id) via _get_or_create_active_esig.
+      - Candidate.umbrella_assignment_signed = True (+ signed_at) so
+        the profile's "Awaiting Signature" panel flips to "Signed".
+      - Application.status = 'Placed' so the kanban card moves.
+      - Candidate.status = 'On Assignment' so the resource pool +
+        profile pill agree.
+      - CandidateNote activity + log_audit_event entry.
+
+    Returns the (esig, latest_app) it touched so the caller can reuse
+    them for an audit log.
+    """
+    cand_id = cand.id
+    esig = _get_or_create_active_esig(
+        s,
+        candidate_id=cand_id,
+        status="signed",
+        signed_at=datetime.datetime.utcnow(),
+    )
+    esig.status = "signed"
+    if not esig.signed_at:
+        esig.signed_at = datetime.datetime.utcnow()
+
+    latest_app = s.scalar(
+        select(Application)
+        .where(Application.candidate_id == cand_id)
+        .where(Application.status.notin_(["Rejected", "Withdrawn", "Closed"]))
+        .order_by(Application.created_at.desc())
+    )
+    if latest_app:
+        latest_app.status = "Placed"
+        if not esig.application_id:
+            esig.application_id = latest_app.id
+        if latest_app.job_id and not esig.engagement_id:
+            _job = s.get(Job, latest_app.job_id)
+            if _job and _job.engagement_id:
+                esig.engagement_id = _job.engagement_id
+
+    # Sync the umbrella assignment-signed flags on the candidate so the
+    # profile Assignment Schedule panel renders as "Signed" instead of
+    # "Awaiting Signature".
+    if hasattr(cand, "umbrella_assignment_signed"):
+        cand.umbrella_assignment_signed = True
+    if hasattr(cand, "umbrella_assignment_signed_at") and not getattr(cand, "umbrella_assignment_signed_at", None):
+        cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
+    # If the assignment was never marked sent (e.g. straight from kanban
+    # without going through the capture sheet), set the sent flags too
+    # so the panel doesn't render in an inconsistent state.
+    if hasattr(cand, "umbrella_assignment_sent") and not getattr(cand, "umbrella_assignment_sent", False):
+        cand.umbrella_assignment_sent = True
+    if hasattr(cand, "umbrella_assignment_sent_at") and not getattr(cand, "umbrella_assignment_sent_at", None):
+        cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
+
+    cand.status = "On Assignment"
+    cand.last_activity_at = datetime.datetime.utcnow()
+
+    s.add(CandidateNote(
+        candidate_id=cand_id,
+        user_email=getattr(current_user, "email", "staff") or "staff",
+        note_type="activity",
+        content=f"Contract confirmed signed — moved to Placed (source={source}).",
+        created_at=datetime.datetime.utcnow(),
+    ))
+
+    try:
+        log_audit_event(
+            "update", "contract",
+            f"Contract confirmed signed for {cand.name} (source={source})",
+            "candidate", cand_id,
+            {
+                "esig_id": esig.id,
+                "application_id": getattr(latest_app, "id", None),
+                "source": source,
+            },
+        )
+    except Exception:
+        current_app.logger.exception("contract-signed audit log failed")
+
+    return esig, latest_app
+
+
 @app.route("/candidate/<int:cand_id>/confirm-contract-signed", methods=["POST"])
 @login_required
 def confirm_contract_signed(cand_id: int):
-    """Req 17 — confirm the candidate's contract has been signed.
-    Updates the active ESigRequest, moves the application to 'Placed' on
-    the workflow kanban, sets cand.status='On Assignment', and writes a
-    CandidateNote activity entry. The placements list will pick the
-    placement up via the existing ESigRequest signed-status filter, and
-    the de-dup helper from Req 19 ensures we never end up with two
-    active ESigs for the same candidate.
-    """
+    """Req 17 — kanban "Confirm Contract Signed" tick. Routes through
+    the shared _apply_contract_signed helper so the same transition
+    runs as when the profile Assignment Schedule "Confirm signed"
+    button is clicked."""
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
-
-        # Find the candidate's active ESigRequest. If none exists yet
-        # (rare — Issue Contract should have created one), create a
-        # minimal record so /placements has something to join against.
-        esig = _get_or_create_active_esig(
-            s,
-            candidate_id=cand_id,
-            status="signed",
-            signed_at=datetime.datetime.utcnow(),
-        )
-        # Always overwrite to signed even if helper found an existing row
-        # in another in-flight state.
-        esig.status = "signed"
-        if not esig.signed_at:
-            esig.signed_at = datetime.datetime.utcnow()
-
-        # Find the most-recent application for this candidate that's not
-        # already past Placed; flip it to Placed so the kanban moves it.
-        latest_app = s.scalar(
-            select(Application)
-            .where(Application.candidate_id == cand_id)
-            .where(Application.status.notin_(["Rejected", "Withdrawn", "Closed"]))
-            .order_by(Application.created_at.desc())
-        )
-        if latest_app:
-            latest_app.status = "Placed"
-            if not esig.application_id:
-                esig.application_id = latest_app.id
-            if latest_app.job_id and not esig.engagement_id:
-                _job = s.get(Job, latest_app.job_id)
-                if _job and _job.engagement_id:
-                    esig.engagement_id = _job.engagement_id
-
-        cand.status = "On Assignment"
-        cand.last_activity_at = datetime.datetime.utcnow()
-
-        s.add(CandidateNote(
-            candidate_id=cand_id,
-            user_email=getattr(current_user, "email", "staff") or "staff",
-            note_type="activity",
-            content="Contract confirmed signed — moved to Placed.",
-            created_at=datetime.datetime.utcnow(),
-        ))
+        _apply_contract_signed(s, cand, source="kanban_confirm_signed")
         s.commit()
-
-        try:
-            log_audit_event(
-                "update", "contract",
-                f"Contract confirmed signed for {cand.name}",
-                "candidate", cand_id,
-                {"esig_id": esig.id, "application_id": getattr(latest_app, "id", None)},
-            )
-        except Exception:
-            current_app.logger.exception("confirm_contract_signed audit log failed")
 
     flash("Contract confirmed signed — moved to Placed.", "success")
     return redirect(request.referrer or url_for("workflow"))
