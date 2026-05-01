@@ -8576,6 +8576,34 @@ def send_email(
         try:
             return _send_via_m365_oauth(to_email, subject, html_body, attachments, from_email=from_email)
         except Exception as e:
+            err_text = str(e)
+            # Req 50 — M365 returns "5.2.252 SendAsDenied" when the
+            # authenticating mailbox (associates@) doesn't have
+            # "Send As" permission for the requested From-address
+            # (compliance@ etc.). Until the M365 admin grants Send-As
+            # in Exchange (Recipients → Mailboxes → <target> → Mailbox
+            # delegation → Send As → Add associates@), we automatically
+            # fall back to the default SMTP_FROM mailbox so the email
+            # still goes out. Log a clear warning so the missing
+            # permission is visible in Railway logs.
+            if from_email and from_email.lower() != (SMTP_FROM or "").lower() and (
+                "SendAsDenied" in err_text or "5.2.252" in err_text or "not allowed to send as" in err_text
+            ):
+                print(
+                    f"[M365] SendAsDenied for from_email={from_email!r}; "
+                    f"retrying as default mailbox {SMTP_FROM!r}. "
+                    f"Grant Send-As permission in Exchange admin to silence this fallback.",
+                    flush=True,
+                )
+                try:
+                    return _send_via_m365_oauth(
+                        to_email, subject, html_body, attachments,
+                        from_email=None,  # use SMTP_FROM
+                    )
+                except Exception as e2:
+                    err_text = str(e2)
+                    e = e2  # surface the inner error in the user-facing flash
+
             error_msg = f"M365 email failed for {to_email}: {e}"
             print(f"[M365] ERROR: {error_msg}")
             try:
