@@ -2817,7 +2817,18 @@ def schedule_interview(cand_id: int):
             flash("No application found for this candidate.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
         latest_app.interview_scheduled_at = scheduled_dt
-        if latest_app.status in ("Pipeline", "Shortlist", "I&A", "New", "Applied", "Screening"):
+        # Req 9 — scheduling an interview always advances the kanban to
+        # I&A unless the application is already PAST that stage (e.g. it
+        # has come back round to be re-interviewed after Client Review).
+        # Compares case-insensitively so "Shortlist" / "shortlist" both
+        # match. Past-I&A stages keep their existing column.
+        _past_ia = {
+            "client review", "interview completed", "offered", "accepted",
+            "ready to contract", "contract issued", "contract sent",
+            "contract signed", "placed", "on contract", "rejected",
+            "withdrawn", "closed", "ended", "hired",
+        }
+        if (latest_app.status or "").strip().lower() not in _past_ia:
             latest_app.status = "I&A"
 
         s.add(CandidateNote(
@@ -15058,9 +15069,17 @@ def action_schedule_interview(app_id):
         job_title = job.title or ""
         existing_event_id = getattr(appn, "interview_graph_event_id", None) or None
 
-        # GAP 1.2 FIX: Auto-trigger workflow status when interview is scheduled
+        # GAP 1.2 FIX: Auto-trigger workflow status when interview is scheduled.
+        # Req 9 — only advance to I&A if the application isn't already past it.
         appn.interview_scheduled_at = start
-        appn.status = "I&A"  # Interview & Assessment stage
+        _past_ia = {
+            "client review", "interview completed", "offered", "accepted",
+            "ready to contract", "contract issued", "contract sent",
+            "contract signed", "placed", "on contract", "rejected",
+            "withdrawn", "closed", "ended", "hired",
+        }
+        if (appn.status or "").strip().lower() not in _past_ia:
+            appn.status = "I&A"  # Interview & Assessment stage
 
         # Update candidate status to reflect interviewing state
         cand.status = "Interviewing"
