@@ -1091,7 +1091,7 @@
                     <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
                     <td class="number">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
                     <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
-                    <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
+                    <td class="number" style="color: {% if client.total_actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
                     <td class="number">
                         {% set variance = client.total_actual_revenue - client.total_forecast_revenue %}
                         <span style="color: {% if variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
@@ -1131,6 +1131,11 @@
                 <i class="fas fa-briefcase"></i>
                 {{ client.name }}
                 <span class="badge bg-secondary">{{ client.engagements|length }} engagement{{ 's' if client.engagements|length != 1 else '' }}</span>
+                {% if client.off_track_count and client.off_track_count > 0 %}
+                <span class="badge bg-danger ms-1" title="Engagements where actual revenue is >10% below the cumulative forecast">
+                  <i class="fas fa-flag me-1"></i>{{ client.off_track_count }} behind plan
+                </span>
+                {% endif %}
             </div>
             <div class="d-flex align-items-center gap-3">
                 <div class="client-summary">
@@ -1148,7 +1153,7 @@
                     </div>
                     <div class="metric">
                         <span class="metric-label">Margin</span>
-                        <span class="metric-value positive">£{{ "{:,.0f}".format(client.total_actual_margin) }}</span>
+                        <span class="metric-value {% if client.total_actual_margin < 0 %}negative{% else %}positive{% endif %}" style="{% if client.total_actual_margin < 0 %}color:#dc2626;{% endif %}">£{{ "{:,.0f}".format(client.total_actual_margin) }}</span>
                     </div>
                 </div>
                 <i class="fas fa-chevron-down toggle-icon"></i>
@@ -1199,14 +1204,54 @@
                         <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(eng.cumulative_forecast or 0) }}</td>
                         <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(eng.actual_revenue) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
-                        <td class="number">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
+                        <td class="number" style="color: {% if eng.actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
                         <td class="number">
                             {% set eng_variance = eng.actual_revenue - eng.forecast_revenue %}
                             <span style="color: {% if eng_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
                                 £{{ "{:,.0f}".format(eng_variance) }}
                             </span>
+                            {% if eng.is_off_track %}
+                            <span class="badge bg-danger ms-1" style="font-size:0.65rem;" title="Actual revenue is more than 10% below the cumulative forecast for this engagement.">
+                                <i class="fas fa-flag me-1"></i>Behind plan
+                            </span>
+                            {% endif %}
                         </td>
                     </tr>
+                    {% if eng.weekly_breakdown and eng.weekly_breakdown|length %}
+                    <tr>
+                        <td colspan="10" style="padding: 0;">
+                            <details style="background:#fafafa; padding:0.75rem 1rem; border-top:1px solid #f3f4f6;">
+                                <summary style="cursor:pointer; font-size:0.8rem; color:#374151; font-weight:600;">
+                                    <i class="fas fa-calendar-week me-1"></i>Weekly breakdown ({{ eng.weekly_breakdown|length }} week{{ 's' if eng.weekly_breakdown|length != 1 else '' }})
+                                </summary>
+                                <table class="table table-sm mt-2 mb-0" style="font-size:0.75rem;">
+                                    <thead style="background:#f1f5f9;">
+                                        <tr>
+                                            <th>Week</th>
+                                            <th class="number" title="Forecast Rev split evenly across weeks in window">Forecast</th>
+                                            <th class="number" title="Σ(billable_days × charge_rate) for approved timesheets in this week">Actual</th>
+                                            <th class="number">Variance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for w in eng.weekly_breakdown %}
+                                        <tr>
+                                            <td>{{ w.week_start.strftime('%d %b') }} – {{ w.week_end.strftime('%d %b %Y') }}</td>
+                                            <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(w.forecast) }}</td>
+                                            <td class="number" style="color:#16a34a;">£{{ "{:,.0f}".format(w.actual) }}</td>
+                                            <td class="number">
+                                                <span style="color: {% if w.variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
+                                                    £{{ "{:,.0f}".format(w.variance) }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </details>
+                        </td>
+                    </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
                 <tfoot>
@@ -1217,7 +1262,7 @@
                         <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
                         <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
-                        <td class="number">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
+                        <td class="number" style="color: {% if client.total_actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
                         <td class="number">
                             {% set client_variance = client.total_actual_revenue - client.total_forecast_revenue %}
                             <span style="color: {% if client_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">

@@ -22544,6 +22544,8 @@ def revenue():
             # portion of the engagement window so the column shows where
             # we should be vs the actual approved-timesheet figure.
             cumulative_forecast = 0.0
+            eng_start_d = None
+            eng_end_d = None
             if eng_start and eng_end and eng_end >= eng_start:
                 total_days = max(1, (eng_end - eng_start).days)
                 today = now.date() if hasattr(now, "date") else now
@@ -22558,6 +22560,73 @@ def revenue():
                     cap = eng_start_d
                 elapsed_days = max(0, (cap - eng_start_d).days)
                 cumulative_forecast = forecast_revenue * (elapsed_days / total_days) if total_days else 0
+
+            # Off-track flag — fires when actual is materially below the
+            # cumulative forecast (>10% under). Uses cumulative_forecast
+            # rather than full forecast_revenue so unstarted engagements
+            # don't immediately read as off-track.
+            OFF_TRACK_THRESHOLD = 0.10  # 10% under = behind plan
+            is_off_track = False
+            if cumulative_forecast > 0 and actual_revenue < cumulative_forecast * (1 - OFF_TRACK_THRESHOLD):
+                is_off_track = True
+
+            # Weekly breakdown — Mon-Sun weeks within the engagement /
+            # filter window. Forecast spread evenly across weeks; actual
+            # = sum(billable_days × charge_rate) for approved timesheets
+            # whose week_start falls inside that week.
+            weekly_breakdown = []
+            try:
+                if eng_start_d and eng_end_d and eng_end_d >= eng_start_d:
+                    win_start = max(eng_start_d, filter_start.date()) if filter_start else eng_start_d
+                    win_end = min(eng_end_d, filter_end.date()) if filter_end else eng_end_d
+                    if isinstance(win_start, datetime.datetime):
+                        win_start = win_start.date()
+                    if isinstance(win_end, datetime.datetime):
+                        win_end = win_end.date()
+                    # Anchor first Monday on or before win_start
+                    week_start = win_start - datetime.timedelta(days=win_start.weekday())
+                    weeks_iter = []
+                    while week_start <= win_end:
+                        week_end = week_start + datetime.timedelta(days=6)
+                        weeks_iter.append((week_start, week_end))
+                        week_start = week_end + datetime.timedelta(days=1)
+                    if weeks_iter and forecast_revenue:
+                        per_week_forecast = forecast_revenue / len(weeks_iter)
+                    else:
+                        per_week_forecast = 0.0
+
+                    # Group approved timesheets by week_start for fast lookup.
+                    actual_by_week = {}
+                    for ts in ts_rows:
+                        ws = getattr(ts, "week_start", None)
+                        if not ws:
+                            ps = getattr(ts, "period_start", None)
+                            ws = (ps.date() if hasattr(ps, "date") else ps) if ps else None
+                        if not ws:
+                            continue
+                        if isinstance(ws, datetime.datetime):
+                            ws = ws.date()
+                        # Snap to Monday
+                        ws_monday = ws - datetime.timedelta(days=ws.weekday())
+                        days = float(getattr(ts, "billable_days", 0) or 0)
+                        cand_id = int(getattr(ts, "user_id", 0) or 0)
+                        role_key = _role_by_cand.get(cand_id, "")
+                        matched_plan = _plans_by_role.get(role_key)
+                        charge_rate = float(matched_plan.charge_rate) if matched_plan and matched_plan.charge_rate else float(_avg_charge_rate or 0)
+                        actual_by_week[ws_monday] = actual_by_week.get(ws_monday, 0.0) + days * charge_rate
+
+                    for ws, we in weeks_iter:
+                        wk_actual = actual_by_week.get(ws, 0.0)
+                        wk_variance = wk_actual - per_week_forecast
+                        weekly_breakdown.append({
+                            "week_start": ws,
+                            "week_end": we,
+                            "forecast": per_week_forecast,
+                            "actual": wk_actual,
+                            "variance": wk_variance,
+                        })
+            except Exception:
+                current_app.logger.exception("weekly breakdown failed for eng %s", eng.id)
 
             # Accumulate totals
             total_forecast_revenue += forecast_revenue
@@ -22597,8 +22666,11 @@ def revenue():
                 "actual_cost": actual_cost,
                 "actual_margin": actual_margin,
                 "cumulative_forecast": cumulative_forecast,
+                "is_off_track": is_off_track,
+                "weekly_breakdown": weekly_breakdown,
             })
             client_data[client_name].setdefault("cumulative_forecast", 0)
+            client_data[client_name].setdefault("off_track_count", 0)
             client_data[client_name]["headcount"] += on_contract_count
             client_data[client_name]["forecast_revenue"] += forecast_revenue
             client_data[client_name]["forecast_cost"] += forecast_cost
@@ -22607,6 +22679,8 @@ def revenue():
             client_data[client_name]["actual_cost"] += actual_cost
             client_data[client_name]["actual_margin"] += actual_margin
             client_data[client_name]["cumulative_forecast"] += cumulative_forecast
+            if is_off_track:
+                client_data[client_name]["off_track_count"] += 1
         
         # Calculate KPIs
         forecast_margin = total_forecast_revenue - total_forecast_cost
@@ -22656,6 +22730,7 @@ def revenue():
             c.total_actual_cost = data.get("actual_cost", 0)
             c.total_actual_margin = data.get("actual_margin", 0)
             c.total_cumulative_forecast = data.get("cumulative_forecast", 0)
+            c.off_track_count = data.get("off_track_count", 0)
             clients.append(c)
         
         # Monthly trend data (based on filter period or full year)
