@@ -19770,12 +19770,51 @@ previous employer.</p>
             subject = subject.replace("{" + field + "}", value)
             body = body.replace("{" + field + "}", value)
 
+        # Req 10 — render the body as plain text WITH newlines so the
+        # preview textarea is readable. The send path
+        # (_normalise_email_body) wraps plain text back into <p>/<br>
+        # HTML, so editing the preview round-trips cleanly.
+        body = _html_to_plaintext_for_preview(body)
+
         return jsonify({
             "subject": subject,
             "body": body,
             "referee_email": ref_req.referee_email or "",
             "company_name": ref_req.company_name or "",
         })
+
+
+def _html_to_plaintext_for_preview(html_text: str) -> str:
+    """Req 10 — convert reference-request HTML to readable plain text
+    for the preview textarea. Block-level tags become double newlines,
+    <br> becomes single newlines, list items get a "- " prefix, and
+    every other tag is stripped. The recruiter can then edit freely
+    and the send-side _normalise_email_body re-wraps it back to HTML."""
+    if not html_text:
+        return ""
+    import re as _re
+    txt = html_text
+    # Normalise self-closing variants of <br>
+    txt = _re.sub(r"<br\s*/?>", "\n", txt, flags=_re.I)
+    # Headings + paragraphs end with a blank line
+    txt = _re.sub(r"</(h[1-6]|p|div|blockquote)>", "\n\n", txt, flags=_re.I)
+    txt = _re.sub(r"<(h[1-6]|p|div|blockquote)[^>]*>", "", txt, flags=_re.I)
+    # List items get a leading "- "
+    txt = _re.sub(r"<li[^>]*>", "- ", txt, flags=_re.I)
+    txt = _re.sub(r"</li>", "\n", txt, flags=_re.I)
+    # Strip <ul>/<ol> wrappers (line-feeds already from the </li>)
+    txt = _re.sub(r"</?(ul|ol)[^>]*>", "", txt, flags=_re.I)
+    # Strip every other tag
+    txt = _re.sub(r"<[^>]+>", "", txt)
+    # Decode the most common HTML entities so the preview reads cleanly.
+    try:
+        import html as _htmllib
+        txt = _htmllib.unescape(txt)
+    except Exception:
+        pass
+    # Collapse 3+ blank lines to 2
+    txt = _re.sub(r"\n{3,}", "\n\n", txt)
+    return txt.strip()
 
 
 @app.route("/action/send-reference/<int:cand_id>", methods=["POST"])
