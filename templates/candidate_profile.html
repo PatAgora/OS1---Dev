@@ -1101,10 +1101,13 @@
                        Fail / orange No Show / muted "—" if not yet set. #}
                     {% if iv.outcome_result == 'Pass' %}
                       <span class="badge bg-success" style="font-size: 0.65rem;">Pass</span>
-                    {% elif iv.outcome_result == 'Fail' %}
-                      <span class="badge bg-danger" style="font-size: 0.65rem;">Fail</span>
-                    {% elif iv.outcome_result == 'No Show' %}
-                      <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">No Show</span>
+                    {% elif iv.outcome_result in ('Fail', 'No Show') %}
+                      {# Req 9 — No Show is treated identically to Fail
+                         (same kanban move to Rejected, same red badge).
+                         Text preserves the original outcome value so
+                         the recruiter can still see whether the failure
+                         was a Fail or a No Show. #}
+                      <span class="badge bg-danger" style="font-size: 0.65rem;">{{ iv.outcome_result }}</span>
                     {% else %}
                       <span class="badge bg-secondary" style="font-size: 0.65rem;">Completed</span>
                     {% endif %}
