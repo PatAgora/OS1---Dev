@@ -84,10 +84,6 @@
                    class="form-control form-control-sm {% if not captured.nature_of_work %}bg-warning-subtle{% endif %}"
                    value="{{ captured.nature_of_work }}"
                    placeholder="e.g. Completion of KYC reviews and other adhoc KYC tasks">
-            <div class="form-text">
-              One line describing the nature of the work
-              (matches the umbrella template's "Position and nature of the work" field).
-            </div>
           </div>
 
           <!-- Start Date (auto-populated, editable) -->
@@ -111,7 +107,7 @@
 
           <!-- Fee / Rate (auto-populated, editable) -->
           <div class="col-md-4">
-            <label for="fee_display" class="form-label small">Fee (Agency to Umbrella, ex VAT)</label>
+            <label for="fee_display" class="form-label small">Fee</label>
             <input type="text" id="fee_display" name="fee_display"
                    class="form-control form-control-sm bg-success-subtle"
                    value="{{ captured.fee_display }}">
@@ -126,7 +122,6 @@
                    class="form-control form-control-sm bg-warning-subtle"
                    value="{{ captured.hours_of_work }}"
                    placeholder="e.g. 7.5 hours per day, 37.5 hours per week. UK business hours (9am-5pm)">
-            <div class="form-text">Default prefilled — edit if different.</div>
           </div>
 
           <!-- Place of Work (staff, default from offer) -->
