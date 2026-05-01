@@ -22463,9 +22463,33 @@ def revenue():
 
             # Req 63 — Actuals come from APPROVED timesheets only. No more
             # random simulation — un-started engagements correctly show £0.
+            #
+            # Revenue uses the role's CHARGE rate from EngagementPlan
+            # (what the client is billed) — NOT timesheet.day_rate, which
+            # is the associate's pay rate. The charge rate is looked up
+            # by joining the timesheet's user_id back to their Application
+            # (for this engagement) → Job → role_type → matching
+            # EngagementPlan row.
             actual_revenue = 0.0
             actual_cost = 0.0
             try:
+                # Build a charge_rate / pay_rate map for this engagement
+                # keyed by role_type. Lower-cased keys so the join is
+                # case-insensitive (Job.role_type vs EngagementPlan.role_type
+                # casing isn't always consistent across legacy data).
+                _plans_by_role = {}
+                _avg_charge_rate = 0
+                _total_planned = 0
+                _total_charge = 0
+                for _p in plans:
+                    _key = (_p.role_type or "").strip().lower()
+                    if _key:
+                        _plans_by_role[_key] = _p
+                    _total_planned += (_p.planned_count or 0)
+                    _total_charge += (_p.charge_rate or 0) * (_p.planned_count or 0)
+                if _total_planned:
+                    _avg_charge_rate = _total_charge / _total_planned
+
                 _ts_filters = [
                     Timesheet.engagement_id == eng.id,
                     func.lower(Timesheet.status) == "approved",
@@ -22475,15 +22499,43 @@ def revenue():
                 if filter_end:
                     _ts_filters.append(Timesheet.period_start <= filter_end)
                 ts_rows = s.scalars(select(Timesheet).where(*_ts_filters)).all()
+
+                # Pre-load the Application + Job rows for every timesheet's
+                # candidate so we can look up the role in a single pass
+                # without N+1 queries.
+                _cand_ids = list({int(getattr(ts, "user_id", 0) or 0) for ts in ts_rows if getattr(ts, "user_id", None)})
+                _role_by_cand = {}
+                if _cand_ids:
+                    _app_rows = s.execute(
+                        select(Application.candidate_id, Job.role_type, Job.title)
+                        .select_from(Application)
+                        .outerjoin(Job, Job.id == Application.job_id)
+                        .where(Application.candidate_id.in_(_cand_ids))
+                        .where(Application.engagement_id == eng.id) if hasattr(Application, "engagement_id") else
+                        select(Application.candidate_id, Job.role_type, Job.title)
+                        .select_from(Application)
+                        .outerjoin(Job, Job.id == Application.job_id)
+                        .where(Application.candidate_id.in_(_cand_ids))
+                        .where(Job.engagement_id == eng.id)
+                    ).all()
+                    for cid, role_type, job_title in _app_rows:
+                        # Prefer role_type over job_title; first match wins.
+                        _role_by_cand.setdefault(int(cid), (role_type or job_title or "").strip().lower())
+
                 for ts in ts_rows:
                     days = float(getattr(ts, "billable_days", 0) or 0)
-                    rate = float(getattr(ts, "day_rate", 0) or 0)
-                    actual_revenue += days * rate
-                    # Cost falls out of EngagementPlan pay_rate proportionally
-                    # to revenue. If we don't have a per-worker pay_rate
-                    # readily available we fall back to the planned ratio.
-                    if planned_daily_revenue:
-                        actual_cost += (days * rate) * (planned_daily_cost / planned_daily_revenue)
+                    pay_rate = float(getattr(ts, "day_rate", 0) or 0)
+                    cand_id = int(getattr(ts, "user_id", 0) or 0)
+                    role_key = _role_by_cand.get(cand_id, "")
+
+                    # Pick the charge rate: matched plan first, then
+                    # weighted-average across all plan rows on the
+                    # engagement, then 0 if neither.
+                    matched_plan = _plans_by_role.get(role_key)
+                    charge_rate = float(matched_plan.charge_rate) if matched_plan and matched_plan.charge_rate else float(_avg_charge_rate or 0)
+
+                    actual_revenue += days * charge_rate
+                    actual_cost += days * pay_rate
             except Exception:
                 current_app.logger.exception("revenue actuals query failed for eng %s", eng.id)
             actual_margin = actual_revenue - actual_cost
