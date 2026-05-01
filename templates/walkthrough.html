@@ -1255,17 +1255,25 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Formula</div>
-        <p><code>Σ(billable_days × day_rate) for every Approved Timesheet on the engagement, period-bounded</code></p>
+        <p><code>Σ(billable_days × EngagementPlan.charge_rate) per role, for every Approved Timesheet on the engagement, period-bounded</code></p>
 
         <div class="wt-sub-heading">Data sources</div>
         <ul>
-          <li><strong>Timesheet rows</strong> &mdash; only rows where <code>engagement_id = eng.id</code> AND <code>LOWER(status) = 'approved'</code>.</li>
-          <li>Optionally narrowed to <code>period_end ≥ filter_start</code> AND <code>period_start ≤ filter_end</code> when a date window is active.</li>
-          <li>For each row: <code>billable_days × day_rate</code> summed up.</li>
+          <li><strong>Timesheet rows</strong> &mdash; only rows where <code>engagement_id = eng.id</code> AND <code>LOWER(status) = 'approved'</code>. Optionally narrowed to <code>period_end ≥ filter_start</code> AND <code>period_start ≤ filter_end</code> when a date window is active.</li>
+          <li><strong>billable_days</strong> &mdash; comes off the timesheet itself.</li>
+          <li><strong>charge_rate</strong> &mdash; comes from the matching <strong>EngagementPlan</strong> row on the engagement plan (NOT from the timesheet). The match is by role: timesheet → candidate → Application → Job → role_type → EngagementPlan.role_type. Falls back to the engagement-wide weighted-average charge rate if no exact role match exists.</li>
+        </ul>
+
+        <div class="wt-sub-heading">Why charge_rate, not the timesheet's day_rate</div>
+        <p><strong>Timesheet.day_rate is the associate's PAY rate</strong> &mdash; what they cost us, not what the client pays. Using it for Actual Rev would conflate cost with revenue. Example: TL on a timesheet has <code>day_rate=£200</code> (pay), but the engagement plan's TL role has <code>charge_rate=£250</code>. For 5 billable days:</p>
+        <ul>
+          <li>Actual Rev = 5 × £250 = <strong>£1,250</strong> (what the client is billed)</li>
+          <li>Actual Cost = 5 × £200 = <strong>£1,000</strong> (what we pay the associate)</li>
+          <li>Actual Margin = £250</li>
         </ul>
 
         <div class="wt-sub-heading">What it represents</div>
-        <p>Real money the client has been billed (or will be billed) based on what's actually been worked + approved.</p>
+        <p>Real money the client has been billed (or will be billed) based on what's actually been worked + approved, priced at the agreed charge rate.</p>
 
         <div class="wt-sub-heading">Why an unstarted engagement reads £0</div>
         <p>If no timesheets have been approved for that engagement yet (e.g. associate hasn't started), this column is <strong>£0</strong>. That's correct &mdash; before Req 63 this column was a random simulation, which is why an unstarted engagement could still show a number.</p>
@@ -1303,17 +1311,26 @@
       </div>
       <div class="wt-step-body">
         <div class="wt-sub-heading">Formula</div>
-        <p><code>Actual Rev − (Actual Rev × cost_ratio)</code></p>
-        <p>where <code>cost_ratio = planned_daily_cost / planned_daily_revenue</code>.</p>
-
-        <div class="wt-sub-heading">Data sources</div>
+        <p><code>Actual Rev − Actual Cost</code></p>
+        <p>where:</p>
         <ul>
-          <li><strong>Actual Rev</strong> &mdash; from approved timesheets (R3 above).</li>
-          <li><strong>cost_ratio</strong> &mdash; derived from the engagement plan: <code>planned_daily_cost / planned_daily_revenue</code>. Since timesheets only carry <code>day_rate</code> (charge rate) and not the per-worker pay rate, we proportion the cost using the plan's overall cost-to-revenue ratio.</li>
+          <li><strong>Actual Rev</strong> = <code>Σ(billable_days × EngagementPlan.charge_rate)</code> across approved timesheets (R3 above).</li>
+          <li><strong>Actual Cost</strong> = <code>Σ(billable_days × Timesheet.day_rate)</code> across the same timesheets &mdash; the associate's PAY rate as recorded on each timesheet.</li>
         </ul>
 
-        <div class="wt-sub-heading">Caveat</div>
-        <p>This is a <strong>proxy</strong> rather than a perfect figure &mdash; if an actual associate's pay rate differs from the plan's average, the apportioning will be slightly off. For exact margin we'd need to join Application/EngagementPlan to each timesheet to find the specific worker's pay rate.</p>
+        <div class="wt-sub-heading">What it represents</div>
+        <p>The true gross margin on what's actually been worked + approved &mdash; client billing minus associate pay, summed across every approved timesheet in the window.</p>
+
+        <div class="wt-sub-heading">No more proxy</div>
+        <p>Earlier this column used a "cost ratio" derived from the plan's average to apportion cost from revenue. That's gone &mdash; cost now reads directly from each timesheet's pay rate, so margin is exact even when an associate's pay rate differs from the plan's average for that role.</p>
+
+        <div class="wt-sub-heading">Worked example</div>
+        <p>TL on a 5-day timesheet, pay rate £200/day. Engagement plan TL role charge_rate £250/day.</p>
+        <ul>
+          <li>Actual Rev: 5 × 250 = <strong>£1,250</strong></li>
+          <li>Actual Cost: 5 × 200 = <strong>£1,000</strong></li>
+          <li>Actual Margin: <strong>£250</strong></li>
+        </ul>
       </div>
     </div>
 
