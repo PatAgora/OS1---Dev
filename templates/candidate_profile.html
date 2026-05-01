@@ -2191,20 +2191,31 @@
             <ul class="placements-list">
               {% for p in placements %}
                 <li class="placement-item {% if p.is_active %}active{% else %}ended{% endif %}">
-                  <div class="placement-title">
-                    <a href="{{ url_for('engagement_dashboard', eng_id=p.engagement_id) }}" style="color: inherit; text-decoration: none;">
-                      {{ p.engagement_name }}
+                  <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div style="min-width:0; flex:1;">
+                      <div class="placement-title">
+                        <a href="{{ url_for('engagement_dashboard', eng_id=p.engagement_id) }}" style="color: inherit; text-decoration: none;">
+                          {{ p.engagement_name }}
+                        </a>
+                        {% if p.is_active %}
+                          <span class="badge bg-success ms-1" style="font-size: 0.65rem;">Active</span>
+                        {% endif %}
+                      </div>
+                      <div class="placement-meta">
+                        {{ p.role }} • {{ p.client }}
+                        {% if p.start_date %}
+                          <br>{{ p.start_date.strftime('%d %b %Y') if p.start_date else '' }}
+                          {% if p.end_date %} – {{ p.end_date.strftime('%d %b %Y') }}{% endif %}
+                        {% endif %}
+                      </div>
+                    </div>
+                    {# View Placement → /placements?name=<cand.name> filters
+                       the platform Placements list to this candidate. #}
+                    <a href="{{ url_for('placements', name=cand.name) }}"
+                       class="btn btn-sm btn-outline-primary flex-shrink-0"
+                       title="View this placement on the Placements page">
+                      <i class="fas fa-arrow-up-right-from-square me-1"></i>View
                     </a>
-                    {% if p.is_active %}
-                      <span class="badge bg-success ms-1" style="font-size: 0.65rem;">Active</span>
-                    {% endif %}
-                  </div>
-                  <div class="placement-meta">
-                    {{ p.role }} • {{ p.client }}
-                    {% if p.start_date %}
-                      <br>{{ p.start_date.strftime('%d %b %Y') if p.start_date else '' }}
-                      {% if p.end_date %} – {{ p.end_date.strftime('%d %b %Y') }}{% endif %}
-                    {% endif %}
                   </div>
                 </li>
               {% endfor %}
