@@ -22424,6 +22424,15 @@ def revenue():
             planned_headcount = sum(p.planned_count or 0 for p in plans)
             planned_daily_revenue = sum((p.charge_rate or 0) * (p.planned_count or 0) for p in plans)
             planned_daily_cost = sum((p.pay_rate or 0) * (p.planned_count or 0) for p in plans)
+            # Per-day GROSS margin = (charge − pay) × headcount, summed across
+            # role lines. This is what Optimus actually earns per working day
+            # once the associate is paid. Shrinkage is applied below to the
+            # margin total directly (NOT revenue minus full cost) — that
+            # over-stated the cost side and produced unrealistic red margins.
+            planned_daily_margin = sum(
+                ((p.charge_rate or 0) - (p.pay_rate or 0)) * (p.planned_count or 0)
+                for p in plans
+            )
             
             # Get actual on-contract count
             on_contract_count = s.scalar(
@@ -22455,11 +22464,17 @@ def revenue():
             # days, with a 10% shrinkage applied (sales-pipeline-style
             # discount for non-realised days). Pre-shrinkage value also
             # carried for the cumulative-forecast column.
+            #
+            # Margin is computed per-day as (charge − pay) × headcount × days
+            # then shrunk by the same 10% — i.e. what Optimus earns once
+            # the associate is paid, NOT shrunk-revenue minus full-cost.
             SHRINKAGE = 0.10
             forecast_revenue_gross = planned_daily_revenue * working_days
-            forecast_cost = planned_daily_cost * working_days
+            forecast_cost_gross = planned_daily_cost * working_days
+            forecast_margin_gross = planned_daily_margin * working_days
             forecast_revenue = forecast_revenue_gross * (1 - SHRINKAGE)
-            forecast_margin = forecast_revenue - forecast_cost
+            forecast_cost = forecast_cost_gross * (1 - SHRINKAGE)
+            forecast_margin = forecast_margin_gross * (1 - SHRINKAGE)
 
             # Req 63 — Actuals come from APPROVED timesheets only. No more
             # random simulation — un-started engagements correctly show £0.
