@@ -1078,7 +1078,25 @@
           </div>
           {% if interview_history %}
             {% for iv in interview_history %}
-            <div class="p-3 rounded mb-2" style="background: {{ '#f0fdf4' if iv.completed_at else '#eff6ff' }}; border-left: 3px solid {{ '#10b981' if iv.completed_at else '#3b82f6' }};">
+            {# Req 9 — interview row colour matches the outcome:
+               Pass        → pastel green (#f0fdf4 / #10b981)
+               Fail/No Show → pastel red, matching Contract Status: Ended
+                              (#fef2f2 / #dc2626)
+               Scheduled   → pastel blue (#eff6ff / #3b82f6)
+               Completed-no-outcome → keep green so existing rows don't
+                              suddenly look alarming. #}
+            {% set _row_bg = '#eff6ff' %}
+            {% set _row_border = '#3b82f6' %}
+            {% if iv.completed_at %}
+              {% if iv.outcome_result in ('Fail', 'No Show') %}
+                {% set _row_bg = '#fef2f2' %}
+                {% set _row_border = '#dc2626' %}
+              {% else %}
+                {% set _row_bg = '#f0fdf4' %}
+                {% set _row_border = '#10b981' %}
+              {% endif %}
+            {% endif %}
+            <div class="p-3 rounded mb-2" style="background: {{ _row_bg }}; border-left: 3px solid {{ _row_border }};">
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <div class="fw-semibold" style="font-size: 0.85rem;">
