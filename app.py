@@ -10767,11 +10767,30 @@ def workflow():
         # Helper function to get vetting progress for a candidate
         SLA_DAYS = 7  # 7 day SLA for vetting completion
         
-        def get_vetting_progress(candidate_id):
-            """Get vetting check progress for a candidate with SLA status"""
+        def get_vetting_progress(candidate_id, required_types=None):
+            """Get vetting check progress for a candidate with SLA status.
+
+            Req 42 — when required_types is provided (the role/engagement's
+            specified vetting_requirements), the count is restricted to
+            those check types so the kanban card matches the candidate
+            profile (which already shows only required checks). When
+            required_types is empty/None, falls back to counting all
+            vetting_check rows for the candidate (legacy behaviour).
+            """
             try:
+                params = {"cand_id": candidate_id}
+                where_extra = ""
+                if required_types:
+                    # Use a comma-separated parameter list expanded by SQLAlchemy.
+                    # Cap the list length defensively to avoid abuse.
+                    types_list = list(required_types)[:32]
+                    placeholders = ", ".join(f":t{i}" for i, _ in enumerate(types_list))
+                    for i, t in enumerate(types_list):
+                        params[f"t{i}"] = t
+                    where_extra = f" AND check_type IN ({placeholders})"
+
                 vetting_stats = s.execute(
-                    text("""
+                    text(f"""
                         SELECT
                             COUNT(*) as total,
                             SUM(CASE WHEN UPPER(status) IN ('COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED', 'CHECK STILL IN DATE', 'N/A') THEN 1 ELSE 0 END) as complete,
@@ -10782,8 +10801,9 @@ def workflow():
                             MIN(created_at) as first_check_date
                         FROM vetting_check
                         WHERE candidate_id = :cand_id
+                        {where_extra}
                     """),
-                    {"cand_id": candidate_id}
+                    params,
                 ).first()
                 
                 if vetting_stats and vetting_stats[0] > 0:
@@ -10900,7 +10920,19 @@ def workflow():
             cards = []
             for app, cand, job in results:
                 engagement = job.engagement if job.engagement_id else None
-                
+
+                # Req 42 — kanban card vetting count must match the
+                # candidate-profile required-checks list. Engagement-
+                # level requirements override / merge with job-level.
+                _required_types = set()
+                try:
+                    if engagement and getattr(engagement, "vetting_requirements", None):
+                        _required_types.update(from_json_safe(engagement.vetting_requirements))
+                    if job and getattr(job, "vetting_requirements", None):
+                        _required_types.update(from_json_safe(job.vetting_requirements))
+                except Exception:
+                    _required_types = set()
+
                 # Intake is driven by the engagement - default to 1 if no evidence of more
                 intake = 1
                 
@@ -10923,7 +10955,7 @@ def workflow():
                     "start_date": engagement.start_date if engagement else None,
                     "intake": intake,
                     "days_in_stage": (now - app.created_at).days if app.created_at else 0,
-                    "vetting_progress": get_vetting_progress(cand.id),
+                    "vetting_progress": get_vetting_progress(cand.id, _required_types),
                     "referencing_progress": get_referencing_progress(cand.id),
                 })
             stage_data[stage["id"]] = cards
