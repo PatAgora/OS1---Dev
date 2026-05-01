@@ -22540,43 +22540,31 @@ def revenue():
                 current_app.logger.exception("revenue actuals query failed for eng %s", eng.id)
             actual_margin = actual_revenue - actual_cost
 
-            # Cumulative forecast — pro-rate the forecast over the elapsed
-            # portion of the engagement window so the column shows where
-            # we should be vs the actual approved-timesheet figure.
-            cumulative_forecast = 0.0
-            eng_start_d = None
-            eng_end_d = None
-            if eng_start and eng_end and eng_end >= eng_start:
-                total_days = max(1, (eng_end - eng_start).days)
-                today = now.date() if hasattr(now, "date") else now
-                eng_start_d = eng_start.date() if hasattr(eng_start, "date") else eng_start
-                eng_end_d = eng_end.date() if hasattr(eng_end, "date") else eng_end
-                cap = today
-                if isinstance(cap, datetime.datetime):
-                    cap = cap.date()
-                if cap > eng_end_d:
-                    cap = eng_end_d
-                if cap < eng_start_d:
-                    cap = eng_start_d
-                elapsed_days = max(0, (cap - eng_start_d).days)
-                cumulative_forecast = forecast_revenue * (elapsed_days / total_days) if total_days else 0
-
-            # Off-track flag — fires when actual is materially below the
-            # cumulative forecast (>10% under). Uses cumulative_forecast
-            # rather than full forecast_revenue so unstarted engagements
-            # don't immediately read as off-track.
-            OFF_TRACK_THRESHOLD = 0.10  # 10% under = behind plan
-            is_off_track = False
-            if cumulative_forecast > 0 and actual_revenue < cumulative_forecast * (1 - OFF_TRACK_THRESHOLD):
-                is_off_track = True
-
             # Weekly breakdown — Mon-Sun weeks within the engagement /
             # filter window. Forecast spread evenly across weeks; actual
             # = sum(billable_days × charge_rate) for approved timesheets
             # whose week_start falls inside that week.
+            #
+            # 10% shrinkage applies automatically: forecast_revenue is
+            # already the post-shrinkage figure (forecast_revenue_gross
+            # × 0.90 a few lines above), so both per_week_forecast AND
+            # cumulative_forecast inherit it. The £/week shown in the
+            # breakdown is the SHRUNK weekly figure.
+            #
+            # Cumulative Forecast is also derived here (per_week_forecast
+            # × number of completed weeks) so the headline column matches
+            # the sum of the per-week Forecast cells for elapsed weeks.
             weekly_breakdown = []
+            cumulative_forecast = 0.0
+            eng_start_d = None
+            eng_end_d = None
+            today = now.date() if hasattr(now, "date") else now
+            if isinstance(today, datetime.datetime):
+                today = today.date()
             try:
-                if eng_start_d and eng_end_d and eng_end_d >= eng_start_d:
+                if eng_start and eng_end and eng_end >= eng_start:
+                    eng_start_d = eng_start.date() if hasattr(eng_start, "date") else eng_start
+                    eng_end_d = eng_end.date() if hasattr(eng_end, "date") else eng_end
                     win_start = max(eng_start_d, filter_start.date()) if filter_start else eng_start_d
                     win_end = min(eng_end_d, filter_end.date()) if filter_end else eng_end_d
                     if isinstance(win_start, datetime.datetime):
@@ -22625,8 +22613,25 @@ def revenue():
                             "actual": wk_actual,
                             "variance": wk_variance,
                         })
+
+                    # Req 63 — Cumulative Forecast = per_week_forecast ×
+                    # number of FULLY COMPLETED weeks (week_end <= today).
+                    # Matches the user's example: 3 weeks gone × £2,000
+                    # per week = £6,000. Partial current week is NOT
+                    # counted until it's complete.
+                    elapsed_weeks = sum(1 for ws, we in weeks_iter if we <= today)
+                    cumulative_forecast = per_week_forecast * elapsed_weeks
             except Exception:
                 current_app.logger.exception("weekly breakdown failed for eng %s", eng.id)
+
+            # Off-track flag — fires when actual is materially below the
+            # cumulative forecast (>10% under). Uses cumulative_forecast
+            # rather than full forecast_revenue so unstarted engagements
+            # don't immediately read as off-track.
+            OFF_TRACK_THRESHOLD = 0.10  # 10% under = behind plan
+            is_off_track = False
+            if cumulative_forecast > 0 and actual_revenue < cumulative_forecast * (1 - OFF_TRACK_THRESHOLD):
+                is_off_track = True
 
             # Accumulate totals
             total_forecast_revenue += forecast_revenue
