@@ -856,42 +856,42 @@
                 </select>
             </div>
             <div class="filter-group">
-                <label>Quarter</label>
+                <label>Quarter <span class="text-muted small">(toggle multi)</span></label>
                 <div class="period-buttons">
-                    <button type="button" class="period-btn {% if selected_quarter == '1' %}active{% endif %}" data-quarter="1" onclick="setQuarter('1')">Q1</button>
-                    <button type="button" class="period-btn {% if selected_quarter == '2' %}active{% endif %}" data-quarter="2" onclick="setQuarter('2')">Q2</button>
-                    <button type="button" class="period-btn {% if selected_quarter == '3' %}active{% endif %}" data-quarter="3" onclick="setQuarter('3')">Q3</button>
-                    <button type="button" class="period-btn {% if selected_quarter == '4' %}active{% endif %}" data-quarter="4" onclick="setQuarter('4')">Q4</button>
+                    {# Req 64 — quarter buttons toggle a hidden multi-select.
+                       Multiple quarters can be active at once; submitting
+                       posts ?quarter=1&quarter=2 etc. #}
+                    {% for q in ['1', '2', '3', '4'] %}
+                    <button type="button" class="period-btn {% if q in selected_quarters %}active{% endif %}"
+                            data-quarter="{{ q }}" onclick="toggleQuarter('{{ q }}')">Q{{ q }}</button>
+                    {% endfor %}
                 </div>
-                <input type="hidden" id="quarterFilter" name="quarter" value="{{ selected_quarter }}">
-            </div>
-            <div class="filter-group" style="min-width: 120px;">
-                <label for="monthFilter">Month</label>
-                <select id="monthFilter" name="month">
-                    <option value="">All Months</option>
-                    <option value="1" {% if selected_month == '1' %}selected{% endif %}>January</option>
-                    <option value="2" {% if selected_month == '2' %}selected{% endif %}>February</option>
-                    <option value="3" {% if selected_month == '3' %}selected{% endif %}>March</option>
-                    <option value="4" {% if selected_month == '4' %}selected{% endif %}>April</option>
-                    <option value="5" {% if selected_month == '5' %}selected{% endif %}>May</option>
-                    <option value="6" {% if selected_month == '6' %}selected{% endif %}>June</option>
-                    <option value="7" {% if selected_month == '7' %}selected{% endif %}>July</option>
-                    <option value="8" {% if selected_month == '8' %}selected{% endif %}>August</option>
-                    <option value="9" {% if selected_month == '9' %}selected{% endif %}>September</option>
-                    <option value="10" {% if selected_month == '10' %}selected{% endif %}>October</option>
-                    <option value="11" {% if selected_month == '11' %}selected{% endif %}>November</option>
-                    <option value="12" {% if selected_month == '12' %}selected{% endif %}>December</option>
-                </select>
+                {% for q in selected_quarters %}
+                <input type="hidden" name="quarter" value="{{ q }}">
+                {% endfor %}
             </div>
             <div class="filter-group" style="min-width: 160px;">
-                <label for="weekFilter">Week</label>
-                <select id="weekFilter" name="week">
-                    <option value="">All Weeks</option>
+                <label for="monthFilter">Month <span class="text-muted small">(Ctrl/Cmd+click)</span></label>
+                <select id="monthFilter" name="month" multiple size="6" style="height:auto;">
+                    <option value="1" {% if '1' in selected_months %}selected{% endif %}>January</option>
+                    <option value="2" {% if '2' in selected_months %}selected{% endif %}>February</option>
+                    <option value="3" {% if '3' in selected_months %}selected{% endif %}>March</option>
+                    <option value="4" {% if '4' in selected_months %}selected{% endif %}>April</option>
+                    <option value="5" {% if '5' in selected_months %}selected{% endif %}>May</option>
+                    <option value="6" {% if '6' in selected_months %}selected{% endif %}>June</option>
+                    <option value="7" {% if '7' in selected_months %}selected{% endif %}>July</option>
+                    <option value="8" {% if '8' in selected_months %}selected{% endif %}>August</option>
+                    <option value="9" {% if '9' in selected_months %}selected{% endif %}>September</option>
+                    <option value="10" {% if '10' in selected_months %}selected{% endif %}>October</option>
+                    <option value="11" {% if '11' in selected_months %}selected{% endif %}>November</option>
+                    <option value="12" {% if '12' in selected_months %}selected{% endif %}>December</option>
+                </select>
+            </div>
+            <div class="filter-group" style="min-width: 180px;">
+                <label for="weekFilter">Week <span class="text-muted small">(Ctrl/Cmd+click)</span></label>
+                <select id="weekFilter" name="week" multiple size="6" style="height:auto;">
                     {% for w in range(1, 53) %}
-                    {% set fy_start_year = selected_fy|default('2025')|int %}
-                    {% set april1 = '%04d-04-01' % fy_start_year %}
-                    <option value="{{ w }}" {% if selected_week == w|string %}selected{% endif %}
-                            data-week="{{ w }}">
+                    <option value="{{ w }}" {% if w|string in selected_weeks %}selected{% endif %}>
                       Week {{ w }}
                     </option>
                     {% endfor %}
@@ -1034,7 +1034,8 @@
                     <th class="number">Engagements</th>
                     <th class="number">Headcount</th>
                     <th class="number">Forecast Rev</th>
-                    <th class="number">Actual Rev</th>
+                    <th class="number" title="Forecast pro-rated to today">Cumulative Forecast</th>
+                    <th class="number" title="Sum of approved timesheet revenue">Actual Rev</th>
                     <th class="number">Forecast Margin</th>
                     <th class="number">Actual Margin</th>
                     <th class="number">Variance</th>
@@ -1050,6 +1051,7 @@
                     <td class="number">{{ client.engagements|length }}</td>
                     <td class="number">{{ client.total_headcount }}</td>
                     <td class="number">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
+                    <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
                     <td class="number">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
                     <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
                     <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
@@ -1068,6 +1070,7 @@
                     <td class="number">{% set total_eng = namespace(count=0) %}{% for c in clients %}{% set total_eng.count = total_eng.count + c.engagements|length %}{% endfor %}{{ total_eng.count }}</td>
                     <td class="number">{{ kpis.on_contract_headcount }}</td>
                     <td class="number">£{{ "{:,.0f}".format(kpis.forecast_revenue) }}</td>
+                    <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(kpis.cumulative_forecast or 0) }}</td>
                     <td class="number">£{{ "{:,.0f}".format(kpis.actual_revenue) }}</td>
                     <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(kpis.forecast_margin) }}</td>
                     <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(kpis.actual_margin) }}</td>
@@ -1123,7 +1126,8 @@
                         <th>Dates</th>
                         <th class="number">Headcount</th>
                         <th class="number">Forecast Rev.</th>
-                        <th class="number">Actual Rev.</th>
+                        <th class="number" title="Forecast pro-rated to today">Cumulative Forecast</th>
+                        <th class="number" title="Sum of approved timesheet revenue">Actual Rev.</th>
                         <th class="number">Forecast Margin</th>
                         <th class="number">Actual Margin</th>
                         <th class="number">Variance</th>
@@ -1155,6 +1159,7 @@
                         </td>
                         <td class="number">{{ eng.total_headcount }}</td>
                         <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(eng.forecast_revenue) }}</td>
+                        <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(eng.cumulative_forecast or 0) }}</td>
                         <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(eng.actual_revenue) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
@@ -1172,6 +1177,7 @@
                         <td colspan="3">Client Total</td>
                         <td class="number">{{ client.total_headcount }}</td>
                         <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
+                        <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
                         <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
                         <td class="number">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
@@ -1528,21 +1534,46 @@ Object.keys(_quarterMonths).forEach(function(q) {
     _quarterMonths[q].forEach(function(m) { _monthToQuarter[m] = q; });
 });
 
-function setQuarter(q) {
-    document.getElementById('quarterFilter').value = q;
-    document.querySelectorAll('.period-btn[data-quarter]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.quarter === q);
+// Req 64 — toggle quarter selection. Multiple quarter buttons can be
+// active at once; the form submits one hidden <input name="quarter">
+// per active quarter. Replaces the old single-quarter setQuarter().
+function toggleQuarter(q) {
+    var btn = document.querySelector('.period-btn[data-quarter="' + q + '"]');
+    if (btn) btn.classList.toggle('active');
+
+    // Rebuild hidden quarter inputs from active buttons
+    var form = document.getElementById('filterForm') || document.querySelector('form');
+    if (!form) return;
+    Array.from(form.querySelectorAll('input[type="hidden"][name="quarter"]')).forEach(function(el) {
+        el.parentNode.removeChild(el);
     });
-    // Directly filter months — cascade inline
-    var validMonths = _quarterMonths[q] || [];
-    var monthSel = document.getElementById('monthFilter');
-    if (monthSel) {
-        Array.from(monthSel.options).forEach(function(opt) {
-            if (!opt.value) { opt.hidden = false; return; }
-            opt.hidden = validMonths.indexOf(opt.value) === -1;
-        });
-        if (monthSel.value && validMonths.indexOf(monthSel.value) === -1) {
-            monthSel.value = '';
+    document.querySelectorAll('.period-btn[data-quarter].active').forEach(function(active) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'quarter';
+        input.value = active.dataset.quarter;
+        form.appendChild(input);
+    });
+}
+
+// Backwards compat — old templates / external links may still call setQuarter.
+function setQuarter(q) {
+    document.querySelectorAll('.period-btn[data-quarter]').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    var btn = document.querySelector('.period-btn[data-quarter="' + q + '"]');
+    if (btn) btn.classList.add('active');
+    toggleQuarter(q);  // already toggled to active above; this rebuilds hidden inputs
+    var input = document.querySelector('input[type="hidden"][name="quarter"][value="' + q + '"]');
+    if (!input) {
+        // setter expected exactly one — re-add it
+        var form = document.getElementById('filterForm') || document.querySelector('form');
+        if (form) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'quarter';
+            input.value = q;
+            form.appendChild(input);
         }
     }
 }

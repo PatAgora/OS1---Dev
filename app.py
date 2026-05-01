@@ -233,6 +233,45 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
+
+# Req 49 — friendly 500 / 503 pages + structured traceback logging.
+# Bare Flask shows "Internal Server Error" with no clue what to do; the
+# user reported repeated 500s during testing. We now log the path,
+# method, candidate id (if present in URL), and traceback so Railway
+# logs surface root-cause info, and render a small HTML banner so the
+# user can retry without staring at a generic stack page.
+@app.errorhandler(500)
+@app.errorhandler(503)
+def _friendly_server_error(exc):
+    import traceback as _tb
+    try:
+        cur_app = current_app._get_current_object()
+        cur_app.logger.error(
+            "5xx hit: path=%s method=%s args=%s",
+            request.path, request.method, dict(request.args),
+            exc_info=exc,
+        )
+    except Exception:
+        pass
+    body = (
+        "<!doctype html><html><head><title>Service hiccup</title>"
+        "<style>body{font-family:system-ui,sans-serif;max-width:560px;"
+        "margin:60px auto;padding:0 20px;color:#111;line-height:1.55}"
+        "h1{font-size:20px}p{color:#374151}.btn{display:inline-block;"
+        "margin-top:16px;padding:10px 16px;background:#1e3a8a;color:#fff;"
+        "border-radius:6px;text-decoration:none;font-weight:600}</style>"
+        "</head><body>"
+        "<h1>Something went wrong on our side</h1>"
+        "<p>The server hit an unexpected error or an external service "
+        "was slow to respond. Please try the action again — your work "
+        "is usually saved.</p>"
+        "<p>If it keeps happening, paste the URL into a message to the "
+        "Optimus team.</p>"
+        "<a class='btn' href='javascript:history.back()'>Go back</a>"
+        "</body></html>"
+    )
+    return body, getattr(exc, "code", 500)
+
 # Security headers
 @app.after_request
 def set_security_headers(response):
@@ -21602,9 +21641,16 @@ def revenue():
     
     # ===== FILTER SECTION 2: Period filters =====
     selected_fy = request.args.get("fy") or ""  # Financial Year (e.g., "2024" for FY 2024/25)
-    selected_quarter = request.args.get("quarter") or ""  # 1, 2, 3, 4
-    selected_month = request.args.get("month") or ""  # 1-12
-    selected_week = request.args.get("week") or ""  # 1-52
+    # Req 64 — Quarter / Month / Week filters now multi-select.
+    # Backwards-compatible: still accept the old single ?quarter=1 form,
+    # but also accept ?quarter=1&quarter=2&quarter=3 (getlist).
+    selected_quarters = [q for q in request.args.getlist("quarter") if q]
+    selected_months = [m for m in request.args.getlist("month") if m]
+    selected_weeks = [w for w in request.args.getlist("week") if w]
+    # Single-value aliases kept for downstream code that still uses them.
+    selected_quarter = selected_quarters[0] if len(selected_quarters) == 1 else ""
+    selected_month = selected_months[0] if len(selected_months) == 1 else ""
+    selected_week = selected_weeks[0] if len(selected_weeks) == 1 else ""
     
     now = datetime.datetime.now()
     current_year = now.year
@@ -21687,56 +21733,73 @@ def revenue():
             except ValueError:
                 pass
         
-        # Quarter filter (within FY)
-        if selected_quarter:
+        # Req 64 — multi-select Quarter / Month / Week filters. We collect
+        # a (start, end) for each selected value and then take min(start)
+        # and max(end) across all of them so the engagement query covers
+        # the full union range. Engagement-row visibility is still
+        # date-bounded the same way as the single-select case.
+        def _quarter_range(q_str, fy_str):
             try:
-                q = int(selected_quarter)
-                fy_year = int(selected_fy) if selected_fy else current_year
-                # UK FY Quarters: Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar
+                q = int(q_str)
+                fy_year = int(fy_str) if fy_str else current_year
                 quarter_months = {1: (4, 6), 2: (7, 9), 3: (10, 12), 4: (1, 3)}
-                if q in quarter_months:
-                    start_month, end_month = quarter_months[q]
-                    if q == 4:  # Q4 is in next calendar year
-                        filter_start = datetime.datetime(fy_year + 1, start_month, 1)
-                        _, last_day = calendar.monthrange(fy_year + 1, end_month)
-                        filter_end = datetime.datetime(fy_year + 1, end_month, last_day, 23, 59, 59)
-                    else:
-                        filter_start = datetime.datetime(fy_year, start_month, 1)
-                        _, last_day = calendar.monthrange(fy_year, end_month)
-                        filter_end = datetime.datetime(fy_year, end_month, last_day, 23, 59, 59)
-            except ValueError:
-                pass
-        
-        # Month filter
-        if selected_month:
+                if q not in quarter_months:
+                    return None
+                sm, em = quarter_months[q]
+                year_for_q = fy_year + 1 if q == 4 else fy_year
+                _, last_day = calendar.monthrange(year_for_q, em)
+                return (
+                    datetime.datetime(year_for_q, sm, 1),
+                    datetime.datetime(year_for_q, em, last_day, 23, 59, 59),
+                )
+            except (ValueError, TypeError):
+                return None
+
+        def _month_range(m_str, fy_str):
             try:
-                month = int(selected_month)
+                m = int(m_str)
                 year = current_year
-                if selected_fy:
-                    fy_year = int(selected_fy)
-                    # Adjust year based on month and FY
-                    year = fy_year if month >= 4 else fy_year + 1
-                filter_start = datetime.datetime(year, month, 1)
-                _, last_day = calendar.monthrange(year, month)
-                filter_end = datetime.datetime(year, month, last_day, 23, 59, 59)
-            except ValueError:
-                pass
-        
-        # Week filter
-        if selected_week:
+                if fy_str:
+                    fy_year = int(fy_str)
+                    year = fy_year if m >= 4 else fy_year + 1
+                _, last_day = calendar.monthrange(year, m)
+                return (
+                    datetime.datetime(year, m, 1),
+                    datetime.datetime(year, m, last_day, 23, 59, 59),
+                )
+            except (ValueError, TypeError):
+                return None
+
+        def _week_range(w_str, fy_str):
             try:
-                week = int(selected_week)
-                year = current_year
-                if selected_fy:
-                    year = int(selected_fy)
-                # Get first day of week
+                w = int(w_str)
+                year = int(fy_str) if fy_str else current_year
                 first_day_of_year = datetime.datetime(year, 1, 1)
                 first_monday = first_day_of_year + datetime.timedelta(days=(7 - first_day_of_year.weekday()) % 7)
-                filter_start = first_monday + datetime.timedelta(weeks=week - 1)
-                filter_end = filter_start + datetime.timedelta(days=6, hours=23, minutes=59, seconds=59)
-            except ValueError:
-                pass
-        
+                start = first_monday + datetime.timedelta(weeks=w - 1)
+                end = start + datetime.timedelta(days=6, hours=23, minutes=59, seconds=59)
+                return (start, end)
+            except (ValueError, TypeError):
+                return None
+
+        period_ranges = []
+        for q in selected_quarters:
+            r = _quarter_range(q, selected_fy)
+            if r:
+                period_ranges.append(r)
+        for m in selected_months:
+            r = _month_range(m, selected_fy)
+            if r:
+                period_ranges.append(r)
+        for w in selected_weeks:
+            r = _week_range(w, selected_fy)
+            if r:
+                period_ranges.append(r)
+
+        if period_ranges:
+            filter_start = min(rr[0] for rr in period_ranges)
+            filter_end = max(rr[1] for rr in period_ranges)
+
         # Date range filter (overrides period filters if set)
         if date_from:
             try:
@@ -21776,6 +21839,7 @@ def revenue():
         total_actual_revenue = 0
         total_actual_cost = 0
         total_headcount = 0
+        total_cumulative_forecast = 0
         
         # Client breakdown data
         client_data = {}
@@ -21818,25 +21882,69 @@ def revenue():
             else:
                 working_days = 20  # Default
             
-            # Calculate revenue metrics
-            forecast_revenue = planned_daily_revenue * working_days
+            # Req 63 — Forecast: planned headcount × charge_rate × working
+            # days, with a 10% shrinkage applied (sales-pipeline-style
+            # discount for non-realised days). Pre-shrinkage value also
+            # carried for the cumulative-forecast column.
+            SHRINKAGE = 0.10
+            forecast_revenue_gross = planned_daily_revenue * working_days
             forecast_cost = planned_daily_cost * working_days
+            forecast_revenue = forecast_revenue_gross * (1 - SHRINKAGE)
             forecast_margin = forecast_revenue - forecast_cost
-            
-            # Actual revenue (simulated - varies from forecast by +/-15%)
-            import random
-            random.seed(eng.id)  # Consistent random for same engagement
-            actual_factor = 0.85 + random.random() * 0.30  # 0.85 to 1.15
-            actual_revenue = forecast_revenue * actual_factor
-            actual_cost = forecast_cost * (0.90 + random.random() * 0.15)  # Costs vary less
+
+            # Req 63 — Actuals come from APPROVED timesheets only. No more
+            # random simulation — un-started engagements correctly show £0.
+            actual_revenue = 0.0
+            actual_cost = 0.0
+            try:
+                _ts_filters = [
+                    Timesheet.engagement_id == eng.id,
+                    func.lower(Timesheet.status) == "approved",
+                ]
+                if filter_start:
+                    _ts_filters.append(Timesheet.period_end >= filter_start)
+                if filter_end:
+                    _ts_filters.append(Timesheet.period_start <= filter_end)
+                ts_rows = s.scalars(select(Timesheet).where(*_ts_filters)).all()
+                for ts in ts_rows:
+                    days = float(getattr(ts, "billable_days", 0) or 0)
+                    rate = float(getattr(ts, "day_rate", 0) or 0)
+                    actual_revenue += days * rate
+                    # Cost falls out of EngagementPlan pay_rate proportionally
+                    # to revenue. If we don't have a per-worker pay_rate
+                    # readily available we fall back to the planned ratio.
+                    if planned_daily_revenue:
+                        actual_cost += (days * rate) * (planned_daily_cost / planned_daily_revenue)
+            except Exception:
+                current_app.logger.exception("revenue actuals query failed for eng %s", eng.id)
             actual_margin = actual_revenue - actual_cost
-            
+
+            # Cumulative forecast — pro-rate the forecast over the elapsed
+            # portion of the engagement window so the column shows where
+            # we should be vs the actual approved-timesheet figure.
+            cumulative_forecast = 0.0
+            if eng_start and eng_end and eng_end >= eng_start:
+                total_days = max(1, (eng_end - eng_start).days)
+                today = now.date() if hasattr(now, "date") else now
+                eng_start_d = eng_start.date() if hasattr(eng_start, "date") else eng_start
+                eng_end_d = eng_end.date() if hasattr(eng_end, "date") else eng_end
+                cap = today
+                if isinstance(cap, datetime.datetime):
+                    cap = cap.date()
+                if cap > eng_end_d:
+                    cap = eng_end_d
+                if cap < eng_start_d:
+                    cap = eng_start_d
+                elapsed_days = max(0, (cap - eng_start_d).days)
+                cumulative_forecast = forecast_revenue * (elapsed_days / total_days) if total_days else 0
+
             # Accumulate totals
             total_forecast_revenue += forecast_revenue
             total_forecast_cost += forecast_cost
             total_actual_revenue += actual_revenue
             total_actual_cost += actual_cost
             total_headcount += on_contract_count
+            total_cumulative_forecast += cumulative_forecast
             
             # Group by client
             client_name = eng.client or "Unknown"
@@ -21867,7 +21975,9 @@ def revenue():
                 "actual_revenue": actual_revenue,
                 "actual_cost": actual_cost,
                 "actual_margin": actual_margin,
+                "cumulative_forecast": cumulative_forecast,
             })
+            client_data[client_name].setdefault("cumulative_forecast", 0)
             client_data[client_name]["headcount"] += on_contract_count
             client_data[client_name]["forecast_revenue"] += forecast_revenue
             client_data[client_name]["forecast_cost"] += forecast_cost
@@ -21875,6 +21985,7 @@ def revenue():
             client_data[client_name]["actual_revenue"] += actual_revenue
             client_data[client_name]["actual_cost"] += actual_cost
             client_data[client_name]["actual_margin"] += actual_margin
+            client_data[client_name]["cumulative_forecast"] += cumulative_forecast
         
         # Calculate KPIs
         forecast_margin = total_forecast_revenue - total_forecast_cost
@@ -21905,6 +22016,7 @@ def revenue():
             "avg_margin_pp_pct": avg_margin_pp_pct,
             "revenue_variance": revenue_variance,
             "margin_variance": margin_variance,
+            "cumulative_forecast": total_cumulative_forecast,
         }
         
         # Transform client_data to list of objects with expected fields
@@ -21922,6 +22034,7 @@ def revenue():
             c.total_actual_revenue = data.get("actual_revenue", 0)
             c.total_actual_cost = data.get("actual_cost", 0)
             c.total_actual_margin = data.get("actual_margin", 0)
+            c.total_cumulative_forecast = data.get("cumulative_forecast", 0)
             clients.append(c)
         
         # Monthly trend data (based on filter period or full year)
@@ -21990,6 +22103,9 @@ def revenue():
         financial_years=financial_years,
         selected_fy=selected_fy,
         selected_quarter=selected_quarter,
+        selected_quarters=selected_quarters,
+        selected_months=selected_months,
+        selected_weeks=selected_weeks,
         selected_month=selected_month,
         selected_week=selected_week,
         today=datetime.datetime.now(),
