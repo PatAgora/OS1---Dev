@@ -15188,17 +15188,25 @@ def _apply_interview_outcome(s, appn, outcome_key: str, *, source: str = "manual
     """Shared helper. Applies the Pass / Fail / No Show outcome to an
     Application + Candidate atomically. `source` is logged on the audit
     trail so we can tell whether the outcome came from the workflow
-    "Pass I&A" button, the candidate-profile dropdown, or an API path."""
+    "Pass I&A" button, the candidate-profile dropdown, or an API path.
+
+    Note: optimus_interview_result lives on the Candidate model
+    (app.py:5688) — NOT Application. Setting it on the Application
+    object is silently ignored at commit time because it isn't a
+    mapped column there. The bug surfaced as the kanban moving but
+    the Outcome dropdown reverting to "— Set outcome —" because the
+    Candidate column hadn't been written.
+    """
     cfg = INTERVIEW_OUTCOMES.get(outcome_key)
     if not cfg:
         return False
     cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
-    appn.optimus_interview_result = cfg["result"]
     if not appn.interview_completed_at:
         appn.interview_completed_at = datetime.datetime.utcnow()
     appn.status = cfg["app_status"]
     if cand:
         cand.status = cfg["cand_status"]
+        cand.optimus_interview_result = cfg["result"]
         cand.last_activity_at = datetime.datetime.utcnow()
     try:
         log_audit_event(
@@ -17677,9 +17685,11 @@ def candidate_profile(cand_id: int):
                     # and admin consent granted). Falls back to "" for
                     # interviews that went via the legacy .ics path.
                     "teams_join_url": getattr(_ia, "interview_teams_join_url", "") or "",
-                    # Req 9 — Pass / Fail / No Show outcome (from the
-                    # workflow Pass I&A button or the profile dropdown).
-                    "outcome_result": getattr(_ia, "optimus_interview_result", "") or "",
+                    # Req 9 — Pass / Fail / No Show outcome. The column
+                    # lives on Candidate (NOT Application — the data
+                    # model only stores the candidate's most recent
+                    # outcome; per-interview history is in the audit log).
+                    "outcome_result": getattr(cand, "optimus_interview_result", "") or "",
                 })
         if not interview_app:
             interview_app = newest_app
