@@ -982,6 +982,38 @@
         </div>
         {% endif %}
 
+        <!-- Referencing Progress Bar (same style as vetting, sits beneath it).
+             Driven by get_referencing_progress() — counts ReferenceRequest
+             rows for the candidate, with received/total → RAG colour. -->
+        <div class="vetting-status-bar">
+          {% if card.referencing_progress %}
+          <div class="vetting-header">
+            <span class="vetting-label">References</span>
+            <span class="vetting-count">{{ card.referencing_progress.received }}/{{ card.referencing_progress.total }}</span>
+            <span class="rag-indicator rag-{{ card.referencing_progress.rag }}" title="{{ card.referencing_progress.rag|upper }}"></span>
+          </div>
+          <div class="vetting-bar">
+            <div class="vetting-fill rag-{{ card.referencing_progress.rag }}" style="width: {{ card.referencing_progress.percentage }}%"></div>
+          </div>
+          {% else %}
+          <div class="vetting-header">
+            <span class="vetting-label">References</span>
+            <span class="vetting-count">Not Started</span>
+            <span class="rag-indicator rag-grey" title="No referencing data"></span>
+          </div>
+          <div class="vetting-bar">
+            <div class="vetting-fill rag-grey" style="width: 0%"></div>
+          </div>
+          {% endif %}
+        </div>
+        {% if card.referencing_progress and card.referencing_progress.flagged %}
+        <div class="mt-1">
+          <span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.65rem;">
+            <i class="fas fa-flag me-1"></i>References Flagged ({{ card.referencing_progress.flagged }})
+          </span>
+        </div>
+        {% endif %}
+
         <div class="card-actions">
           <a href="{{ url_for('candidate_profile', cand_id=card.candidate_id) }}"
              class="btn btn-outline-primary btn-sm"
