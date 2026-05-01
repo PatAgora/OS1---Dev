@@ -1254,23 +1254,6 @@
                     {% endif %}
                     {% endfor %}
                 </tbody>
-                <tfoot>
-                    <tr style="background: #f8fafc; font-weight: 600;">
-                        <td colspan="3">Client Total</td>
-                        <td class="number">{{ client.total_headcount }}</td>
-                        <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
-                        <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
-                        <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
-                        <td class="number">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
-                        <td class="number" style="color: {% if client.total_actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
-                        <td class="number">
-                            {% set client_variance = client.total_actual_revenue - client.total_forecast_revenue %}
-                            <span style="color: {% if client_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
-                                £{{ "{:,.0f}".format(client_variance) }}
-                            </span>
-                        </td>
-                    </tr>
-                </tfoot>
             </table>
         </div>
     </div>
