@@ -7252,6 +7252,21 @@ try:
 except Exception:
     pass
 
+# Req 46 — "QC In Progress" is no longer a selectable status. Existing
+# rows in that state are migrated to "Sent to QC" so the UI reflects
+# them correctly without forcing a manual touch.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        try:
+            _rc.execute(text(
+                "UPDATE vetting_check SET status = 'Sent to QC' "
+                "WHERE UPPER(status) = 'QC IN PROGRESS'"
+            ))
+        except Exception:
+            pass
+except Exception:
+    pass
+
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
 
@@ -19034,6 +19049,57 @@ def assign_qc_reviewer(cand_id: int):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/action/mark-all-qc-complete/<int:cand_id>", methods=["POST"])
+@login_required
+def mark_all_qc_complete(cand_id: int):
+    """Req 46 — bulk-flip every vetting check on a candidate to
+    QC COMPLETE so the user doesn't have to save 12 dropdowns one at a
+    time. Audit-logged so we can see who did it.
+    """
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        checks = s.scalars(
+            select(VettingCheck).where(VettingCheck.candidate_id == cand_id)
+        ).all()
+
+        flipped = 0
+        for vc in checks:
+            current = (vc.status or "").upper()
+            if current in ("QC COMPLETE", "QC NOT REQUIRED", "COMPLETE", "N/A", "CHECK STILL IN DATE"):
+                continue
+            vc.status = "QC COMPLETE"
+            vc.qc_status = "qc_approved"
+            if not vc.completed_at:
+                vc.completed_at = datetime.datetime.utcnow()
+            flipped += 1
+
+        if flipped:
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="activity",
+                content=f"Bulk Mark QC Complete — {flipped} check(s) flipped.",
+                created_at=datetime.datetime.utcnow(),
+            ))
+            try:
+                log_audit_event(
+                    "update", "vetting",
+                    f"Bulk Mark QC Complete: {flipped} checks for candidate #{cand_id}",
+                    "candidate", cand_id,
+                    {"flipped": flipped},
+                )
+            except Exception:
+                current_app.logger.exception("mark_all_qc_complete audit log failed")
+
+        s.commit()
+        flash(f"Marked {flipped} check{'s' if flipped != 1 else ''} as QC Complete.", "success")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/assign-qc-reviewer-bulk/<int:cand_id>", methods=["POST"])
 @login_required
 def assign_qc_reviewer_bulk(cand_id: int):
@@ -19335,8 +19401,10 @@ def send_reference(cand_id: int):
                     user_file.content_type or "application/octet-stream",
                 ))
 
+            # Req 50 — reference request emails come from compliance@.
             send_email(ref_req.referee_email, email_subject, html_body,
-                       attachments=attachments if attachments else None)
+                       attachments=attachments if attachments else None,
+                       from_email=COMPLIANCE_FROM)
             ref_req.status = "sent"
             ref_req.sent_at = datetime.datetime.utcnow()
             flash(f"Reference request sent to {ref_req.referee_email}.", "success")
@@ -19383,9 +19451,11 @@ def chase_reference(cand_id: int):
             at your earliest convenience.</p>
             <p>Regards,<br>Optimus Compliance Team</p>
             """
+            # Req 50 — reference reminder also comes from compliance@.
             send_email(ref_req.referee_email,
                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
-                       html_body)
+                       html_body,
+                       from_email=COMPLIANCE_FROM)
             ref_req.chase_count = (ref_req.chase_count or 0) + 1
             ref_req.last_chased_at = datetime.datetime.utcnow()
             flash(f"Chase #{ref_req.chase_count} sent to {ref_req.referee_email}.", "success")
@@ -25248,9 +25318,11 @@ def _setup_scheduler():
                             <p>Please reply at your earliest convenience.</p>
                             <p>Regards,<br>Optimus Compliance Team</p>
                             """
+                            # Req 50 — automated reference chase from compliance@.
                             send_email(ref.referee_email,
                                        f"Reminder: Reference Request — {cand.name if cand else 'Candidate'}",
-                                       html_body)
+                                       html_body,
+                                       from_email=COMPLIANCE_FROM)
                             ref.chase_count += 1
                             ref.last_chased_at = datetime.datetime.utcnow()
                             if ref.chase_count >= 3:
@@ -25326,7 +25398,9 @@ def _setup_scheduler():
                             <p><a href="{base_url}/portal/dashboard">Log in to the Portal</a></p>
                             <p>Regards,<br>Optimus Compliance Team</p>
                             """
-                            send_email(cand.email, "Reminder: Complete Your Vetting Profile", html_body)
+                            # Req 50 — vetting profile reminder from compliance@.
+                            send_email(cand.email, "Reminder: Complete Your Vetting Profile", html_body,
+                                       from_email=COMPLIANCE_FROM)
                             chased += 1
                         except Exception:
                             pass

@@ -1200,6 +1200,11 @@
                   <i class="fas fa-user-check"></i> QC Assign
                 </button>
               </div>
+              <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-success btn-sm" style="font-size:0.75rem;" onclick="bulkMarkQCComplete({{ cand.id }})" title="Mark every vetting check QC Complete">
+                  <i class="fas fa-double-check"></i> Mark all QC Complete
+                </button>
+              </div>
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})">
@@ -1279,8 +1284,10 @@
                     {% set is_qc = (check.qc_assigned_to and current_user.is_authenticated and check.qc_assigned_to == current_user.id) %}
                     {% set is_admin = (current_user.is_authenticated and current_user.role == 'admin') %}
                     <select name="status" class="form-select form-select-sm" style="font-size:0.7rem; flex:1;">
+                      {# Req 46 — "QC In Progress" removed from selectable
+                         options. Existing rows with that status are auto-
+                         migrated to "Sent to QC" via the boot-time UPDATE. #}
                       {% if is_qc and not is_admin %}
-                        <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
                         <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
                         <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
                         <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
@@ -1288,15 +1295,14 @@
                       {% elif is_assignee and not is_admin %}
                         <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
                         <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                        <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                        <option value="SENT TO QC" {% if s_upper in ('SENT TO QC','QC IN PROGRESS') %}selected{% endif %}>Sent to QC</option>
                         <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
                         <option value="N/A" {% if s_upper == 'N/A' %}selected{% endif %}>N/A</option>
                       {% else %}
                         <option value="NOT STARTED" {% if s_upper in ('NOT STARTED','READY TO START') %}selected{% endif %}>Not Started</option>
                         <option value="IN PROGRESS" {% if s_upper == 'IN PROGRESS' %}selected{% endif %}>In Progress</option>
-                        <option value="SENT TO QC" {% if s_upper == 'SENT TO QC' %}selected{% endif %}>Sent to QC</option>
+                        <option value="SENT TO QC" {% if s_upper in ('SENT TO QC','QC IN PROGRESS') %}selected{% endif %}>Sent to QC</option>
                         <option value="CHECK STILL IN DATE" {% if s_upper == 'CHECK STILL IN DATE' %}selected{% endif %}>Check Still In Date</option>
-                        <option value="QC IN PROGRESS" {% if s_upper == 'QC IN PROGRESS' %}selected{% endif %}>QC In Progress</option>
                         <option value="QC REWORK NEEDED" {% if s_upper == 'QC REWORK NEEDED' %}selected{% endif %}>QC Rework Needed</option>
                         <option value="QC COMPLETE" {% if s_upper == 'QC COMPLETE' %}selected{% endif %}>QC Complete</option>
                         <option value="QC NOT REQUIRED" {% if s_upper == 'QC NOT REQUIRED' %}selected{% endif %}>QC Not Required</option>
@@ -2649,6 +2655,20 @@ function bulkAssignAnalyst(candId) {
     body: body
   })
   .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to bulk-assign'); } })
+  .catch(function() { alert('Network error'); });
+}
+
+function bulkMarkQCComplete(candId) {
+  if (!confirm('Mark ALL vetting checks for this associate as QC Complete? This is logged in the audit trail.')) return;
+  var body = new FormData();
+  body.append('csrf_token', _csrfToken());
+  fetch('/action/mark-all-qc-complete/' + candId, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': _csrfToken() },
+    body: body
+  })
+  .then(function(r) { if (r.ok || r.redirected) { location.reload(); } else { alert('Failed to bulk mark QC Complete'); } })
   .catch(function() { alert('Network error'); });
 }
 
