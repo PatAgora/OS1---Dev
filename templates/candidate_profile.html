@@ -2848,7 +2848,10 @@ function previewReferenceEmail(candidateId, refId) {
     document.getElementById('refEmailToDisplay').value = data.referee_email || '';
     document.getElementById('refEmailSubject').value = data.subject || '';
     document.getElementById('refEmailBody').value = data.body || '';
-    document.getElementById('refEmailPreviewPane').innerHTML = data.body || '';
+    // Req 10 — render the preview from the textarea (plain text → HTML
+    // with paragraph + <br> wrapping) so the live preview matches the
+    // sent email exactly.
+    _renderRefPreview();
     // Set form action
     document.getElementById('refEmailSendForm').action = '/action/send-reference/' + candidateId;
     // Show modal
@@ -2858,14 +2861,40 @@ function previewReferenceEmail(candidateId, refId) {
   .catch(function(e) { alert('Failed to load email preview: ' + e.message); });
 }
 
-// Live preview: update the HTML preview pane when the body textarea changes
+// Req 10 — render the preview pane from the textarea. The textarea now
+// holds plain text with real \n line breaks (so the recruiter can read
+// + edit), so we convert it to HTML for the preview pane. This is the
+// same logic the server applies in _normalise_email_body: if the body
+// contains HTML tags, leave it alone; otherwise wrap paragraphs in
+// <p>...</p> and turn single newlines into <br>.
+function _renderRefPreview() {
+  var bodyTextarea = document.getElementById('refEmailBody');
+  var previewPane  = document.getElementById('refEmailPreviewPane');
+  if (!bodyTextarea || !previewPane) return;
+  var raw = bodyTextarea.value || '';
+  var hasHtml = /<(p|br|h[1-6]|ul|ol|li|table)\b/i.test(raw);
+  var html;
+  if (hasHtml) {
+    html = raw;
+  } else {
+    // Escape angle brackets first so any stray < or > don't break the
+    // preview — _normalise_email_body on the server side does the same.
+    var esc = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    var paragraphs = esc.split(/\n\s*\n/).filter(function(p) { return p.trim().length; });
+    html = paragraphs
+      .map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; })
+      .join('');
+  }
+  previewPane.innerHTML = html;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var bodyTextarea = document.getElementById('refEmailBody');
-  var previewPane = document.getElementById('refEmailPreviewPane');
-  if (bodyTextarea && previewPane) {
-    bodyTextarea.addEventListener('input', function() {
-      previewPane.innerHTML = bodyTextarea.value;
-    });
+  if (bodyTextarea) {
+    bodyTextarea.addEventListener('input', _renderRefPreview);
   }
 });
 
