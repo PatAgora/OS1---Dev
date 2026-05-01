@@ -1002,8 +1002,21 @@
           </a>
           {% endif %}
 
-          {# Placement link for Contract Sent / Placed stages — filtered to this candidate #}
-          {% if stage.id in ('contract_sent', 'placed') %}
+          {# Req 17 — On Contract Sent, the green tick is the
+             "Confirm Contract Signed" action (POST). Once signed (the
+             card moves to Placed), the same green tick becomes a "View
+             Placement" link filtered to this candidate. #}
+          {% if stage.id == 'contract_sent' %}
+          <form method="POST" action="{{ url_for('confirm_contract_signed', cand_id=card.candidate_id) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Confirm the contract is signed? This will move {{ card.name }} to Placed.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-success btn-sm"
+                    title="Confirm Contract Signed">
+              <i class="fas fa-file-signature"></i>
+            </button>
+          </form>
+          {% elif stage.id == 'placed' %}
           <a href="{{ url_for('placements', name=card.name) }}"
              class="btn btn-outline-success btn-sm"
              title="View Placement">

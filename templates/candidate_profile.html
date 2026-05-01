@@ -507,7 +507,7 @@
             {% elif status in ('Ex-Associate',) %}bg-secondary
             {% elif status == 'Unavailable' %}bg-purple
             {% elif status in ('5', 'DNU', 'Do Not Use', 'Do Not Contact') %}bg-danger
-            {% elif status in ('Interviewing', 'I&A', 'Client Review') %}bg-warning text-dark
+            {% elif status in ('Interviewing', 'I&A', 'Client Review', 'Interview Complete') %}bg-warning text-dark
             {% elif status in ('Pipeline', 'Shortlist', 'Shortlisted') %}bg-info
             {% elif status in ('Offered', 'Accepted') %}bg-success
             {% elif status in ('Ready to Contract', 'Contract Sent', 'Contract Issued') %}bg-primary
@@ -1678,11 +1678,15 @@
             
             <div class="status-selector">
               {% set current_status = cand.status or 'Available' %}
-              <span class="status-option available {% if current_status == 'Available' %}active{% endif %}" 
+              <span class="status-option available {% if current_status == 'Available' %}active{% endif %}"
                     onclick="setStatus('Available')" data-status="Available">
                 <i class="fas fa-check-circle me-1"></i> Available
               </span>
-              <span class="status-option on-assignment {% if current_status == 'On Assignment' %}active{% endif %}" 
+              <span class="status-option interview-complete {% if current_status == 'Interview Complete' %}active{% endif %}"
+                    onclick="setStatus('Interview Complete')" data-status="Interview Complete">
+                <i class="fas fa-comments me-1"></i> Interview Complete
+              </span>
+              <span class="status-option on-assignment {% if current_status == 'On Assignment' %}active{% endif %}"
                     onclick="setStatus('On Assignment')" data-status="On Assignment">
                 <i class="fas fa-briefcase me-1"></i> On Assignment
               </span>
@@ -2878,6 +2882,72 @@ function openSection(id) {
   if (card._collapsed) _toggleCard(card);
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// Req 48 — preserve scroll position + which "modern-card" sections were
+// open across form-submit redirects on this profile. Stored under a key
+// scoped to the candidate id so navigating between profiles doesn't
+// leak state. Cleared after restore so refreshes don't pin the user.
+(function () {
+  var STORAGE_KEY = 'cand_{{ cand.id }}_profile_state';
+
+  function captureState() {
+    var openIds = [];
+    document.querySelectorAll('.modern-card[id]').forEach(function (card) {
+      // _collapsed is set by the existing _toggleCard() helper above.
+      if (!card._collapsed) openIds.push(card.id);
+    });
+    return {
+      scrollY: window.scrollY || window.pageYOffset || 0,
+      hash: window.location.hash || '',
+      openIds: openIds,
+      ts: Date.now()
+    };
+  }
+
+  // Save state right before any form on this page submits.
+  document.addEventListener('submit', function (e) {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(captureState()));
+    } catch (_) { /* sessionStorage unavailable — silently skip */ }
+  }, true);
+
+  // Restore on page load if state was captured in the last 60 seconds.
+  document.addEventListener('DOMContentLoaded', function () {
+    var raw;
+    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch (_) { return; }
+    if (!raw) return;
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch (_) {}
+
+    var state;
+    try { state = JSON.parse(raw); } catch (_) { return; }
+    if (!state || (Date.now() - (state.ts || 0)) > 60000) return;
+
+    // Re-open any sections that were open before submit. (_toggleCard
+    // is defined further up in this script block; cards default to
+    // collapsed=false on render so this is mostly a safety net.)
+    if (state.openIds && state.openIds.length) {
+      state.openIds.forEach(function (id) {
+        var card = document.getElementById(id);
+        if (card && card._collapsed && typeof _toggleCard === 'function') {
+          _toggleCard(card);
+        }
+      });
+    }
+
+    // If the user was anchored to a specific section, scroll to it;
+    // otherwise restore raw scrollY.
+    if (state.hash) {
+      var target = document.querySelector(state.hash);
+      if (target) {
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        return;
+      }
+    }
+    if (typeof state.scrollY === 'number') {
+      window.scrollTo(0, state.scrollY);
+    }
+  });
+})();
 </script>
 </div>
 {% endblock %}

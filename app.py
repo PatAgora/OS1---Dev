@@ -10478,7 +10478,7 @@ def workflow():
                     text("""
                         SELECT
                             COUNT(*) as total,
-                            SUM(CASE WHEN status IN ('Complete', 'COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED') THEN 1 ELSE 0 END) as complete,
+                            SUM(CASE WHEN UPPER(status) IN ('COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'REFERRAL APPROVED', 'CHECK STILL IN DATE', 'N/A') THEN 1 ELSE 0 END) as complete,
                             SUM(CASE WHEN status IN ('In Progress', 'IN PROGRESS', 'AWAITING QC', 'SENT TO QC', 'QC IN PROGRESS', 'QC REWORK NEEDED', 'AWAIT QC REWORK CHECK') THEN 1 ELSE 0 END) as in_progress,
                             SUM(CASE WHEN status IN ('Not Started', 'NOT STARTED', 'READY TO START') THEN 1 ELSE 0 END) as not_started,
                             SUM(CASE WHEN status IN ('Not Required', 'N/A') THEN 1 ELSE 0 END) as not_required,
@@ -10700,7 +10700,20 @@ def workflow():
         try:
             # Get per-candidate vetting summary with SLA calculation
             # Responds to grid filters so vetting summary updates with filter selections
-            _vs = "SELECT c.id, c.name, COUNT(vc.id) as total_checks, SUM(CASE WHEN vc.status = 'Complete' THEN 1 ELSE 0 END) as complete_checks, MIN(vc.created_at) as first_check_date FROM candidates c JOIN vetting_check vc ON vc.candidate_id = c.id"
+            # Req 42 — use the canonical complete-equivalent set so the
+            # workflow card matches the candidate profile and the
+            # associate portal. All three sites count the same statuses
+            # (Complete / COMPLETE / QC COMPLETE / QC NOT REQUIRED /
+            # REFERRAL APPROVED / CHECK STILL IN DATE / N/A) as done.
+            _vs = (
+                "SELECT c.id, c.name, COUNT(vc.id) as total_checks, "
+                "SUM(CASE WHEN UPPER(vc.status) IN "
+                "('COMPLETE','QC COMPLETE','QC NOT REQUIRED',"
+                "'REFERRAL APPROVED','CHECK STILL IN DATE','N/A') "
+                "THEN 1 ELSE 0 END) as complete_checks, "
+                "MIN(vc.created_at) as first_check_date "
+                "FROM candidates c JOIN vetting_check vc ON vc.candidate_id = c.id"
+            )
             _vw, _vp = [], {}
             if any([client_filter != "all", engagement_filter != "all" and engagement_filter.isdigit(), role_filter != "all", owner_filter != "all", eng_status_filter == "active"]):
                 _vs += " JOIN applications a ON a.candidate_id = c.id JOIN jobs j ON j.id = a.job_id LEFT JOIN engagements e ON e.id = j.engagement_id"
@@ -13216,7 +13229,7 @@ def candidate_profile_update(cand_id):
 def candidate_update_status(cand_id):
     """Update candidate global status from profile page."""
     VALID_STATUSES = [
-        "Available", "On Assignment", "On Contract", "On Notice",
+        "Available", "Interview Complete", "On Assignment", "On Contract", "On Notice",
         "5", "Ex-Associate", "Unavailable", "Do Not Contact"
     ]
     
@@ -14756,27 +14769,41 @@ def action_schedule_interview(app_id):
 @app.route("/action/mark_interview_completed/<int:app_id>", methods=["POST"])
 @login_required
 def action_mark_interview_completed(app_id):
+    # Req 9 — set the interview-completed timestamp on the application AND
+    # flip the candidate's profile status to "Interview Complete" so the
+    # resource pool / profile pill agree. The application's stage on the
+    # workflow kanban stays at I&A — that's a separate axis from the
+    # candidate's overall status.
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
         if not appn:
             abort(404)
         appn.interview_completed_at = datetime.datetime.utcnow()
-        appn.status = "Client Review"  # Move to Client Review stage after internal interview
+        cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
+        if cand:
+            cand.status = "Interview Complete"
+            cand.last_activity_at = datetime.datetime.utcnow()
         s.commit()
-    flash("Interview marked as completed - moved to Client Review", "success")
+    flash("Interview marked as complete.", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
 @app.route("/action/complete_interview/<int:app_id>", methods=["POST"])
 @login_required
 def action_complete_interview(app_id):
+    # Req 9 — see action_mark_interview_completed. Same behaviour: stamp
+    # interview_completed_at, set cand.status='Interview Complete', leave
+    # appn.status alone so the kanban stays at I&A.
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id == app_id))
         if not appn:
             abort(404)
-        appn.status = "Client Review"  # Move to Client Review stage
         appn.interview_completed_at = datetime.datetime.utcnow()
+        cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
+        if cand:
+            cand.status = "Interview Complete"
+            cand.last_activity_at = datetime.datetime.utcnow()
         s.commit()
-    flash("Interview completed - moved to Client Review.", "success")
+    flash("Interview marked as complete.", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
 @app.route("/action/skip_interview/<int:app_id>", methods=["POST"])
@@ -15863,6 +15890,80 @@ def action_contract_extend(contract_id):
     """Extend contract."""
     flash("Contract extended.", "success")
     return redirect(request.referrer or url_for("resource_pool"))
+
+
+@app.route("/candidate/<int:cand_id>/confirm-contract-signed", methods=["POST"])
+@login_required
+def confirm_contract_signed(cand_id: int):
+    """Req 17 — confirm the candidate's contract has been signed.
+    Updates the active ESigRequest, moves the application to 'Placed' on
+    the workflow kanban, sets cand.status='On Assignment', and writes a
+    CandidateNote activity entry. The placements list will pick the
+    placement up via the existing ESigRequest signed-status filter, and
+    the de-dup helper from Req 19 ensures we never end up with two
+    active ESigs for the same candidate.
+    """
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        # Find the candidate's active ESigRequest. If none exists yet
+        # (rare — Issue Contract should have created one), create a
+        # minimal record so /placements has something to join against.
+        esig = _get_or_create_active_esig(
+            s,
+            candidate_id=cand_id,
+            status="signed",
+            signed_at=datetime.datetime.utcnow(),
+        )
+        # Always overwrite to signed even if helper found an existing row
+        # in another in-flight state.
+        esig.status = "signed"
+        if not esig.signed_at:
+            esig.signed_at = datetime.datetime.utcnow()
+
+        # Find the most-recent application for this candidate that's not
+        # already past Placed; flip it to Placed so the kanban moves it.
+        latest_app = s.scalar(
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .where(Application.status.notin_(["Rejected", "Withdrawn", "Closed"]))
+            .order_by(Application.created_at.desc())
+        )
+        if latest_app:
+            latest_app.status = "Placed"
+            if not esig.application_id:
+                esig.application_id = latest_app.id
+            if latest_app.job_id and not esig.engagement_id:
+                _job = s.get(Job, latest_app.job_id)
+                if _job and _job.engagement_id:
+                    esig.engagement_id = _job.engagement_id
+
+        cand.status = "On Assignment"
+        cand.last_activity_at = datetime.datetime.utcnow()
+
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=getattr(current_user, "email", "staff") or "staff",
+            note_type="activity",
+            content="Contract confirmed signed — moved to Placed.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+        s.commit()
+
+        try:
+            log_audit_event(
+                "update", "contract",
+                f"Contract confirmed signed for {cand.name}",
+                "candidate", cand_id,
+                {"esig_id": esig.id, "application_id": getattr(latest_app, "id", None)},
+            )
+        except Exception:
+            current_app.logger.exception("confirm_contract_signed audit log failed")
+
+    flash("Contract confirmed signed — moved to Placed.", "success")
+    return redirect(request.referrer or url_for("workflow"))
 
 
 def _get_or_create_active_esig(
