@@ -870,32 +870,69 @@
                 <input type="hidden" name="quarter" value="{{ q }}">
                 {% endfor %}
             </div>
-            <div class="filter-group" style="min-width: 160px;">
-                <label for="monthFilter">Month <span class="text-muted small">(Ctrl/Cmd+click)</span></label>
-                <select id="monthFilter" name="month" multiple size="6" style="height:auto;">
-                    <option value="1" {% if '1' in selected_months %}selected{% endif %}>January</option>
-                    <option value="2" {% if '2' in selected_months %}selected{% endif %}>February</option>
-                    <option value="3" {% if '3' in selected_months %}selected{% endif %}>March</option>
-                    <option value="4" {% if '4' in selected_months %}selected{% endif %}>April</option>
-                    <option value="5" {% if '5' in selected_months %}selected{% endif %}>May</option>
-                    <option value="6" {% if '6' in selected_months %}selected{% endif %}>June</option>
-                    <option value="7" {% if '7' in selected_months %}selected{% endif %}>July</option>
-                    <option value="8" {% if '8' in selected_months %}selected{% endif %}>August</option>
-                    <option value="9" {% if '9' in selected_months %}selected{% endif %}>September</option>
-                    <option value="10" {% if '10' in selected_months %}selected{% endif %}>October</option>
-                    <option value="11" {% if '11' in selected_months %}selected{% endif %}>November</option>
-                    <option value="12" {% if '12' in selected_months %}selected{% endif %}>December</option>
-                </select>
+            <div class="filter-group" style="min-width: 200px;">
+                <label>Month</label>
+                {# Req 64 — checkbox-dropdown multi-select to match the
+                   Filter by Entity (Client/Engagement/Role) controls. #}
+                {% set _months = [
+                    ('1','January'), ('2','February'), ('3','March'),
+                    ('4','April'),   ('5','May'),      ('6','June'),
+                    ('7','July'),    ('8','August'),   ('9','September'),
+                    ('10','October'),('11','November'),('12','December')
+                ] %}
+                <div class="dropdown-multiselect" id="monthDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('monthDropdown')">
+                        <span class="selected-text">
+                            {% if selected_months %}{{ selected_months|length }} selected{% else %}All Months{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search months..." onkeyup="filterDropdownItems(this, 'monthDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for mval, mname in _months %}
+                            <div class="dropdown-item" data-month="{{ mval }}">
+                                <input type="checkbox" id="month_{{ mval }}" name="month" value="{{ mval }}" {% if mval in selected_months %}checked{% endif %} onchange="updateDropdownText('monthDropdown')">
+                                <label for="month_{{ mval }}">{{ mname }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('monthDropdown')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('monthDropdown')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="filter-group" style="min-width: 180px;">
-                <label for="weekFilter">Week <span class="text-muted small">(Ctrl/Cmd+click)</span></label>
-                <select id="weekFilter" name="week" multiple size="6" style="height:auto;">
-                    {% for w in range(1, 53) %}
-                    <option value="{{ w }}" {% if w|string in selected_weeks %}selected{% endif %}>
-                      Week {{ w }}
-                    </option>
-                    {% endfor %}
-                </select>
+            <div class="filter-group" style="min-width: 200px;">
+                <label>Week</label>
+                <div class="dropdown-multiselect" id="weekDropdown">
+                    <button type="button" class="dropdown-toggle" onclick="toggleDropdown('weekDropdown')">
+                        <span class="selected-text">
+                            {% if selected_weeks %}{{ selected_weeks|length }} selected{% else %}All Weeks{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search weeks..." onkeyup="filterDropdownItems(this, 'weekDropdown')">
+                        </div>
+                        <div class="dropdown-items">
+                            {% for w in range(1, 53) %}
+                            <div class="dropdown-item" data-week="{{ w }}">
+                                <input type="checkbox" id="week_{{ w }}" name="week" value="{{ w }}" {% if w|string in selected_weeks %}checked{% endif %} onchange="updateDropdownText('weekDropdown')">
+                                <label for="week_{{ w }}">Week {{ w }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="select-actions">
+                            <button type="button" class="btn-select-all" onclick="selectAll('weekDropdown')">Select All</button>
+                            <button type="button" class="btn-clear-all" onclick="clearAll('weekDropdown')">Clear All</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
