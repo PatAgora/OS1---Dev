@@ -2826,10 +2826,23 @@ def api_interview_email_preview(cand_id):
 @app.route("/candidate/<int:cand_id>/send-interview-email", methods=["POST"])
 @login_required
 def send_interview_email(cand_id: int):
-    """Send interview invitation email after staff review."""
+    """Send interview invitation email after staff review.
+
+    Req 8 fixes:
+    - Always attach an .ics calendar invite so the email lands as a
+      proper meeting in Outlook / Google Calendar instead of a plain
+      message that says "click this link".
+    - Pass through every file in request.files.getlist("attachments")
+      so multiple uploads (signed contract + briefing pack) all go,
+      not just the first.
+    - Optional Location field on the modal (defaults to a sensible
+      placeholder) so the ICS LOCATION value can be Teams URL or in-
+      person address.
+    """
     to_email = (request.form.get("to_email") or "").strip()
     email_subject = (request.form.get("email_subject") or "").strip()
     email_body = (request.form.get("email_body") or "").strip()
+    location = (request.form.get("location") or "Microsoft Teams (link to follow)").strip()
     if to_email and email_body:
         try:
             html_body = "<br>".join(email_body.split("\n"))
@@ -2840,6 +2853,38 @@ def send_interview_email(cand_id: int):
                         f.filename, f.read(),
                         f.content_type or "application/octet-stream",
                     ))
+
+            # Build an ICS calendar invite from the candidate's scheduled
+            # interview time so the email lands as a real meeting invite.
+            with Session(engine) as s:
+                cand = s.get(Candidate, cand_id)
+                latest_app = s.scalar(
+                    select(Application).where(Application.candidate_id == cand_id)
+                    .order_by(Application.created_at.desc())
+                )
+                job_title = ""
+                cand_name = (cand.name if cand else "") or "Associate"
+                start_dt = latest_app.interview_scheduled_at if latest_app else None
+                if latest_app and latest_app.job_id:
+                    job = s.get(Job, latest_app.job_id)
+                    if job:
+                        job_title = job.title or ""
+
+            if start_dt:
+                end_dt = start_dt + datetime.timedelta(hours=1)
+                ics_bytes = ics_invite(
+                    summary=f"Interview — {job_title or 'Optimus'}",
+                    description=f"Interview for {job_title or 'this role'} with {cand_name}",
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    location=location,
+                    organizer_email=SMTP_FROM,
+                    attendee_email=to_email,
+                )
+                # Prepend so it's the first MIME attachment — most clients
+                # surface the meeting invite UI based on the first ICS.
+                attachments.insert(0, ("interview.ics", ics_bytes, "text/calendar"))
+
             send_email(to_email, email_subject, html_body,
                        attachments=attachments if attachments else None)
             flash(f"Interview invitation sent to {to_email}.", "success")
@@ -19332,10 +19377,29 @@ def send_reference(cand_id: int):
             except Exception:
                 pass
 
+        def _normalise_email_body(text: str) -> str:
+            """Req 10 — the reference-request preview lives in a <textarea>
+            which preserves newlines as raw \\n. When the recruiter sends
+            the customised body as-is, those newlines collapsed in the
+            final HTML email, producing one continuous line of text.
+            Detect whether the body already contains HTML structure; if
+            it does, leave it alone. If it's plain text (or mixed),
+            wrap paragraphs in <p>...</p> and turn single newlines into
+            <br> so the rendered email matches the preview."""
+            if not text:
+                return ""
+            lower = text.lower()
+            has_html = any(tag in lower for tag in ("<p", "<br", "<h1", "<h2", "<h3", "<ul", "<ol", "<li", "<table"))
+            if has_html:
+                return text
+            # Plain-text → paragraph-wrapped HTML
+            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            return "".join("<p>" + p.replace("\n", "<br>") + "</p>" for p in paragraphs)
+
         # If the recruiter customised the email via the preview modal, use that directly
         if custom_subject and custom_body:
             email_subject = custom_subject
-            html_body = custom_body
+            html_body = _normalise_email_body(custom_body)
         else:
             # Load template from DB; fall back to hardcoded default
             email_tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "reference_request"))
@@ -19346,11 +19410,7 @@ def send_reference(cand_id: int):
                 for field, value in merge_fields.items():
                     email_subject = email_subject.replace("{" + field + "}", value)
                     body_text = body_text.replace("{" + field + "}", value)
-                # Convert plain text to HTML if no HTML tags present
-                if "<p>" not in body_text and "<br" not in body_text and "<h" not in body_text:
-                    html_body = "<p>" + body_text.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
-                else:
-                    html_body = body_text
+                html_body = _normalise_email_body(body_text)
             else:
                 # Hardcoded fallback
                 email_subject = f"Reference Request — {cand.name}"
@@ -24038,6 +24098,30 @@ def download_filled_assignment(cand_id, ext):
                         for para in cell.paragraphs:
                             for key, value in remaining.items():
                                 _replace_in_para(para, "{" + key + "}", value)
+
+        # Req 16 — staff often duplicate the Paystream DOCX template for a
+        # different umbrella but forget to update the LABELS that still
+        # say "Paystream". Walk the left-column LABEL cells (only the
+        # "by/agency to/notice period" labels we know about) and swap
+        # "Paystream" for the actual umbrella name. Body / clause text
+        # is left untouched in case Paystream is named legitimately
+        # there as a third party.
+        if umbrella_name and umbrella_name.lower() != "paystream":
+            for table in doc.tables:
+                for row in table.rows:
+                    cells = row.cells
+                    if len(cells) < 1:
+                        continue
+                    left_text = (cells[0].text or "")
+                    if "paystream" in left_text.lower():
+                        for para in cells[0].paragraphs:
+                            for run in para.runs:
+                                if run.text and "Paystream" in run.text:
+                                    run.text = run.text.replace("Paystream", umbrella_name)
+                                # Also handle different case variants
+                                if run.text and "paystream" in run.text.lower() and umbrella_name not in run.text:
+                                    import re as _re
+                                    run.text = _re.sub(r"(?i)paystream", umbrella_name, run.text)
 
         current_app.logger.info(
             "Assignment template filled: %d/%d fields matched (%s)",

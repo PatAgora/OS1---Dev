@@ -1517,8 +1517,16 @@
                   <div class="form-text"><i class="fas fa-info-circle me-1"></i>Paste a Teams meeting link into the body above before sending.</div>
                 </div>
                 <div class="mb-3">
+                  <label class="form-label fw-semibold" style="font-size:0.85rem;">Location (Teams link or address)</label>
+                  <input type="text" name="location" class="form-control form-control-sm"
+                         placeholder="Microsoft Teams (link to follow), or 71-75 Shelton Street, London WC2H 9JQ">
+                  <div class="form-text"><i class="fas fa-info-circle me-1"></i>Used in the calendar invite that's attached automatically.</div>
+                </div>
+                <div class="mb-3">
                   <label class="form-label fw-semibold" style="font-size:0.85rem;">Attachments (JD, CV, briefing docs)</label>
-                  <input type="file" name="attachments" class="form-control form-control-sm" multiple accept=".pdf,.doc,.docx,.jpg,.png">
+                  <input type="file" name="attachments" class="form-control form-control-sm" multiple
+                         accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                  <div class="form-text"><i class="fas fa-info-circle me-1"></i>Hold Ctrl/Cmd to select multiple files.</div>
                 </div>
               </div>
               <div class="modal-footer">
