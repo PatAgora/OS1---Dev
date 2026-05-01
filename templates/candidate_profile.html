@@ -1086,6 +1086,12 @@
                     <i class="fas fa-calendar-check me-1 {{ 'text-success' if iv.completed_at else 'text-primary' }}"></i>
                     {{ iv.scheduled_at.strftime('%d %b %Y at %H:%M') }}
                   </div>
+                  {% if iv.teams_join_url %}
+                  <div class="mt-1" style="font-size: 0.75rem;">
+                    <i class="fas fa-video me-1 text-primary"></i>
+                    <a href="{{ iv.teams_join_url }}" target="_blank" rel="noopener">Join Teams meeting</a>
+                  </div>
+                  {% endif %}
                 </div>
                 <div class="d-flex gap-1 align-items-center">
                   {% if iv.completed_at %}

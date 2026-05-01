@@ -144,6 +144,14 @@ BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 M365_TENANT_ID = os.getenv("M365_TENANT_ID", "")
 M365_CLIENT_ID = os.getenv("M365_CLIENT_ID", "")
 M365_CLIENT_SECRET = os.getenv("M365_CLIENT_SECRET", "")
+# Req 8 — Microsoft Graph integration kill-switch. Defaults off so the
+# code is dormant until Calendars.ReadWrite + OnlineMeetings.ReadWrite.All
+# admin consent is granted on the Azure AD app. Flip M365_GRAPH_ENABLED=1
+# in Railway env when consent has landed and the helper will start
+# creating real Outlook/Teams meetings; until then we fall back to the
+# .ics-attachment behaviour so nothing breaks.
+M365_GRAPH_ENABLED = os.getenv("M365_GRAPH_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
+M365_GRAPH_TIMEZONE = os.getenv("M365_GRAPH_TIMEZONE", "Europe/London")
 
 _client = None
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
@@ -5812,6 +5820,11 @@ class Application(Base):
     ai_explanation = Column(String(8000), default="")  # <-- NEW: store "why this score"
     interview_scheduled_at = Column(DateTime, nullable=True)
     interview_completed_at = Column(DateTime, nullable=True)
+    # Req 8 follow-up — Microsoft Graph Teams calendar event identifiers.
+    # Populated when the schedule-interview handler creates an event via
+    # Graph; null when the .ics fallback was used.
+    interview_graph_event_id = Column(String(128), nullable=True)
+    interview_teams_join_url = Column(String(500), nullable=True)
 
     # ✅ make sure THIS is present:
     interview_notes = Column(Text, default="")
@@ -7157,6 +7170,9 @@ try:
             # Offer capture — engagement type and expected duration
             "ALTER TABLE applications ADD COLUMN offer_engagement_type VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN offer_expected_duration VARCHAR(100) DEFAULT ''",
+            # Req 8 follow-up — Teams calendar event identifiers
+            "ALTER TABLE applications ADD COLUMN interview_graph_event_id VARCHAR(128)",
+            "ALTER TABLE applications ADD COLUMN interview_teams_join_url VARCHAR(500)",
             "ALTER TABLE vetting_check ADD COLUMN expiry_date TIMESTAMP",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed_at TIMESTAMP",
@@ -8609,6 +8625,168 @@ def _send_via_m365_oauth(to_email, subject, html_body, attachments=None, from_em
     server.quit()
     print(f"[M365] Successfully sent to {to_email}: {subject}")
     return True
+
+
+# =============================================================================
+# Req 8 — Microsoft Graph helpers for Teams calendar invites.
+#
+# Activates only when M365_GRAPH_ENABLED=1 AND the Azure AD admin has
+# granted Calendars.ReadWrite + OnlineMeetings.ReadWrite.All to the OS1
+# app registration. Until either is missing, the helper raises and the
+# caller falls back to the legacy .ics-attachment flow.
+#
+# All four helpers are self-contained and use the same client credentials
+# already wired up for the M365 SMTP send (M365_TENANT_ID / CLIENT_ID /
+# CLIENT_SECRET). The scope changes to https://graph.microsoft.com/.default.
+# =============================================================================
+
+def _get_m365_graph_token() -> str:
+    """Acquire an app-only OAuth2 access token for Microsoft Graph."""
+    if not (M365_TENANT_ID and M365_CLIENT_ID and M365_CLIENT_SECRET):
+        raise RuntimeError("M365_TENANT_ID / M365_CLIENT_ID / M365_CLIENT_SECRET not configured")
+    token_url = f"https://login.microsoftonline.com/{M365_TENANT_ID}/oauth2/v2.0/token"
+    resp = requests.post(token_url, data={
+        "client_id": M365_CLIENT_ID,
+        "client_secret": M365_CLIENT_SECRET,
+        "scope": "https://graph.microsoft.com/.default",
+        "grant_type": "client_credentials",
+    }, timeout=20)
+    resp.raise_for_status()
+    return resp.json()["access_token"]
+
+
+def _graph_event_payload(subject, body_html, start_dt, end_dt, attendees,
+                         location_label, timezone, online=True):
+    """Build the JSON body for POST/PATCH /events."""
+    payload = {
+        "subject": subject or "Interview",
+        "body": {"contentType": "HTML", "content": body_html or ""},
+        "start": {
+            "dateTime": start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": timezone,
+        },
+        "end": {
+            "dateTime": end_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": timezone,
+        },
+        "attendees": [
+            {
+                "emailAddress": {
+                    "address": (att.get("email") or "").strip(),
+                    "name": (att.get("name") or "").strip() or att.get("email", ""),
+                },
+                "type": att.get("type", "required"),
+            }
+            for att in attendees if (att.get("email") or "").strip()
+        ],
+    }
+    if online:
+        payload["isOnlineMeeting"] = True
+        payload["onlineMeetingProvider"] = "teamsForBusiness"
+    if location_label:
+        payload["location"] = {"displayName": location_label}
+    return payload
+
+
+def create_teams_calendar_event(*, organiser_upn, attendees, subject,
+                                body_html, start_dt, end_dt,
+                                location_label="", timezone=None) -> dict:
+    """Req 8 — create a real Outlook calendar event in the organiser's
+    mailbox with a Teams meeting auto-attached.
+
+    Returns {"event_id": "...", "join_url": "...", "web_link": "..."}.
+    Raises RuntimeError when M365_GRAPH_ENABLED is off OR when admin
+    consent for Calendars.ReadWrite / OnlineMeetings.ReadWrite.All has
+    not been granted (Graph returns 403). Caller is expected to catch
+    and fall back to the .ics path.
+    """
+    if not M365_GRAPH_ENABLED:
+        raise RuntimeError("M365_GRAPH_ENABLED is off")
+    if not organiser_upn:
+        raise RuntimeError("organiser_upn is required")
+
+    token = _get_m365_graph_token()
+    timezone = timezone or M365_GRAPH_TIMEZONE
+    payload = _graph_event_payload(
+        subject=subject, body_html=body_html,
+        start_dt=start_dt, end_dt=end_dt,
+        attendees=attendees, location_label=location_label, timezone=timezone,
+    )
+    from urllib.parse import quote
+    url = f"https://graph.microsoft.com/v1.0/users/{quote(organiser_upn)}/events"
+    resp = requests.post(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }, json=payload, timeout=30)
+    if resp.status_code == 403:
+        raise RuntimeError(
+            "Graph 403 — admin consent for Calendars.ReadWrite + "
+            "OnlineMeetings.ReadWrite.All has not been granted yet"
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    return {
+        "event_id": data.get("id", ""),
+        "join_url": (data.get("onlineMeeting") or {}).get("joinUrl", ""),
+        "web_link": data.get("webLink", ""),
+    }
+
+
+def update_teams_calendar_event(*, organiser_upn, event_id, attendees,
+                                subject, body_html, start_dt, end_dt,
+                                location_label="", timezone=None) -> dict:
+    """Reschedule path — PATCH an existing /events/{event_id}. Microsoft
+    re-sends the calendar invite to attendees automatically."""
+    if not M365_GRAPH_ENABLED:
+        raise RuntimeError("M365_GRAPH_ENABLED is off")
+    if not (organiser_upn and event_id):
+        raise RuntimeError("organiser_upn and event_id are required")
+
+    token = _get_m365_graph_token()
+    timezone = timezone or M365_GRAPH_TIMEZONE
+    payload = _graph_event_payload(
+        subject=subject, body_html=body_html,
+        start_dt=start_dt, end_dt=end_dt,
+        attendees=attendees, location_label=location_label, timezone=timezone,
+    )
+    from urllib.parse import quote
+    url = (
+        f"https://graph.microsoft.com/v1.0/users/"
+        f"{quote(organiser_upn)}/events/{quote(event_id)}"
+    )
+    resp = requests.patch(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }, json=payload, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    return {
+        "event_id": data.get("id", event_id),
+        "join_url": (data.get("onlineMeeting") or {}).get("joinUrl", ""),
+        "web_link": data.get("webLink", ""),
+    }
+
+
+def cancel_teams_calendar_event(*, organiser_upn, event_id) -> bool:
+    """Cancel-and-notify a previously-created calendar event."""
+    if not (M365_GRAPH_ENABLED and organiser_upn and event_id):
+        return False
+    try:
+        token = _get_m365_graph_token()
+        from urllib.parse import quote
+        url = (
+            f"https://graph.microsoft.com/v1.0/users/"
+            f"{quote(organiser_upn)}/events/{quote(event_id)}/cancel"
+        )
+        resp = requests.post(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }, json={"comment": "The interview has been cancelled."}, timeout=30)
+        # Graph returns 202 on accepted-for-cancel.
+        return resp.ok
+    except Exception:
+        current_app.logger.exception("cancel_teams_calendar_event failed")
+        return False
 
 
 def _send_via_brevo(to_email, subject, html_body, attachments=None):
@@ -14778,12 +14956,13 @@ def api_vetting_poll_verifile(cand_id):
     return jsonify({"ok": True, "updated": updated})
 
 
-# -------- Interview scheduling (ICS) --------
+# -------- Interview scheduling (Microsoft Graph + ICS fallback) --------
 @app.route("/action/schedule_interview/<int:app_id>", methods=["POST"])
 @login_required
 def action_schedule_interview(app_id):
     form_dt = request.form.get("scheduled_at")
     interviewer_email = request.form.get("interviewer_email") or INTERVIEWER_EMAIL
+    location_label = (request.form.get("location") or "").strip()
 
     # parse start time
     start = dtparser.parse(form_dt) if form_dt else None
@@ -14796,6 +14975,8 @@ def action_schedule_interview(app_id):
     cand_name = ""
     cand_email = ""
     job_title = ""
+    organiser_upn = (getattr(current_user, "email", "") or "").strip() or SMTP_FROM
+    existing_event_id = None
 
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id == app_id))
@@ -14812,41 +14993,113 @@ def action_schedule_interview(app_id):
         cand_name = cand.name or ""
         cand_email = cand.email or ""
         job_title = job.title or ""
+        existing_event_id = getattr(appn, "interview_graph_event_id", None) or None
 
         # GAP 1.2 FIX: Auto-trigger workflow status when interview is scheduled
         appn.interview_scheduled_at = start
         appn.status = "I&A"  # Interview & Assessment stage
-        
+
         # Update candidate status to reflect interviewing state
         cand.status = "Interviewing"
         cand.last_activity_at = datetime.datetime.utcnow()
-        
+
         # GAP X.4: Audit log for compliance
         log_audit_event(
-            'update', 'workflow', 
+            'update', 'workflow',
             f'Interview scheduled for {cand_name} - {job_title}',
             'application', app_id,
             {'scheduled_at': start.isoformat(), 'old_status': appn.status, 'new_status': 'I&A'}
         )
-        
+
         s.commit()
 
     # now we're OUTSIDE the session but we only use plain strings, not ORM objects
     summary = f"Interview — {job_title}"
-    description = f"Interview for {job_title} with {cand_name}"
-    location = "Microsoft Teams / Zoom (link to follow)"
+    description_html = (
+        f"<p>Interview for <strong>{job_title}</strong> with "
+        f"<strong>{cand_name}</strong>.</p>"
+    )
 
+    # ---- Req 8 — preferred path: Microsoft Graph creates a real
+    # Outlook calendar event in the staff user's mailbox, attaches a
+    # Teams meeting, and sends invites to candidate + interviewer
+    # automatically (no .ics needed). Falls back to the .ics-attached
+    # email path if M365_GRAPH_ENABLED is off OR the Graph call 403/500s
+    # so the action never silently fails.
+    graph_event_id = None
+    teams_join_url = ""
+    graph_used = False
+
+    if M365_GRAPH_ENABLED:
+        try:
+            attendees = [
+                {"email": cand_email, "name": cand_name, "type": "required"},
+            ]
+            if interviewer_email and interviewer_email.lower() != cand_email.lower():
+                attendees.append({
+                    "email": interviewer_email,
+                    "name": "Interviewer",
+                    "type": "required",
+                })
+            graph_body = (
+                description_html
+                + "<p>Join via the Microsoft Teams meeting attached to this calendar event.</p>"
+            )
+            if existing_event_id:
+                result = update_teams_calendar_event(
+                    organiser_upn=organiser_upn,
+                    event_id=existing_event_id,
+                    attendees=attendees,
+                    subject=summary,
+                    body_html=graph_body,
+                    start_dt=start,
+                    end_dt=end,
+                    location_label=location_label or "Microsoft Teams",
+                )
+            else:
+                result = create_teams_calendar_event(
+                    organiser_upn=organiser_upn,
+                    attendees=attendees,
+                    subject=summary,
+                    body_html=graph_body,
+                    start_dt=start,
+                    end_dt=end,
+                    location_label=location_label or "Microsoft Teams",
+                )
+            graph_event_id = result.get("event_id") or ""
+            teams_join_url = result.get("join_url") or ""
+            graph_used = bool(graph_event_id)
+        except Exception as exc:
+            current_app.logger.warning(
+                "Graph calendar create/update failed for app %s: %s — falling back to .ics",
+                app_id, exc,
+            )
+
+    # Persist Graph metadata + decide whether to send the legacy .ics email.
+    if graph_used:
+        with Session(engine) as s:
+            appn2 = s.scalar(select(Application).where(Application.id == app_id))
+            if appn2:
+                appn2.interview_graph_event_id = graph_event_id
+                appn2.interview_teams_join_url = teams_join_url
+                s.commit()
+        msg = "Interview scheduled — Teams calendar invite sent to candidate and interviewer."
+        if teams_join_url:
+            msg += f" Join link saved on the application."
+        flash(msg, "success")
+        return redirect(url_for("application_detail", app_id=app_id))
+
+    # ---- Fallback path: legacy .ics-attached email ----------------------
+    location = location_label or "Microsoft Teams / Zoom (link to follow)"
     ics_bytes = ics_invite(
         summary,
-        description,
-        start,
-        end,
+        f"Interview for {job_title} with {cand_name}",
+        start, end,
         location,
         SMTP_FROM,
         cand_email,
     )
 
-    # send calendar invite to candidate
     send_email(
         cand_email,
         summary,
@@ -14854,7 +15107,6 @@ def action_schedule_interview(app_id):
         attachments=[("interview.ics", ics_bytes, "text/calendar")],
     )
 
-    # send calendar invite to interviewer
     send_email(
         interviewer_email,
         summary,
@@ -14862,7 +15114,7 @@ def action_schedule_interview(app_id):
         attachments=[("interview.ics", ics_bytes, "text/calendar")],
     )
 
-    flash("Interview scheduled and invites sent", "success")
+    flash("Interview scheduled and invites sent (.ics attached).", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
 @app.route("/action/mark_interview_completed/<int:app_id>", methods=["POST"])
@@ -17302,6 +17554,11 @@ def candidate_profile(cand_id: int):
                     "completed_at": _ia.interview_completed_at,
                     "app_id": _ia.id,
                     "is_current": interview_app and _ia.id == interview_app.id,
+                    # Req 8 — Teams join URL is populated when the
+                    # schedule action used Microsoft Graph (M365_GRAPH_ENABLED=1
+                    # and admin consent granted). Falls back to "" for
+                    # interviews that went via the legacy .ics path.
+                    "teams_join_url": getattr(_ia, "interview_teams_join_url", "") or "",
                 })
         if not interview_app:
             interview_app = newest_app
