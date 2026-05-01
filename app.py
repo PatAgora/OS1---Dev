@@ -5820,6 +5820,12 @@ class Application(Base):
     ai_explanation = Column(String(8000), default="")  # <-- NEW: store "why this score"
     interview_scheduled_at = Column(DateTime, nullable=True)
     interview_completed_at = Column(DateTime, nullable=True)
+    # Req 9 — per-interview outcome (Pass / Fail / No Show). Required
+    # because a candidate can have multiple interviews across different
+    # applications and each one needs its own outcome. The mirror on
+    # Candidate.optimus_interview_result tracks the LATEST interview's
+    # outcome (used by the resource-pool badge / overall status).
+    optimus_interview_result = Column(String(50), nullable=True)
     # Req 8 follow-up — Microsoft Graph Teams calendar event identifiers.
     # Populated when the schedule-interview handler creates an event via
     # Graph; null when the .ics fallback was used.
@@ -7173,6 +7179,8 @@ try:
             # Req 8 follow-up — Teams calendar event identifiers
             "ALTER TABLE applications ADD COLUMN interview_graph_event_id VARCHAR(128)",
             "ALTER TABLE applications ADD COLUMN interview_teams_join_url VARCHAR(500)",
+            # Req 9 — per-interview outcome (Pass / Fail / No Show).
+            "ALTER TABLE applications ADD COLUMN optimus_interview_result VARCHAR(50)",
             "ALTER TABLE vetting_check ADD COLUMN expiry_date TIMESTAMP",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE vetting_check ADD COLUMN verifile_confirmed_at TIMESTAMP",
@@ -15190,12 +15198,13 @@ def _apply_interview_outcome(s, appn, outcome_key: str, *, source: str = "manual
     trail so we can tell whether the outcome came from the workflow
     "Pass I&A" button, the candidate-profile dropdown, or an API path.
 
-    Note: optimus_interview_result lives on the Candidate model
-    (app.py:5688) — NOT Application. Setting it on the Application
-    object is silently ignored at commit time because it isn't a
-    mapped column there. The bug surfaced as the kanban moving but
-    the Outcome dropdown reverting to "— Set outcome —" because the
-    Candidate column hadn't been written.
+    The outcome is written to BOTH:
+      - Application.optimus_interview_result — the per-interview result
+        (a candidate can have several interviews across applications,
+        each one carries its own Pass / Fail / No Show).
+      - Candidate.optimus_interview_result — mirrors the LATEST
+        interview's outcome and is what the resource-pool badge /
+        overall candidate status read from.
     """
     cfg = INTERVIEW_OUTCOMES.get(outcome_key)
     if not cfg:
@@ -15204,6 +15213,7 @@ def _apply_interview_outcome(s, appn, outcome_key: str, *, source: str = "manual
     if not appn.interview_completed_at:
         appn.interview_completed_at = datetime.datetime.utcnow()
     appn.status = cfg["app_status"]
+    appn.optimus_interview_result = cfg["result"]
     if cand:
         cand.status = cfg["cand_status"]
         cand.optimus_interview_result = cfg["result"]
@@ -17685,11 +17695,11 @@ def candidate_profile(cand_id: int):
                     # and admin consent granted). Falls back to "" for
                     # interviews that went via the legacy .ics path.
                     "teams_join_url": getattr(_ia, "interview_teams_join_url", "") or "",
-                    # Req 9 — Pass / Fail / No Show outcome. The column
-                    # lives on Candidate (NOT Application — the data
-                    # model only stores the candidate's most recent
-                    # outcome; per-interview history is in the audit log).
-                    "outcome_result": getattr(cand, "optimus_interview_result", "") or "",
+                    # Req 9 — Pass / Fail / No Show outcome. Per-interview
+                    # column on Application; the matching column on
+                    # Candidate carries the LATEST interview's outcome
+                    # for the resource-pool badge.
+                    "outcome_result": getattr(_ia, "optimus_interview_result", "") or "",
                 })
         if not interview_app:
             interview_app = newest_app
