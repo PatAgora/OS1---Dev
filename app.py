@@ -11605,6 +11605,10 @@ def workflow_move():
             )
             s.add(override_note)
 
+        # Req 9 — capture the prior application status BEFORE we overwrite
+        # it so the kanban-Reject-from-I&A branch below can detect this is
+        # an interview-stage rejection.
+        old_app_status = appn.status
         appn.status = new_status
 
         # Get candidate and job for status sync
@@ -11647,13 +11651,27 @@ def workflow_move():
                 candidate_status_updated = True
                 
             elif new_status in ["Client Review", "Interview Completed"]:
-                # Associate completed interview, mark as Interviewing until next stage
-                cand.status = "Interviewing"
-                candidate_status_updated = True
-                # Record interview completion time if not set
+                # Req 9 — "Pass I&A" advances I&A → Client Review. Mark
+                # the interview as Passed and reflect that on the
+                # candidate profile / resource pool.
                 if not appn.interview_completed_at:
                     appn.interview_completed_at = datetime.datetime.utcnow()
-                
+                appn.optimus_interview_result = "Pass"
+                cand.status = "Interview Passed"
+                candidate_status_updated = True
+
+            elif new_status in ["Rejected", "Withdrawn"] and (old_app_status or "") == "I&A":
+                # Req 9 — Reject from I&A on the kanban = interview Fail
+                # (the dropdown on the profile distinguishes Fail vs No
+                # Show; the kanban Reject button is treated as Fail by
+                # default).
+                if not appn.interview_completed_at:
+                    appn.interview_completed_at = datetime.datetime.utcnow()
+                if not appn.optimus_interview_result:
+                    appn.optimus_interview_result = "Fail"
+                cand.status = "Interview Failed/No Show"
+                candidate_status_updated = True
+
             elif new_status in ["I&A", "Interview Scheduled"]:
                 # Associate has interview scheduled
                 cand.status = "Interviewing"
@@ -13506,7 +13524,8 @@ def candidate_profile_update(cand_id):
 def candidate_update_status(cand_id):
     """Update candidate global status from profile page."""
     VALID_STATUSES = [
-        "Available", "Interview Complete", "On Assignment", "On Contract", "On Notice",
+        "Available", "Interview Passed", "Interview Failed/No Show",
+        "On Assignment", "On Contract", "On Notice",
         "5", "Ex-Associate", "Unavailable", "Do Not Contact"
     ]
     
@@ -15117,45 +15136,108 @@ def action_schedule_interview(app_id):
     flash("Interview scheduled and invites sent (.ics attached).", "success")
     return redirect(url_for("application_detail", app_id=app_id))
 
+# Req 9 — Interview outcome model.
+# Pass        → cand.status='Interview Passed', appn moves to Client Review
+# Fail        → cand.status='Interview Failed/No Show', appn moves to Rejected
+# No Show     → cand.status='Interview Failed/No Show', appn moves to Rejected
+# All three set appn.optimus_interview_result and appn.interview_completed_at.
+INTERVIEW_OUTCOMES = {
+    "pass":    {"result": "Pass",    "cand_status": "Interview Passed",         "app_status": "Client Review"},
+    "fail":    {"result": "Fail",    "cand_status": "Interview Failed/No Show", "app_status": "Rejected"},
+    "no_show": {"result": "No Show", "cand_status": "Interview Failed/No Show", "app_status": "Rejected"},
+}
+
+
+def _apply_interview_outcome(s, appn, outcome_key: str, *, source: str = "manual"):
+    """Shared helper. Applies the Pass / Fail / No Show outcome to an
+    Application + Candidate atomically. `source` is logged on the audit
+    trail so we can tell whether the outcome came from the workflow
+    "Pass I&A" button, the candidate-profile dropdown, or an API path."""
+    cfg = INTERVIEW_OUTCOMES.get(outcome_key)
+    if not cfg:
+        return False
+    cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
+    appn.optimus_interview_result = cfg["result"]
+    if not appn.interview_completed_at:
+        appn.interview_completed_at = datetime.datetime.utcnow()
+    appn.status = cfg["app_status"]
+    if cand:
+        cand.status = cfg["cand_status"]
+        cand.last_activity_at = datetime.datetime.utcnow()
+    try:
+        log_audit_event(
+            "update", "interview",
+            f"Interview outcome: {cfg['result']} (source={source})",
+            "application", appn.id,
+            {"outcome": cfg["result"], "candidate_id": appn.candidate_id, "source": source},
+        )
+    except Exception:
+        current_app.logger.exception("interview outcome audit log failed")
+    return True
+
+
+@app.route("/action/set-interview-outcome/<int:app_id>", methods=["POST"])
+@login_required
+def action_set_interview_outcome(app_id):
+    """Req 9 — Interview Outcome dropdown on the candidate profile
+    Interview tile. Accepts pass / fail / no_show and applies the
+    canonical state transition via _apply_interview_outcome."""
+    outcome_key = (request.form.get("outcome") or "").strip().lower()
+    if outcome_key not in INTERVIEW_OUTCOMES:
+        flash("Invalid interview outcome.", "danger")
+        return redirect(request.referrer or url_for("application_detail", app_id=app_id))
+    with Session(engine) as s:
+        appn = s.scalar(select(Application).where(Application.id == app_id))
+        if not appn:
+            abort(404)
+        applied = _apply_interview_outcome(s, appn, outcome_key, source="profile_dropdown")
+        if applied:
+            s.commit()
+            flash(
+                f"Interview outcome saved: {INTERVIEW_OUTCOMES[outcome_key]['result']}.",
+                "success",
+            )
+    return redirect(request.referrer or url_for("candidate_profile", cand_id=_lookup_cand_id(app_id)))
+
+
+def _lookup_cand_id(app_id: int) -> Optional[int]:
+    try:
+        with Session(engine) as s:
+            row = s.execute(
+                text("SELECT candidate_id FROM applications WHERE id = :a").bindparams(a=app_id)
+            ).first()
+            return row[0] if row else None
+    except Exception:
+        return None
+
+
 @app.route("/action/mark_interview_completed/<int:app_id>", methods=["POST"])
 @login_required
 def action_mark_interview_completed(app_id):
-    # Req 9 — set the interview-completed timestamp on the application AND
-    # flip the candidate's profile status to "Interview Complete" so the
-    # resource pool / profile pill agree. The application's stage on the
-    # workflow kanban stays at I&A — that's a separate axis from the
-    # candidate's overall status.
+    """Legacy "Mark complete without outcome" handler. Stamps
+    interview_completed_at on the application + sets cand.status to a
+    neutral "Available" so the resource pool stops showing them as
+    Interviewing. Pass/Fail/No-Show should be set via the dropdown on
+    the profile or by clicking Pass I&A on the workflow."""
     with Session(engine) as s:
         appn = s.scalar(select(Application).where(Application.id==app_id))
         if not appn:
             abort(404)
         appn.interview_completed_at = datetime.datetime.utcnow()
         cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
-        if cand:
-            cand.status = "Interview Complete"
+        if cand and cand.status == "Interviewing":
+            cand.status = "Available"
             cand.last_activity_at = datetime.datetime.utcnow()
         s.commit()
-    flash("Interview marked as complete.", "success")
+    flash("Interview marked as complete. Set the outcome from the candidate profile.", "info")
     return redirect(url_for("application_detail", app_id=app_id))
+
 
 @app.route("/action/complete_interview/<int:app_id>", methods=["POST"])
 @login_required
 def action_complete_interview(app_id):
-    # Req 9 — see action_mark_interview_completed. Same behaviour: stamp
-    # interview_completed_at, set cand.status='Interview Complete', leave
-    # appn.status alone so the kanban stays at I&A.
-    with Session(engine) as s:
-        appn = s.scalar(select(Application).where(Application.id == app_id))
-        if not appn:
-            abort(404)
-        appn.interview_completed_at = datetime.datetime.utcnow()
-        cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
-        if cand:
-            cand.status = "Interview Complete"
-            cand.last_activity_at = datetime.datetime.utcnow()
-        s.commit()
-    flash("Interview marked as complete.", "success")
-    return redirect(url_for("application_detail", app_id=app_id))
+    """Alias of action_mark_interview_completed (legacy URL)."""
+    return action_mark_interview_completed(app_id)
 
 @app.route("/action/skip_interview/<int:app_id>", methods=["POST"])
 @login_required
@@ -17559,6 +17641,9 @@ def candidate_profile(cand_id: int):
                     # and admin consent granted). Falls back to "" for
                     # interviews that went via the legacy .ics path.
                     "teams_join_url": getattr(_ia, "interview_teams_join_url", "") or "",
+                    # Req 9 — Pass / Fail / No Show outcome (from the
+                    # workflow Pass I&A button or the profile dropdown).
+                    "outcome_result": getattr(_ia, "optimus_interview_result", "") or "",
                 })
         if not interview_app:
             interview_app = newest_app

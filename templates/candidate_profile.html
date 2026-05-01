@@ -507,7 +507,9 @@
             {% elif status in ('Ex-Associate',) %}bg-secondary
             {% elif status == 'Unavailable' %}bg-purple
             {% elif status in ('5', 'DNU', 'Do Not Use', 'Do Not Contact') %}bg-danger
-            {% elif status in ('Interviewing', 'I&A', 'Client Review', 'Interview Complete') %}bg-warning text-dark
+            {% elif status == 'Interview Passed' %}bg-success
+            {% elif status == 'Interview Failed/No Show' %}bg-danger
+            {% elif status in ('Interviewing', 'I&A', 'Client Review') %}bg-warning text-dark
             {% elif status in ('Pipeline', 'Shortlist', 'Shortlisted') %}bg-info
             {% elif status in ('Offered', 'Accepted') %}bg-success
             {% elif status in ('Ready to Contract', 'Contract Sent', 'Contract Issued') %}bg-primary
@@ -1095,7 +1097,17 @@
                 </div>
                 <div class="d-flex gap-1 align-items-center">
                   {% if iv.completed_at %}
-                    <span class="badge bg-success" style="font-size: 0.65rem;">Completed</span>
+                    {# Req 9 — Interview Outcome badge: green Pass / red
+                       Fail / orange No Show / muted "—" if not yet set. #}
+                    {% if iv.outcome_result == 'Pass' %}
+                      <span class="badge bg-success" style="font-size: 0.65rem;">Pass</span>
+                    {% elif iv.outcome_result == 'Fail' %}
+                      <span class="badge bg-danger" style="font-size: 0.65rem;">Fail</span>
+                    {% elif iv.outcome_result == 'No Show' %}
+                      <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">No Show</span>
+                    {% else %}
+                      <span class="badge bg-secondary" style="font-size: 0.65rem;">Completed</span>
+                    {% endif %}
                   {% else %}
                     <span class="badge bg-primary" style="font-size: 0.65rem;">Scheduled</span>
                     <button type="button" class="btn btn-outline-primary btn-sm" style="font-size:0.65rem; padding:0.15rem 0.4rem;" onclick="document.getElementById('reschedule-form-{{ iv.app_id }}').style.display = document.getElementById('reschedule-form-{{ iv.app_id }}').style.display === 'none' ? '' : 'none';">
@@ -1104,6 +1116,29 @@
                   {% endif %}
                 </div>
               </div>
+
+              {# Req 9 — Interview Outcome dropdown. Pass moves the
+                 application to Client Review on the kanban + sets the
+                 candidate's profile/resource-pool status to "Interview
+                 Passed". Fail / No Show set status to "Interview
+                 Failed/No Show" and move the kanban card to Rejected. #}
+              <form method="POST" action="{{ url_for('action_set_interview_outcome', app_id=iv.app_id) }}"
+                    class="mt-2"
+                    onsubmit="return confirm('Save interview outcome? This will also update the workflow stage and the candidate status.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="d-flex align-items-center gap-2">
+                  <label class="form-label mb-0 me-1" style="font-size:0.7rem; font-weight:600;">Outcome:</label>
+                  <select name="outcome" class="form-select form-select-sm" style="font-size:0.7rem; max-width:140px;" required>
+                    <option value="">— Set outcome —</option>
+                    <option value="pass"    {% if iv.outcome_result == 'Pass' %}selected{% endif %}>Pass</option>
+                    <option value="fail"    {% if iv.outcome_result == 'Fail' %}selected{% endif %}>Fail</option>
+                    <option value="no_show" {% if iv.outcome_result == 'No Show' %}selected{% endif %}>No Show</option>
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem;">
+                    <i class="fas fa-save me-1"></i>Save
+                  </button>
+                </div>
+              </form>
               {% if not iv.completed_at %}
               <div id="reschedule-form-{{ iv.app_id }}" style="display:none; margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid #e5e7eb;">
                 <form method="POST" action="{{ url_for('schedule_interview', cand_id=cand.id) }}" enctype="multipart/form-data">
@@ -1702,9 +1737,13 @@
                     onclick="setStatus('Available')" data-status="Available">
                 <i class="fas fa-check-circle me-1"></i> Available
               </span>
-              <span class="status-option interview-complete {% if current_status == 'Interview Complete' %}active{% endif %}"
-                    onclick="setStatus('Interview Complete')" data-status="Interview Complete">
-                <i class="fas fa-comments me-1"></i> Interview Complete
+              <span class="status-option interview-passed {% if current_status == 'Interview Passed' %}active{% endif %}"
+                    onclick="setStatus('Interview Passed')" data-status="Interview Passed">
+                <i class="fas fa-thumbs-up me-1"></i> Interview Passed
+              </span>
+              <span class="status-option interview-failed {% if current_status == 'Interview Failed/No Show' %}active{% endif %}"
+                    onclick="setStatus('Interview Failed/No Show')" data-status="Interview Failed/No Show">
+                <i class="fas fa-thumbs-down me-1"></i> Interview Failed/No Show
               </span>
               <span class="status-option on-assignment {% if current_status == 'On Assignment' %}active{% endif %}"
                     onclick="setStatus('On Assignment')" data-status="On Assignment">

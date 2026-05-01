@@ -643,7 +643,8 @@
                 <select name="associate_status" class="field-input form-select" aria-label="Filter by associate status">
                   <option value="all" {{ 'selected' if request.args.get('associate_status', 'all') == 'all' else '' }}>All Statuses</option>
                   <option value="Available" {{ 'selected' if request.args.get('associate_status') == 'Available' else '' }}>Available</option>
-                  <option value="Interview Complete" {{ 'selected' if request.args.get('associate_status') == 'Interview Complete' else '' }}>Interview Complete</option>
+                  <option value="Interview Passed" {{ 'selected' if request.args.get('associate_status') == 'Interview Passed' else '' }}>Interview Passed</option>
+                  <option value="Interview Failed/No Show" {{ 'selected' if request.args.get('associate_status') == 'Interview Failed/No Show' else '' }}>Interview Failed/No Show</option>
                   <option value="On Assignment" {{ 'selected' if request.args.get('associate_status') == 'On Assignment' else '' }}>On Assignment</option>
                   <option value="On Contract" {{ 'selected' if request.args.get('associate_status') == 'On Contract' else '' }}>On Contract</option>
                   <option value="On Notice" {{ 'selected' if request.args.get('associate_status') == 'On Notice' else '' }}>On Notice</option>
@@ -1090,8 +1091,10 @@
                     <span class="badge bg-danger">5</span>
                   {% elif cs == 'Do Not Contact' %}
                     <span class="badge bg-danger">Do Not Contact</span>
-                  {% elif cs == 'Interview Complete' %}
-                    <span class="badge bg-warning text-dark">Interview Complete</span>
+                  {% elif cs == 'Interview Passed' %}
+                    <span class="badge bg-success">Interview Passed</span>
+                  {% elif cs == 'Interview Failed/No Show' %}
+                    <span class="badge bg-danger">Interview Failed/No Show</span>
                   {% elif cs == 'Available' %}
                     <span class="badge bg-success">Available</span>
                   {% else %}
