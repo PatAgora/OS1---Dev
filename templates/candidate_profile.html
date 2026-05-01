@@ -2553,16 +2553,21 @@ function triggerReferencing(candidateId) {
   .then(function(r) {
     clearTimeout(timer);
     var ct = r.headers.get('content-type') || '';
-    if (!r.ok || ct.indexOf('json') === -1) {
-      // Read the body for a useful message if possible, but don't try to JSON-parse.
-      return r.text().then(function(body) {
-        var msg = (r.status === 502 || r.status === 503 || r.status === 504)
-          ? 'Service temporarily unavailable while sending references. Please try again in a moment.'
-          : ('Failed (HTTP ' + r.status + '). Please try again.');
-        return { ok: false, error: msg };
-      });
+    var isJson = ct.indexOf('json') !== -1;
+    // Backend returns JSON on both 200 and 400 (e.g. {"ok":false,
+    // "error":"The applicant has not yet signed the Employment
+    // Reference Declaration..."}). Try JSON-parse first for any JSON
+    // response so we can surface the real server message; only fall
+    // back to a generic banner on non-JSON / 5xx.
+    if (isJson) {
+      return r.json().catch(function() { return { ok: false, error: 'Failed (HTTP ' + r.status + ').' }; });
     }
-    return r.json();
+    return r.text().then(function() {
+      var msg = (r.status === 502 || r.status === 503 || r.status === 504)
+        ? 'Service temporarily unavailable while sending references. Please try again in a moment.'
+        : ('Failed (HTTP ' + r.status + '). Please try again.');
+      return { ok: false, error: msg };
+    });
   })
   .then(function(data) {
     if (data && data.ok) { alert(data.msg || 'Referencing started'); location.reload(); }
