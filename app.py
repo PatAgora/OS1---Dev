@@ -11386,19 +11386,31 @@ def api_workflow_move():
                 )
                 s.add(activity_override)
 
+            # Req 9 — capture the prior application status BEFORE we
+            # overwrite it so the Reject-from-I&A branch below can flag
+            # the move as a Fail outcome.
+            old_app_status = app_obj.status
             app_obj.status = new_status
 
             # Update candidate's last activity and status based on new workflow stage
             cand = s.scalar(select(Candidate).where(Candidate.id == app_obj.candidate_id))
             if cand:
                 cand.last_activity_at = datetime.datetime.utcnow()
-                
-                # Update candidate status based on workflow stage
-                if new_status in ["Placed", "Contract Signed"]:
+
+                # Req 9 — Pass I&A button = advance to Client Review.
+                # Apply the canonical Pass outcome (sets
+                # Application.optimus_interview_result, candidate-level
+                # mirror, interview_completed_at, audit log).
+                if new_status == "Client Review":
+                    _apply_interview_outcome(s, app_obj, "pass", source="kanban_pass_ia")
+                elif new_status in ("Rejected", "Withdrawn") and (old_app_status or "") == "I&A":
+                    # Reject from I&A on the kanban = Fail outcome.
+                    _apply_interview_outcome(s, app_obj, "fail", source="kanban_reject_ia")
+                elif new_status in ["Placed", "Contract Signed"]:
                     cand.status = "On Assignment"
                 elif new_status in ["Contract Sent", "Ready to Contract", "Accepted"]:
                     cand.status = "In Vetting"
-                elif new_status in ["Offered", "Client Review", "I&A"]:
+                elif new_status in ["Offered", "I&A"]:
                     cand.status = "Interviewing"
                 elif new_status in ["Rejected", "Withdrawn"]:
                     cand.status = "Available"
