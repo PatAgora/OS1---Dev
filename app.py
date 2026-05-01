@@ -9984,7 +9984,27 @@ def opportunities_():
     form = OpportunityForm()
     form.owner.choices = [(u[0], u[1]) for u in users_rows]  # (id, display)
 
-    if form.validate_on_submit():
+    # Req 20 — log validation outcome on POST so we can tell the
+    # difference between "form rejected silently" and "saved but not
+    # showing on the right page". Visible in Railway logs.
+    if request.method == "POST":
+        validated = form.validate_on_submit()
+        try:
+            current_app.logger.info(
+                "[OPP CREATE] POST received: validated=%s; "
+                "name=%r stage=%r notes_len=%s; errors=%s",
+                validated,
+                getattr(form.name, "data", None),
+                getattr(form.stage, "data", None),
+                len((form.notes.data or "")) if form.notes.data is not None else "<None>",
+                form.errors,
+            )
+        except Exception:
+            pass
+    else:
+        validated = False
+
+    if validated:
         # Parse date (ISO YYYY-MM-DD from date picker, or DD-MM-YYYY fallback)
         raw_start = (form.est_start.data or "").strip()
         est_start_dt = None
@@ -10040,6 +10060,20 @@ def opportunities_():
                     note_type="note",
                     created_at=datetime.datetime.utcnow(),
                 ))
+                try:
+                    current_app.logger.info(
+                        "[OPP CREATE] OpportunityNote inserted for opp_id=%s, len=%d",
+                        opp.id, len(initial_notes),
+                    )
+                except Exception:
+                    pass
+            else:
+                try:
+                    current_app.logger.info(
+                        "[OPP CREATE] no initial note to save (notes empty)",
+                    )
+                except Exception:
+                    pass
 
             # if they immediately saved it as Closed Won, auto-create engagement
             if (opp.stage or "").strip().lower() == "closed won":
