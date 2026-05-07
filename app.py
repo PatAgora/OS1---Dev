@@ -2443,11 +2443,13 @@ def admin_send_invoice(invoice_id):
             return redirect(url_for('admin_view_invoice', invoice_id=invoice_id))
 
         try:
+            # Req 53 — invoice emails come from finance@.
             send_email(
                 to_email=to_addr,
                 subject=f"Invoice {invoice.invoice_number} — Optimus",
                 html_body=email_html,
-                attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")]
+                attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")],
+                from_email=FINANCE_FROM,
             )
             invoice.status = "Pending"
             if not invoice.sent_at:
@@ -2704,13 +2706,42 @@ def mark_umbrella_assignment_signed(cand_id: int):
         was = getattr(cand, "umbrella_assignment_signed", None)
 
         if choice == "yes":
+            # Req 18 — staff must upload the signed contract PDF before
+            # progression. If a signed-contract Document is already on
+            # file we accept that; otherwise an upload is mandatory.
+            uploaded = request.files.get("signed_contract")
+            has_existing = _has_signed_contract_doc(s, cand_id)
+            if not has_existing and (not uploaded or not uploaded.filename):
+                flash(
+                    "Please attach the signed contract PDF before confirming.",
+                    "danger",
+                )
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
+            if uploaded and uploaded.filename:
+                try:
+                    _save_signed_contract_doc(s, uploaded, candidate_id=cand_id)
+                except ValueError as exc:
+                    flash(f"Signed contract upload rejected: {exc}", "danger")
+                    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
             # Req 17 — Profile "Confirm signed" tick now routes through
             # the same helper as the kanban "Confirm Contract Signed"
             # tick so the kanban card moves to Placed, the candidate
             # status becomes "On Assignment", the ESigRequest is flipped
             # to "signed", and the audit log + CandidateNote both fire
             # consistently.
-            _apply_contract_signed(s, cand, source="profile_confirm_signed")
+            try:
+                _apply_contract_signed(s, cand, source="profile_confirm_signed")
+                s.commit()
+            except Exception as exc:
+                # Req 18 — convert unexpected helper failures to a flash
+                # error rather than a raw 500.
+                s.rollback()
+                current_app.logger.exception(
+                    "mark_umbrella_assignment_signed (yes) failed for cand %s", cand_id,
+                )
+                flash(f"Could not confirm contract signed: {exc}", "danger")
+                return redirect(url_for("candidate_profile", cand_id=cand_id))
         else:
             cand.umbrella_assignment_signed = False
             cand.umbrella_assignment_signed_at = datetime.datetime.utcnow()
@@ -2725,7 +2756,7 @@ def mark_umbrella_assignment_signed(cand_id: int):
                 ),
                 created_at=datetime.datetime.utcnow(),
             ))
-        s.commit()
+            s.commit()
     flash(
         f"Assignment Schedule recorded as {'signed' if choice == 'yes' else 'not signed yet'}.",
         "success",
@@ -3134,7 +3165,17 @@ def offer_capture(cand_id: int):
     the candidate's latest application / job / engagement. On submit,
     persists values onto the Application row, creates an ESigRequest with
     status='offered', sets the application status to 'Offered', and if an
-    OfferTemplate exists, fills and downloads the DOCX."""
+    OfferTemplate exists, fills and downloads the DOCX.
+
+    Req 13 — day_rate, start_date, end_date and engagement_type are
+    locked to the parent Engagement / EngagementPlan / Job for non-admin
+    users. Admins ('admin' or 'super_admin' role) can override these
+    fields; any deviation from the JD value writes an
+    OFFER_FIELDS_OVERRIDDEN audit entry.
+    """
+    user_role = (getattr(current_user, "role", "") or "").lower()
+    is_admin = user_role in ("admin", "super_admin")
+
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
@@ -3149,6 +3190,23 @@ def offer_capture(cand_id: int):
             return redirect(url_for("candidate_profile", cand_id=cand_id))
         job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
         engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # Req 13 — JD-locked source values. day_rate comes from the
+        # EngagementPlan row matching the Job.role_type; dates come from
+        # the parent Engagement; engagement_type comes from the Job row.
+        jd_day_rate = None
+        if engagement and job and job.role_type:
+            plan = s.scalar(
+                select(EngagementPlan)
+                .where(EngagementPlan.engagement_id == engagement.id)
+                .where(EngagementPlan.role_type == job.role_type)
+                .order_by(EngagementPlan.version_int.desc())
+            )
+            if plan and plan.pay_rate:
+                jd_day_rate = float(plan.pay_rate)
+        jd_start_date = engagement.start_date.date() if engagement and engagement.start_date else None
+        jd_end_date = engagement.end_date.date() if engagement and engagement.end_date else None
+        jd_engagement_type = (job.engagement_type if job and getattr(job, "engagement_type", None) else "Contract")
 
         # Check for an uploaded offer template
         offer_tpl = s.scalar(
@@ -3166,16 +3224,62 @@ def offer_capture(cand_id: int):
 
             latest_app.offer_role_title = (request.form.get("job_title") or "").strip()
             latest_app.offer_location = (request.form.get("location") or "").strip()
-            latest_app.offer_start_date = _parse_date(request.form.get("start_date"))
-            latest_app.offer_engagement_type = (request.form.get("engagement_type") or "").strip()
-            latest_app.offer_expected_duration = (request.form.get("expected_duration") or "").strip()
 
-            # Parse day rate
+            # Req 13 — read submitted values, but fall back to JD values
+            # for the four locked fields when the user is NOT an admin.
+            submitted_start = _parse_date(request.form.get("start_date"))
+            submitted_end = _parse_date(request.form.get("end_date"))
+            submitted_engagement_type = (request.form.get("engagement_type") or "").strip()
             day_rate_raw = (request.form.get("day_rate") or "").strip().replace(",", "")
             try:
-                latest_app.offer_day_rate = float(day_rate_raw) if day_rate_raw else None
+                submitted_day_rate = float(day_rate_raw) if day_rate_raw else None
             except ValueError:
-                latest_app.offer_day_rate = None
+                submitted_day_rate = None
+
+            if is_admin:
+                final_start = submitted_start or jd_start_date
+                final_end = submitted_end or jd_end_date
+                final_engagement_type = submitted_engagement_type or jd_engagement_type
+                final_day_rate = submitted_day_rate if submitted_day_rate is not None else jd_day_rate
+                # Audit any admin override away from the JD value.
+                overrides = []
+                if jd_start_date and submitted_start and submitted_start != jd_start_date:
+                    overrides.append(f"start_date {jd_start_date}→{submitted_start}")
+                if jd_end_date and submitted_end and submitted_end != jd_end_date:
+                    overrides.append(f"end_date {jd_end_date}→{submitted_end}")
+                if jd_engagement_type and submitted_engagement_type and submitted_engagement_type != jd_engagement_type:
+                    overrides.append(f"engagement_type {jd_engagement_type}→{submitted_engagement_type}")
+                if jd_day_rate is not None and submitted_day_rate is not None and submitted_day_rate != jd_day_rate:
+                    overrides.append(f"day_rate {jd_day_rate}→{submitted_day_rate}")
+                if overrides:
+                    try:
+                        log_audit_event(
+                            "update", "offer",
+                            f"OFFER_FIELDS_OVERRIDDEN by admin: {'; '.join(overrides)}",
+                            "candidate", cand_id,
+                            {"overrides": overrides, "application_id": latest_app.id},
+                        )
+                    except Exception:
+                        current_app.logger.exception("offer override audit failed")
+            else:
+                # Locked: ignore tampered submissions, always re-derive.
+                final_start = jd_start_date
+                final_end = jd_end_date
+                final_engagement_type = jd_engagement_type
+                final_day_rate = jd_day_rate
+
+            latest_app.offer_start_date = final_start
+            latest_app.offer_end_date = final_end
+            latest_app.offer_engagement_type = final_engagement_type
+            latest_app.offer_day_rate = final_day_rate
+            # Expected duration is auto-derived from start→end so the
+            # docx merge gets a sensible string. Falls back to whatever
+            # the form supplied for backwards compatibility.
+            if final_start and final_end:
+                _days = max(0, (final_end - final_start).days)
+                latest_app.offer_expected_duration = f"{_days} days ({final_start.strftime('%d %b %Y')} – {final_end.strftime('%d %b %Y')})"
+            else:
+                latest_app.offer_expected_duration = (request.form.get("expected_duration") or "").strip()
 
             latest_app.offer_made_at = datetime.datetime.utcnow()
             latest_app.status = "Offered"
@@ -3363,6 +3467,27 @@ def offer_capture(cand_id: int):
         def _or(override, source):
             return override if (override or "").strip() else source
 
+        # Req 13 — for non-admins the form is locked to JD values,
+        # so the prefilled values are JD-derived. Admins see the
+        # same defaults but can edit.
+        prefilled_start = (
+            latest_app.offer_start_date.isoformat() if latest_app.offer_start_date
+            else (jd_start_date.isoformat() if jd_start_date else "")
+        )
+        prefilled_end = (
+            latest_app.offer_end_date.isoformat() if getattr(latest_app, "offer_end_date", None)
+            else (jd_end_date.isoformat() if jd_end_date else "")
+        )
+        prefilled_engagement_type = (
+            getattr(latest_app, "offer_engagement_type", "") or jd_engagement_type
+        )
+        if latest_app.offer_day_rate:
+            prefilled_day_rate = str(latest_app.offer_day_rate)
+        elif jd_day_rate is not None:
+            prefilled_day_rate = f"{jd_day_rate:.2f}"
+        else:
+            prefilled_day_rate = ""
+
         return render_template(
             "offer_capture.html",
             cand=cand,
@@ -3370,19 +3495,15 @@ def offer_capture(cand_id: int):
             job=job,
             engagement=engagement,
             offer_tpl=offer_tpl,
+            is_admin=is_admin,
             captured={
                 "project_name": engagement.name if engagement else "",
                 "job_title": _or(latest_app.offer_role_title, job.title if job else ""),
                 "location": _or(latest_app.offer_location, job.location if job else ""),
-                "day_rate": str(latest_app.offer_day_rate) if latest_app.offer_day_rate else "",
-                "engagement_type": _or(
-                    getattr(latest_app, "offer_engagement_type", "") or "",
-                    job.role_type if job else "",
-                ),
-                "start_date": (
-                    latest_app.offer_start_date.isoformat()
-                    if latest_app.offer_start_date else ""
-                ),
+                "day_rate": prefilled_day_rate,
+                "engagement_type": prefilled_engagement_type,
+                "start_date": prefilled_start,
+                "end_date": prefilled_end,
                 "expected_duration": getattr(latest_app, "offer_expected_duration", "") or "",
             },
         )
@@ -5471,6 +5592,12 @@ class Job(Base):
     # rendered on the public job advert so candidates know up front.
     ir35_status = Column(String(20), default="Inside")  # Inside | Outside
 
+    # Req 13 — Contract / Permanent flag. Drives the Engagement Type
+    # field on the Offer of Engagement capture sheet so the offer can
+    # be locked to the JD. Default Contract reflects current Optimus
+    # business; admins can change per-job on the Job edit form.
+    engagement_type = Column(String(20), default="Contract")  # Contract | Permanent
+
     # DBS vetting criteria — staff-entered, never rendered on the public advert.
     # Fed into Verifile's /orders/candidateentry CheckSpecificData.
     dbs_level = Column(String(20), default="Basic")  # Basic | Standard | Enhanced
@@ -5660,6 +5787,14 @@ class Candidate(Base):
     # TRUE = signed confirmed, FALSE = not yet signed.
     umbrella_assignment_signed = Column(Boolean, nullable=True)
     umbrella_assignment_signed_at = Column(DateTime, nullable=True)
+
+    # Req 21 — timestamp of the auto-fired Intro to Vetting email that
+    # goes out the moment the candidate accepts an offer in the portal.
+    # Used as an idempotency lock so re-accepting (or any later
+    # workflow loop) doesn't trigger a duplicate send. Admin "Resend
+    # Intro to Vetting" action clears it back to NULL before re-sending.
+    intro_to_vetting_sent_at = Column(DateTime, nullable=True)
+
     trustid_rtw_date = Column(DateTime, nullable=True)
     trustid_idv_date = Column(DateTime, nullable=True)
     trustid_dbs_date = Column(DateTime, nullable=True)
@@ -5841,6 +5976,10 @@ class Application(Base):
     offer_decline_reason = Column(Text, nullable=True)
     offer_engagement_type = Column(String(100), default="")
     offer_expected_duration = Column(String(100), default="")
+    # Req 13 — explicit end date on the offer so dates can be locked to
+    # the parent Engagement. offer_expected_duration stays as a freeform
+    # display string for the docx merge (auto-derived from start→end).
+    offer_end_date = Column(Date, nullable=True)
 
     # Assignment-schedule capture (Paystream Assignment Schedule template).
     # Populated when staff reviews the capture sheet before sending the
@@ -7122,11 +7261,15 @@ try:
             "ALTER TABLE candidates ADD COLUMN umbrella_assignment_sent_at TIMESTAMP",
             "ALTER TABLE candidates ADD COLUMN umbrella_assignment_signed BOOLEAN",
             "ALTER TABLE candidates ADD COLUMN umbrella_assignment_signed_at TIMESTAMP",
+            # Req 21 — idempotency timestamp for the auto-fired Intro to Vetting email.
+            "ALTER TABLE candidates ADD COLUMN intro_to_vetting_sent_at TIMESTAMP",
             "ALTER TABLE jobs ADD COLUMN sector VARCHAR(200) DEFAULT ''",
             # Migration 010 — DBS vetting criteria on jobs. Must run under
             # Gunicorn (not just `python app.py`), so it lives here rather
             # than in ensure_schema().
             "ALTER TABLE jobs ADD COLUMN ir35_status VARCHAR(20) DEFAULT 'Inside'",
+            # Req 13 — Contract / Permanent flag on jobs.
+            "ALTER TABLE jobs ADD COLUMN engagement_type VARCHAR(20) DEFAULT 'Contract'",
             "ALTER TABLE jobs ADD COLUMN dbs_level VARCHAR(20) DEFAULT 'Basic'",
             "ALTER TABLE jobs ADD COLUMN dbs_sector VARCHAR(100) DEFAULT ''",
             "ALTER TABLE jobs ADD COLUMN dbs_purpose VARCHAR(100) DEFAULT ''",
@@ -7163,6 +7306,8 @@ try:
             # Offer capture — engagement type and expected duration
             "ALTER TABLE applications ADD COLUMN offer_engagement_type VARCHAR(100) DEFAULT ''",
             "ALTER TABLE applications ADD COLUMN offer_expected_duration VARCHAR(100) DEFAULT ''",
+            # Req 13 — explicit end date on the offer.
+            "ALTER TABLE applications ADD COLUMN offer_end_date DATE",
             # Req 8 follow-up — Teams calendar event identifiers
             "ALTER TABLE applications ADD COLUMN interview_graph_event_id VARCHAR(128)",
             "ALTER TABLE applications ADD COLUMN interview_teams_join_url VARCHAR(500)",
@@ -8512,6 +8657,10 @@ def extract_cv_text(doc: "Document") -> str:
     return _truncate_for_ai(text)
 
 COMPLIANCE_FROM = os.getenv("COMPLIANCE_FROM_EMAIL", "compliance@optimussolutions.co.uk")
+# Req 53 — finance@ mailbox is used for invoice emails. Mailbox is live in
+# M365; if SendAs permission isn't granted yet the existing fallback in
+# send_email() will retry under the default sender.
+FINANCE_FROM = os.getenv("FINANCE_FROM_EMAIL", "finance@optimussolutions.co.uk")
 
 def send_email(
     to_email,
@@ -10564,6 +10713,8 @@ def action_onboarding_email(app_id):
         # Update flags
         appn.onboarding_email_sent = True
         appn.status = "Accepted"  # Candidate has accepted, onboarding/vetting begins
+        # Req 21 — auto-fire intro-to-vetting (mirrors the candidate-portal accept path).
+        _maybe_fire_intro_to_vetting(s, appn, "Accepted")
         s.commit()
 
     flash("Onboarding email sent", "success")
@@ -10594,12 +10745,15 @@ def kanban_move():
             abort(404)
         old_status = appn.status
         appn.status = new_status
-        
+
         # Get candidate name for audit log
         cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
         candidate_name = cand.name if cand else None
         candidate_id = appn.candidate_id
-        
+
+        # Req 21 — auto-fire intro-to-vetting on legacy kanban move into Accepted.
+        _maybe_fire_intro_to_vetting(s, appn, new_status)
+
         s.commit()
     
     # Audit log: kanban move (after commit to avoid db lock)
@@ -11462,6 +11616,11 @@ def api_workflow_move():
             old_app_status = app_obj.status
             app_obj.status = new_status
 
+            # Req 21 — auto-fire intro-to-vetting when the kanban
+            # drag/drop or "Move to Accepted" button puts the
+            # application into Accepted / Offer Accepted. Idempotent.
+            _maybe_fire_intro_to_vetting(s, app_obj, new_status)
+
             # Update candidate's last activity and status based on new workflow stage
             cand = s.scalar(select(Candidate).where(Candidate.id == app_obj.candidate_id))
             if cand:
@@ -11711,6 +11870,10 @@ def workflow_move():
         # an interview-stage rejection.
         old_app_status = appn.status
         appn.status = new_status
+
+        # Req 21 — auto-fire intro-to-vetting when the workflow move
+        # puts the application into Accepted / Offer Accepted. Idempotent.
+        _maybe_fire_intro_to_vetting(s, appn, new_status)
 
         # Get candidate and job for status sync
         cand = s.scalar(select(Candidate).where(Candidate.id == appn.candidate_id))
@@ -13109,6 +13272,9 @@ def job_new():
             # IR35 status — defaults to Inside if not provided or invalid.
             ir35_raw = (request.form.get("ir35_status") or "").strip().title()
             ir35_status = ir35_raw if ir35_raw in ("Inside", "Outside") else "Inside"
+            # Req 13 — Engagement type defaults to Contract.
+            engagement_type_raw = (request.form.get("engagement_type") or "").strip().title()
+            engagement_type = engagement_type_raw if engagement_type_raw in ("Contract", "Permanent") else "Contract"
 
             job = Job(
                 title=title,
@@ -13121,6 +13287,7 @@ def job_new():
                 engagement_id=engagement_id,
                 created_at=datetime.datetime.utcnow(),
                 ir35_status=ir35_status,
+                engagement_type=engagement_type,
                 dbs_level=dbs_level,
                 dbs_sector=request.form.get("dbs_sector") or "",
                 dbs_purpose=request.form.get("dbs_purpose") or "",
@@ -13182,6 +13349,10 @@ def job_edit(job_id):
             _ir35_new = (request.form.get("ir35_status") or "").strip().title()
             if _ir35_new in ("Inside", "Outside"):
                 job.ir35_status = _ir35_new
+            # Req 13 — engagement type validated against fixed set.
+            _eng_type_new = (request.form.get("engagement_type") or "").strip().title()
+            if _eng_type_new in ("Contract", "Permanent"):
+                job.engagement_type = _eng_type_new
             job.status = request.form.get("status") or job.status
 
             job.dbs_level = request.form.get("dbs_level") or job.dbs_level or "Basic"
@@ -15460,6 +15631,9 @@ def action_skip_stage(app_id):
         old_status = appn.status
         appn.status = target_stage
 
+        # Req 21 — auto-fire intro-to-vetting when a skip-stage lands on Accepted.
+        _maybe_fire_intro_to_vetting(s, appn, target_stage)
+
         # Log skip as a CandidateNote activity
         skip_note = CandidateNote(
             candidate_id=appn.candidate_id,
@@ -15503,6 +15677,9 @@ def action_unskip_stage(app_id):
         old_status = appn.status
         appn.status = target_stage
 
+        # Req 21 — auto-fire intro-to-vetting when an unskip lands on Accepted.
+        _maybe_fire_intro_to_vetting(s, appn, target_stage)
+
         skip_note = CandidateNote(
             candidate_id=appn.candidate_id,
             user_email=session.get("user_email", "system"),
@@ -15542,6 +15719,8 @@ def action_vetting(cand_id):
         )
         if appn:
             appn.status = "Accepted"  # Offer accepted, vetting starts
+            # Req 21 — auto-fire intro-to-vetting (mirrors the candidate-portal accept path).
+            _maybe_fire_intro_to_vetting(s, appn, "Accepted")
             s.commit()
     flash("Vetting process started - associate moved to Accepted stage.", "success")
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
@@ -15740,6 +15919,119 @@ def api_vetting_trigger_referencing(cand_id):
     })
 
 
+def _send_intro_to_vetting_email(s, cand) -> bool:
+    """Req 21 — auto-fire the Intro to Vetting email when a candidate
+    accepts an offer in the portal. Reuses the DB-stored
+    `vetting_commencement` EmailTemplate so any edits Optimus make in
+    the admin templates UI flow through automatically. Sends from
+    compliance@ (Req 50). Returns True if the email was sent, False
+    otherwise.
+
+    Idempotent: the caller is expected to check
+    `cand.intro_to_vetting_sent_at` before calling. This helper itself
+    does NOT re-check, so admin "Resend" can deliberately bypass the
+    lock by clearing the timestamp before calling.
+    """
+    if not cand or not cand.email:
+        current_app.logger.warning(
+            "intro-to-vetting skipped — candidate %s has no email", getattr(cand, "id", "?"),
+        )
+        return False
+    try:
+        tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "vetting_commencement"))
+        associate_name = cand.name or "Associate"
+        if tpl:
+            subject = (tpl.subject or "Optimus – Commencement of Vetting").replace("{associate_name}", associate_name)
+            body_text = (tpl.body or "").replace("{associate_name}", associate_name)
+        else:
+            base_url = os.getenv("APP_BASE_URL", "http://localhost:5001")
+            subject = "Optimus – Commencement of Vetting"
+            body_text = (
+                f"Dear {associate_name},\n\n"
+                "Welcome to Optimus. Now that you have accepted your offer, "
+                "the vetting process begins. Please log in to the Associate "
+                f"Portal and complete the required forms: {base_url}/portal/dashboard\n\n"
+                "If you have any questions, please contact the Optimus "
+                "compliance team at compliance@optimussolutions.co.uk.\n\n"
+                "Regards,\nOptimus Compliance Team"
+            )
+        import html as _html_mod
+        html_body = "<div style='font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;'><p>"
+        html_body += _html_mod.escape(body_text).replace("\n\n", "</p><p>").replace("\n", "<br>")
+        html_body += "</p></div>"
+        send_email(cand.email, subject, html_body, from_email=COMPLIANCE_FROM)
+        cand.intro_to_vetting_sent_at = datetime.datetime.utcnow()
+        try:
+            log_audit_event(
+                "create", "email",
+                f"EMAIL_SENT: intro_to_vetting to {cand.email}",
+                "candidate", cand.id,
+                {"template": "vetting_commencement", "trigger": "offer_accepted"},
+            )
+        except Exception:
+            current_app.logger.exception("intro-to-vetting audit log failed")
+        return True
+    except Exception:
+        current_app.logger.exception("intro-to-vetting send failed for cand %s", cand.id)
+        return False
+
+
+def _maybe_fire_intro_to_vetting(s, appn, new_status: str) -> None:
+    """Req 21 — fire the auto Intro to Vetting email when an Application
+    moves into Accepted / Offer Accepted via ANY staff-side path
+    (kanban drag, kanban button, /workflow/move, skip-stage, the
+    onboarding-email action, the start-vetting button, etc.) — not just
+    the candidate-portal accept route.
+
+    Idempotent: relies on Candidate.intro_to_vetting_sent_at, which the
+    inner helper sets after a successful send. Safe to call from every
+    transition site; a no-op when the candidate already has the
+    timestamp set or the new status isn't Accepted-equivalent.
+    Exceptions are swallowed and logged so a flaky outbound email never
+    breaks the workflow transition itself.
+    """
+    if not appn:
+        return
+    norm = (new_status or "").strip().lower()
+    if norm not in ("accepted", "offer accepted"):
+        return
+    try:
+        cand = s.get(Candidate, appn.candidate_id) if appn.candidate_id else None
+        if not cand:
+            return
+        if getattr(cand, "intro_to_vetting_sent_at", None):
+            return
+        _send_intro_to_vetting_email(s, cand)
+    except Exception:
+        current_app.logger.exception(
+            "intro-to-vetting auto-fire failed for app %s", getattr(appn, "id", "?"),
+        )
+
+
+@app.route("/candidate/<int:cand_id>/resend-intro-to-vetting", methods=["POST"])
+@login_required
+def resend_intro_to_vetting(cand_id: int):
+    """Req 21 — admin-only manual resend in case the auto-send on offer
+    accept failed. Clears the idempotency timestamp first so the helper
+    will send again."""
+    user_role = (getattr(current_user, "role", "") or "").lower()
+    if user_role not in ("admin", "super_admin"):
+        flash("Only admins can resend the Intro to Vetting email.", "danger")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        cand.intro_to_vetting_sent_at = None
+        ok = _send_intro_to_vetting_email(s, cand)
+        s.commit()
+    if ok:
+        flash("Intro to Vetting email re-sent.", "success")
+    else:
+        flash("Could not resend Intro to Vetting email — check the audit log.", "danger")
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/api/vetting/email-preview/<int:cand_id>")
 @login_required
 def api_vetting_email_preview(cand_id):
@@ -15772,8 +16064,10 @@ def send_vetting_email(cand_id):
                     user_file.filename, user_file.read(),
                     user_file.content_type or "application/octet-stream",
                 ))
+            # Req 50 — vetting commencement / intro-to-vetting from compliance@.
             send_email(to_email, email_subject, html_body,
-                       attachments=attachments if attachments else None)
+                       attachments=attachments if attachments else None,
+                       from_email=COMPLIANCE_FROM)
             flash(f"Vetting commencement email sent to {to_email}.", "success")
         except Exception as exc:
             flash(f"Email failed: {exc}", "warning")
@@ -15802,8 +16096,10 @@ def start_vetting_with_email(cand_id):
                     user_file.read(),
                     user_file.content_type or "application/octet-stream",
                 ))
+            # Req 50 — start-vetting + email also from compliance@.
             send_email(to_email, email_subject, html_body,
-                       attachments=attachments if attachments else None)
+                       attachments=attachments if attachments else None,
+                       from_email=COMPLIANCE_FROM)
             flash(f"Vetting commencement email sent to {to_email}.", "success")
         except Exception as exc:
             flash(f"Email failed: {exc}", "warning")
@@ -16344,6 +16640,88 @@ def action_contract_issue(cand_id, eng_id):
             .order_by(Application.created_at.desc())
         )
 
+        # Req 44 — gate: if the candidate has other open applications,
+        # they must be withdrawn before the contract can be issued so
+        # the per-role contract status in the associate portal stays
+        # accurate. The user only sees the prompt when there's actually
+        # something to withdraw; otherwise the flow continues unchanged.
+        OPEN_STATUSES_EXCLUDED = ("Rejected", "Withdrawn", "Closed", "Hired", "Contract Signed")
+        other_open_apps_q = (
+            select(Application, Job, Engagement)
+            .join(Job, Job.id == Application.job_id)
+            .join(Engagement, Engagement.id == Job.engagement_id, isouter=True)
+            .where(Application.candidate_id == cand_id)
+            .where(Application.status.notin_(OPEN_STATUSES_EXCLUDED))
+        )
+        if appn:
+            other_open_apps_q = other_open_apps_q.where(Application.id != appn.id)
+        other_open_rows = s.execute(other_open_apps_q).all()
+
+        confirm_withdraw = (request.form.get("confirm_withdraw") or "").strip() == "1"
+        if other_open_rows and not confirm_withdraw:
+            # Render the confirmation page listing the other open
+            # applications. Submitting that form re-POSTs here with
+            # confirm_withdraw=1 + the chosen withdraw_app_ids.
+            other_apps = [
+                {
+                    "id": row[0].id,
+                    "status": row[0].status or "",
+                    "job_title": row[1].title if row[1] else "",
+                    "engagement_name": row[2].name if row[2] else "",
+                    "client": row[2].client if row[2] else "",
+                }
+                for row in other_open_rows
+            ]
+            log_audit_event(
+                "update", "contract",
+                f"ISSUE_CONTRACT_BLOCKED — {len(other_apps)} other open application(s)",
+                "candidate", cand_id,
+                {"other_app_ids": [a["id"] for a in other_apps]},
+            )
+            return render_template(
+                "issue_contract_confirm.html",
+                cand=cand,
+                eng=eng,
+                appn=appn,
+                other_apps=other_apps,
+                form_values=request.form.to_dict(),
+            )
+
+        if confirm_withdraw:
+            requested_ids = request.form.getlist("withdraw_app_ids", type=int)
+            if requested_ids:
+                user_email = getattr(current_user, "email", "staff") or "staff"
+                withdrawn = 0
+                for app_id_to_withdraw in requested_ids:
+                    other = s.get(Application, app_id_to_withdraw)
+                    if not other or other.candidate_id != cand_id:
+                        continue
+                    if appn and other.id == appn.id:
+                        continue  # never withdraw the one being contracted
+                    if other.status in OPEN_STATUSES_EXCLUDED:
+                        continue
+                    prev_status = other.status
+                    other.status = "Withdrawn"
+                    s.add(CandidateNote(
+                        candidate_id=cand_id,
+                        user_email=user_email,
+                        note_type="activity",
+                        content=(
+                            f"Application withdrawn ({prev_status} → Withdrawn) — "
+                            f"placed on engagement {eng.name!r} via another role."
+                        ),
+                        created_at=datetime.datetime.utcnow(),
+                    ))
+                    withdrawn += 1
+                if withdrawn:
+                    log_audit_event(
+                        "update", "contract",
+                        f"BULK_WITHDRAW — {withdrawn} application(s) withdrawn before contract issue",
+                        "candidate", cand_id,
+                        {"withdrawn_application_ids": requested_ids, "for_engagement": eng_id},
+                    )
+                s.flush()
+
         # Check vetting is complete before allowing contract issuance.
         # TEMPORARY BYPASS (2026-04-16): user needs to test the Paystream
         # Assignment Schedule capture-sheet + auto-fill flow without having
@@ -16480,6 +16858,36 @@ def action_contract_extend(contract_id):
     return redirect(request.referrer or url_for("resource_pool"))
 
 
+def _has_signed_contract_doc(s, candidate_id: int) -> bool:
+    """Req 18 — return True if the candidate already has a SIGNED_CONTRACT
+    Document on file. Used to gate progression to Placed: the staff member
+    must upload the signed PDF before the kanban tick / profile confirm
+    button will move the candidate forward."""
+    return s.scalar(
+        select(Document)
+        .where(Document.candidate_id == candidate_id)
+        .where(Document.doc_type == "SIGNED_CONTRACT")
+        .limit(1)
+    ) is not None
+
+
+def _save_signed_contract_doc(s, file_storage, candidate_id: int, application_id=None, engagement_id=None):
+    """Req 18 — persist an uploaded signed-contract PDF to the uploads
+    folder and create a Document row. Returns the Document. Raises
+    ValueError on unsupported file type."""
+    new_name, _path, original = save_upload(file_storage, subdir="signed_contracts")
+    doc = Document(
+        candidate_id=candidate_id,
+        doc_type="SIGNED_CONTRACT",
+        filename=os.path.join("signed_contracts", new_name),
+        original_name=original,
+        uploaded_at=datetime.datetime.utcnow(),
+        engagement_id=engagement_id,
+    )
+    s.add(doc)
+    return doc
+
+
 def _apply_contract_signed(s, cand, *, source: str = "manual"):
     """Req 17 — canonical "contract signed" state transition. Both the
     kanban "Confirm Contract Signed" tick AND the profile Assignment
@@ -16573,13 +16981,36 @@ def confirm_contract_signed(cand_id: int):
     """Req 17 — kanban "Confirm Contract Signed" tick. Routes through
     the shared _apply_contract_signed helper so the same transition
     runs as when the profile Assignment Schedule "Confirm signed"
-    button is clicked."""
+    button is clicked.
+
+    Req 18 — gated on a SIGNED_CONTRACT Document already being on file.
+    The kanban tick is a single-click action with no file picker, so the
+    upload happens via the candidate profile. If no signed-contract doc
+    exists yet, refuse the transition with a clear message."""
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
-        _apply_contract_signed(s, cand, source="kanban_confirm_signed")
-        s.commit()
+
+        if not _has_signed_contract_doc(s, cand_id):
+            flash(
+                "Cannot confirm contract signed — please upload the signed "
+                "contract PDF from the candidate profile first.",
+                "danger",
+            )
+            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
+
+        try:
+            _apply_contract_signed(s, cand, source="kanban_confirm_signed")
+            s.commit()
+        except Exception as exc:
+            # Req 18 — surface the underlying failure as a flash message
+            # rather than a 500. The user previously hit unhelpful Internal
+            # Server Errors here; logs still capture the stack trace.
+            s.rollback()
+            current_app.logger.exception("confirm_contract_signed failed for cand %s", cand_id)
+            flash(f"Could not confirm contract signed: {exc}", "danger")
+            return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
     flash("Contract confirmed signed — moved to Placed.", "success")
     return redirect(request.referrer or url_for("workflow"))

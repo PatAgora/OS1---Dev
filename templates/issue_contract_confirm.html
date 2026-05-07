@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Confirm Withdrawals — {{ cand.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4" style="max-width: 880px;">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="fw-bold mb-0">
+      <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+      Withdraw other applications first
+    </h2>
+    <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i> Cancel
+    </a>
+  </div>
+
+  <div class="alert alert-warning small">
+    Before issuing a contract for <strong>{{ cand.name }}</strong> on
+    <strong>{{ eng.name }}</strong>, the {{ other_apps|length }} other open
+    application{{ '' if other_apps|length == 1 else 's' }} below must be
+    withdrawn. This keeps the contract status on the associate portal
+    accurate per role — the candidate can't appear as "Contract Sent"
+    against more than one role at the same time.
+  </div>
+
+  {# Re-POST to action_contract_issue with confirm_withdraw=1.
+     Carry every original form value forward so the contract issue
+     proceeds with the same details after the cascade. #}
+  <form method="POST"
+        action="{{ url_for('action_contract_issue', cand_id=cand.id, eng_id=eng.id) }}"
+        class="modern-card p-3">
+
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="confirm_withdraw" value="1">
+
+    {# Mirror the original Issue Contract form values. #}
+    {% for k, v in form_values.items() %}
+      {% if k not in ['csrf_token', 'confirm_withdraw', 'withdraw_app_ids'] %}
+        <input type="hidden" name="{{ k }}" value="{{ v }}">
+      {% endif %}
+    {% endfor %}
+
+    <p class="mb-2 small fw-semibold">Applications to withdraw</p>
+    <div class="list-group mb-3">
+      {% for a in other_apps %}
+      <label class="list-group-item d-flex align-items-start gap-2">
+        <input class="form-check-input mt-1" type="checkbox"
+               name="withdraw_app_ids" value="{{ a.id }}" checked>
+        <span>
+          <strong>{{ a.job_title or '(role missing)' }}</strong>
+          {% if a.client or a.engagement_name %}
+            <span class="text-muted">— {{ a.client }}{% if a.client and a.engagement_name %}, {% endif %}{{ a.engagement_name }}</span>
+          {% endif %}
+          <br>
+          <span class="badge bg-light text-dark">Status: {{ a.status }}</span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-warning">
+        <i class="fas fa-check me-1"></i>
+        Withdraw selected and issue contract
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

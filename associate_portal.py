@@ -3620,9 +3620,13 @@ def my_applications():
                 else:
                     display_status = "Applied"
 
-                # Look up e-signature / contract status for this application.
-                # Try application_id first, fall back to candidate_id (older
-                # ESigRequests may have application_id = NULL).
+                # Req 44 — contract status MUST be specific to this
+                # Application. The previous fallback to a candidate-wide
+                # ESigRequest lookup was the root cause of "Contract Sent"
+                # appearing against every role when only one was sent.
+                # If no ESigRequest is tied to this application id we
+                # surface contract_status = None so the template renders
+                # an empty contract column for that row.
                 esig = None
                 if ESigRequest:
                     esig = s.scalar(
@@ -3630,12 +3634,6 @@ def my_applications():
                         .where(ESigRequest.application_id == app.id)
                         .order_by(ESigRequest.id.desc())
                     )
-                    if not esig:
-                        esig = s.scalar(
-                            select(ESigRequest)
-                            .where(ESigRequest.candidate_id == cand_id)
-                            .order_by(ESigRequest.id.desc())
-                        )
 
                 applications.append({
                     "id": app.id,
@@ -3748,6 +3746,17 @@ def offer_accept(application_id):
             )
         except Exception:
             pass
+
+        # Req 21 — auto-fire Intro to Vetting email so the associate
+        # can immediately complete portal forms and consent. Idempotent
+        # via cand.intro_to_vetting_sent_at; admin Resend can override.
+        try:
+            from app import _send_intro_to_vetting_email
+            if cand and not getattr(cand, "intro_to_vetting_sent_at", None):
+                _send_intro_to_vetting_email(s, cand)
+                s.commit()
+        except Exception:
+            current_app.logger.exception("intro-to-vetting auto-send failed for cand %s", cand_id)
 
     flash("Thanks — your offer has been accepted. Our vetting team will be in touch shortly.", "success")
     return redirect(url_for("associate.my_applications"))

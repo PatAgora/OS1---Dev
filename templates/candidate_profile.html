@@ -1291,6 +1291,17 @@
               <button class="btn btn-outline-info btn-sm" onclick="syncVerifile({{ cand.id }})" title="Fetch latest status from Verifile">
                 <i class="fas fa-sync me-1"></i> Sync Verifile
               </button>
+              {# Req 21 — admin-only manual resend in case the auto-send
+                 on Offer Accepted failed. Hidden for non-admin staff. #}
+              {% if current_user.role and current_user.role.lower() in ('admin', 'super_admin') %}
+              <form method="POST" action="{{ url_for('resend_intro_to_vetting', cand_id=cand.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-secondary btn-sm" type="submit"
+                        title="{% if cand.intro_to_vetting_sent_at %}Last sent {{ cand.intro_to_vetting_sent_at.strftime('%d %b %Y %H:%M') }}. Click to resend.{% else %}Has not been auto-sent yet — click to send now.{% endif %}">
+                  <i class="fas fa-redo me-1"></i> Resend Intro to Vetting
+                </button>
+              </form>
+              {% endif %}
             </div>
           </div>
 
@@ -2063,10 +2074,17 @@
               {% endif %}
             </div>
             {% if not cand.umbrella_assignment_signed %}
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}">
+            {# Req 18 — staff must attach the signed contract PDF before
+               confirming. Any rejection is shown via flash + redirect from
+               the mark_umbrella_assignment_signed handler. #}
+            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" enctype="multipart/form-data" class="d-flex flex-column gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="signed" value="yes">
-              <button type="submit" class="btn btn-sm btn-outline-success">
+              <label class="form-label small mb-0">
+                Signed contract (PDF, required)
+              </label>
+              <input type="file" name="signed_contract" accept=".pdf" required class="form-control form-control-sm">
+              <button type="submit" class="btn btn-sm btn-outline-success align-self-start">
                 <i class="fas fa-check-double me-1"></i> Confirm signed
               </button>
             </form>

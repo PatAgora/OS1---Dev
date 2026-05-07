@@ -51,6 +51,18 @@
         </select>
         <div class="form-text">Shown on the public job advert.</div>
       </div>
+      <div class="col-md-4">
+        {# Req 13 — Engagement type drives the locked field on the
+           Offer of Engagement capture sheet. #}
+        <label class="form-label fw-semibold">Engagement Type</label>
+        {% set current_eng_type = (job.engagement_type if job and job.engagement_type else 'Contract') %}
+        <select name="engagement_type" class="form-select">
+          {% for s in ['Contract', 'Permanent'] %}
+          <option value="{{ s }}" {{ 'selected' if current_eng_type == s else '' }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Used on the Offer of Engagement capture sheet.</div>
+      </div>
       {# The generic Sector field was removed — the DBS Sector below is
          now the single source of truth. The Job.sector column stays in
          the DB for backwards compatibility but is no longer captured

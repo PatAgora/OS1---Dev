@@ -72,39 +72,66 @@
                    value="{{ captured.location }}">
           </div>
 
+          {# Req 13 — day_rate, engagement_type, start_date and end_date
+             are locked to the parent Engagement / EngagementPlan / Job
+             unless the user is an admin. #}
+          {% set lock_attr = '' if is_admin else 'readonly' %}
+          {% set lock_disabled = '' if is_admin else 'disabled' %}
+          {% set lock_hint = '' if is_admin else '🔒 Locked to JD — admin only' %}
+
           <!-- Day Rate -->
           <div class="col-md-6">
             <label for="day_rate" class="form-label small">Day Rate (&pound;)</label>
             <input type="text" id="day_rate" name="day_rate"
-                   class="form-control form-control-sm bg-success-subtle"
+                   class="form-control form-control-sm {% if is_admin %}bg-success-subtle{% else %}bg-light{% endif %}"
                    value="{{ captured.day_rate }}"
-                   placeholder="e.g. 500.00">
+                   placeholder="e.g. 500.00" {{ lock_attr }}>
+            {% if not is_admin %}<div class="form-text small text-muted">{{ lock_hint }}</div>{% endif %}
           </div>
 
           <!-- Engagement Type -->
           <div class="col-md-6">
             <label for="engagement_type" class="form-label small">Engagement Type</label>
-            <input type="text" id="engagement_type" name="engagement_type"
-                   class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.engagement_type }}"
-                   placeholder="e.g. Contract, Permanent">
+            <select id="engagement_type" name="engagement_type"
+                    class="form-select form-select-sm {% if is_admin %}bg-success-subtle{% else %}bg-light{% endif %}"
+                    {{ lock_disabled }}>
+              {% for et in ['Contract', 'Permanent'] %}
+              <option value="{{ et }}" {{ 'selected' if captured.engagement_type == et else '' }}>{{ et }}</option>
+              {% endfor %}
+            </select>
+            {% if not is_admin %}
+              {# Hidden mirror so the disabled select still posts the value. #}
+              <input type="hidden" name="engagement_type" value="{{ captured.engagement_type }}">
+              <div class="form-text small text-muted">{{ lock_hint }}</div>
+            {% endif %}
           </div>
 
           <!-- Start Date -->
           <div class="col-md-3">
             <label for="start_date" class="form-label small">Start Date</label>
             <input type="date" id="start_date" name="start_date"
-                   class="form-control form-control-sm bg-success-subtle"
-                   value="{{ captured.start_date }}">
+                   class="form-control form-control-sm {% if is_admin %}bg-success-subtle{% else %}bg-light{% endif %}"
+                   value="{{ captured.start_date }}" {{ lock_attr }}>
+            {% if not is_admin %}<div class="form-text small text-muted">{{ lock_hint }}</div>{% endif %}
           </div>
 
-          <!-- Expected Duration -->
+          <!-- End Date (Req 13) -->
           <div class="col-md-3">
+            <label for="end_date" class="form-label small">End Date</label>
+            <input type="date" id="end_date" name="end_date"
+                   class="form-control form-control-sm {% if is_admin %}bg-success-subtle{% else %}bg-light{% endif %}"
+                   value="{{ captured.end_date }}" {{ lock_attr }}>
+            {% if not is_admin %}<div class="form-text small text-muted">{{ lock_hint }}</div>{% endif %}
+          </div>
+
+          <!-- Expected Duration (auto-derived from start→end on save) -->
+          <div class="col-md-6">
             <label for="expected_duration" class="form-label small">Expected Duration</label>
             <input type="text" id="expected_duration" name="expected_duration"
-                   class="form-control form-control-sm"
+                   class="form-control form-control-sm bg-light"
                    value="{{ captured.expected_duration }}"
-                   placeholder="e.g. 6 months">
+                   placeholder="Auto-derived from start &rarr; end" readonly>
+            <div class="form-text small text-muted">Auto-calculated from Start Date &amp; End Date.</div>
           </div>
 
         </div>
