@@ -1040,10 +1040,11 @@
              Placement" link filtered to this candidate. #}
           {% if stage.id == 'contract_sent' %}
           <form method="POST" action="{{ url_for('confirm_contract_signed', cand_id=card.candidate_id) }}"
-                style="display:inline;"
-                onsubmit="return confirm('Confirm the contract is signed? This will move {{ card.name }} to Placed.');">
+                id="confirmSignedForm-{{ card.id }}"
+                style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-success btn-sm"
+            <button type="button" class="btn btn-outline-success btn-sm"
+                    onclick="confirmContractSignedKanban({{ card.candidate_id }}, {{ card.id }}, {{ card.name|tojson }})"
                     title="Confirm Contract Signed">
               <i class="fas fa-file-signature"></i>
             </button>
@@ -1341,7 +1342,12 @@ function handleDrop(event) {
       if (data.allow_override) {
         data._isOverridable = true;
       }
-      if (!data._isOverridable) {
+      // Signed-contract upload required — preserve the response so the
+      // next .then can render the modal and revert the card.
+      if (data.needs_signed_contract_upload) {
+        data._needsSignedContractUpload = true;
+      }
+      if (!data._isOverridable && !data._needsSignedContractUpload) {
         throw new Error(data.error || 'Server error');
       }
       return data;
@@ -1350,6 +1356,15 @@ function handleDrop(event) {
     return data;
   })
   .then(data => {
+    if (data._needsSignedContractUpload) {
+      // Revert the card to its original column and pop the modal.
+      const originalColumnEl = document.querySelector('[data-stage="' + originalColumn + '"]');
+      if (originalColumnEl && draggedCard) {
+        originalColumnEl.appendChild(draggedCard);
+      }
+      showSignedContractMissingModal(data.candidate_id, data.candidate_name);
+      return;
+    }
     if (data._isOverridable) {
       // Show override confirmation
       const originalColumnEl = document.querySelector('[data-stage="' + originalColumn + '"]');
@@ -1396,6 +1411,54 @@ function handleDrop(event) {
       originalColumnEl.appendChild(draggedCard);
     }
     showToast(error.message || 'Failed to move card', 'danger');
+  });
+}
+
+// Modal helpers for the signed-contract upload gate. Used by both the
+// kanban green-tick "Confirm Contract Signed" button and the drag-drop
+// handler when the target stage is Placed.
+function showSignedContractMissingModal(candId, candName) {
+  const modal = document.getElementById('signedContractMissingModal');
+  if (!modal) return;
+  document.getElementById('signedContractMissingName').textContent = candName || 'this candidate';
+  const profileBtn = document.getElementById('signedContractMissingProfileBtn');
+  if (profileBtn) {
+    profileBtn.href = '/candidate/' + encodeURIComponent(candId) + '#sec-vetting';
+  }
+  modal.style.display = 'flex';
+}
+
+function closeSignedContractMissingModal() {
+  const modal = document.getElementById('signedContractMissingModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Pre-flight check for the kanban green-tick "Confirm Contract Signed"
+// button. If the candidate has the SIGNED_CONTRACT Document on file,
+// confirm and submit the form. Otherwise show the modal so the user
+// can navigate to the profile to upload.
+function confirmContractSignedKanban(candId, cardId, candName) {
+  fetch('/api/candidate/' + encodeURIComponent(candId) + '/has-signed-contract', {
+    method: 'GET',
+    credentials: 'same-origin',
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data || !data.ok) {
+      showToast(data && data.error ? data.error : 'Could not verify upload state.', 'danger');
+      return;
+    }
+    if (!data.has_doc) {
+      showSignedContractMissingModal(candId, candName);
+      return;
+    }
+    if (!confirm('Confirm the contract is signed? This will move ' + candName + ' to Placed.')) return;
+    const form = document.getElementById('confirmSignedForm-' + cardId);
+    if (form) form.submit();
+  })
+  .catch(function(err) {
+    console.error('confirmContractSignedKanban check failed', err);
+    showToast('Could not verify upload state — please try again.', 'danger');
   });
 }
 
@@ -1919,6 +1982,25 @@ function offerConfirmNo() {
     <div style="display:flex; gap:0.75rem; justify-content:center;">
       <button onclick="offerConfirmYes()" style="background:#22c55e; color:white; border:none; border-radius:8px; padding:0.6rem 2rem; font-weight:600; font-size:0.9rem; cursor:pointer;">Yes</button>
       <button onclick="offerConfirmNo()" style="background:#ef4444; color:white; border:none; border-radius:8px; padding:0.6rem 2rem; font-weight:600; font-size:0.9rem; cursor:pointer;">No</button>
+    </div>
+  </div>
+</div>
+
+{# Signed-contract upload required — pops when staff drag a card into
+   Placed or click Confirm Contract Signed without having uploaded the
+   signed PDF on the candidate profile first. #}
+<div id="signedContractMissingModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:2rem; max-width:480px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center;">
+    <i class="fas fa-file-upload" style="font-size:2.5rem; color:#ef4444; margin-bottom:1rem;"></i>
+    <h5 style="margin-bottom:0.5rem; font-weight:700;">Signed contract not yet uploaded</h5>
+    <p id="signedContractMissingBody" style="color:#6b7280; font-size:0.9rem; margin-bottom:1.5rem;">
+      Before <span id="signedContractMissingName">this candidate</span> can be confirmed as signed, the signed contract PDF needs to be uploaded on the associate profile. Click <strong>Go to Associate Profile</strong> below to upload it.
+    </p>
+    <div style="display:flex; gap:0.75rem; justify-content:center;">
+      <a id="signedContractMissingProfileBtn" href="#" style="background:#2563eb; color:white; border:none; border-radius:8px; padding:0.6rem 1.5rem; font-weight:600; font-size:0.9rem; text-decoration:none; cursor:pointer;">
+        <i class="fas fa-user me-1"></i> Go to Associate Profile
+      </a>
+      <button onclick="closeSignedContractMissingModal()" style="background:#e5e7eb; color:#1f2937; border:none; border-radius:8px; padding:0.6rem 1.5rem; font-weight:600; font-size:0.9rem; cursor:pointer;">Cancel</button>
     </div>
   </div>
 </div>

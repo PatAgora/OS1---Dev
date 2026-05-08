@@ -11705,6 +11705,25 @@ def api_workflow_move():
                         "target_stage": new_status,
                     }), 400
 
+            # Signed-contract gate: cannot move into Placed / Contract
+            # Signed without the SIGNED_CONTRACT Document on file.
+            # Mirrors the gate already in place on the candidate
+            # profile (Req 18). Returns a structured needs_signed_contract_upload
+            # response so the front-end can pop a modal with a
+            # "Go to Associate Profile" button instead of just flashing.
+            if new_status in ("Placed", "Contract Signed") and not payload.get("force"):
+                if not _has_signed_contract_doc(s, app_obj.candidate_id):
+                    _cand_for_msg = s.scalar(select(Candidate).where(Candidate.id == app_obj.candidate_id))
+                    return jsonify({
+                        "ok": False,
+                        "error": "Please upload the signed contract PDF on the candidate profile before confirming.",
+                        "needs_signed_contract_upload": True,
+                        "candidate_id": app_obj.candidate_id,
+                        "candidate_name": _cand_for_msg.name if _cand_for_msg else "",
+                        "card_id": card_id,
+                        "target_stage": new_status,
+                    }), 400
+
             # If force move with incomplete vetting, log to audit
             if payload.get("force") and new_status in ("Ready to Contract", "Contract Sent", "Placed"):
                 log_audit_event('update', 'compliance',
@@ -16085,6 +16104,27 @@ def _send_intro_to_vetting_email(s, cand) -> bool:
     except Exception:
         current_app.logger.exception("intro-to-vetting send failed for cand %s", cand.id)
         return False
+
+
+@app.route("/api/candidate/<int:cand_id>/has-signed-contract", methods=["GET"])
+@login_required
+def api_has_signed_contract(cand_id: int):
+    """Tiny JSON endpoint used by the kanban front-end to pre-flight
+    check whether a candidate has the signed contract PDF on file
+    before letting the user click Confirm Contract Signed or drag the
+    card into Placed. The mandatory-upload gate already exists on the
+    candidate profile (Req 18); this exposes the same state to the
+    workflow page so it can pop a modal instead of relying on a flash."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"ok": False, "error": "Candidate not found"}), 404
+        return jsonify({
+            "ok": True,
+            "has_doc": _has_signed_contract_doc(s, cand_id),
+            "candidate_id": cand_id,
+            "candidate_name": cand.name or "",
+        })
 
 
 def _maybe_fire_intro_to_vetting(s, appn, new_status: str) -> None:
