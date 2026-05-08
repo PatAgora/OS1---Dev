@@ -18494,7 +18494,14 @@ def candidate_profile(cand_id: int):
         "Social Media Review",
     ]
 
-    with Session(engine) as s:
+    # expire_on_commit=False is critical here: the route does an in-flight
+    # commit (cand.status = "On Assignment" auto-link, see below) and then
+    # passes `cand` plus several other ORM instances to render_template
+    # AFTER the `with` block closes the session. Without this flag, every
+    # attribute access in the template would trigger an attribute-refresh
+    # against a detached instance and 500 the page with
+    # DetachedInstanceError.
+    with Session(engine, expire_on_commit=False) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
