@@ -16594,6 +16594,20 @@ def retract_contract(cand_id):
         if appn and appn.status in ("Contract Issued", "Contract Sent"):
             appn.status = "Accepted"
 
+        # Clear the umbrella_assignment_* flags so the Contract card on
+        # the candidate profile stops showing "Assignment Schedule Signed"
+        # for a contract that has been retracted. Without this the
+        # display sticks until the next end_assignment / new contract
+        # creation.
+        if hasattr(cand, "umbrella_assignment_sent"):
+            cand.umbrella_assignment_sent = False
+        if hasattr(cand, "umbrella_assignment_sent_at"):
+            cand.umbrella_assignment_sent_at = None
+        if hasattr(cand, "umbrella_assignment_signed"):
+            cand.umbrella_assignment_signed = False
+        if hasattr(cand, "umbrella_assignment_signed_at"):
+            cand.umbrella_assignment_signed_at = None
+
         # Add note
         note = CandidateNote(
             candidate_id=cand_id,
@@ -17088,6 +17102,25 @@ def _get_or_create_active_esig(
         sent_at=sent_at,
     )
     s.add(new_esig)
+
+    # Reset stale umbrella_assignment_* flags from any previously-ended
+    # contract so the Contract card on the candidate profile renders
+    # "Awaiting Signature" (or blank) for this new role rather than
+    # leaking the previous contract's signed state. end_assignment
+    # already clears these on a clean teardown — this catches cases
+    # where end_assignment didn't run (e.g. retract_contract, manual
+    # status changes) so a brand-new contract always starts fresh.
+    cand_for_reset = s.get(Candidate, candidate_id)
+    if cand_for_reset:
+        if hasattr(cand_for_reset, "umbrella_assignment_sent"):
+            cand_for_reset.umbrella_assignment_sent = False
+        if hasattr(cand_for_reset, "umbrella_assignment_sent_at"):
+            cand_for_reset.umbrella_assignment_sent_at = None
+        if hasattr(cand_for_reset, "umbrella_assignment_signed"):
+            cand_for_reset.umbrella_assignment_signed = False
+        if hasattr(cand_for_reset, "umbrella_assignment_signed_at"):
+            cand_for_reset.umbrella_assignment_signed_at = None
+
     return new_esig
 
 @app.route("/action/contract/terminate/<int:contract_id>", methods=["POST"])
