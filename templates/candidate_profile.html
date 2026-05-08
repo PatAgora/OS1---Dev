@@ -1262,41 +1262,44 @@
                   <i class="fas fa-user-check"></i> QC Assign
                 </button>
               </div>
-              <div class="d-flex align-items-center gap-1">
-                <button class="btn btn-success btn-sm" style="font-size:0.75rem;" onclick="bulkMarkQCComplete({{ cand.id }})" title="Mark every vetting check QC Complete">
-                  <i class="fas fa-double-check"></i> Mark all QC Complete
-                </button>
-              </div>
             </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-info btn-sm flex-fill" onclick="triggerReferencing({{ cand.id }})">
+
+            {# Uniform action-button row — every button takes the same
+               width via flex-fill so the tile sizing is consistent.
+               Mark all QC Complete is inlined here alongside the rest of
+               the vetting actions. #}
+            {% set ref_types = ['References', 'Employment History'] %}
+            {% set non_ref_in_progress = vetting_checks|selectattr('status', 'in', ['In Progress', 'SENT TO QC', 'QC IN PROGRESS'])|rejectattr('type', 'in', ref_types)|list|length %}
+            {% set non_ref_complete = vetting_checks|selectattr('status', 'in', ['COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'CHECK STILL IN DATE'])|rejectattr('type', 'in', ref_types)|list|length %}
+            {% set vetting_started = non_ref_in_progress > 0 or non_ref_complete > 0 %}
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-success btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="bulkMarkQCComplete({{ cand.id }})" title="Mark every vetting check QC Complete">
+                <i class="fas fa-double-check me-1"></i> Mark all QC Complete
+              </button>
+              <button class="btn btn-info btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="triggerReferencing({{ cand.id }})">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
-              {% set ref_types = ['References', 'Employment History'] %}
-              {% set non_ref_in_progress = vetting_checks|selectattr('status', 'in', ['In Progress', 'SENT TO QC', 'QC IN PROGRESS'])|rejectattr('type', 'in', ref_types)|list|length %}
-              {% set non_ref_complete = vetting_checks|selectattr('status', 'in', ['COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'CHECK STILL IN DATE'])|rejectattr('type', 'in', ref_types)|list|length %}
-              {% set vetting_started = non_ref_in_progress > 0 or non_ref_complete > 0 %}
               {% if vetting_started %}
-              <span class="btn btn-outline-secondary btn-sm flex-fill" style="cursor:default; opacity:0.7;">
+              <span class="btn btn-outline-secondary btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px; cursor:default; opacity:0.7;">
                 <i class="fas fa-check-circle me-1"></i> Vetting Already Started
               </span>
               {% else %}
-              <button class="btn btn-warning btn-sm flex-fill" onclick="openVettingEmailModal()">
+              <button class="btn btn-warning btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="openVettingEmailModal()">
                 <i class="fas fa-shield-alt me-1"></i> Start Full Vetting
               </button>
               {% endif %}
-              <button class="btn btn-outline-danger btn-sm" onclick="resetVettingAll({{ cand.id }})">
+              <button class="btn btn-outline-danger btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="resetVettingAll({{ cand.id }})">
                 <i class="fas fa-undo me-1"></i> Reset
               </button>
-              <button class="btn btn-outline-info btn-sm" onclick="syncVerifile({{ cand.id }})" title="Fetch latest status from Verifile">
+              <button class="btn btn-outline-info btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="syncVerifile({{ cand.id }})" title="Fetch latest status from Verifile">
                 <i class="fas fa-sync me-1"></i> Sync Verifile
               </button>
               {# Req 21 — admin-only manual resend in case the auto-send
                  on Offer Accepted failed. Hidden for non-admin staff. #}
               {% if current_user.role and current_user.role.lower() in ('admin', 'super_admin') %}
-              <form method="POST" action="{{ url_for('resend_intro_to_vetting', cand_id=cand.id) }}" class="d-inline">
+              <form method="POST" action="{{ url_for('resend_intro_to_vetting', cand_id=cand.id) }}" class="flex-fill d-flex" style="flex: 1 1 0; min-width: 140px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-secondary btn-sm" type="submit"
+                <button class="btn btn-outline-secondary btn-sm w-100" type="submit"
                         title="{% if cand.intro_to_vetting_sent_at %}Last sent {{ cand.intro_to_vetting_sent_at.strftime('%d %b %Y %H:%M') }}. Click to resend.{% else %}Has not been auto-sent yet — click to send now.{% endif %}">
                   <i class="fas fa-redo me-1"></i> Resend Intro to Vetting
                 </button>
@@ -2032,9 +2035,16 @@
                 {# All contracting types (umbrella or Ltd Co): open the
                    capture sheet. If a DOCX template exists for the
                    umbrella the filled document downloads automatically;
-                   otherwise it just saves the captured fields. #}
+                   otherwise it just saves the captured fields.
+
+                   Pass through the role/engagement selected in the
+                   dropdowns above so the assignment sheet pre-populates
+                   for the chosen role rather than the most recent
+                   application. #}
                 <a href="{{ url_for('paystream_capture', cand_id=cand.id) }}"
-                   class="btn btn-sm btn-primary">
+                   id="issueContractBtn"
+                   class="btn btn-sm btn-primary"
+                   onclick="return goIssueContract(this);">
                   <i class="fas fa-file-signature me-1"></i> Issue Contract
                 </a>
                 <div class="text-muted small mt-1 text-start">
@@ -2547,6 +2557,21 @@ function revertToApplied() {
   if (originalJobId) jobSelect.value = originalJobId;
   mismatchConfirmed = false;
   document.getElementById('contractRoleMismatchWarning').style.display = 'none';
+}
+
+// Append the selected job_id from the Contract tile dropdown onto the
+// Issue Contract link before navigation, so paystream_capture pre-fills
+// for the chosen role rather than the candidate's most recent
+// application. No-op when there is no dropdown (single-engagement view).
+function goIssueContract(anchor) {
+  const jobSelect = document.getElementById('contractJobSelect');
+  const jobId = jobSelect ? jobSelect.value : '';
+  if (jobId) {
+    const url = new URL(anchor.href, window.location.origin);
+    url.searchParams.set('job_id', jobId);
+    anchor.href = url.pathname + url.search;
+  }
+  return true;  // allow normal navigation
 }
 
 function triggerReferencing(candidateId) {

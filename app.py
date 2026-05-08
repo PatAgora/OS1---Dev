@@ -2989,16 +2989,31 @@ def paystream_capture(cand_id: int):
     the Application row + sends the umbrella the signing link with full
     context. When a Signable template fingerprint + field name map is
     configured, switches to pre-filled envelope creation automatically."""
+    # Honour the role dropdown on the Contract tile: if the user
+    # selected a specific job there, find the matching Application
+    # instead of silently defaulting to the candidate's most recent one.
+    selected_job_id = request.args.get("job_id", type=int)
+
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
 
-        # Latest application + job + engagement for context
-        latest_app = s.scalar(
-            select(Application).where(Application.candidate_id == cand_id)
-            .order_by(Application.created_at.desc())
-        )
+        latest_app = None
+        if selected_job_id:
+            latest_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand_id)
+                .where(Application.job_id == selected_job_id)
+                .order_by(Application.created_at.desc())
+            )
+        if latest_app is None:
+            # No job_id passed (or no application for that job) — fall
+            # back to the most recent application.
+            latest_app = s.scalar(
+                select(Application).where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            )
         if not latest_app:
             flash("Candidate has no application to contract against.", "warning")
             return
@@ -3083,10 +3098,31 @@ def paystream_capture(cand_id: int):
         else:
             conduct_regs = ""
 
+        # JD-locked fallbacks: when the offer or assignment fields are
+        # blank, fall back to the parent Engagement and the
+        # EngagementPlan row that matches the Job's role_type. Mirrors
+        # the source-of-truth chain on the Offer of Engagement form
+        # (Req 13) so the assignment schedule never renders blank dates
+        # / day rate when the engagement actually has them.
+        jd_day_rate = None
+        if engagement and job and job.role_type:
+            _plan = s.scalar(
+                select(EngagementPlan)
+                .where(EngagementPlan.engagement_id == engagement.id)
+                .where(EngagementPlan.role_type == job.role_type)
+                .order_by(EngagementPlan.version_int.desc())
+            )
+            if _plan and _plan.pay_rate:
+                jd_day_rate = float(_plan.pay_rate)
+        jd_start_date = engagement.start_date.date() if engagement and engagement.start_date else None
+        jd_end_date   = engagement.end_date.date()   if engagement and engagement.end_date   else None
+
         # Day rate label: "£XXX / day" or "£XXX / hr"
         if latest_app.offer_day_rate:
             rate_unit = (latest_app.offer_rate_type or "day").lower()
             sourced_fee = f"£{latest_app.offer_day_rate:.2f} / {rate_unit}"
+        elif jd_day_rate is not None:
+            sourced_fee = f"£{jd_day_rate:.2f} / day"
         else:
             sourced_fee = ""
 
@@ -3127,10 +3163,15 @@ def paystream_capture(cand_id: int):
                 # --- Auto-populated (editable — override persists) ---
                 "worker_name": _or(latest_app.assignment_worker_name, cand.name or ""),
                 "hirer_name": _or(latest_app.assignment_hirer_name, engagement.name if engagement else ""),
+                # Start date: assignment override → offer → engagement.
                 "start_date": (
                     latest_app.assignment_start_date.isoformat()
                     if latest_app.assignment_start_date
-                    else (latest_app.offer_start_date.isoformat() if latest_app.offer_start_date else "")
+                    else (
+                        latest_app.offer_start_date.isoformat()
+                        if latest_app.offer_start_date
+                        else (jd_start_date.isoformat() if jd_start_date else "")
+                    )
                 ),
                 "role_title": _or(
                     latest_app.assignment_role_title,
@@ -3140,7 +3181,16 @@ def paystream_capture(cand_id: int):
                 "conduct_regs": conduct_regs,
                 # --- Needs staff input (yellow) ---
                 "nature_of_work": latest_app.assignment_nature_of_work or "",
-                "end_date": latest_app.assignment_end_date.isoformat() if latest_app.assignment_end_date else "",
+                # End date: assignment override → offer → engagement.
+                "end_date": (
+                    latest_app.assignment_end_date.isoformat()
+                    if latest_app.assignment_end_date
+                    else (
+                        latest_app.offer_end_date.isoformat()
+                        if getattr(latest_app, "offer_end_date", None)
+                        else (jd_end_date.isoformat() if jd_end_date else "")
+                    )
+                ),
                 "hours_of_work": latest_app.assignment_hours_of_work or "7.5 hours per day, 37.5 hours per week. UK business hours (9am-5pm)",
                 "work_location": latest_app.assignment_work_location or (latest_app.offer_location or (job.location if job else "")),
                 "expenses_payable": latest_app.assignment_expenses_payable or "",
