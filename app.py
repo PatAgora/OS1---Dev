@@ -16174,24 +16174,93 @@ def _maybe_fire_intro_to_vetting(s, appn, new_status: str) -> None:
     inner helper sets after a successful send. Safe to call from every
     transition site; a no-op when the candidate already has the
     timestamp set or the new status isn't Accepted-equivalent.
-    Exceptions are swallowed and logged so a flaky outbound email never
-    breaks the workflow transition itself.
+
+    Outcomes are flashed to the request session AND logged to the audit
+    log so the user can tell which path was taken (sent / already-sent
+    / no-email / failed). Exceptions are swallowed so a flaky outbound
+    email never breaks the workflow transition itself.
     """
     if not appn:
         return
     norm = (new_status or "").strip().lower()
     if norm not in ("accepted", "offer accepted"):
         return
+
+    def _flash_safe(msg, level):
+        try:
+            flash(msg, level)
+        except Exception:
+            pass  # outside request context — fine
+
+    def _audit_safe(action, details):
+        try:
+            log_audit_event(
+                action, "email",
+                f"intro_to_vetting: {details.get('outcome', '?')}",
+                "candidate", details.get("candidate_id"),
+                details,
+            )
+        except Exception:
+            pass
+
     try:
         cand = s.get(Candidate, appn.candidate_id) if appn.candidate_id else None
         if not cand:
             return
-        if getattr(cand, "intro_to_vetting_sent_at", None):
+        if not cand.email:
+            _flash_safe(
+                "Intro to Vetting email skipped — no email address on file for this candidate.",
+                "warning",
+            )
+            _audit_safe("create", {
+                "outcome": "skipped_no_email",
+                "candidate_id": cand.id,
+                "application_id": appn.id,
+            })
             return
-        _send_intro_to_vetting_email(s, cand)
+        if getattr(cand, "intro_to_vetting_sent_at", None):
+            _ts = cand.intro_to_vetting_sent_at.strftime("%d %b %Y %H:%M")
+            _flash_safe(
+                f"Intro to Vetting was already sent to {cand.email} on {_ts}. "
+                f"Use 'Resend Intro to Vetting' on the candidate profile to send again.",
+                "info",
+            )
+            _audit_safe("create", {
+                "outcome": "skipped_already_sent",
+                "candidate_id": cand.id,
+                "application_id": appn.id,
+                "previous_sent_at": _ts,
+            })
+            return
+        ok = _send_intro_to_vetting_email(s, cand)
+        if ok:
+            _flash_safe(
+                f"Intro to Vetting email sent to {cand.email}.",
+                "success",
+            )
+            _audit_safe("create", {
+                "outcome": "sent",
+                "candidate_id": cand.id,
+                "application_id": appn.id,
+            })
+        else:
+            _flash_safe(
+                f"Intro to Vetting email failed to send to {cand.email}. "
+                f"Check the audit log / Railway logs and use 'Resend Intro to Vetting' to retry.",
+                "danger",
+            )
+            _audit_safe("create", {
+                "outcome": "send_failed",
+                "candidate_id": cand.id,
+                "application_id": appn.id,
+            })
     except Exception:
         current_app.logger.exception(
             "intro-to-vetting auto-fire failed for app %s", getattr(appn, "id", "?"),
+        )
+        _flash_safe(
+            "Intro to Vetting auto-send hit an error — see audit log for details.",
+            "danger",
         )
 
 
