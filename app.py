@@ -18385,37 +18385,6 @@ def vetting_preflight(cand_id: int):
         )
 
 
-def _ensure_recent_columns_exist():
-    """Self-healing safety net for the runtime ALTER TABLE bootstrap.
-
-    The bootstrap at module import normally adds any missing columns
-    declared on the SQLAlchemy models. Occasionally on Railway / fresh
-    deploys it can be skipped (cached container, partial restart) so a
-    column the model declares ends up missing in the DB and every
-    SELECT 500s with `column does not exist`. This re-applies the
-    handful of recently-added columns whenever a route that reads from
-    them is hit, using IF NOT EXISTS so it's a no-op once present.
-    Cheap to call; runs in AUTOCOMMIT so a single failure doesn't poison
-    a transaction.
-    """
-    if getattr(_ensure_recent_columns_exist, "_done", False):
-        return
-    try:
-        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _mc:
-            for stmt in [
-                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intro_to_vetting_sent_at TIMESTAMP",
-                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS engagement_type VARCHAR(20) DEFAULT 'Contract'",
-                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_end_date DATE",
-            ]:
-                try:
-                    _mc.execute(text(stmt))
-                except Exception:
-                    pass
-        _ensure_recent_columns_exist._done = True
-    except Exception:
-        pass
-
-
 @app.route("/candidate/<int:cand_id>")
 @login_required
 def candidate_profile(cand_id: int):
@@ -18431,12 +18400,6 @@ def candidate_profile(cand_id: int):
     - 12-item Vetting Checks grid
     - Vetting Progress Summary
     """
-    # Self-healing: belt-and-braces safety net for the case where the
-    # runtime ALTER TABLE bootstrap didn't run cleanly. Applies the
-    # handful of recently-added columns so the SELECT below doesn't
-    # 500 with "column does not exist".
-    _ensure_recent_columns_exist()
-
     # Optional context passed when arriving from engagement lists
     stage = (request.args.get("stage") or "").strip().lower()
     ctx = {
