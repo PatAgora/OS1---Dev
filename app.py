@@ -3060,13 +3060,51 @@ def paystream_capture(cand_id: int):
             latest_app.assignment_invoice_frequency = (request.form.get("invoice_frequency") or "").strip()
             latest_app.assignment_captured_at = datetime.datetime.utcnow()
 
+            # Move the candidate forward — saving the assignment
+            # capture sheet (and downloading the filled DOCX) is the
+            # explicit Issue Contract action, so the application status
+            # transitions to "Contract Issued" (renders in the
+            # Contract Sent column on the kanban) and the candidate is
+            # marked as in vetting / awaiting signature on the profile.
+            old_app_status = latest_app.status
+            latest_app.status = "Contract Issued"
+
+            # Track the contract via ESigRequest so retract / signed /
+            # ended states all flow through the same record. Mirrors
+            # action_contract_issue's behaviour.
+            esig = _get_or_create_active_esig(
+                s,
+                candidate_id=cand_id,
+                application_id=latest_app.id,
+                engagement_id=engagement.id if engagement else None,
+                provider="signable",
+                status="pending",
+                end_date=(
+                    datetime.datetime.combine(latest_app.assignment_end_date, datetime.time())
+                    if latest_app.assignment_end_date else None
+                ),
+            )
+            esig.sent_at = datetime.datetime.utcnow()
+
+            # Flip the umbrella_assignment_sent flag so the Contract
+            # card on the candidate profile shows the "Awaiting
+            # Signature" panel, prompting the staff to upload the
+            # signed PDF when it comes back.
+            if hasattr(cand, "umbrella_assignment_sent"):
+                cand.umbrella_assignment_sent = True
+            if hasattr(cand, "umbrella_assignment_sent_at"):
+                cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
+
+            cand.status = "In Vetting"
+            cand.last_activity_at = datetime.datetime.utcnow()
+
             user_email = getattr(current_user, "email", "staff") or "staff"
             s.add(CandidateNote(
                 candidate_id=cand_id,
                 user_email=user_email,
                 note_type="activity",
                 content=(
-                    f"Paystream capture sheet saved: "
+                    f"Assignment Schedule issued: {old_app_status} → Contract Issued. "
                     f"end_date={latest_app.assignment_end_date}, "
                     f"hours={latest_app.assignment_hours_of_work!r}, "
                     f"notice_agency={latest_app.assignment_notice_agency!r}, "
@@ -3076,6 +3114,22 @@ def paystream_capture(cand_id: int):
                 created_at=datetime.datetime.utcnow(),
             ))
             s.commit()
+
+            try:
+                log_audit_event(
+                    "create", "contract",
+                    f"Contract issued via assignment schedule capture for {cand.name}",
+                    "candidate", cand_id,
+                    {
+                        "application_id": latest_app.id,
+                        "engagement_id": engagement.id if engagement else None,
+                        "esig_id": esig.id,
+                        "old_app_status": old_app_status,
+                        "new_app_status": "Contract Issued",
+                    },
+                )
+            except Exception:
+                current_app.logger.exception("paystream_capture audit log failed")
 
             # Check if a DOCX assignment template exists for this
             # umbrella — if so, redirect to the filled download.
