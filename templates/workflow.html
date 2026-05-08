@@ -1043,8 +1043,10 @@
                 id="confirmSignedForm-{{ card.id }}"
                 style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="button" class="btn btn-outline-success btn-sm"
-                    onclick="confirmContractSignedKanban({{ card.candidate_id }}, {{ card.id }}, {{ card.name|tojson }})"
+            <button type="button" class="btn btn-outline-success btn-sm js-confirm-contract-signed"
+                    data-cand-id="{{ card.candidate_id }}"
+                    data-card-id="{{ card.id }}"
+                    data-cand-name="{{ card.name }}"
                     title="Confirm Contract Signed">
               <i class="fas fa-file-signature"></i>
             </button>
@@ -1437,6 +1439,10 @@ function closeSignedContractMissingModal() {
 // button. If the candidate has the SIGNED_CONTRACT Document on file,
 // confirm and submit the form. Otherwise show the modal so the user
 // can navigate to the profile to upload.
+//
+// Bound via document-level event delegation so the handler survives
+// any DOM updates (filter / focus / drag-drop) and avoids HTML-quoting
+// issues that broke the previous inline onclick approach.
 function confirmContractSignedKanban(candId, cardId, candName) {
   fetch('/api/candidate/' + encodeURIComponent(candId) + '/has-signed-contract', {
     method: 'GET',
@@ -1461,6 +1467,17 @@ function confirmContractSignedKanban(candId, cardId, candName) {
     showToast('Could not verify upload state — please try again.', 'danger');
   });
 }
+
+document.addEventListener('click', function(ev) {
+  const btn = ev.target.closest('.js-confirm-contract-signed');
+  if (!btn) return;
+  ev.preventDefault();
+  const candId = btn.dataset.candId;
+  const cardId = btn.dataset.cardId;
+  const candName = btn.dataset.candName || 'this candidate';
+  if (!candId || !cardId) return;
+  confirmContractSignedKanban(candId, cardId, candName);
+});
 
 // Update column counts and summary cards after drag or filter
 function updateColumnCounts() {
