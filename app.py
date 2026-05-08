@@ -252,6 +252,7 @@ limiter = Limiter(
 @app.errorhandler(503)
 def _friendly_server_error(exc):
     import traceback as _tb
+    import html as _html_mod
     try:
         cur_app = current_app._get_current_object()
         cur_app.logger.error(
@@ -261,9 +262,37 @@ def _friendly_server_error(exc):
         )
     except Exception:
         pass
+
+    # Surface the actual exception details to logged-in staff so they
+    # don't have to dig into Railway logs to diagnose. End-users still
+    # see the friendly message.
+    detail_block = ""
+    try:
+        if current_user.is_authenticated:
+            # Try to pull the original exception (Flask wraps in HTTPException).
+            original = getattr(exc, "original_exception", None) or exc
+            exc_name = type(original).__name__
+            exc_msg = str(original) or "(no message)"
+            tb_text = "".join(_tb.format_exception(type(original), original, original.__traceback__))[-3000:]
+            detail_block = (
+                "<details style='margin-top:24px; background:#fef2f2; "
+                "border:1px solid #fecaca; border-radius:8px; padding:12px;'>"
+                "<summary style='cursor:pointer; font-weight:600; color:#991b1b;'>"
+                "Technical details (staff only)</summary>"
+                f"<p style='margin:8px 0 4px; font-weight:600;'>{_html_mod.escape(exc_name)}</p>"
+                f"<pre style='font-size:12px; white-space:pre-wrap; "
+                f"background:#fff; border:1px solid #fecaca; padding:8px; "
+                f"border-radius:4px; color:#7f1d1d; max-height:360px; overflow:auto;'>"
+                f"{_html_mod.escape(exc_msg)}\n\n{_html_mod.escape(tb_text)}"
+                "</pre>"
+                "</details>"
+            )
+    except Exception:
+        pass
+
     body = (
         "<!doctype html><html><head><title>Service hiccup</title>"
-        "<style>body{font-family:system-ui,sans-serif;max-width:560px;"
+        "<style>body{font-family:system-ui,sans-serif;max-width:720px;"
         "margin:60px auto;padding:0 20px;color:#111;line-height:1.55}"
         "h1{font-size:20px}p{color:#374151}.btn{display:inline-block;"
         "margin-top:16px;padding:10px 16px;background:#1e3a8a;color:#fff;"
@@ -276,6 +305,7 @@ def _friendly_server_error(exc):
         "<p>If it keeps happening, paste the URL into a message to the "
         "Optimus team.</p>"
         "<a class='btn' href='javascript:history.back()'>Go back</a>"
+        f"{detail_block}"
         "</body></html>"
     )
     return body, getattr(exc, "code", 500)
@@ -18355,12 +18385,43 @@ def vetting_preflight(cand_id: int):
         )
 
 
+def _ensure_recent_columns_exist():
+    """Self-healing safety net for the runtime ALTER TABLE bootstrap.
+
+    The bootstrap at module import normally adds any missing columns
+    declared on the SQLAlchemy models. Occasionally on Railway / fresh
+    deploys it can be skipped (cached container, partial restart) so a
+    column the model declares ends up missing in the DB and every
+    SELECT 500s with `column does not exist`. This re-applies the
+    handful of recently-added columns whenever a route that reads from
+    them is hit, using IF NOT EXISTS so it's a no-op once present.
+    Cheap to call; runs in AUTOCOMMIT so a single failure doesn't poison
+    a transaction.
+    """
+    if getattr(_ensure_recent_columns_exist, "_done", False):
+        return
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _mc:
+            for stmt in [
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intro_to_vetting_sent_at TIMESTAMP",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS engagement_type VARCHAR(20) DEFAULT 'Contract'",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS offer_end_date DATE",
+            ]:
+                try:
+                    _mc.execute(text(stmt))
+                except Exception:
+                    pass
+        _ensure_recent_columns_exist._done = True
+    except Exception:
+        pass
+
+
 @app.route("/candidate/<int:cand_id>")
 @login_required
 def candidate_profile(cand_id: int):
     """
     Associate Profile page per wireframe requirements.
-    
+
     Features:
     - Header with name, email, alert banner
     - Notes & Activity Panel (rich-text editor)
@@ -18370,6 +18431,12 @@ def candidate_profile(cand_id: int):
     - 12-item Vetting Checks grid
     - Vetting Progress Summary
     """
+    # Self-healing: belt-and-braces safety net for the case where the
+    # runtime ALTER TABLE bootstrap didn't run cleanly. Applies the
+    # handful of recently-added columns so the SELECT below doesn't
+    # 500 with "column does not exist".
+    _ensure_recent_columns_exist()
+
     # Optional context passed when arriving from engagement lists
     stage = (request.args.get("stage") or "").strip().lower()
     ctx = {
