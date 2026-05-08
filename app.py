@@ -8813,22 +8813,22 @@ def send_email(
             return _send_via_m365_oauth(to_email, subject, html_body, attachments, from_email=from_email)
         except Exception as e:
             err_text = str(e)
-            # Req 50 — M365 returns "5.2.252 SendAsDenied" when the
-            # authenticating mailbox (associates@) doesn't have
-            # "Send As" permission for the requested From-address
-            # (compliance@ etc.). Until the M365 admin grants Send-As
-            # in Exchange (Recipients → Mailboxes → <target> → Mailbox
-            # delegation → Send As → Add associates@), we automatically
-            # fall back to the default SMTP_FROM mailbox so the email
-            # still goes out. Log a clear warning so the missing
-            # permission is visible in Railway logs.
+            # Fallback safety net — only triggers when the app
+            # registration doesn't have permission to authenticate as
+            # the requested mailbox. Now that we authenticate AS the
+            # sender mailbox directly (not via cross-mailbox Send-As),
+            # the typical failure surface is "auth failed" or
+            # SendAsDenied for that specific mailbox. We still retry
+            # via the default mailbox so the email gets out, and log
+            # so the missing permission is visible in Railway logs.
             if from_email and from_email.lower() != (SMTP_FROM or "").lower() and (
                 "SendAsDenied" in err_text or "5.2.252" in err_text or "not allowed to send as" in err_text
+                or "AuthenticationFailed" in err_text or "authentication failed" in err_text.lower()
             ):
                 print(
-                    f"[M365] SendAsDenied for from_email={from_email!r}; "
-                    f"retrying as default mailbox {SMTP_FROM!r}. "
-                    f"Grant Send-As permission in Exchange admin to silence this fallback.",
+                    f"[M365] Could not authenticate as {from_email!r} ({err_text}); "
+                    f"retrying via default mailbox {SMTP_FROM!r}. "
+                    f"Confirm the OS1 app has SMTP send permission on {from_email!r} in Microsoft 365.",
                     flush=True,
                 )
                 try:
@@ -8887,11 +8887,17 @@ def _send_via_m365_oauth(to_email, subject, html_body, attachments=None, from_em
             maintype, subtype = mime.split("/", 1)
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
 
-    # Step 3: Connect to SMTP with XOAUTH2
-    # Auth must use the mailbox user (SMTP_FROM) — the From header
-    # can differ if the mailbox has "send as" permission for the
-    # sender address.
-    auth_string = f"user={SMTP_FROM}\x01auth=Bearer {access_token}\x01\x01"
+    # Step 3: Connect to SMTP with XOAUTH2.
+    # Authenticate AS the mailbox we want to send from. With the
+    # client_credentials flow + the SMTP.SendAsApp Graph permission
+    # granted to the OS1 app registration, the app can authenticate as
+    # any mailbox in the tenant by setting `user=<mailbox>` in the
+    # XOAUTH2 string. This avoids needing cross-mailbox Send-As
+    # delegation (which was the previous approach: auth as associates@,
+    # set From header to compliance@). Now compliance@ / finance@ each
+    # authenticate as themselves and the From header lines up
+    # naturally — no Send-As permission required.
+    auth_string = f"user={sender}\x01auth=Bearer {access_token}\x01\x01"
     auth_b64 = base64.b64encode(auth_string.encode()).decode()
 
     server = smtplib.SMTP("smtp.office365.com", 587, timeout=30)
