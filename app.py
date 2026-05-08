@@ -3132,16 +3132,23 @@ def paystream_capture(cand_id: int):
                 current_app.logger.exception("paystream_capture audit log failed")
 
             # Check if a DOCX assignment template exists for this
-            # umbrella — if so, redirect to the filled download.
+            # umbrella — if so, redirect to the candidate profile with
+            # a flag that triggers a hidden-iframe download. Keeps the
+            # user on the profile page after the file is delivered
+            # (rather than parking them on the raw download URL).
             tpl_exists = s.scalar(
                 select(AssignmentTemplate.id)
                 .where(AssignmentTemplate.umbrella_company == umbrella_name)
             )
             if tpl_exists:
-                flash("Assignment details saved. Your filled template is downloading.", "success")
-                return redirect(url_for("download_filled_assignment", cand_id=cand_id, ext="docx"))
+                flash("Contract issued. Your filled template is downloading.", "success")
+                return redirect(url_for(
+                    "candidate_profile",
+                    cand_id=cand_id,
+                    download_assignment=1,
+                ))
             else:
-                flash("Assignment details saved. No template found for this umbrella — upload one in Admin → Assignment Templates.", "warning")
+                flash("Contract issued. No template found for this umbrella — upload one in Admin → Assignment Templates.", "warning")
                 return redirect(url_for("candidate_profile", cand_id=cand_id))
 
         # GET — Conduct Regs status (already captured on candidate)

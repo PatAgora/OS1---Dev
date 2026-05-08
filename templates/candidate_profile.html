@@ -3131,5 +3131,13 @@ function openSection(id) {
   });
 })();
 </script>
+
+{# Auto-trigger the assignment-schedule DOCX download when paystream_capture
+   redirects here with ?download_assignment=1. Uses a hidden iframe so the
+   user stays on the profile page after the save. #}
+{% if request.args.get('download_assignment') %}
+<iframe src="{{ url_for('download_filled_assignment', cand_id=cand.id, ext='docx') }}"
+        style="display:none;" aria-hidden="true" tabindex="-1"></iframe>
+{% endif %}
 </div>
 {% endblock %}
