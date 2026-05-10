@@ -3317,15 +3317,31 @@ def offer_capture(cand_id: int):
     user_role = (getattr(current_user, "role", "") or "").lower()
     is_admin = user_role in ("admin", "super_admin")
 
+    # Honour the role dropdown on the Contract tile: if the user
+    # selected a specific job there, find the matching Application
+    # instead of silently defaulting to the candidate's most recent
+    # one (which otherwise produces a "Collections Agent"-style mix-up
+    # when the latest application is for a different role).
+    selected_job_id = request.args.get("job_id", type=int)
+
     with Session(engine) as s:
         cand = s.get(Candidate, cand_id)
         if not cand:
             abort(404)
 
-        latest_app = s.scalar(
-            select(Application).where(Application.candidate_id == cand_id)
-            .order_by(Application.created_at.desc())
-        )
+        latest_app = None
+        if selected_job_id:
+            latest_app = s.scalar(
+                select(Application)
+                .where(Application.candidate_id == cand_id)
+                .where(Application.job_id == selected_job_id)
+                .order_by(Application.created_at.desc())
+            )
+        if latest_app is None:
+            latest_app = s.scalar(
+                select(Application).where(Application.candidate_id == cand_id)
+                .order_by(Application.created_at.desc())
+            )
         if not latest_app:
             flash("Candidate has no application to make an offer against.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))

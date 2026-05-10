@@ -1842,10 +1842,31 @@
 
           <!-- Engagement/Role selector for contract -->
           {% if all_engagements_for_contract and all_engagements_for_contract|length %}
+          {# Once the candidate is actually on an assignment (or the
+             contract has already been issued / sent / placed for the
+             selected role), the engagement and role dropdowns lock so
+             the values can't be swapped underneath an in-flight or
+             live contract. End Assignment first to unlock. #}
+          {% set _live_app_status = (latest_app.status or '') if latest_app else '' %}
+          {% set _contract_locked = (cand.status == 'On Assignment') or (_live_app_status in ('Contract Issued', 'Contract Sent', 'Placed', 'Contract Signed', 'On Contract')) %}
           <div class="mt-2 mb-2" style="font-size: 0.8rem;">
+            {% if _contract_locked %}
+            <div class="alert alert-info py-1 px-2 mb-2" style="font-size: 0.7rem;">
+              <i class="fas fa-lock me-1"></i>
+              {% if cand.status == 'On Assignment' %}
+                Candidate is on assignment — engagement &amp; role are locked.
+                End the assignment to change them.
+              {% else %}
+                Contract is in progress ({{ _live_app_status }}) — engagement &amp; role are locked.
+              {% endif %}
+            </div>
+            {% endif %}
             <div class="mb-1">
               <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280;">Engagement</label>
-              <select id="contractEngSelect" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="onContractEngChange()">
+              <select id="contractEngSelect" class="form-select form-select-sm {% if _contract_locked %}bg-light{% endif %}"
+                      style="font-size: 0.8rem; {% if _contract_locked %}cursor: not-allowed;{% endif %}"
+                      onchange="onContractEngChange()"
+                      {% if _contract_locked %}disabled aria-disabled="true"{% endif %}>
                 {% for eng in all_engagements_for_contract %}
                 <option value="{{ eng.id }}"
                         data-client="{{ eng.client or '' }}"
@@ -1857,9 +1878,13 @@
             </div>
             <div class="mb-1">
               <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280;">Role</label>
-              <select id="contractJobSelect" class="form-select form-select-sm" style="font-size: 0.8rem;" onchange="onContractJobChange()">
+              <select id="contractJobSelect" class="form-select form-select-sm {% if _contract_locked %}bg-light{% endif %}"
+                      style="font-size: 0.8rem; {% if _contract_locked %}cursor: not-allowed;{% endif %}"
+                      onchange="onContractJobChange()"
+                      {% if _contract_locked %}disabled aria-disabled="true"{% endif %}>
               </select>
             </div>
+            {% if not _contract_locked %}
             <!-- Warning when selection differs from applied role -->
             <div id="contractRoleMismatchWarning" class="alert alert-warning py-1 px-2 mb-0 mt-1" style="font-size: 0.75rem; display: none;">
               <i class="fas fa-exclamation-triangle me-1"></i>
@@ -1873,6 +1898,7 @@
                 </button>
               </div>
             </div>
+            {% endif %}
           </div>
           {% endif %}
 
@@ -1883,8 +1909,13 @@
             <div class="fw-semibold small mb-1">
               <i class="fas fa-handshake me-1 text-success"></i> Offer of Engagement
             </div>
+            {# Reuse the same job_id-passthrough so the offer capture
+               handler renders the engagement + role the recruiter
+               actually picked in the dropdowns above, instead of
+               defaulting to the candidate's most recent application. #}
             <a href="{{ url_for('offer_capture', cand_id=cand.id) }}"
-               class="btn btn-sm btn-success w-100">
+               class="btn btn-sm btn-success w-100"
+               onclick="return goWithSelectedJob(this);">
               <i class="fas fa-paper-plane me-1"></i> Send to Offer
             </a>
           </div>
@@ -2559,11 +2590,13 @@ function revertToApplied() {
   document.getElementById('contractRoleMismatchWarning').style.display = 'none';
 }
 
-// Append the selected job_id from the Contract tile dropdown onto the
-// Issue Contract link before navigation, so paystream_capture pre-fills
-// for the chosen role rather than the candidate's most recent
-// application. No-op when there is no dropdown (single-engagement view).
-function goIssueContract(anchor) {
+// Append the selected job_id from the Contract tile dropdown onto a
+// link before navigation, so handlers like paystream_capture /
+// offer_capture pre-fill for the chosen role rather than the
+// candidate's most recent application. No-op when there is no
+// dropdown (single-engagement view). Used by both the Issue Contract
+// and Send to Offer buttons.
+function goWithSelectedJob(anchor) {
   const jobSelect = document.getElementById('contractJobSelect');
   const jobId = jobSelect ? jobSelect.value : '';
   if (jobId) {
@@ -2573,6 +2606,9 @@ function goIssueContract(anchor) {
   }
   return true;  // allow normal navigation
 }
+// Back-compat alias — keep the older name working for any existing
+// callers (the Issue Contract button used this name).
+const goIssueContract = goWithSelectedJob;
 
 function triggerReferencing(candidateId) {
   // Req 30 — slow / 502 responses returned HTML, which JSON.parse threw
