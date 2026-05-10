@@ -3317,11 +3317,15 @@ def offer_capture(cand_id: int):
     user_role = (getattr(current_user, "role", "") or "").lower()
     is_admin = user_role in ("admin", "super_admin")
 
-    # Honour the role dropdown on the Contract tile: if the user
-    # selected a specific job there, find the matching Application
-    # instead of silently defaulting to the candidate's most recent
-    # one (which otherwise produces a "Collections Agent"-style mix-up
-    # when the latest application is for a different role).
+    # Honour the role dropdown on the Contract tile: when the user
+    # selected a specific job there, the offer must be for THAT role —
+    # even if the candidate hasn't formally applied for it yet (the
+    # dropdown shows every open role on the engagement). Previously we
+    # only narrowed `latest_app` by job_id and fell back to the most
+    # recent application when no match was found, which produced the
+    # "Collections Agent" mix-up. Now the selected Job is the source
+    # of truth for display, and on POST we auto-create an Application
+    # for that role so the offer details have a row to persist on.
     selected_job_id = request.args.get("job_id", type=int)
 
     with Session(engine) as s:
@@ -3329,24 +3333,62 @@ def offer_capture(cand_id: int):
         if not cand:
             abort(404)
 
+        target_job = s.get(Job, selected_job_id) if selected_job_id else None
+
+        # Find the Application matching the selected job (or most recent
+        # if no job_id supplied). On POST, create one when no match
+        # exists so the recruiter's offer for a not-yet-applied role
+        # gets persisted properly.
         latest_app = None
-        if selected_job_id:
+        if target_job:
             latest_app = s.scalar(
                 select(Application)
                 .where(Application.candidate_id == cand_id)
-                .where(Application.job_id == selected_job_id)
+                .where(Application.job_id == target_job.id)
                 .order_by(Application.created_at.desc())
             )
-        if latest_app is None:
+            if latest_app is None and request.method == "POST":
+                latest_app = Application(
+                    candidate_id=cand_id,
+                    job_id=target_job.id,
+                    status="Pipeline",  # POST handler below transitions to "Offered"
+                    created_at=datetime.datetime.utcnow(),
+                )
+                s.add(latest_app)
+                s.flush()
+        else:
             latest_app = s.scalar(
                 select(Application).where(Application.candidate_id == cand_id)
                 .order_by(Application.created_at.desc())
             )
-        if not latest_app:
+
+        # Source of truth for display: the selected Job (if any) wins
+        # over the latest Application's job, so the form renders the
+        # role the recruiter actually picked.
+        if target_job:
+            job = target_job
+        elif latest_app and latest_app.job_id:
+            job = s.get(Job, latest_app.job_id)
+        else:
+            job = None
+        engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # If we have neither a target job nor a latest_app, there's
+        # nothing to offer against — fall back to the historical
+        # "no application" message.
+        if not target_job and not latest_app:
             flash("Candidate has no application to make an offer against.", "warning")
             return redirect(url_for("candidate_profile", cand_id=cand_id))
-        job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
-        engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
+
+        # When we're displaying for a different role than latest_app
+        # (selected from the dropdown but no matching Application), we
+        # don't want to carry the old offer's overrides forward — the
+        # captured-fields dict should source purely from the selected
+        # job / engagement. `latest_app` may still be None here on GET.
+        _carry_offer_overrides = (
+            latest_app is not None
+            and (target_job is None or latest_app.job_id == target_job.id)
+        )
 
         # Req 13 — JD-locked source values. day_rate comes from the
         # EngagementPlan row matching the Job.role_type; dates come from
@@ -3624,22 +3666,35 @@ def offer_capture(cand_id: int):
         def _or(override, source):
             return override if (override or "").strip() else source
 
+        # Helper that only reads previously-saved offer_* overrides off
+        # latest_app when it actually belongs to the role we're now
+        # offering (see _carry_offer_overrides above). Otherwise we
+        # source from the selected Job / Engagement so the offer page
+        # never bleeds the previous role's values through.
+        def _carried(attr, default=None):
+            if not _carry_offer_overrides or not latest_app:
+                return default
+            return getattr(latest_app, attr, default)
+
         # Req 13 — for non-admins the form is locked to JD values,
         # so the prefilled values are JD-derived. Admins see the
         # same defaults but can edit.
+        _carried_start = _carried("offer_start_date")
         prefilled_start = (
-            latest_app.offer_start_date.isoformat() if latest_app.offer_start_date
+            _carried_start.isoformat() if _carried_start
             else (jd_start_date.isoformat() if jd_start_date else "")
         )
+        _carried_end = _carried("offer_end_date")
         prefilled_end = (
-            latest_app.offer_end_date.isoformat() if getattr(latest_app, "offer_end_date", None)
+            _carried_end.isoformat() if _carried_end
             else (jd_end_date.isoformat() if jd_end_date else "")
         )
         prefilled_engagement_type = (
-            getattr(latest_app, "offer_engagement_type", "") or jd_engagement_type
+            (_carried("offer_engagement_type") or "") or jd_engagement_type
         )
-        if latest_app.offer_day_rate:
-            prefilled_day_rate = str(latest_app.offer_day_rate)
+        _carried_day_rate = _carried("offer_day_rate")
+        if _carried_day_rate:
+            prefilled_day_rate = str(_carried_day_rate)
         elif jd_day_rate is not None:
             prefilled_day_rate = f"{jd_day_rate:.2f}"
         else:
@@ -3655,13 +3710,13 @@ def offer_capture(cand_id: int):
             is_admin=is_admin,
             captured={
                 "project_name": engagement.name if engagement else "",
-                "job_title": _or(latest_app.offer_role_title, job.title if job else ""),
-                "location": _or(latest_app.offer_location, job.location if job else ""),
+                "job_title": _or(_carried("offer_role_title") or "", job.title if job else ""),
+                "location": _or(_carried("offer_location") or "", job.location if job else ""),
                 "day_rate": prefilled_day_rate,
                 "engagement_type": prefilled_engagement_type,
                 "start_date": prefilled_start,
                 "end_date": prefilled_end,
-                "expected_duration": getattr(latest_app, "offer_expected_duration", "") or "",
+                "expected_duration": _carried("offer_expected_duration") or "",
             },
         )
 
