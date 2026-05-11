@@ -274,14 +274,23 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3 small">
-            <div class="row g-1">
-              <div class="col-3 text-muted">To</div>
-              <div class="col-9"><strong>{{ cand.email or '(no email on file — send will be skipped)' }}</strong></div>
-              <div class="col-3 text-muted">Subject</div>
-              <div class="col-9"><strong>Your Contract — Optimus</strong></div>
-              <div class="col-3 text-muted">Attachment</div>
-              <div class="col-9">Assignment_Schedule_{{ cand.name|replace(' ','_') }}.docx</div>
+          <div class="mb-3">
+            <div class="row g-2 align-items-center">
+              <label class="col-3 col-form-label col-form-label-sm text-muted py-0" for="email_to">To</label>
+              <div class="col-9">
+                <input type="email" id="email_to" name="email_to" form="paystreamCaptureForm"
+                       class="form-control form-control-sm"
+                       value="{{ cand.email or '' }}"
+                       placeholder="recipient@example.com">
+              </div>
+              <label class="col-3 col-form-label col-form-label-sm text-muted py-0" for="email_subject">Subject</label>
+              <div class="col-9">
+                <input type="text" id="email_subject" name="email_subject" form="paystreamCaptureForm"
+                       class="form-control form-control-sm"
+                       value="Your Contract — Optimus">
+              </div>
+              <div class="col-3 text-muted small py-0">Attachment</div>
+              <div class="col-9 small">Assignment_Schedule_{{ cand.name|replace(' ','_') }}.docx</div>
             </div>
           </div>
           <hr>

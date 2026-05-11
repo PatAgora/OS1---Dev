@@ -1,6 +1,6 @@
 import os, uuid, datetime, json, mimetypes, re, smtplib, ssl, base64, hashlib, hmac, uuid, json, re, time, requests
 from email.message import EmailMessage
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, jsonify, abort, session
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -3203,6 +3203,18 @@ def paystream_capture(cand_id: int):
                 )
             except Exception:
                 current_app.logger.exception("paystream_capture audit log failed")
+
+            # Stash the recruiter-editable email To/Subject from the
+            # preview modal so download_filled_assignment can pick them
+            # up after the redirect. Empty values fall back to the
+            # candidate's email + the default subject.
+            _email_to_override = (request.form.get("email_to") or "").strip()
+            _email_subject_override = (request.form.get("email_subject") or "").strip()
+            if _email_to_override or _email_subject_override:
+                session[f"contract_email_overrides:{cand_id}"] = {
+                    "to": _email_to_override,
+                    "subject": _email_subject_override,
+                }
 
             # Check if a DOCX assignment template exists for this
             # umbrella — if so, redirect to the candidate profile with
@@ -26128,11 +26140,20 @@ def download_filled_assignment(cand_id, ext):
         safe_cand = (cand.name or "candidate").replace(" ", "_")
         download_name = f"Assignment_Schedule_{safe_cand}.docx"
 
-        # Auto-email the candidate the filled contract on first generation
-        # (gated by `first_generation` so refreshes don't re-send). Best
-        # effort: a failure flashes a warning but the download still streams
-        # so the recruiter always gets the artefact.
-        if first_generation and cand.email:
+        # Pull any recruiter-editable email To/Subject the preview modal
+        # captured (stashed in session by paystream_capture POST). Clear
+        # the entry so a later refresh of the download URL doesn't reuse
+        # stale values, and fall back to the candidate's email + default
+        # subject when nothing was provided.
+        _email_overrides = session.pop(f"contract_email_overrides:{cand_id}", {}) or {}
+        _email_to = (_email_overrides.get("to") or "").strip() or (cand.email or "")
+        _email_subject = (_email_overrides.get("subject") or "").strip() or "Your Contract — Optimus"
+
+        # Auto-email the contract on first generation (gated by
+        # `first_generation` so refreshes don't re-send). Best effort: a
+        # failure flashes a warning but the download still streams so the
+        # recruiter always gets the artefact.
+        if first_generation and _email_to:
             try:
                 _first_name = (cand.name or "").split()[0] if (cand.name or "").strip() else ""
                 html_body = render_template(
@@ -26149,8 +26170,8 @@ def download_filled_assignment(cand_id, ext):
                     work_location=vals.get("work_location") or (latest_app.assignment_work_location if latest_app else "") or "",
                 )
                 sent_ok = send_email(
-                    to_email=cand.email,
-                    subject="Your Contract — Optimus",
+                    to_email=_email_to,
+                    subject=_email_subject,
                     html_body=html_body,
                     attachments=[(
                         download_name,
@@ -26172,7 +26193,7 @@ def download_filled_assignment(cand_id, ext):
                     note_type="activity",
                     content=(
                         f"Contract of Engagement email — {email_status} "
-                        f"(to={cand.email})"
+                        f"(to={_email_to}, subject={_email_subject!r})"
                     ),
                     created_at=datetime.datetime.utcnow(),
                 ))
@@ -26182,7 +26203,7 @@ def download_filled_assignment(cand_id, ext):
 
             if email_status == "sent":
                 flash(
-                    f"Contract sent to {cand.email} with the filled template attached.",
+                    f"Contract sent to {_email_to} with the filled template attached.",
                     "success",
                 )
             else:
@@ -26190,9 +26211,9 @@ def download_filled_assignment(cand_id, ext):
                     "Contract issued and downloading, but the email to the candidate could not be sent — please follow up manually.",
                     "warning",
                 )
-        elif first_generation and not cand.email:
+        elif first_generation and not _email_to:
             flash(
-                "Contract issued and downloading. No email on file for the candidate, so nothing was sent.",
+                "Contract issued and downloading. No email address provided, so nothing was sent.",
                 "warning",
             )
 
