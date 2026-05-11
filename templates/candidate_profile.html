@@ -1936,25 +1936,9 @@
               <label style="font-size: 0.7rem; font-weight: 600; color: #6b7280;">Role</label>
               <select id="contractJobSelect" class="form-select form-select-sm {% if _contract_locked %}bg-light{% endif %}"
                       style="font-size: 0.8rem; {% if _contract_locked %}cursor: not-allowed;{% endif %}"
-                      onchange="onContractJobChange()"
                       {% if _contract_locked %}disabled aria-disabled="true"{% endif %}>
               </select>
             </div>
-            {% if not _contract_locked %}
-            <!-- Warning when selection differs from applied role -->
-            <div id="contractRoleMismatchWarning" class="alert alert-warning py-1 px-2 mb-0 mt-1" style="font-size: 0.75rem; display: none;">
-              <i class="fas fa-exclamation-triangle me-1"></i>
-              This is not the role the associate applied for. Are you sure you want to proceed?
-              <div class="mt-1">
-                <button type="button" class="btn btn-warning btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;" onclick="confirmMismatch()">
-                  Yes, proceed
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;" onclick="revertToApplied()">
-                  Revert
-                </button>
-              </div>
-            </div>
-            {% endif %}
           </div>
           {% endif %}
 
@@ -2581,12 +2565,10 @@ function filterNotes(query) {
 const engJobsMap = {{ engagement_jobs_map | tojson }};
 const originalEngId = '{{ engagement.id if engagement else "" }}';
 const originalJobId = '{{ job.id if job else "" }}';
-let mismatchConfirmed = false;
 
 function populateJobDropdown(engId) {
   const jobSelect = document.getElementById('contractJobSelect');
   if (!jobSelect) return;
-  // Clear existing options safely
   while (jobSelect.firstChild) jobSelect.removeChild(jobSelect.firstChild);
   const jobs = engJobsMap[engId] || [];
   if (jobs.length === 0) {
@@ -2606,44 +2588,8 @@ function populateJobDropdown(engId) {
 }
 
 function onContractEngChange() {
-  mismatchConfirmed = false;
   const engSelect = document.getElementById('contractEngSelect');
   populateJobDropdown(engSelect.value);
-  checkMismatch();
-}
-
-function onContractJobChange() {
-  mismatchConfirmed = false;
-  checkMismatch();
-}
-
-function checkMismatch() {
-  const engSelect = document.getElementById('contractEngSelect');
-  const jobSelect = document.getElementById('contractJobSelect');
-  const warning = document.getElementById('contractRoleMismatchWarning');
-  if (!warning || !engSelect || !jobSelect) return;
-  const engChanged = originalEngId && engSelect.value !== originalEngId;
-  const jobChanged = originalJobId && jobSelect.value !== originalJobId;
-  if ((engChanged || jobChanged) && !mismatchConfirmed) {
-    warning.style.display = '';
-  } else {
-    warning.style.display = 'none';
-  }
-}
-
-function confirmMismatch() {
-  mismatchConfirmed = true;
-  document.getElementById('contractRoleMismatchWarning').style.display = 'none';
-}
-
-function revertToApplied() {
-  const engSelect = document.getElementById('contractEngSelect');
-  if (originalEngId) engSelect.value = originalEngId;
-  populateJobDropdown(originalEngId || engSelect.value);
-  const jobSelect = document.getElementById('contractJobSelect');
-  if (originalJobId) jobSelect.value = originalJobId;
-  mismatchConfirmed = false;
-  document.getElementById('contractRoleMismatchWarning').style.display = 'none';
 }
 
 // Append the selected job_id from the Contract tile dropdown onto a
