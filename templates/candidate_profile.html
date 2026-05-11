@@ -1883,23 +1883,23 @@
             <i class="fas fa-file-signature"></i>
             Contract
           </div>
-          <!-- Active application context. Suppressed when the application
-               tied to the latest ended placement is now Closed/Ended/etc. so
-               the Contract card resets to a blank "no contract" state. The
-               historical info appears in the Previous Contract card below. -->
-          {% if latest_app and (engagement or job)
-                and (latest_app.status or '') not in ['Closed', 'Ended', 'Withdrawn', 'Rejected'] %}
+          <!-- Active applications. Lists every non-terminal application the
+               candidate has so the recruiter sees the full set, not just the
+               latest one. Hidden when the candidate has no live applications. -->
+          {% if cand_applied_apps and cand_applied_apps|length %}
           <div class="mt-2 mb-2 p-2 rounded" style="background: #f0f4ff; font-size: 0.8rem;" id="appliedRoleInfo">
-            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Applied For</div>
-            {% if engagement %}
-              <div><i class="fas fa-building me-1 text-muted"></i><strong>{{ engagement.client or 'No client' }}</strong> — {{ engagement.name }}</div>
-            {% endif %}
-            {% if job %}
-              <div><i class="fas fa-briefcase me-1 text-muted"></i>{{ job.title or 'No role' }}</div>
-            {% endif %}
-            <div class="text-muted" style="font-size: 0.7rem;">
-              Stage: {{ latest_app.status or 'Unknown' }}
+            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+              Applied For{% if cand_applied_apps|length > 1 %} ({{ cand_applied_apps|length }}){% endif %}
             </div>
+            {% for app in cand_applied_apps %}
+              <div {% if not loop.last %}class="pb-1 mb-1" style="border-bottom: 1px dashed #cfd8e3;"{% endif %}>
+                <div><i class="fas fa-building me-1 text-muted"></i><strong>{{ app.client or 'No client' }}</strong> — {{ app.engagement_name }}</div>
+                <div><i class="fas fa-briefcase me-1 text-muted"></i>{{ app.job_title or 'No role' }}</div>
+                <div class="text-muted" style="font-size: 0.7rem;">
+                  Stage: {{ app.status or 'Unknown' }}
+                </div>
+              </div>
+            {% endfor %}
           </div>
           {% endif %}
 

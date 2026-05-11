@@ -18757,20 +18757,43 @@ def candidate_profile(cand_id: int):
             required_vetting_checks.update(from_json_safe(job.vetting_requirements))
         required_vetting_checks = sorted(required_vetting_checks)
 
-        # All active engagements with their open jobs (for contract engagement/role selector)
-        all_engagements_for_contract = s.scalars(
-            select(Engagement)
-            .where(Engagement.status == "Active")
-            .order_by(Engagement.name.asc())
+        # Engagements + roles the candidate has applied to (any status, deduped).
+        # The Contract tile selector and "Applied For" panel use only these — a
+        # recruiter shouldn't be able to swap to an engagement/role the
+        # candidate never engaged with. Terminal statuses are kept in the
+        # dropdowns so a previously-withdrawn role can still be re-issued.
+        _applied_rows = s.execute(
+            select(Application, Job, Engagement)
+            .join(Job, Job.id == Application.job_id)
+            .outerjoin(Engagement, Engagement.id == Job.engagement_id)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
         ).all()
+
+        _seen_eng_ids: list[int] = []
+        all_engagements_for_contract = []
         engagement_jobs_map = {}
-        for eng in all_engagements_for_contract:
-            eng_jobs = s.scalars(
-                select(Job)
-                .where(Job.engagement_id == eng.id, Job.status == "Open")
-                .order_by(Job.title.asc())
-            ).all()
-            engagement_jobs_map[eng.id] = [{"id": j.id, "title": j.title} for j in eng_jobs]
+        cand_applied_apps = []
+        _TERMINAL_APP_STATUSES = {"Rejected", "Withdrawn", "Closed", "Hired"}
+        for _a, _j, _e in _applied_rows:
+            if not _e:
+                continue
+            if _e.id not in _seen_eng_ids:
+                _seen_eng_ids.append(_e.id)
+                all_engagements_for_contract.append(_e)
+                engagement_jobs_map[_e.id] = []
+            if _j and not any(jr["id"] == _j.id for jr in engagement_jobs_map[_e.id]):
+                engagement_jobs_map[_e.id].append({"id": _j.id, "title": _j.title})
+            if (_a.status or "").strip() not in _TERMINAL_APP_STATUSES:
+                cand_applied_apps.append({
+                    "id": _a.id,
+                    "engagement_id": _e.id,
+                    "engagement_name": _e.name or "",
+                    "client": _e.client or "",
+                    "job_id": _j.id if _j else None,
+                    "job_title": (_j.title if _j else "") or "",
+                    "status": _a.status or "",
+                })
 
         # Tags data for the sidebar card
         cand_tags = s.scalars(
@@ -19773,6 +19796,7 @@ def candidate_profile(cand_id: int):
         engagement=engagement,
         all_engagements_for_contract=all_engagements_for_contract,
         engagement_jobs_map=engagement_jobs_map,
+        cand_applied_apps=cand_applied_apps,
         context=ctx if ctx.get("stage") else None,
 
         # === New wireframe data ===
