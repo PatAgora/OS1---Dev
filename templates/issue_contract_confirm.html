@@ -23,19 +23,25 @@
     against more than one role at the same time.
   </div>
 
-  {# Re-POST to action_contract_issue with confirm_withdraw=1.
-     Carry every original form value forward so the contract issue
-     proceeds with the same details after the cascade. #}
+  {# Two entry points use this confirmation page:
+       1. action_contract_issue (legacy Signable Issue Contract POST) — re-POSTs
+          to itself with confirm_withdraw=1 so the cascade and issue happen in
+          one request.
+       2. paystream_capture (the current Issue Contract button) — POSTs to a
+          dedicated cascade-withdraw endpoint that redirects back to the
+          capture sheet once the other apps are withdrawn.
+     `action_url` and `next_url` decide which mode this render is in. #}
   <form method="POST"
-        action="{{ url_for('action_contract_issue', cand_id=cand.id, eng_id=eng.id) }}"
+        action="{{ action_url or url_for('action_contract_issue', cand_id=cand.id, eng_id=eng.id) }}"
         class="modern-card p-3">
 
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="confirm_withdraw" value="1">
+    {% if next_url %}<input type="hidden" name="next_url" value="{{ next_url }}">{% endif %}
 
     {# Mirror the original Issue Contract form values. #}
-    {% for k, v in form_values.items() %}
-      {% if k not in ['csrf_token', 'confirm_withdraw', 'withdraw_app_ids'] %}
+    {% for k, v in (form_values or {}).items() %}
+      {% if k not in ['csrf_token', 'confirm_withdraw', 'withdraw_app_ids', 'next_url'] %}
         <input type="hidden" name="{{ k }}" value="{{ v }}">
       {% endif %}
     {% endfor %}

@@ -3050,6 +3050,49 @@ def paystream_capture(cand_id: int):
         job = s.get(Job, latest_app.job_id) if latest_app.job_id else None
         engagement = s.get(Engagement, job.engagement_id) if job and job.engagement_id else None
 
+        # Req 44 — block entry to the assignment-schedule capture sheet when
+        # the candidate has other open applications. They must be withdrawn
+        # first so contract status in the associate portal stays per-role.
+        # Skipped after the cascade-withdraw round-trip (?cascaded=1).
+        if request.method == "GET" and not request.args.get("cascaded"):
+            OPEN_STATUSES_EXCLUDED = ("Rejected", "Withdrawn", "Closed", "Hired", "Contract Signed", "Contract Issued", "Contract Sent", "Placed")
+            other_open_rows = s.execute(
+                select(Application, Job, Engagement)
+                .join(Job, Job.id == Application.job_id)
+                .join(Engagement, Engagement.id == Job.engagement_id, isouter=True)
+                .where(Application.candidate_id == cand_id)
+                .where(Application.id != latest_app.id)
+                .where(Application.status.notin_(OPEN_STATUSES_EXCLUDED))
+            ).all()
+            if other_open_rows:
+                other_apps = [
+                    {
+                        "id": row[0].id,
+                        "status": row[0].status or "",
+                        "job_title": row[1].title if row[1] else "",
+                        "engagement_name": row[2].name if row[2] else "",
+                        "client": row[2].client if row[2] else "",
+                    }
+                    for row in other_open_rows
+                ]
+                log_audit_event(
+                    "update", "contract",
+                    f"ISSUE_CONTRACT_BLOCKED — {len(other_apps)} other open application(s)",
+                    "candidate", cand_id,
+                    {"other_app_ids": [a["id"] for a in other_apps], "via": "paystream_capture"},
+                )
+                next_url = url_for("paystream_capture", cand_id=cand_id, job_id=latest_app.job_id, cascaded=1)
+                return render_template(
+                    "issue_contract_confirm.html",
+                    cand=cand,
+                    eng=engagement or type("_E", (), {"id": 0, "name": "", "client": ""})(),
+                    appn=latest_app,
+                    other_apps=other_apps,
+                    form_values={},
+                    action_url=url_for("issue_contract_precheck_withdraw", cand_id=cand_id),
+                    next_url=next_url,
+                )
+
         # Umbrella details (raw SQL — tolerant of partial ORM init)
         cd_row = s.execute(text(
             "SELECT contracting_type, umbrella_company_name, contact_email "
@@ -17109,6 +17152,66 @@ def retract_offer(cand_id):
         flash("Offer retracted.", "success")
 
     return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
+@app.route("/action/issue-contract/precheck-withdraw/<int:cand_id>", methods=["POST"])
+@login_required
+def issue_contract_precheck_withdraw(cand_id):
+    """Req 44 — used by the paystream_capture entrypoint. Withdraws the
+    candidate's other open applications selected on the confirmation page,
+    then redirects back to the capture sheet via ?cascaded=1 so the guard
+    doesn't fire again.
+    """
+    if (request.form.get("confirm_withdraw") or "") != "1":
+        flash("Withdrawal confirmation missing.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+    next_url = request.form.get("next_url") or url_for("candidate_profile", cand_id=cand_id)
+    # Only allow same-host relative URLs as the destination so this can't be
+    # turned into an open redirect.
+    if "://" in next_url or not next_url.startswith("/"):
+        next_url = url_for("candidate_profile", cand_id=cand_id)
+
+    requested_ids = request.form.getlist("withdraw_app_ids", type=int)
+    OPEN_STATUSES_EXCLUDED = ("Rejected", "Withdrawn", "Closed", "Hired", "Contract Signed", "Contract Issued", "Contract Sent", "Placed")
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        withdrawn = 0
+        for app_id_to_withdraw in requested_ids:
+            other = s.get(Application, app_id_to_withdraw)
+            if not other or other.candidate_id != cand_id:
+                continue
+            if (other.status or "") in OPEN_STATUSES_EXCLUDED:
+                continue
+            prev_status = other.status
+            other.status = "Withdrawn"
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=user_email,
+                note_type="activity",
+                content=(
+                    f"Application withdrawn ({prev_status} → Withdrawn) — "
+                    f"placed on another role via Issue Contract."
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
+            withdrawn += 1
+        if withdrawn:
+            log_audit_event(
+                "update", "contract",
+                f"BULK_WITHDRAW — {withdrawn} application(s) withdrawn before contract issue",
+                "candidate", cand_id,
+                {"withdrawn_application_ids": requested_ids, "via": "paystream_capture"},
+            )
+        s.commit()
+
+    if withdrawn:
+        flash(f"Withdrew {withdrawn} other open application(s). Continuing to the assignment sheet.", "success")
+    return redirect(next_url)
 
 
 @app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
