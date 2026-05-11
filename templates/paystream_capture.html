@@ -348,11 +348,22 @@
     });
   }
 
+  // Attach the click listener unconditionally — bootstrap.bundle.min.js
+  // loads after this script (it's later in base.html), so window.bootstrap
+  // is undefined at script-execution time. Defer the bootstrap lookup to
+  // click time, by which point it has loaded.
   var triggerBtn = document.getElementById('openContractPreview');
-  if (triggerBtn && modalEl && window.bootstrap && window.bootstrap.Modal) {
+  if (triggerBtn && modalEl) {
     triggerBtn.addEventListener('click', function(e) {
       e.preventDefault();
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      if (window.bootstrap && window.bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } else {
+        // Fallback — submit the form directly if bootstrap somehow failed
+        // to load, so the recruiter is never stranded with a dead button.
+        var form = document.getElementById('paystreamCaptureForm');
+        if (form) form.submit();
+      }
     });
   }
 })();

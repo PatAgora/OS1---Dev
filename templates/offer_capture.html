@@ -258,14 +258,22 @@
     });
   }
 
-  // Open the modal explicitly via the Bootstrap API rather than relying on
-  // data-bs-toggle — earlier attempt with the modal nested inside the form
-  // let the submit fire without the modal ever appearing.
+  // Attach the click listener unconditionally — bootstrap.bundle.min.js
+  // loads later in base.html, so window.bootstrap is undefined at
+  // script-execution time. Defer the bootstrap lookup to click time, by
+  // which point it has loaded.
   var triggerBtn = document.getElementById('openOfferPreview');
-  if (triggerBtn && modalEl && window.bootstrap && window.bootstrap.Modal) {
+  if (triggerBtn && modalEl) {
     triggerBtn.addEventListener('click', function(e) {
       e.preventDefault();
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      if (window.bootstrap && window.bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } else {
+        // Fallback if bootstrap somehow failed to load — submit the form
+        // directly so the recruiter is never stranded with a dead button.
+        var form = document.getElementById('offerCaptureForm');
+        if (form) form.submit();
+      }
     });
   }
 })();
