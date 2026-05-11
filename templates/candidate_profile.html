@@ -1333,13 +1333,24 @@
             {% set non_ref_in_progress = vetting_checks|selectattr('status', 'in', ['In Progress', 'SENT TO QC', 'QC IN PROGRESS'])|rejectattr('type', 'in', ref_types)|list|length %}
             {% set non_ref_complete = vetting_checks|selectattr('status', 'in', ['COMPLETE', 'QC COMPLETE', 'QC NOT REQUIRED', 'CHECK STILL IN DATE'])|rejectattr('type', 'in', ref_types)|list|length %}
             {% set vetting_started = non_ref_in_progress > 0 or non_ref_complete > 0 %}
+            {# Req 41 — once Start Referencing has fired the reference_requests
+               list is non-empty, so we swap the button for a static "Already
+               Started" pill. Mirrors the Start Full Vetting / Vetting Already
+               Started pattern below. #}
+            {% set referencing_started = reference_requests and reference_requests|length > 0 %}
             <div class="d-flex flex-wrap gap-2">
               <button class="btn btn-success btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="bulkMarkQCComplete({{ cand.id }})" title="Mark every vetting check QC Complete">
                 <i class="fas fa-double-check me-1"></i> Mark all QC Complete
               </button>
+              {% if referencing_started %}
+              <span class="btn btn-outline-secondary btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px; cursor:default; opacity:0.7;">
+                <i class="fas fa-check-circle me-1"></i> Referencing Already Started
+              </span>
+              {% else %}
               <button class="btn btn-info btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px;" onclick="triggerReferencing({{ cand.id }})">
                 <i class="fas fa-envelope me-1"></i> Start Referencing
               </button>
+              {% endif %}
               {% if vetting_started %}
               <span class="btn btn-outline-secondary btn-sm flex-fill" style="flex: 1 1 0; min-width: 140px; cursor:default; opacity:0.7;">
                 <i class="fas fa-check-circle me-1"></i> Vetting Already Started
