@@ -2175,17 +2175,43 @@
             {# Req 18 — staff must attach the signed contract PDF before
                confirming. Any rejection is shown via flash + redirect from
                the mark_umbrella_assignment_signed handler. #}
-            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" enctype="multipart/form-data" class="d-flex flex-column gap-2">
+            <form method="POST" action="{{ url_for('mark_umbrella_assignment_signed', cand_id=cand.id) }}" enctype="multipart/form-data" class="d-flex flex-column gap-2" id="confirmSignedForm">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="signed" value="yes">
               <label class="form-label small mb-0">
                 Signed contract (PDF, required)
               </label>
-              <input type="file" name="signed_contract" accept=".pdf" required class="form-control form-control-sm">
+              <input type="file" name="signed_contract" id="signedContractFile" accept=".pdf" required class="form-control form-control-sm">
+              <div id="signedContractWarning" class="alert alert-warning py-1 px-2 mb-0" style="display:none; font-size: 0.75rem;">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                No file uploaded. Upload file to continue.
+              </div>
               <button type="submit" class="btn btn-sm btn-outline-success align-self-start">
                 <i class="fas fa-check-double me-1"></i> Confirm signed
               </button>
             </form>
+            <script>
+            (function() {
+              var form = document.getElementById('confirmSignedForm');
+              var fileInput = document.getElementById('signedContractFile');
+              var warning = document.getElementById('signedContractWarning');
+              if (!form || !fileInput || !warning) return;
+              form.addEventListener('submit', function(e) {
+                if (!fileInput.files || fileInput.files.length === 0) {
+                  e.preventDefault();
+                  warning.style.display = '';
+                  fileInput.classList.add('is-invalid');
+                  fileInput.focus();
+                }
+              });
+              fileInput.addEventListener('change', function() {
+                if (fileInput.files && fileInput.files.length > 0) {
+                  warning.style.display = 'none';
+                  fileInput.classList.remove('is-invalid');
+                }
+              });
+            })();
+            </script>
             {% endif %}
           </div>
           {% endif %}
