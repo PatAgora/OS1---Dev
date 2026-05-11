@@ -17058,6 +17058,59 @@ def retract_contract(cand_id):
     return redirect(url_for("candidate_profile", cand_id=cand_id))
 
 
+@app.route("/action/offer/retract/<int:cand_id>", methods=["POST"])
+@login_required
+def retract_offer(cand_id):
+    """Retract an offer that is sitting at 'Offered' awaiting candidate response.
+
+    Clears offer_made_at and moves the application back one stage to 'Client
+    Review' so the recruiter can re-decide. The captured offer_* values are
+    kept so they pre-fill again if the offer is re-issued.
+    """
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            abort(404)
+
+        app_id = request.form.get("app_id", type=int)
+        q = (
+            select(Application)
+            .where(Application.candidate_id == cand_id)
+            .where(Application.status == "Offered")
+        )
+        if app_id:
+            q = q.where(Application.id == app_id)
+        q = q.order_by(Application.offer_made_at.desc().nulls_last(), Application.created_at.desc())
+        appn = s.scalar(q)
+        if not appn:
+            flash("No offer to retract — this application is not at the Offered stage.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        old_status = appn.status
+        appn.status = "Client Review"
+        appn.offer_made_at = None
+
+        user_email = getattr(current_user, "email", "staff") or "staff"
+        s.add(CandidateNote(
+            candidate_id=cand_id,
+            user_email=user_email,
+            note_type="activity",
+            content=f"Offer of Engagement retracted (was: {old_status}) for application #{appn.id}.",
+            created_at=datetime.datetime.utcnow(),
+        ))
+
+        log_audit_event(
+            "update", "workflow",
+            f"Offer retracted for candidate {cand.name}",
+            "candidate", cand_id,
+            {"application_id": appn.id, "old_status": old_status, "new_status": "Client Review"},
+        )
+        s.commit()
+        flash("Offer retracted.", "success")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
 @app.route("/action/contract/issue/<int:cand_id>/<int:eng_id>", methods=["POST"])
 @login_required
 def action_contract_issue(cand_id, eng_id):

@@ -1961,14 +1961,26 @@
           </div>
           {% elif latest_app and _app_status == 'Offered' %}
           <div class="mt-2 mb-3 p-2 rounded" style="background: #fefce8; border: 1px solid #fde68a; font-size: 0.85rem;">
-            <div class="fw-semibold small">
-              <i class="fas fa-clock me-1 text-warning"></i> Offer sent — awaiting response
+            <div class="d-flex align-items-start justify-content-between gap-2">
+              <div class="flex-grow-1">
+                <div class="fw-semibold small">
+                  <i class="fas fa-clock me-1 text-warning"></i> Offer sent — awaiting response
+                </div>
+                {% if latest_app.offer_made_at %}
+                <div class="text-muted" style="font-size: 0.75rem;">
+                  Sent {{ latest_app.offer_made_at.strftime('%d %b %Y %H:%M') }}
+                </div>
+                {% endif %}
+              </div>
+              <form method="POST" action="{{ url_for('retract_offer', cand_id=cand.id) }}"
+                    class="m-0" onsubmit="return confirm('Retract this offer? The candidate will move back to Client Review and a new offer can be sent.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="app_id" value="{{ latest_app.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size: 0.7rem; white-space: nowrap;">
+                  <i class="fas fa-undo me-1"></i> Retract offer
+                </button>
+              </form>
             </div>
-            {% if latest_app.offer_made_at %}
-            <div class="text-muted" style="font-size: 0.75rem;">
-              Sent {{ latest_app.offer_made_at.strftime('%d %b %Y %H:%M') }}
-            </div>
-            {% endif %}
           </div>
           {% elif latest_app and _app_status == 'Accepted' %}
           <div class="mt-2 mb-3 p-2 rounded" style="background: #f0fdf4; border: 1px solid #bbf7d0; font-size: 0.85rem;">
