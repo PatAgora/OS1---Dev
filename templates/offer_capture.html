@@ -142,10 +142,120 @@
       <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
         Cancel
       </a>
-      <button type="submit" class="btn btn-success">
+      <button type="button" class="btn btn-success" id="openOfferPreview" data-bs-toggle="modal" data-bs-target="#offerEmailPreviewModal">
         <i class="fas fa-download me-1"></i> Save &amp; download offer
       </button>
     </div>
+
+    <!-- Email preview modal -->
+    <div class="modal fade" id="offerEmailPreviewModal" tabindex="-1" aria-labelledby="offerEmailPreviewLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="offerEmailPreviewLabel">
+              <i class="fas fa-envelope me-2"></i> Offer email preview
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3 small">
+              <div class="row g-1">
+                <div class="col-3 text-muted">To</div>
+                <div class="col-9"><strong>{{ cand.email or '(no email on file — send will be skipped)' }}</strong></div>
+                <div class="col-3 text-muted">Subject</div>
+                <div class="col-9"><strong>Offer of Engagement</strong></div>
+                <div class="col-3 text-muted">Attachment</div>
+                <div class="col-9">Offer_{{ cand.name|replace(' ','_') }}.docx</div>
+              </div>
+            </div>
+            <hr>
+            <div class="px-2" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; padding:16px;">
+              <p>Dear <span id="prev_first_name">{{ (cand.name or '').split()[0] or 'there' }}</span>,</p>
+              <p>
+                Congratulations on securing an offer to work with Optimus. Further to our recent
+                conversation, I am pleased to confirm the details of your engagement below.
+              </p>
+              <table style="border-collapse: collapse; margin: 12px 0; width: 100%; max-width: 480px;">
+                <tr><td style="padding:4px 12px; color:#6b7280; width:160px;">Role</td><td style="padding:4px 12px;"><strong id="prev_job_title">{{ captured.job_title }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Engagement</td><td style="padding:4px 12px;"><strong id="prev_project_name">{{ captured.project_name }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Engagement Type</td><td style="padding:4px 12px;"><strong id="prev_engagement_type">{{ captured.engagement_type }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Location</td><td style="padding:4px 12px;"><strong id="prev_location">{{ captured.location }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Day Rate</td><td style="padding:4px 12px;"><strong id="prev_day_rate">{% if captured.day_rate %}£{{ captured.day_rate }}{% endif %}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Start Date</td><td style="padding:4px 12px;"><strong id="prev_start_date">{{ captured.start_date }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">End Date</td><td style="padding:4px 12px;"><strong id="prev_end_date">{{ captured.end_date }}</strong></td></tr>
+                <tr><td style="padding:4px 12px; color:#6b7280;">Expected Duration</td><td style="padding:4px 12px;"><strong id="prev_expected_duration">{{ captured.expected_duration }}</strong></td></tr>
+              </table>
+              <p>Please find your Offer of Engagement attached as a Word document for your records.</p>
+              <p>If you have any questions, please don't hesitate to reach out.</p>
+              <p>Kind regards,<br>Optimus Solutions</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">
+              <i class="fas fa-paper-plane me-1"></i> Send &amp; download
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </form>
 </div>
+
+<script>
+(function() {
+  // Live-calculate Expected Duration from start + end as the user edits the dates,
+  // matching the server-side format: "N days (DD MMM YYYY – DD MMM YYYY)".
+  var startEl = document.getElementById('start_date');
+  var endEl   = document.getElementById('end_date');
+  var durEl   = document.getElementById('expected_duration');
+  var MONTHS  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function fmt(d) {
+    if (!d) return '';
+    return String(d.getDate()).padStart(2, '0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function recalc() {
+    if (!durEl) return;
+    var sVal = startEl && startEl.value;
+    var eVal = endEl   && endEl.value;
+    if (!sVal || !eVal) { durEl.value = ''; return; }
+    var s = new Date(sVal + 'T00:00:00');
+    var e = new Date(eVal + 'T00:00:00');
+    if (isNaN(s) || isNaN(e)) { durEl.value = ''; return; }
+    var days = Math.max(0, Math.round((e - s) / 86400000));
+    durEl.value = days + ' days (' + fmt(s) + ' – ' + fmt(e) + ')';
+  }
+
+  [startEl, endEl].forEach(function(el) {
+    if (!el) return;
+    el.addEventListener('change', recalc);
+    el.addEventListener('input',  recalc);
+  });
+  if (durEl && !durEl.value) recalc();
+
+  // Refresh modal preview spans from current form values when it opens, so
+  // the preview reflects any edits the user made (not just the prefilled
+  // server-rendered values).
+  var modalEl = document.getElementById('offerEmailPreviewModal');
+  if (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function() {
+      function val(id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; }
+      function set(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+      set('prev_job_title',         val('job_title'));
+      set('prev_project_name',      val('project_name'));
+      set('prev_engagement_type',   val('engagement_type'));
+      set('prev_location',          val('location'));
+      var dr = val('day_rate');
+      set('prev_day_rate',          dr ? ('£' + dr) : '');
+      // dates: show as DD MMM YYYY in the preview
+      function fmtIso(iso) { if (!iso) return ''; var d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : fmt(d); }
+      set('prev_start_date',        fmtIso(val('start_date')));
+      set('prev_end_date',          fmtIso(val('end_date')));
+      set('prev_expected_duration', val('expected_duration'));
+    });
+  }
+})();
+</script>
 {% endblock %}

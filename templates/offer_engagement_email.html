@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offer of Engagement — Optimus</title>
+</head>
+<body style="font-family: Arial, sans-serif; color:#1f2937; line-height: 1.6; margin: 0; padding: 24px;">
+  <div style="max-width: 640px; margin: 0 auto;">
+
+    <p style="margin: 0 0 12px;">Dear {{ first_name or candidate_name or 'there' }},</p>
+
+    <p style="margin: 0 0 16px;">
+      Congratulations on securing an offer to work with Optimus. Further to our recent
+      conversation, I am pleased to confirm the details of your engagement below.
+    </p>
+
+    <table style="border-collapse: collapse; margin: 16px 0; width: 100%; max-width: 480px;">
+      {% if role_title %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280; width: 160px;">Role</td>
+        <td style="padding: 6px 12px;"><strong>{{ role_title }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if project_name %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Engagement</td>
+        <td style="padding: 6px 12px;"><strong>{{ project_name }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if engagement_type %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Engagement Type</td>
+        <td style="padding: 6px 12px;"><strong>{{ engagement_type }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if location %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Location</td>
+        <td style="padding: 6px 12px;"><strong>{{ location }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if day_rate %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Day Rate</td>
+        <td style="padding: 6px 12px;"><strong>{{ day_rate }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if start_date %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Start Date</td>
+        <td style="padding: 6px 12px;"><strong>{{ start_date }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if end_date %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">End Date</td>
+        <td style="padding: 6px 12px;"><strong>{{ end_date }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if expected_duration %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Expected Duration</td>
+        <td style="padding: 6px 12px;"><strong>{{ expected_duration }}</strong></td>
+      </tr>
+      {% endif %}
+    </table>
+
+    <p style="margin: 16px 0;">
+      Please find your Offer of Engagement attached as a Word document for your records.
+    </p>
+
+    <p style="margin: 16px 0;">
+      If you have any questions, please don't hesitate to reach out.
+    </p>
+
+    <p style="margin: 24px 0 0;">
+      Kind regards,<br>
+      Optimus Solutions
+    </p>
+
+  </div>
+</body>
+</html>

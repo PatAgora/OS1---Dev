@@ -3645,14 +3645,90 @@ def offer_capture(cand_id: int):
 
                     out = io.BytesIO()
                     doc.save(out)
+                    docx_bytes = out.getvalue()
                     out.seek(0)
                     safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", cand.name or "candidate")
-                    flash("Offer details saved. Your filled template is downloading.", "success")
+                    download_name = f"Offer_{safe_name}.docx"
+
+                    # Auto-email the candidate the filled offer with the DOCX
+                    # attached. Best-effort: a failure flashes a warning but the
+                    # download still streams so the recruiter has the artefact.
+                    email_status = "skipped"
+                    if cand.email:
+                        try:
+                            html_body = render_template(
+                                "offer_engagement_email.html",
+                                first_name=_first_name,
+                                candidate_name=_cand_name,
+                                role_title=vals["job_title"],
+                                project_name=vals["project_name"],
+                                engagement_type=vals["engagement_type"],
+                                location=vals["location"],
+                                day_rate=vals["day_rate"],
+                                start_date=vals["start_date"],
+                                end_date=(
+                                    latest_app.offer_end_date.strftime("%d %b %Y")
+                                    if latest_app.offer_end_date else ""
+                                ),
+                                expected_duration=vals["expected_duration"],
+                            )
+                            sent_ok = send_email(
+                                to_email=cand.email,
+                                subject="Offer of Engagement",
+                                html_body=html_body,
+                                attachments=[(
+                                    download_name,
+                                    docx_bytes,
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                )],
+                            )
+                            email_status = "sent" if sent_ok else "failed"
+                        except Exception:
+                            current_app.logger.exception(
+                                "Offer email send failed for cand=%s app=%s",
+                                cand_id, latest_app.id,
+                            )
+                            email_status = "failed"
+
+                    if email_status == "sent":
+                        flash(
+                            f"Offer saved. Email sent to {cand.email} with the filled template attached, and your copy is downloading.",
+                            "success",
+                        )
+                    elif email_status == "failed":
+                        flash(
+                            "Offer saved and downloading, but the email to the candidate could not be sent — please follow up manually.",
+                            "warning",
+                        )
+                    elif not cand.email:
+                        flash(
+                            "Offer saved and downloading. No email on file for the candidate, so nothing was sent.",
+                            "warning",
+                        )
+                    else:
+                        flash("Offer details saved. Your filled template is downloading.", "success")
+
+                    # Activity note for the email send so the audit trail captures it
+                    try:
+                        s.add(CandidateNote(
+                            candidate_id=cand_id,
+                            user_email=user_email,
+                            note_type="activity",
+                            content=(
+                                f"Offer of Engagement email — {email_status} "
+                                f"(to={cand.email or '—'})"
+                            ),
+                            created_at=datetime.datetime.utcnow(),
+                        ))
+                        s.commit()
+                    except Exception:
+                        current_app.logger.exception("Failed to log offer-email activity note")
+
                     return send_file(
                         out,
                         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         as_attachment=True,
-                        download_name=f"Offer_{safe_name}.docx",
+                        download_name=download_name,
                     )
                 except Exception:
                     current_app.logger.exception("Failed to fill offer template")
