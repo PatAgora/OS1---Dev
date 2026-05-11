@@ -10943,10 +10943,22 @@ def action_onboarding_email(app_id):
 def kanban():
     columns = ["New","Screening","Interview","Offer","Onboarding","Hired","Rejected"]
     with Session(engine) as s:
+        ended_esig_exists = (
+            select(ESigRequest.id)
+            .where(ESigRequest.application_id == Application.id)
+            .where(
+                or_(
+                    ESigRequest.ended_at.is_not(None),
+                    ESigRequest.status.in_(("ended", "Declined", "Error")),
+                )
+            )
+            .exists()
+        )
         data = {col: s.execute(select(Application, Candidate, Job)
                                .join(Candidate, Candidate.id==Application.candidate_id)
                                .join(Job, Job.id==Application.job_id)
                                .where(Application.status==col)
+                               .where(~ended_esig_exists)
                                .order_by(Application.created_at.desc())
                                ).all() for col in columns}
     return render_template("kanban.html", columns=columns, data=data)
@@ -11147,7 +11159,23 @@ def workflow():
                 .outerjoin(Engagement, Engagement.id == Job.engagement_id)
                 .where(Application.status.in_(matching_statuses))
             )
-            
+
+            # Hide cards for applications whose placement/contract has ended:
+            # contract-decline never transitions Application.status, so we filter
+            # on ESigRequest end-state directly.
+            ended_esig_exists = (
+                select(ESigRequest.id)
+                .where(ESigRequest.application_id == Application.id)
+                .where(
+                    or_(
+                        ESigRequest.ended_at.is_not(None),
+                        ESigRequest.status.in_(("ended", "Declined", "Error")),
+                    )
+                )
+                .exists()
+            )
+            query = query.where(~ended_esig_exists)
+
             # Apply engagement status filter
             if eng_status_filter == "active":
                 query = query.where(Engagement.status == "Active")
