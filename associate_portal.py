@@ -5026,23 +5026,43 @@ def vacancy_apply(job_id):
 @associate_bp.route("/vacancies/<int:job_id>/withdraw", methods=["POST"])
 @_require_login
 def vacancy_withdraw(job_id):
-    """Withdraw an application from the portal."""
+    """Withdraw an application from the portal.
+
+    Soft-withdraw (status = "Withdrawn") rather than DELETE — TrustIDCheck and
+    ESigRequest both reference applications.id without CASCADE, so a hard delete
+    raised IntegrityError and surfaced as a 500 to the candidate. Matches the
+    Req 44 staff-side pattern which also uses status="Withdrawn".
+    """
     Application = _model("Application")
     engine = _engine()
     cand_id = _get_associate_id()
+
+    TERMINAL = {"withdrawn", "rejected", "hired", "placed", "contract signed", "closed"}
 
     with SASession(engine) as s:
         if Application:
             app = s.query(Application).filter_by(
                 candidate_id=cand_id, job_id=job_id
             ).first()
-            if app:
-                s.delete(app)
-                _add_note(s, cand_id, f"Withdrew application for job #{job_id} via Associate Portal.")
-                s.commit()
-                flash("Application withdrawn. You may re-apply.", "success")
-            else:
+            if not app:
                 flash("No application found to withdraw.", "warning")
+            elif (app.status or "").strip().lower() in TERMINAL:
+                flash(f"Application is already {app.status}.", "info")
+            else:
+                try:
+                    app.status = "Withdrawn"
+                    _add_note(s, cand_id, f"Withdrew application for job #{job_id} via Associate Portal.")
+                    s.commit()
+                    flash("Application withdrawn. You may re-apply.", "success")
+                except Exception:
+                    s.rollback()
+                    current_app.logger.exception(
+                        "vacancy_withdraw failed for cand=%s job=%s", cand_id, job_id
+                    )
+                    flash(
+                        "We couldn't withdraw the application — please try again or contact the Optimus team.",
+                        "warning",
+                    )
 
     return redirect(url_for("associate.vacancy_detail", job_id=job_id))
 
