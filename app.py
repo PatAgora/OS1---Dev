@@ -19389,6 +19389,27 @@ def candidate_profile(cand_id: int):
             .where(Application.status.notin_(["Rejected", "Hired", "Contract Signed"]))
         ) or 0
 
+        # All applications for this candidate, joined to Job + Engagement, used by
+        # the "Current Applications" tile + nav anchor on the profile page.
+        _cand_apps_rows = s.execute(
+            select(Application, Job, Engagement)
+            .join(Job, Job.id == Application.job_id)
+            .outerjoin(Engagement, Engagement.id == Job.engagement_id)
+            .where(Application.candidate_id == cand_id)
+            .order_by(Application.created_at.desc())
+        ).all()
+        cand_apps = [
+            {
+                "id": a.id,
+                "job_title": (j.title if j else "") or "",
+                "engagement_name": (e.name if e else "") or "",
+                "client": (e.client if e else "") or "",
+                "status": a.status or "",
+                "created_at": a.created_at,
+            }
+            for a, j, e in _cand_apps_rows
+        ]
+
         # === Placements History (Active and Historic) ===
         placements_active = []
         placements_historic = []
@@ -19766,6 +19787,7 @@ def candidate_profile(cand_id: int):
         previous_placement=previous_placement,
         today_iso=datetime.date.today().isoformat(),
         active_apps_count=active_apps_count,
+        cand_apps=cand_apps,
         VETTING_CHECK_TYPES=VETTING_CHECK_TYPES,
         required_vetting_checks=required_vetting_checks,
         vetting_by_project=vetting_by_project,
