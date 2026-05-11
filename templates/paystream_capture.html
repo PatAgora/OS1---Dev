@@ -26,7 +26,7 @@
   </div>
   {% endif %}
 
-  <form method="POST" action="{{ url_for('paystream_capture', cand_id=cand.id) }}">
+  <form method="POST" id="paystreamCaptureForm" action="{{ url_for('paystream_capture', cand_id=cand.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <!-- Worker & Assignment Details -->
@@ -256,10 +256,105 @@
       <a href="{{ url_for('candidate_profile', cand_id=cand.id) }}" class="btn btn-outline-secondary">
         Cancel
       </a>
-      <button type="submit" class="btn btn-primary">
-        <i class="fas fa-download me-1"></i> Save &amp; download filled template
+      <button type="button" class="btn btn-primary" id="openContractPreview">
+        <i class="fas fa-paper-plane me-1"></i> Send Contract
       </button>
     </div>
   </form>
+
+  <!-- Email preview modal (outside the form; the submit button below
+       targets paystreamCaptureForm explicitly via the form="" attr). -->
+  <div class="modal fade" id="contractEmailPreviewModal" tabindex="-1" aria-labelledby="contractEmailPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="contractEmailPreviewLabel">
+            <i class="fas fa-envelope me-2"></i> Contract email preview
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3 small">
+            <div class="row g-1">
+              <div class="col-3 text-muted">To</div>
+              <div class="col-9"><strong>{{ cand.email or '(no email on file — send will be skipped)' }}</strong></div>
+              <div class="col-3 text-muted">Subject</div>
+              <div class="col-9"><strong>Your Contract — Optimus</strong></div>
+              <div class="col-3 text-muted">Attachment</div>
+              <div class="col-9">Assignment_Schedule_{{ cand.name|replace(' ','_') }}.docx</div>
+            </div>
+          </div>
+          <hr>
+          <div class="px-2" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; padding:16px;">
+            <p>Dear <span id="prev_first_name">{{ (cand.name or '').split()[0] or 'there' }}</span>,</p>
+            <p>
+              Please find your contract of engagement attached for the role we
+              recently agreed. A summary of the assignment details is below.
+            </p>
+            <table style="border-collapse: collapse; margin: 12px 0; width: 100%; max-width: 480px;">
+              <tr><td style="padding:4px 12px; color:#6b7280; width:180px;">Role</td><td style="padding:4px 12px;"><strong id="prev_role_title">{{ captured.role_title }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">End Client</td><td style="padding:4px 12px;"><strong id="prev_hirer_name">{{ captured.hirer_name }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">Umbrella</td><td style="padding:4px 12px;"><strong id="prev_umbrella_name">{{ umbrella_name }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">Start Date</td><td style="padding:4px 12px;"><strong id="prev_start_date">{{ captured.start_date }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">End Date</td><td style="padding:4px 12px;"><strong id="prev_end_date">{{ captured.end_date }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">Fee</td><td style="padding:4px 12px;"><strong id="prev_fee">{{ captured.fee_display }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">Hours of Work</td><td style="padding:4px 12px;"><strong id="prev_hours_of_work">{{ captured.hours_of_work }}</strong></td></tr>
+              <tr><td style="padding:4px 12px; color:#6b7280;">Place of Work</td><td style="padding:4px 12px;"><strong id="prev_work_location">{{ captured.work_location }}</strong></td></tr>
+            </table>
+            <p>Please review the attached contract carefully. If any details need amending, reply to this email and we will update them. Once you are happy with the contents, please countersign and return the document.</p>
+            <p>If you have any questions, please don't hesitate to reach out.</p>
+            <p>Kind regards,<br>Optimus Solutions</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" form="paystreamCaptureForm" class="btn btn-primary">
+            <i class="fas fa-paper-plane me-1"></i> Send Contract
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+(function() {
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmt(d) {
+    if (!d) return '';
+    return String(d.getDate()).padStart(2, '0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+  function fmtIso(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    return isNaN(d) ? iso : fmt(d);
+  }
+
+  var modalEl = document.getElementById('contractEmailPreviewModal');
+  if (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function() {
+      function v(name) {
+        var el = document.querySelector('[name="' + name + '"]');
+        return el ? (el.value || '').trim() : '';
+      }
+      function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+      set('prev_role_title',    v('role_title'));
+      set('prev_hirer_name',    v('hirer_name'));
+      set('prev_start_date',    fmtIso(v('start_date')));
+      set('prev_end_date',      fmtIso(v('end_date')));
+      set('prev_fee',           v('fee_display'));
+      set('prev_hours_of_work', v('hours_of_work'));
+      set('prev_work_location', v('work_location'));
+    });
+  }
+
+  var triggerBtn = document.getElementById('openContractPreview');
+  if (triggerBtn && modalEl && window.bootstrap && window.bootstrap.Modal) {
+    triggerBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  }
+})();
+</script>
 {% endblock %}

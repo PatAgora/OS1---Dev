@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Your Contract — Optimus</title>
+</head>
+<body style="font-family: Arial, sans-serif; color:#1f2937; line-height: 1.6; margin: 0; padding: 24px;">
+  <div style="max-width: 640px; margin: 0 auto;">
+
+    <p style="margin: 0 0 12px;">Dear {{ first_name or candidate_name or 'there' }},</p>
+
+    <p style="margin: 0 0 16px;">
+      Please find your contract of engagement attached for the role we recently
+      agreed. A summary of the assignment details is below.
+    </p>
+
+    <table style="border-collapse: collapse; margin: 16px 0; width: 100%; max-width: 480px;">
+      {% if role_title %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280; width: 180px;">Role</td>
+        <td style="padding: 6px 12px;"><strong>{{ role_title }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if hirer_name %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">End Client</td>
+        <td style="padding: 6px 12px;"><strong>{{ hirer_name }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if umbrella_name %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Umbrella</td>
+        <td style="padding: 6px 12px;"><strong>{{ umbrella_name }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if start_date %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Start Date</td>
+        <td style="padding: 6px 12px;"><strong>{{ start_date }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if end_date %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">End Date</td>
+        <td style="padding: 6px 12px;"><strong>{{ end_date }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if fee %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Fee</td>
+        <td style="padding: 6px 12px;"><strong>{{ fee }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if hours_of_work %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Hours of Work</td>
+        <td style="padding: 6px 12px;"><strong>{{ hours_of_work }}</strong></td>
+      </tr>
+      {% endif %}
+      {% if work_location %}
+      <tr>
+        <td style="padding: 6px 12px; color:#6b7280;">Place of Work</td>
+        <td style="padding: 6px 12px;"><strong>{{ work_location }}</strong></td>
+      </tr>
+      {% endif %}
+    </table>
+
+    <p style="margin: 16px 0;">
+      Please review the attached contract carefully. If any details need
+      amending, reply to this email and we will update them. Once you are
+      happy with the contents, please countersign and return the document.
+    </p>
+
+    <p style="margin: 16px 0;">
+      If you have any questions, please don't hesitate to reach out.
+    </p>
+
+    <p style="margin: 24px 0 0;">
+      Kind regards,<br>
+      Optimus Solutions
+    </p>
+
+  </div>
+</body>
+</html>

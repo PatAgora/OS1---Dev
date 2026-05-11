@@ -26080,8 +26080,11 @@ def download_filled_assignment(cand_id, ext):
 
         # Mark the contract as issued / sent so the candidate profile
         # shows "Contract Status: sent" and the Assignment Schedule
-        # Signed tracking panel becomes active.
-        if not getattr(cand, "umbrella_assignment_sent", False):
+        # Signed tracking panel becomes active. The email-to-candidate
+        # below is gated on this same first-generation flag so a refresh
+        # of the download URL never triggers a duplicate send.
+        first_generation = not getattr(cand, "umbrella_assignment_sent", False)
+        if first_generation:
             cand.umbrella_assignment_sent = True
             cand.umbrella_assignment_sent_at = datetime.datetime.utcnow()
 
@@ -26120,9 +26123,79 @@ def download_filled_assignment(cand_id, ext):
 
         buf = io.BytesIO()
         doc.save(buf)
+        docx_bytes = buf.getvalue()
         buf.seek(0)
         safe_cand = (cand.name or "candidate").replace(" ", "_")
         download_name = f"Assignment_Schedule_{safe_cand}.docx"
+
+        # Auto-email the candidate the filled contract on first generation
+        # (gated by `first_generation` so refreshes don't re-send). Best
+        # effort: a failure flashes a warning but the download still streams
+        # so the recruiter always gets the artefact.
+        if first_generation and cand.email:
+            try:
+                _first_name = (cand.name or "").split()[0] if (cand.name or "").strip() else ""
+                html_body = render_template(
+                    "contract_engagement_email.html",
+                    first_name=_first_name,
+                    candidate_name=cand.name or "",
+                    role_title=vals.get("role_title") or (latest_app.assignment_role_title if latest_app else "") or (job.title if job else ""),
+                    hirer_name=vals.get("hirer_name") or (latest_app.assignment_hirer_name if latest_app else "") or (eng.client if eng else ""),
+                    umbrella_name=umbrella_name,
+                    start_date=vals.get("start_date") or "",
+                    end_date=vals.get("end_date") or "",
+                    fee=vals.get("fee") or (latest_app.assignment_fee if latest_app else "") or "",
+                    hours_of_work=vals.get("hours_of_work") or (latest_app.assignment_hours_of_work if latest_app else "") or "",
+                    work_location=vals.get("work_location") or (latest_app.assignment_work_location if latest_app else "") or "",
+                )
+                sent_ok = send_email(
+                    to_email=cand.email,
+                    subject="Your Contract — Optimus",
+                    html_body=html_body,
+                    attachments=[(
+                        download_name,
+                        docx_bytes,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )],
+                )
+                email_status = "sent" if sent_ok else "failed"
+            except Exception:
+                current_app.logger.exception(
+                    "Contract email send failed for cand=%s", cand_id,
+                )
+                email_status = "failed"
+
+            try:
+                s.add(CandidateNote(
+                    candidate_id=cand_id,
+                    user_email=user_email,
+                    note_type="activity",
+                    content=(
+                        f"Contract of Engagement email — {email_status} "
+                        f"(to={cand.email})"
+                    ),
+                    created_at=datetime.datetime.utcnow(),
+                ))
+                s.commit()
+            except Exception:
+                current_app.logger.exception("Failed to log contract-email activity note")
+
+            if email_status == "sent":
+                flash(
+                    f"Contract sent to {cand.email} with the filled template attached.",
+                    "success",
+                )
+            else:
+                flash(
+                    "Contract issued and downloading, but the email to the candidate could not be sent — please follow up manually.",
+                    "warning",
+                )
+        elif first_generation and not cand.email:
+            flash(
+                "Contract issued and downloading. No email on file for the candidate, so nothing was sent.",
+                "warning",
+            )
+
         return send_file(buf, as_attachment=True, download_name=download_name,
                          mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
