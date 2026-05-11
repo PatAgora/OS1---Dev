@@ -3133,6 +3133,19 @@ def paystream_capture(cand_id: int):
             latest_app.assignment_invoice_frequency = (request.form.get("invoice_frequency") or "").strip()
             latest_app.assignment_captured_at = datetime.datetime.utcnow()
 
+            # Preview branch — the "Preview attachment" button in the
+            # Send Contract modal posts here with ?preview=1. Persist the
+            # field edits (so the preview reflects them and the next real
+            # submit doesn't lose them), then short-circuit to the DOCX
+            # download in preview mode. NO status change, NO email send,
+            # NO audit log, NO ESigRequest creation.
+            if (request.args.get("preview") or "") == "1":
+                s.commit()
+                return redirect(url_for(
+                    "download_filled_assignment",
+                    cand_id=cand_id, ext="docx", preview=1,
+                ))
+
             # Move the candidate forward — saving the assignment
             # capture sheet (and downloading the filled DOCX) is the
             # explicit Issue Contract action, so the application status
@@ -26089,6 +26102,23 @@ def download_filled_assignment(cand_id, ext):
             len(filled_keys), len(vals),
             ", ".join(sorted(filled_keys)) or "none",
         )
+
+        # Preview mode (?preview=1) — return the filled DOCX without ANY
+        # side effects: no status change, no ESigRequest, no audit log,
+        # no email send, no cand flag updates. Used by the Send Contract
+        # modal's "Preview attachment" button so the recruiter can open
+        # the contract before committing to send it.
+        is_preview = (request.args.get("preview") or "") == "1"
+        if is_preview:
+            buf = io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            safe_cand = (cand.name or "candidate").replace(" ", "_")
+            return send_file(
+                buf, as_attachment=True,
+                download_name=f"Assignment_Schedule_{safe_cand}_PREVIEW.docx",
+                mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
 
         # Mark the contract as issued / sent so the candidate profile
         # shows "Contract Status: sent" and the Assignment Schedule
