@@ -1519,90 +1519,148 @@
               Reference Requests
             </div>
           </div>
-          {% if reference_requests %}
+          {# Req 22 — chronological list of employment + gaps. Non-gap rows show
+             Company + Agency with email-approved badges, three send buttons,
+             and an inline Confirm + Upload form. Gaps render inline with the
+             gap reason + evidence, no send buttons. #}
+          {% if ref_timeline %}
+          {% macro email_badge(state, email) -%}
+            {% if state == 'approved' %}
+              <span class="badge bg-success" title="Email is on the approved Reference Contacts list">✓ Approved</span>
+            {% elif state == 'reference_house' %}
+              <span class="badge bg-warning text-dark" title="Company / agency is a Flagged Reference House — verify carefully">🚩 Ref House</span>
+            {% elif state == 'unknown' %}
+              <span class="badge bg-danger" title="Email is not on the approved list">✗ Not on list</span>
+            {% elif state == 'missing' %}
+              <span class="badge bg-secondary" title="No email captured">No email</span>
+            {% endif %}
+          {%- endmacro %}
           <div class="table-responsive">
-            <table class="table table-hover table-sm align-middle mb-0" style="font-size:0.75rem;">
+            <table class="table table-sm align-middle mb-0" style="font-size:0.78rem;">
               <thead class="table-light">
                 <tr>
-                  <th style="padding:0.3rem 0.5rem;">Company</th>
-                  <th style="padding:0.3rem 0.5rem;">Referee</th>
-                  <th style="padding:0.3rem 0.5rem;">Status</th>
-                  <th style="padding:0.3rem 0.5rem;">Sent</th>
-                  <th style="padding:0.3rem 0.5rem;">Chases</th>
-                  <th style="padding:0.3rem 0.5rem;" class="text-end">Actions</th>
-                  <th style="padding:0.3rem 0.5rem;" class="text-center">Done</th>
+                  <th style="padding:0.4rem 0.5rem; width: 16%;">Period</th>
+                  <th style="padding:0.4rem 0.5rem;">Company / Agency</th>
+                  <th style="padding:0.4rem 0.5rem; width: 22%;">Email &amp; Approval</th>
+                  <th style="padding:0.4rem 0.5rem; width: 18%;">Send</th>
+                  <th style="padding:0.4rem 0.5rem; width: 22%;">Confirm + Upload</th>
                 </tr>
               </thead>
               <tbody>
-                {% for ref in reference_requests %}
-                {% set ref_border = '#22c55e' if ref.status == 'received' else '#f97316' if ref.status == 'on_hold' else '#3b82f6' if ref.status == 'sent' else '#e2e8f0' %}
-                <tr style="border-left: 3px solid {{ ref_border }};">
-                  <td style="padding:0.25rem 0.5rem;"><strong>{{ ref.company_name or 'Unknown' }}</strong></td>
-                  <td style="padding:0.25rem 0.5rem;">
-                    {{ ref.referee_email or 'No email' }}
-                    {% if ref.referee_name %}<br><span class="text-muted">{{ ref.referee_name }}</span>{% endif %}
-                  </td>
-                  <td style="padding:0.25rem 0.5rem;">
-                    {% if ref.status == 'not_sent' %}
-                      <span class="badge" style="background:#e5e7eb;color:#6b7280;font-size:0.65rem;">Not Sent</span>
-                    {% elif ref.status == 'sent' %}
-                      <span class="badge" style="background:#dbeafe;color:#1d4ed8;font-size:0.65rem;">Sent</span>
-                    {% elif ref.status == 'received' %}
-                      <span class="badge" style="background:#dcfce7;color:#166534;font-size:0.65rem;">Received</span>
-                    {% elif ref.status == 'on_hold' %}
-                      <span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.65rem;">On Hold</span>
-                    {% elif ref.status == 'flagged' %}
-                      <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:0.65rem;">Flagged</span>
-                    {% else %}
-                      <span class="badge" style="background:#e5e7eb;color:#6b7280;font-size:0.65rem;">{{ ref.status }}</span>
-                    {% endif %}
-                  </td>
-                  <td style="padding:0.25rem 0.5rem;" class="text-muted">{{ ref.sent_at.strftime('%d/%m') if ref.sent_at else '—' }}</td>
-                  <td style="padding:0.25rem 0.5rem;">{{ ref.chase_count }}</td>
-                  <td style="padding:0.25rem 0.5rem;" class="text-end">
-                    {% if ref.status in ('not_sent', 'on_hold') and ref.referee_email and ref.permission_status != 'no' %}
-                    <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem;padding:0.15rem 0.4rem;"
-                            onclick="previewReferenceEmail({{ cand.id }}, {{ ref.id }})"
-                            title="Preview and send reference email">
-                      <i class="fas fa-eye me-1"></i>Send
-                    </button>
-                    {% elif ref.status == 'sent' %}
-                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.7rem;padding:0.15rem 0.4rem;"
-                            onclick="previewReferenceEmail({{ cand.id }}, {{ ref.id }})"
-                            title="Preview and resend reference email">
-                      <i class="fas fa-redo me-1"></i>Resend
-                    </button>
-                    {% endif %}
-                    {% if ref.permission_status == 'no' %}
-                    <small class="text-danger ms-1" title="{{ ref.notes }}"><i class="fas fa-ban"></i> No permission</small>
-                    {% endif %}
-                  </td>
-                  <td class="text-center" style="white-space:nowrap;">
-                    {% if ref.status == 'received' %}
-                      <span class="badge bg-success me-1" style="vertical-align:middle;"><i class="fas fa-check me-1"></i>Complete</span>
-                      <form method="POST" action="{{ url_for('undo_reference_complete', cand_id=cand.id, ref_id=ref.id) }}" class="d-inline" style="vertical-align:middle;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Undo — mark as not complete">
-                          <i class="fas fa-undo"></i>
-                        </button>
-                      </form>
-                    {% else %}
-                      <form method="POST" action="{{ url_for('mark_reference_complete', cand_id=cand.id, ref_id=ref.id) }}" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-outline-success" title="Mark this reference as complete">
-                          <i class="fas fa-check"></i>
-                        </button>
-                      </form>
-                    {% endif %}
-                  </td>
-                </tr>
+                {% for row in ref_timeline %}
+                  {% if row.kind == 'gap' %}
+                  <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
+                    <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                      <strong>{{ row.date_range }}</strong>
+                    </td>
+                    <td colspan="4" style="padding:0.4rem 0.5rem;">
+                      <span class="badge bg-warning text-dark me-2">GAP</span>
+                      {{ row.gap_reason or '(no reason provided)' }}
+                      {% if row.gap_evidence_doc_id %}
+                        <a class="ms-2 small" href="{{ url_for('download_document', doc_id=row.gap_evidence_doc_id) }}" target="_blank">
+                          <i class="fas fa-paperclip me-1"></i>Evidence
+                        </a>
+                      {% else %}
+                        <span class="text-muted small ms-2"><i class="fas fa-paperclip me-1"></i>No evidence uploaded</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% else %}
+                    {% set ref = row.ref %}
+                    {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
+                    <tr style="border-left: 3px solid {{ border_color }};">
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        <strong>{{ row.date_range }}</strong>
+                        {% if row.job_title %}<div class="text-muted small">{{ row.job_title }}</div>{% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        <div><i class="fas fa-building me-1 text-muted"></i><strong>{{ row.company_name or '(no company)' }}</strong></div>
+                        {% if row.agency_name %}
+                          <div class="text-muted small"><i class="fas fa-handshake me-1"></i>via {{ row.agency_name }}</div>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top; font-size:0.72rem;">
+                        <div class="mb-1">
+                          <span class="text-muted">Co:</span> {{ row.company_email or '—' }}
+                          <div>{{ email_badge(row.company_badge, row.company_email) }}</div>
+                        </div>
+                        {% if row.agency_name %}
+                        <div class="mt-1 pt-1" style="border-top: 1px dashed #e5e7eb;">
+                          <span class="text-muted">Ag:</span> {{ row.agency_email or '—' }}
+                          <div>{{ email_badge(row.agency_badge, row.agency_email) }}</div>
+                        </div>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        {% if ref and ref.status == 'sent' %}
+                          <span class="badge bg-primary mb-1" style="font-size:0.65rem;">
+                            <i class="fas fa-check me-1"></i>Sent
+                            {% if ref.recipient_type %}({{ ref.recipient_type }}){% endif %}
+                          </span>
+                          {% if ref.sent_at %}
+                            <div class="text-muted" style="font-size:0.68rem;">{{ ref.sent_at.strftime('%d %b %Y %H:%M') }}</div>
+                          {% endif %}
+                          <button type="button" class="btn btn-sm btn-outline-secondary mt-1" style="font-size:0.7rem; padding:0.1rem 0.4rem;"
+                                  onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'manual', '')">
+                            <i class="fas fa-redo me-1"></i>Resend
+                          </button>
+                        {% elif ref and ref.status == 'received' %}
+                          <span class="badge bg-success" style="font-size:0.65rem;">
+                            <i class="fas fa-check-double me-1"></i>Received
+                          </span>
+                          {% if ref.agreed_at %}
+                            <div class="text-muted" style="font-size:0.68rem;">Agreed {{ ref.agreed_at.strftime('%d %b %Y') }}</div>
+                          {% endif %}
+                        {% else %}
+                          <div class="d-flex flex-column gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
+                                    {% if not row.agency_email %}disabled title="No agency email"{% endif %}
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'agency', '{{ row.agency_email|escape }}')">
+                              <i class="fas fa-handshake me-1"></i>Send to Agency
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
+                                    {% if not row.company_email %}disabled title="No company email"{% endif %}
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'company', '{{ row.company_email|escape }}')">
+                              <i class="fas fa-building me-1"></i>Send to Company
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
+                                    onclick="openManualSendPicker({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', '{{ row.company_name|escape }}')">
+                              <i class="fas fa-edit me-1"></i>Manual Send
+                            </button>
+                          </div>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        {% if ref and ref.reply_doc_id %}
+                          <span class="badge bg-success" style="font-size:0.65rem;">
+                            <i class="fas fa-check me-1"></i>Agreed
+                          </span>
+                          <a class="ms-1 small" href="{{ url_for('download_document', doc_id=ref.reply_doc_id) }}" target="_blank">
+                            <i class="fas fa-paperclip me-1"></i>Reply
+                          </a>
+                        {% elif ref and ref.status == 'sent' %}
+                          <form method="POST" enctype="multipart/form-data"
+                                action="{{ url_for('reference_confirm_agreed', cand_id=cand.id, ref_id=ref.id) }}"
+                                class="d-flex flex-column gap-1">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="file" name="reply_file" accept=".pdf,.eml,.msg,.doc,.docx" required class="form-control form-control-sm" style="font-size:0.7rem; padding:0.1rem 0.3rem;">
+                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size:0.7rem; padding:0.1rem 0.4rem;">
+                              <i class="fas fa-check me-1"></i>Mark Agreed
+                            </button>
+                          </form>
+                        {% else %}
+                          <span class="text-muted small">Send first</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endif %}
                 {% endfor %}
               </tbody>
             </table>
           </div>
           {% else %}
           <div class="text-center text-muted py-3">
-            <i class="fas fa-info-circle me-2"></i>No reference requests yet. Click <strong>Start Referencing</strong> above to create them from the associate's employment history.
+            <i class="fas fa-info-circle me-2"></i>No employment history captured yet. Once the associate adds entries to their portal, press <strong>Start Referencing</strong> above to generate the rows here.
           </div>
           {% endif %}
         </div>
@@ -1744,6 +1802,8 @@
               <input type="hidden" name="ref_id" id="refEmailRefId" value="">
               <input type="hidden" name="company_name" id="refEmailCompanyName" value="">
               <input type="hidden" name="referee_email" id="refEmailRefereeEmail" value="">
+              {# Req 22 — records which side the send was for (agency / company / manual). #}
+              <input type="hidden" name="recipient_type" id="refEmailRecipientType" value="company">
               <div class="modal-body">
                 <div class="mb-3">
                   <label class="form-label fw-semibold" style="font-size: 0.85rem;">To (Referee Email)</label>
@@ -1778,6 +1838,50 @@
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+
+      {# Req 22 — Manual Send picker. Opens BEFORE the preview modal when the
+         recruiter clicks "Manual Send" on a row. Lets them pick from the
+         approved list for that company OR type any other address. Continuing
+         hands control to openSendReference() with the chosen email and
+         recipient_type='manual'. #}
+      <div class="modal fade" id="manualSendPickerModal" tabindex="-1" aria-labelledby="manualSendPickerLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="manualSendPickerLabel">
+                <i class="fas fa-edit me-2"></i>Manual Send — choose recipient
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2">
+                Choose an email from the approved Reference Contacts list, or
+                type a different address below. The preview modal will open
+                next so you can edit the body before sending.
+              </p>
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">Approved emails for <span id="manualPickerCompany">(company)</span></label>
+                <select id="manualPickerApprovedSelect" class="form-select form-select-sm">
+                  <option value="">— loading… —</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="_manualPickerUseApproved()">
+                  <i class="fas fa-check me-1"></i>Use selected
+                </button>
+              </div>
+              <hr>
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">Or type a different email</label>
+                <div class="input-group input-group-sm">
+                  <input type="email" id="manualPickerCustomEmail" class="form-control" placeholder="referee@example.com">
+                  <button type="button" class="btn btn-outline-primary" onclick="_manualPickerUseCustom()">
+                    <i class="fas fa-arrow-right me-1"></i>Continue
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2978,6 +3082,108 @@ function referralApprove(candId, checkType) {
   .catch(function() { alert('Network error'); });
 }
 
+// ---- Req 22: Reference send entry points ----
+// openSendReference is the new canonical entry point for the per-row send
+// buttons on the references list. It loads the preview email via
+// previewReferenceEmail(), then overrides the To field + recipient_type
+// hidden input. refId may be null when no ReferenceRequest exists yet —
+// in that case the preview endpoint will need to create one; we keep
+// behaviour aligned with the legacy flow by treating null as "no fetch"
+// for the preview body but still allowing the recruiter to send (the
+// server creates the row from the form fields).
+var _refSendState = { recipientType: 'company', prefilledEmail: '', empId: null };
+
+function openSendReference(candidateId, refId, empId, recipientType, prefilledEmail) {
+  _refSendState.recipientType = recipientType || 'company';
+  _refSendState.prefilledEmail = prefilledEmail || '';
+  _refSendState.empId = empId || null;
+  if (refId) {
+    previewReferenceEmail(candidateId, refId);
+  } else {
+    // No ReferenceRequest row yet — open the modal with a blank body. The
+    // server-side send_reference endpoint creates the row from the form
+    // fields when ref_id is empty.
+    document.getElementById('refEmailRefId').value = '';
+    document.getElementById('refEmailRefereeEmail').value = prefilledEmail || '';
+    document.getElementById('refEmailToDisplay').value = prefilledEmail || '';
+    document.getElementById('refEmailRecipientType').value = _refSendState.recipientType;
+    document.getElementById('refEmailSubject').value = '';
+    document.getElementById('refEmailBody').value = '';
+    if (typeof _renderRefPreview === 'function') _renderRefPreview();
+    document.getElementById('refEmailSendForm').action = '/action/send-reference/' + candidateId;
+    var modal = new bootstrap.Modal(document.getElementById('refEmailPreviewModal'));
+    modal.show();
+  }
+}
+
+function openManualSendPicker(candidateId, refId, empId, companyName) {
+  _refSendState.empId = empId || null;
+  var pickerEl = document.getElementById('manualSendPickerModal');
+  // Stash the in-flight context on the picker so its buttons know where
+  // to forward the choice.
+  pickerEl.dataset.candidateId = String(candidateId);
+  pickerEl.dataset.refId = refId ? String(refId) : '';
+  pickerEl.dataset.empId = empId ? String(empId) : '';
+  document.getElementById('manualPickerCompany').textContent = companyName || '(company)';
+  document.getElementById('manualPickerCustomEmail').value = '';
+  var sel = document.getElementById('manualPickerApprovedSelect');
+  sel.innerHTML = '<option value="">— loading… —</option>';
+  fetch('/action/reference-approved-emails?company=' + encodeURIComponent(companyName || ''), {
+    credentials: 'same-origin'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    sel.innerHTML = '';
+    if (!data.emails || data.emails.length === 0) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— no approved emails for this company —';
+      sel.appendChild(opt);
+      return;
+    }
+    var first = document.createElement('option');
+    first.value = '';
+    first.textContent = '— select an approved email —';
+    sel.appendChild(first);
+    data.emails.forEach(function(row) {
+      var o = document.createElement('option');
+      o.value = row.email;
+      o.textContent = row.email + (row.company ? ' (' + row.company + ')' : '');
+      sel.appendChild(o);
+    });
+  })
+  .catch(function() {
+    sel.innerHTML = '<option value="">— could not load approved list —</option>';
+  });
+  var modal = new bootstrap.Modal(pickerEl);
+  modal.show();
+}
+
+function _manualPickerUseApproved() {
+  var sel = document.getElementById('manualPickerApprovedSelect');
+  var email = sel ? sel.value : '';
+  if (!email) { alert('Pick an email from the approved list first.'); return; }
+  _manualPickerContinue(email);
+}
+
+function _manualPickerUseCustom() {
+  var email = (document.getElementById('manualPickerCustomEmail').value || '').trim();
+  if (!email) { alert('Type an email address first.'); return; }
+  _manualPickerContinue(email);
+}
+
+function _manualPickerContinue(email) {
+  var pickerEl = document.getElementById('manualSendPickerModal');
+  var candidateId = parseInt(pickerEl.dataset.candidateId || '0', 10);
+  var refIdRaw = pickerEl.dataset.refId || '';
+  var refId = refIdRaw ? parseInt(refIdRaw, 10) : null;
+  var empId = pickerEl.dataset.empId || null;
+  // Close the picker, open the preview pre-filled with the chosen email.
+  var inst = bootstrap.Modal.getInstance(pickerEl);
+  if (inst) inst.hide();
+  openSendReference(candidateId, refId, empId, 'manual', email);
+}
+
 // ---- Reference Email Preview ----
 function previewReferenceEmail(candidateId, refId) {
   // Fetch the rendered email from the preview endpoint
@@ -2995,8 +3201,14 @@ function previewReferenceEmail(candidateId, refId) {
     // Populate the modal fields
     document.getElementById('refEmailRefId').value = refId;
     document.getElementById('refEmailCompanyName').value = data.company_name || '';
-    document.getElementById('refEmailRefereeEmail').value = data.referee_email || '';
-    document.getElementById('refEmailToDisplay').value = data.referee_email || '';
+    // Req 22 — when the caller pre-set a recipient (via openSendReference),
+    // override the To field with that. Otherwise fall back to whatever the
+    // preview endpoint returned for this ReferenceRequest.
+    var prefilled = (_refSendState && _refSendState.prefilledEmail) || '';
+    var toUse = prefilled || data.referee_email || '';
+    document.getElementById('refEmailRefereeEmail').value = toUse;
+    document.getElementById('refEmailToDisplay').value = toUse;
+    document.getElementById('refEmailRecipientType').value = (_refSendState && _refSendState.recipientType) || 'company';
     document.getElementById('refEmailSubject').value = data.subject || '';
     document.getElementById('refEmailBody').value = data.body || '';
     // Req 10 — render the preview from the textarea (plain text → HTML

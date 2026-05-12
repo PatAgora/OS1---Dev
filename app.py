@@ -6611,6 +6611,14 @@ class ReferenceRequest(Base):
     colour = Column(String(20), default="white")  # white, green, orange
     notes = Column(Text, default="")
     attachment_path = Column(String(500), nullable=True)  # .msg or response file
+    # Req 22 — which side of the row the recruiter sent the reference to,
+    # so the row can render "Sent to Agency on 12 May" etc. once dispatched.
+    recipient_type = Column(String(20), nullable=True)  # agency / company / manual
+    # Req 22 — confirm + upload reply email. agreed_at is stamped when the
+    # recruiter marks the reference as agreed; reply_doc_id links to the
+    # uploaded Document with the response email (PDF / EML).
+    agreed_at = Column(DateTime, nullable=True)
+    reply_doc_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -7538,9 +7546,23 @@ def ensure_schema():
         # -- Third pass: new columns --
         for coldef in [
             "hold_until DATE",  # Fix 7: reference hold-until date
+            # Req 22 — per-row recipient + confirm-and-upload reply support.
+            "recipient_type VARCHAR(20)",
+            "agreed_at TIMESTAMP",
+            "reply_doc_id INTEGER",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE reference_requests ADD COLUMN {coldef}"))
+            except Exception:
+                pass
+
+        # Req 22 — split referee email on employment_history into company + agency.
+        for coldef in [
+            "company_email VARCHAR(300) DEFAULT ''",
+            "agency_email VARCHAR(300) DEFAULT ''",
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE employment_history ADD COLUMN {coldef}"))
             except Exception:
                 pass
         for coldef in [
@@ -16134,11 +16156,64 @@ def action_vetting(cand_id):
     flash("Vetting process started - associate moved to Accepted stage.", "success")
     return redirect(request.referrer or url_for("candidate_profile", cand_id=cand_id))
 
+def _classify_reference_email(s, email, company_name=None, agency_name=None):
+    """Req 22 — classify a reference email for the per-row badge.
+
+    Returns one of:
+      - 'reference_house' — the company OR agency name is a known
+        FlaggedReferenceHouse. Takes priority over the approved check
+        so the recruiter sees the warning even if the email itself
+        happens to be in the approved list.
+      - 'approved' — the email exists in ReferenceContact.
+      - 'unknown' — neither check matched (recruiter must use Manual
+        Send or treat with caution).
+    """
+    if not email:
+        return "unknown"
+    try:
+        from associate_portal import _ensure_models, _portal_model
+        _ensure_models()
+        FlaggedReferenceHouse = _portal_model("FlaggedReferenceHouse")
+        ReferenceContact = _portal_model("ReferenceContact")
+    except Exception:
+        return "unknown"
+
+    names_to_check = [n for n in (company_name, agency_name) if n]
+    if FlaggedReferenceHouse and names_to_check:
+        try:
+            for nm in names_to_check:
+                hit = s.scalar(
+                    select(FlaggedReferenceHouse.id)
+                    .where(func.lower(FlaggedReferenceHouse.name) == nm.lower())
+                )
+                if hit:
+                    return "reference_house"
+        except Exception:
+            pass
+
+    if ReferenceContact:
+        try:
+            hit = s.scalar(
+                select(ReferenceContact.id)
+                .where(func.lower(ReferenceContact.referee_email) == email.lower())
+            )
+            if hit:
+                return "approved"
+        except Exception:
+            pass
+
+    return "unknown"
+
+
 @app.route("/api/vetting/trigger-referencing/<int:cand_id>", methods=["POST"])
 @login_required
 def api_vetting_trigger_referencing(cand_id):
-    """Start Referencing only: set References and Employment History checks to In Progress.
-    Sends reference requests respecting contact permission flags."""
+    """Req 22 — Start Referencing only generates the per-employer rows now.
+    No emails are sent automatically; the recruiter picks per row whether
+    to Send to Agency / Send to Company / Manual Send. Gaps are NOT added
+    to ReferenceRequest — the candidate profile renders them inline from
+    EmploymentHistory directly so the chronological timeline stays
+    correct."""
     REFERENCE_CHECKS = ["References"]
 
     # Check if employment reference declaration has been signed via Signable.
@@ -16201,7 +16276,13 @@ def api_vetting_trigger_referencing(cand_id):
                 triggered += 1
 
 
-        # Auto-create reference requests from portal employment history
+        # Req 22 — generate one ReferenceRequest row per non-gap employment
+        # entry. No emails are sent here, no permission/current-employer
+        # skips. The recruiter chooses send target per-row from the
+        # candidate profile (Send to Agency / Send to Company / Manual).
+        # Gaps are intentionally NOT inserted as ReferenceRequest rows —
+        # the profile renders them inline from EmploymentHistory so the
+        # timeline shows employed + gap chronology together.
         refs_created = 0
         refs_held = 0
         try:
@@ -16211,18 +16292,12 @@ def api_vetting_trigger_referencing(cand_id):
             if EmpHistory:
                 emp_rows = s.scalars(
                     select(EmpHistory).where(EmpHistory.candidate_id == cand_id)
-                    .order_by(EmpHistory.end_date.desc())
+                    .order_by(EmpHistory.start_date.asc())
                 ).all()
-                for i, emp in enumerate(emp_rows):
-                    # Req 29 — gaps don't get reference requests. The gap
-                    # already has its own evidence trail (gap_evidence_doc_id
-                    # surfaced on the staff Employment History timeline) and
-                    # creating a row here just produced an unlabelled
-                    # "unknown" entry on the references list.
+                for emp in emp_rows:
                     if getattr(emp, "is_gap", False):
                         continue
 
-                    # Check if reference already exists for this employment
                     existing_ref = s.scalar(
                         select(ReferenceRequest)
                         .where(ReferenceRequest.candidate_id == cand_id)
@@ -16231,76 +16306,31 @@ def api_vetting_trigger_referencing(cand_id):
                     if existing_ref:
                         continue
 
-                    # Check per-entry permission_to_request (Boolean or string)
-                    perm_raw = getattr(emp, 'permission_to_request', True)
-                    if perm_raw is None:
-                        perm_ok = True
-                    elif isinstance(perm_raw, bool):
-                        perm_ok = perm_raw
-                    else:
-                        perm_ok = str(perm_raw).lower() not in ('no', 'false', '0')
-
-                    is_current = (i == 0)
-                    contact_ok = getattr(cand, 'current_employer_contact_ok', True)
-                    if contact_ok is None:
-                        contact_ok = True
-
-                    hold = False
-                    hold_reason = ""
-                    if not perm_ok:
-                        hold = True
-                        hold_reason = getattr(emp, 'permission_delay_reason', '') or 'Associate declined reference contact'
-                    elif is_current and not contact_ok:
-                        hold = True
-                        hold_reason = "Associate requested: do not contact current employer"
-
-                    company = getattr(emp, 'company_name', '') or ''
-                    referee_email_val = getattr(emp, 'referee_email', '') or ''
-
-                    # If no referee email, try the Reference Contact Details list
-                    if not referee_email_val and company:
-                        try:
-                            ReferenceContact = _portal_model("ReferenceContact")
-                            if ReferenceContact:
-                                rc = s.query(ReferenceContact).filter(
-                                    func.lower(ReferenceContact.company_name) == company.lower()
-                                ).first()
-                                if rc and rc.referee_email:
-                                    referee_email_val = rc.referee_email
-                        except Exception:
-                            pass
-
-                    # Check against Reference Houses Intel list
-                    ref_house_flag = ""
-                    if company:
-                        try:
-                            FlaggedReferenceHouse = _portal_model("FlaggedReferenceHouse")
-                            if FlaggedReferenceHouse:
-                                flagged = s.query(FlaggedReferenceHouse).filter(
-                                    func.lower(FlaggedReferenceHouse.name) == company.lower()
-                                ).first()
-                                if flagged:
-                                    ref_house_flag = f"⚠ {company} is a flagged reference house — additional verification may be required."
-                        except Exception:
-                            pass
+                    company = getattr(emp, "company_name", "") or ""
+                    # Use the new company_email split if populated, otherwise
+                    # fall back to the legacy referee_email field. Manual /
+                    # Send to Agency paths pick their own address at send
+                    # time so this is just the row's display default.
+                    default_email = (
+                        getattr(emp, "company_email", "") or ""
+                    ) or (
+                        getattr(emp, "referee_email", "") or ""
+                    )
 
                     ref = ReferenceRequest(
                         candidate_id=cand_id,
                         employment_history_id=emp.id,
                         company_name=company,
-                        referee_email=referee_email_val,
-                        referee_name=getattr(emp, 'referee_name', '') or '',
-                        status="on_hold" if hold else "not_sent",
-                        permission_status="no" if hold else "yes",
-                        notes=(hold_reason if hold else ref_house_flag) or "",
-                        colour="orange" if ref_house_flag else ("white" if not hold else "white"),
+                        referee_email=default_email,
+                        referee_name=getattr(emp, "referee_name", "") or "",
+                        status="not_sent",
+                        permission_status="yes",
+                        notes="",
+                        colour="white",
                         created_at=now,
                     )
                     s.add(ref)
-                    if hold:
-                        refs_held += 1
-                    else:
-                        refs_created += 1
+                    refs_created += 1
         except Exception as e:
             current_app.logger.warning(f"Reference auto-create failed for cand {cand_id}: {e}")
 
@@ -19611,6 +19641,99 @@ def candidate_profile(cand_id: int):
         except Exception:
             pass
 
+        # === Req 22 — Referencing timeline (chronological employment + gaps) ===
+        # Builds the per-row data the rebuilt References tile renders:
+        # for non-gap rows it carries both Company Email and Agency Email with
+        # the ✓ / 🚩 / ✗ badge each gets, plus the linked ReferenceRequest if
+        # one exists. Gap rows expose their reason + evidence doc.
+        ref_timeline = []
+        try:
+            from associate_portal import _ensure_models, _portal_model
+            _ensure_models()
+            EmpHistory = _portal_model("EmploymentHistory")
+            if EmpHistory:
+                emp_rows = s.scalars(
+                    select(EmpHistory).where(EmpHistory.candidate_id == cand_id)
+                    .order_by(EmpHistory.start_date.asc())
+                ).all()
+
+                ref_by_emp_id = {}
+                for rr in s.scalars(
+                    select(ReferenceRequest)
+                    .where(ReferenceRequest.candidate_id == cand_id)
+                ).all():
+                    if rr.employment_history_id:
+                        ref_by_emp_id[rr.employment_history_id] = rr
+
+                def _fmt_d(d):
+                    if not d:
+                        return ""
+                    try:
+                        return d.strftime("%d %b %Y")
+                    except Exception:
+                        return str(d)
+
+                for emp in emp_rows:
+                    start_d = getattr(emp, "start_date", None)
+                    end_d = getattr(emp, "end_date", None)
+                    date_range = (
+                        f"{_fmt_d(start_d)} – {_fmt_d(end_d) or 'Present'}"
+                        if start_d else (_fmt_d(end_d) or "")
+                    )
+                    if getattr(emp, "is_gap", False):
+                        ref_timeline.append({
+                            "kind": "gap",
+                            "emp_id": emp.id,
+                            "date_range": date_range,
+                            "gap_reason": getattr(emp, "gap_reason", "") or "",
+                            "gap_evidence_doc_id": getattr(emp, "gap_evidence_doc_id", None),
+                        })
+                        continue
+
+                    company_name = getattr(emp, "company_name", "") or ""
+                    agency_name = getattr(emp, "agency_name", "") or ""
+                    company_email = (
+                        getattr(emp, "company_email", "") or ""
+                    ) or (getattr(emp, "referee_email", "") or "")
+                    agency_email = getattr(emp, "agency_email", "") or ""
+
+                    company_badge = _classify_reference_email(
+                        s, company_email, company_name=company_name, agency_name=None
+                    ) if company_email else "missing"
+                    agency_badge = _classify_reference_email(
+                        s, agency_email, company_name=None, agency_name=agency_name
+                    ) if agency_email else "missing"
+
+                    rr = ref_by_emp_id.get(emp.id)
+                    ref_dict = None
+                    if rr:
+                        ref_dict = {
+                            "id": rr.id,
+                            "status": rr.status or "not_sent",
+                            "sent_at": rr.sent_at,
+                            "recipient_type": rr.recipient_type or "",
+                            "agreed_at": rr.agreed_at,
+                            "reply_doc_id": rr.reply_doc_id,
+                            "referee_email": rr.referee_email or "",
+                            "colour": rr.colour or "white",
+                        }
+
+                    ref_timeline.append({
+                        "kind": "employment",
+                        "emp_id": emp.id,
+                        "date_range": date_range,
+                        "job_title": getattr(emp, "job_title", "") or "",
+                        "company_name": company_name,
+                        "company_email": company_email,
+                        "company_badge": company_badge,
+                        "agency_name": agency_name,
+                        "agency_email": agency_email,
+                        "agency_badge": agency_badge,
+                        "ref": ref_dict,
+                    })
+        except Exception:
+            current_app.logger.exception("ref_timeline build failed for cand=%s", cand_id)
+
         # === Contract Status ===
         # Only the most recent NON-ended ESigRequest drives the live Contract
         # card. Ended placements are surfaced separately via previous_placement
@@ -20084,6 +20207,7 @@ def candidate_profile(cand_id: int):
         placements_historic=placements_historic,
         # Reference requests for preview/send
         reference_requests=reference_requests,
+        ref_timeline=ref_timeline,
         # Req-027: Active engagements for manual placement creation
         active_engagements=s.scalars(
             select(Engagement).where(Engagement.status == "Active").order_by(Engagement.name)
@@ -21050,10 +21174,18 @@ def _html_to_plaintext_for_preview(html_text: str) -> str:
 @app.route("/action/send-reference/<int:cand_id>", methods=["POST"])
 @login_required
 def send_reference(cand_id: int):
-    """Batch 5.2: Send a reference request email to referee."""
+    """Send a reference request email. Req 22: also accepts a `recipient_type`
+    form field (agency / company / manual) so the row can record which
+    side of the employment was approached. Defaults to 'company' when
+    not supplied to keep the legacy callers working."""
     ref_id = request.form.get("ref_id", type=int)
     referee_email = request.form.get("referee_email", "").strip()
     company_name = request.form.get("company_name", "").strip()
+    # Req 22 — agency / company / manual. Defaults to 'company' for any
+    # legacy callers that don't supply it yet.
+    recipient_type = (request.form.get("recipient_type") or "company").strip().lower()
+    if recipient_type not in ("agency", "company", "manual"):
+        recipient_type = "company"
     # Allow recruiter to pass a customised subject/body from the preview modal
     custom_subject = (request.form.get("email_subject") or "").strip()
     custom_body = (request.form.get("email_body") or "").strip()
@@ -21204,7 +21336,12 @@ def send_reference(cand_id: int):
                        from_email=COMPLIANCE_FROM)
             ref_req.status = "sent"
             ref_req.sent_at = datetime.datetime.utcnow()
-            flash(f"Reference request sent to {ref_req.referee_email}.", "success")
+            # Req 22 — record which side of the employment row was sent
+            ref_req.recipient_type = recipient_type
+            flash(
+                f"Reference request sent ({recipient_type}) to {ref_req.referee_email}.",
+                "success",
+            )
         except Exception as e:
             flash(f"Failed to send reference email: {str(e)}", "danger")
 
@@ -21215,6 +21352,131 @@ def send_reference(cand_id: int):
         s.commit()
 
     return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+
+@app.route("/action/reference-approved-emails", methods=["GET"])
+@login_required
+def reference_approved_emails():
+    """Req 22 — Manual Send picker source. Given a company name query,
+    return the approved-list emails (from ReferenceContact) so the
+    recruiter can pick from them or type a new one. Falls back to
+    company-name "contains" matching when an exact lookup yields
+    nothing, so prefixes / partials still suggest candidates."""
+    company = (request.args.get("company") or "").strip()
+    out = []
+    if not company:
+        return jsonify({"ok": True, "emails": out})
+    try:
+        from associate_portal import _ensure_models, _portal_model
+        _ensure_models()
+        ReferenceContact = _portal_model("ReferenceContact")
+        if not ReferenceContact:
+            return jsonify({"ok": True, "emails": out})
+        with Session(engine) as s:
+            rows = s.scalars(
+                select(ReferenceContact)
+                .where(func.lower(ReferenceContact.company_name) == company.lower())
+                .order_by(ReferenceContact.referee_email)
+            ).all()
+            if not rows:
+                rows = s.scalars(
+                    select(ReferenceContact)
+                    .where(ReferenceContact.company_name.ilike(f"%{company}%"))
+                    .order_by(ReferenceContact.referee_email)
+                    .limit(20)
+                ).all()
+            for r in rows:
+                if r.referee_email:
+                    out.append({
+                        "company": r.company_name or "",
+                        "email": r.referee_email,
+                    })
+    except Exception:
+        current_app.logger.exception("reference_approved_emails lookup failed")
+    return jsonify({"ok": True, "emails": out})
+
+
+@app.route("/action/reference-confirm-agreed/<int:cand_id>/<int:ref_id>", methods=["POST"])
+@login_required
+def reference_confirm_agreed(cand_id: int, ref_id: int):
+    """Req 22 — recruiter marks a reference as agreed and uploads the
+    referee's reply email (PDF / EML). Stamps `agreed_at`, attaches the
+    uploaded file as a `Document`, links it on `reply_doc_id`, flips the
+    request status to `received`, and writes a CandidateNote."""
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        ref = s.get(ReferenceRequest, ref_id) if ref_id else None
+        if not cand or not ref or ref.candidate_id != cand_id:
+            flash("Reference request not found.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id))
+
+        reply_file = request.files.get("reply_file")
+        notes = (request.form.get("notes") or "").strip()
+
+        if not reply_file or not reply_file.filename:
+            flash("Please attach the referee's reply email before confirming.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+
+        try:
+            # Reply emails can be PDF or EML — bypass the global
+            # allowed_file() which only permits PDF/DOC/DOCX, and write
+            # straight to the uploads dir.
+            orig_name = secure_filename(reply_file.filename) or "reference_reply"
+            ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+            if ext not in ("pdf", "eml", "msg", "doc", "docx"):
+                flash(
+                    "Reply must be a PDF, EML, MSG, DOC or DOCX file.",
+                    "warning",
+                )
+                return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+            new_name = f"{uuid.uuid4()}_{orig_name}"
+            target_dir = os.path.join(app.config["UPLOAD_FOLDER"], "reference_replies")
+            os.makedirs(target_dir, exist_ok=True)
+            reply_file.save(os.path.join(target_dir, new_name))
+
+            doc = Document(
+                candidate_id=cand_id,
+                doc_type="reference_reply",
+                filename=os.path.join("reference_replies", new_name),
+                original_name=orig_name,
+                uploaded_at=datetime.datetime.utcnow(),
+            )
+            s.add(doc)
+            s.flush()
+
+            ref.reply_doc_id = doc.id
+            ref.agreed_at = datetime.datetime.utcnow()
+            ref.status = "received"
+            ref.colour = "green"
+            if notes:
+                ref.notes = (ref.notes + "\n" if ref.notes else "") + f"Agreed: {notes}"
+
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="activity",
+                content=(
+                    f"Reference agreed for {ref.company_name or '(unnamed company)'}; "
+                    f"reply email uploaded ({reply_file.filename})."
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
+            log_audit_event(
+                "update", "vetting",
+                f"Reference confirmed agreed for {ref.company_name or '?'}",
+                "candidate", cand_id,
+                {"reference_request_id": ref.id, "reply_doc_id": doc.id},
+            )
+            s.commit()
+            flash("Reference marked agreed — reply email saved against the row.", "success")
+        except Exception:
+            s.rollback()
+            current_app.logger.exception(
+                "reference_confirm_agreed failed for cand=%s ref=%s", cand_id, ref_id,
+            )
+            flash("Could not save the reply email — please try again.", "warning")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
 
 
 @app.route("/action/chase-reference/<int:cand_id>", methods=["POST"])

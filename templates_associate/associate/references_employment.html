@@ -234,11 +234,20 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="agency_name">Agency Name <span class="text-muted">(if applicable)</span></label>
-                    <input type="text" id="agency_name" name="agency_name" class="form-control" placeholder="Leave blank if employed directly">
+                    <input type="text" id="agency_name" name="agency_name" class="form-control" placeholder="Leave blank if employed directly" autocomplete="off">
+                    <div class="company-suggestions" id="agencySuggestions" style="display: none;"></div>
+                </div>
+                {# Req 22 — Company Email + Agency Email split. Company Email is
+                   required; Agency Email only shown when an agency name is
+                   filled in. Both auto-populate when a matching name is
+                   recognised in the approved reference list. #}
+                <div class="col-md-6">
+                    <label class="form-label" for="company_email">Company Email <span class="text-danger">*</span></label>
+                    <input type="email" id="company_email" name="company_email" class="form-control" placeholder="references@company.com" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label" for="referee_email">Referee Email <span class="text-danger">*</span></label>
-                    <input type="email" id="referee_email" name="referee_email" class="form-control" placeholder="referee@company.com" required>
+                    <label class="form-label" for="agency_email">Agency Email <span class="text-muted">(if agency provided)</span></label>
+                    <input type="email" id="agency_email" name="agency_email" class="form-control" placeholder="references@agency.com">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="company_address">Company Address</label>
@@ -517,24 +526,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ---------- Company name autocomplete / reference house check ----------
-    var companyInput = document.getElementById('company_name');
-    var suggestionsDiv = document.getElementById('companySuggestions');
-    var refereeEmail = document.getElementById('referee_email');
-    var warningBanner = document.getElementById('referenceHouseWarning');
-    var warningMessage = document.getElementById('referenceHouseMessage');
-    var debounceTimer;
+    // ---------- Company / Agency name autocomplete + email auto-fill ----------
+    // Req 22: same lookup logic powers both inputs — typing a known
+    // company suggests it and fills Company Email; typing a known agency
+    // does the same for Agency Email.
+    function _wireNameAutocomplete(opts) {
+        var nameInput = document.getElementById(opts.nameId);
+        var suggestionsDiv = document.getElementById(opts.suggestionsId);
+        var emailInput = document.getElementById(opts.emailId);
+        if (!nameInput || !suggestionsDiv) return;
+        var debounceTimer, exactTimer;
 
-    if (companyInput && suggestionsDiv) {
-        companyInput.addEventListener('input', function() {
+        nameInput.addEventListener('input', function() {
             var query = this.value.trim();
             clearTimeout(debounceTimer);
-
             if (query.length < 2) {
                 suggestionsDiv.style.display = 'none';
                 return;
             }
-
             debounceTimer = setTimeout(function() {
                 fetch('/portal/api/company-lookup?q=' + encodeURIComponent(query), {
                     headers: { 'X-CSRFToken': csrfToken }
@@ -548,10 +557,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             div.className = 'suggestion-item';
                             div.textContent = item.name;
                             div.addEventListener('click', function() {
-                                companyInput.value = item.name;
+                                nameInput.value = item.name;
                                 suggestionsDiv.style.display = 'none';
-                                if (item.referee_email && refereeEmail) {
-                                    refereeEmail.value = item.referee_email;
+                                if (item.referee_email && emailInput && !emailInput.value) {
+                                    emailInput.value = item.referee_email;
                                 }
                             });
                             suggestionsDiv.appendChild(div);
@@ -561,23 +570,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         suggestionsDiv.style.display = 'none';
                     }
                 })
-                .catch(function() {
-                    suggestionsDiv.style.display = 'none';
-                });
+                .catch(function() { suggestionsDiv.style.display = 'none'; });
             }, 300);
         });
 
-        // When user finishes typing, do an exact case-insensitive lookup
-        // to auto-fill the referee email even if they didn't pick from
-        // the suggestion list. Fires on both blur AND after a 1s typing
-        // pause so the email appears as they finish the name.
-        var exactTimer;
         function doExactLookup() {
-            var typed = companyInput.value.trim();
+            var typed = nameInput.value.trim();
             if (typed.length < 3) {
-                if (typed.length === 0 && refereeEmail) {
-                    refereeEmail.value = '';
-                }
+                if (typed.length === 0 && emailInput) emailInput.value = '';
                 return;
             }
             fetch('/portal/api/company-lookup?q=' + encodeURIComponent(typed) + '&exact=1', {
@@ -587,28 +587,40 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (data.results && data.results.length > 0) {
                     var match = data.results[0];
-                    if (match.referee_email && refereeEmail) {
-                        refereeEmail.value = match.referee_email;
+                    if (match.referee_email && emailInput && !emailInput.value) {
+                        emailInput.value = match.referee_email;
                     }
                 }
             })
             .catch(function() {});
         }
-        companyInput.addEventListener('blur', function() {
+        nameInput.addEventListener('blur', function() {
             clearTimeout(exactTimer);
             doExactLookup();
         });
-        companyInput.addEventListener('input', function() {
+        nameInput.addEventListener('input', function() {
             clearTimeout(exactTimer);
             exactTimer = setTimeout(doExactLookup, 1000);
         });
-
         document.addEventListener('click', function(e) {
-            if (!companyInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+            if (!nameInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
                 suggestionsDiv.style.display = 'none';
             }
         });
     }
+
+    _wireNameAutocomplete({
+        nameId: 'company_name',
+        suggestionsId: 'companySuggestions',
+        emailId: 'company_email',
+    });
+    _wireNameAutocomplete({
+        nameId: 'agency_name',
+        suggestionsId: 'agencySuggestions',
+        emailId: 'agency_email',
+    });
+    var warningBanner = document.getElementById('referenceHouseWarning');
+    var warningMessage = document.getElementById('referenceHouseMessage');
 
     // ---------- AI CV Extraction ----------
     window.extractFromCV = function() {

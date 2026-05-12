@@ -272,7 +272,13 @@ def _ensure_models():
         candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
         company_name = Column(String(300), default="")
         agency_name = Column(String(300), default="")
+        # Req 22 — split referee email into company-side and agency-side so
+        # the references list can offer "Send to Agency" / "Send to Company".
+        # Legacy `referee_email` is kept and treated as the Company Email
+        # for rows that pre-date the split.
         referee_email = Column(String(300), default="")
+        company_email = Column(String(300), default="")
+        agency_email = Column(String(300), default="")
         company_address = Column(Text, default="")
         start_date = Column(Date, nullable=True)
         end_date = Column(Date, nullable=True)
@@ -3167,11 +3173,20 @@ def references_add_employment():
             flash("Please provide a reason why we cannot contact this employer.", "danger")
             return redirect(url_for("associate.references_employment"))
 
+        # Req 22 — company_email / agency_email are the new canonical fields.
+        # Legacy referee_email is kept and mirrored from company_email so any
+        # older read paths (and the staff-side default email selection) still
+        # work without a one-off data migration.
+        company_email = _sanitise(request.form.get("company_email", "")).strip()
+        agency_email = _sanitise(request.form.get("agency_email", "")).strip()
+        legacy_referee = _sanitise(request.form.get("referee_email", "")).strip()
         entry = EmploymentHistory(
             candidate_id=cand_id,
             company_name=company_name,
             agency_name=_sanitise(request.form.get("agency_name", "")),
-            referee_email=_sanitise(request.form.get("referee_email", "")),
+            referee_email=legacy_referee or company_email,
+            company_email=company_email,
+            agency_email=agency_email,
             company_address=_sanitise(request.form.get("company_address", "")),
             start_date=new_start,
             end_date=new_end,
