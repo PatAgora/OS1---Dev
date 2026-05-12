@@ -1554,8 +1554,9 @@
                 {% for row in ref_timeline %}
                   {% if row.kind == 'gap' %}
                   <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
-                    <td style="padding:0.4rem 0.5rem; vertical-align:top; white-space:nowrap;">
-                      <strong>{{ row.date_range }}</strong>
+                    <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                      <div><strong>{{ row.start_label }}</strong></div>
+                      {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
                     </td>
                     <td colspan="6" style="padding:0.4rem 0.5rem;">
                       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1588,9 +1589,10 @@
                     {% set ref = row.ref %}
                     {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
                     <tr style="border-left: 3px solid {{ border_color }};">
-                      <td style="padding:0.4rem 0.5rem; vertical-align:top; white-space:nowrap;">
-                        <strong>{{ row.date_range }}</strong>
-                        {% if row.job_title %}<div class="text-muted" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        <div><strong>{{ row.start_label }}</strong></div>
+                        {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
+                        {% if row.job_title %}<div class="text-muted mt-1" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
                       </td>
                       <td style="padding:0.4rem 0.5rem; vertical-align:top;">
                         {{ row.company_name or '—' }}

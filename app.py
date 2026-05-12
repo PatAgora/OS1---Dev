@@ -19680,22 +19680,30 @@ def candidate_profile(cand_id: int):
                     if not d:
                         return ""
                     try:
-                        return d.strftime("%d %b %Y")
+                        return d.strftime("%d/%b/%Y")
                     except Exception:
                         return str(d)
 
                 for emp in emp_rows:
                     start_d = getattr(emp, "start_date", None)
                     end_d = getattr(emp, "end_date", None)
+                    start_label = _fmt_d(start_d)
+                    end_label = _fmt_d(end_d) or ("Present" if start_d else "")
+                    # Kept as the legacy single-line string for any caller
+                    # that still wants the inline rendering. The template
+                    # uses start_label / end_label so the cell can stack
+                    # the two values one on top of the other and keep the
+                    # Date Range column narrow.
                     date_range = (
-                        f"{_fmt_d(start_d)} – {_fmt_d(end_d) or 'Present'}"
-                        if start_d else (_fmt_d(end_d) or "")
+                        f"{start_label} – {end_label}" if start_label else end_label
                     )
                     if getattr(emp, "is_gap", False):
                         ref_timeline.append({
                             "kind": "gap",
                             "emp_id": emp.id,
                             "date_range": date_range,
+                            "start_label": start_label,
+                            "end_label": end_label,
                             "gap_reason": getattr(emp, "gap_reason", "") or "",
                             "gap_evidence_doc_id": getattr(emp, "gap_evidence_doc_id", None),
                         })
@@ -19733,6 +19741,8 @@ def candidate_profile(cand_id: int):
                         "kind": "employment",
                         "emp_id": emp.id,
                         "date_range": date_range,
+                        "start_label": start_label,
+                        "end_label": end_label,
                         "job_title": getattr(emp, "job_title", "") or "",
                         "company_name": company_name,
                         "company_email": company_email,
