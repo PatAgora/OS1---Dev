@@ -7705,6 +7705,17 @@ try:
             "ALTER TABLE esign_requests ADD COLUMN assignment_sent_at TIMESTAMP",
             "ALTER TABLE esign_requests ADD COLUMN assignment_signed BOOLEAN DEFAULT FALSE",
             "ALTER TABLE esign_requests ADD COLUMN assignment_signed_at TIMESTAMP",
+            # Req 22 — referencing rework. Adds the new columns on the
+            # gunicorn-time migration path because ensure_schema() only
+            # runs under `python app.py` and not under the Railway/gunicorn
+            # entrypoint. Without these the ORM's SELECT generates
+            # "column does not exist" and every page that touches these
+            # tables 500s.
+            "ALTER TABLE reference_requests ADD COLUMN recipient_type VARCHAR(20)",
+            "ALTER TABLE reference_requests ADD COLUMN agreed_at TIMESTAMP",
+            "ALTER TABLE reference_requests ADD COLUMN reply_doc_id INTEGER",
+            "ALTER TABLE employment_history ADD COLUMN company_email VARCHAR(300) DEFAULT ''",
+            "ALTER TABLE employment_history ADD COLUMN agency_email VARCHAR(300) DEFAULT ''",
         ]:
             try:
                 _mc.execute(text(_stmt))
