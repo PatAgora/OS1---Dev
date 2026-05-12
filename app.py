@@ -21407,6 +21407,94 @@ def reference_approved_emails():
     return jsonify({"ok": True, "emails": out})
 
 
+@app.route("/action/gap-evidence/upload/<int:cand_id>/<int:emp_id>", methods=["POST"])
+@login_required
+def gap_evidence_upload(cand_id: int, emp_id: int):
+    """Req 22 follow-up — staff-side upload for gap evidence. The associate
+    portal already lets the candidate attach evidence to a gap entry; this
+    mirrors that for the recruiter on the candidate profile so a missing
+    upload can be filled in without waiting on the candidate.
+
+    Saves the file as a Document (doc_type='gap_evidence') and stores its
+    id on EmploymentHistory.gap_evidence_doc_id.
+    """
+    evidence_file = request.files.get("evidence_file")
+    if not evidence_file or not evidence_file.filename:
+        flash("Please choose a file before uploading.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+
+    try:
+        from associate_portal import _ensure_models, _portal_model
+        _ensure_models()
+        EmpHistory = _portal_model("EmploymentHistory")
+    except Exception:
+        EmpHistory = None
+    if not EmpHistory:
+        flash("Employment history model not available — could not save the upload.", "warning")
+        return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+
+    with Session(engine) as s:
+        emp = s.get(EmpHistory, emp_id)
+        if not emp or emp.candidate_id != cand_id:
+            flash("Gap entry not found.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+        if not getattr(emp, "is_gap", False):
+            flash("That row isn't a gap — no evidence required.", "warning")
+            return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+
+        try:
+            orig_name = secure_filename(evidence_file.filename) or "gap_evidence"
+            ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+            if ext not in ("pdf", "doc", "docx", "jpg", "jpeg", "png", "eml", "msg"):
+                flash(
+                    "Evidence must be a PDF, DOC, DOCX, JPG, PNG, EML or MSG file.",
+                    "warning",
+                )
+                return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+            new_name = f"{uuid.uuid4()}_{orig_name}"
+            target_dir = os.path.join(app.config["UPLOAD_FOLDER"], "gap_evidence")
+            os.makedirs(target_dir, exist_ok=True)
+            evidence_file.save(os.path.join(target_dir, new_name))
+
+            doc = Document(
+                candidate_id=cand_id,
+                doc_type="gap_evidence",
+                filename=os.path.join("gap_evidence", new_name),
+                original_name=orig_name,
+                uploaded_at=datetime.datetime.utcnow(),
+            )
+            s.add(doc)
+            s.flush()
+
+            emp.gap_evidence_doc_id = doc.id
+
+            s.add(CandidateNote(
+                candidate_id=cand_id,
+                user_email=getattr(current_user, "email", "staff") or "staff",
+                note_type="activity",
+                content=(
+                    f"Gap evidence uploaded by staff for {emp.start_date}–{emp.end_date}: {orig_name}"
+                ),
+                created_at=datetime.datetime.utcnow(),
+            ))
+            log_audit_event(
+                "update", "references",
+                f"Gap evidence uploaded for candidate {cand_id} gap #{emp_id}",
+                "candidate", cand_id,
+                {"employment_history_id": emp_id, "doc_id": doc.id},
+            )
+            s.commit()
+            flash("Gap evidence uploaded.", "success")
+        except Exception:
+            s.rollback()
+            current_app.logger.exception(
+                "gap_evidence_upload failed for cand=%s emp=%s", cand_id, emp_id,
+            )
+            flash("Could not save the evidence — please try again.", "warning")
+
+    return redirect(url_for("candidate_profile", cand_id=cand_id) + "#sec-refs")
+
+
 @app.route("/action/reference-confirm-agreed/<int:cand_id>/<int:ref_id>", methods=["POST"])
 @login_required
 def reference_confirm_agreed(cand_id: int, ref_id: int):
