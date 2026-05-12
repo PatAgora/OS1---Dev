@@ -1519,41 +1519,45 @@
               Reference Requests
             </div>
           </div>
-          {# Req 22 — chronological list of employment + gaps. Non-gap rows show
-             Company + Agency with email-approved badges, three send buttons,
-             and an inline Confirm + Upload form. Gaps render inline with the
-             gap reason + evidence, no send buttons. #}
+          {# Req 22 — mirrors the layout on the Reference Example tab of
+             OS1 Review 27042026.xlsx: separate columns for Company / Agency
+             so a candidate who worked at one employer VIA an agency has
+             both visible side-by-side, each with its own approval badge.
+             Gap rows render inline with reason + evidence and no send /
+             confirm controls. #}
           {% if ref_timeline %}
-          {% macro email_badge(state, email) -%}
+          {% macro email_badge(state) -%}
             {% if state == 'approved' %}
-              <span class="badge bg-success" title="Email is on the approved Reference Contacts list">✓ Approved</span>
+              <span class="badge bg-success" title="Email is on the approved Reference Contacts list">✓</span>
             {% elif state == 'reference_house' %}
-              <span class="badge bg-warning text-dark" title="Company / agency is a Flagged Reference House — verify carefully">🚩 Ref House</span>
+              <span class="badge bg-warning text-dark" title="Flagged Reference House — verify carefully">🚩</span>
             {% elif state == 'unknown' %}
-              <span class="badge bg-danger" title="Email is not on the approved list">✗ Not on list</span>
+              <span class="badge bg-danger" title="Email is not on the approved list">✗</span>
             {% elif state == 'missing' %}
-              <span class="badge bg-secondary" title="No email captured">No email</span>
+              <span class="badge bg-secondary" title="No email captured">—</span>
             {% endif %}
           {%- endmacro %}
           <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0" style="font-size:0.78rem;">
+            <table class="table table-sm align-middle mb-0" style="font-size:0.75rem;">
               <thead class="table-light">
                 <tr>
-                  <th style="padding:0.4rem 0.5rem; width: 16%;">Period</th>
-                  <th style="padding:0.4rem 0.5rem;">Company / Agency</th>
-                  <th style="padding:0.4rem 0.5rem; width: 22%;">Email &amp; Approval</th>
-                  <th style="padding:0.4rem 0.5rem; width: 18%;">Send</th>
-                  <th style="padding:0.4rem 0.5rem; width: 22%;">Confirm + Upload</th>
+                  <th style="padding:0.4rem 0.5rem; white-space:nowrap;">Date Range</th>
+                  <th style="padding:0.4rem 0.5rem;">Company Name</th>
+                  <th style="padding:0.4rem 0.5rem;">Company Email</th>
+                  <th style="padding:0.4rem 0.5rem;">Agency Name</th>
+                  <th style="padding:0.4rem 0.5rem;">Agency Email</th>
+                  <th style="padding:0.4rem 0.5rem; white-space:nowrap;">Send</th>
+                  <th style="padding:0.4rem 0.5rem;">Confirm + Upload</th>
                 </tr>
               </thead>
               <tbody>
                 {% for row in ref_timeline %}
                   {% if row.kind == 'gap' %}
                   <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
-                    <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                    <td style="padding:0.4rem 0.5rem; vertical-align:top; white-space:nowrap;">
                       <strong>{{ row.date_range }}</strong>
                     </td>
-                    <td colspan="4" style="padding:0.4rem 0.5rem;">
+                    <td colspan="6" style="padding:0.4rem 0.5rem;">
                       <span class="badge bg-warning text-dark me-2">GAP</span>
                       {{ row.gap_reason or '(no reason provided)' }}
                       {% if row.gap_evidence_doc_id %}
@@ -1569,61 +1573,73 @@
                     {% set ref = row.ref %}
                     {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
                     <tr style="border-left: 3px solid {{ border_color }};">
-                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top; white-space:nowrap;">
                         <strong>{{ row.date_range }}</strong>
-                        {% if row.job_title %}<div class="text-muted small">{{ row.job_title }}</div>{% endif %}
+                        {% if row.job_title %}<div class="text-muted" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
                       </td>
                       <td style="padding:0.4rem 0.5rem; vertical-align:top;">
-                        <div><i class="fas fa-building me-1 text-muted"></i><strong>{{ row.company_name or '(no company)' }}</strong></div>
-                        {% if row.agency_name %}
-                          <div class="text-muted small"><i class="fas fa-handshake me-1"></i>via {{ row.agency_name }}</div>
-                        {% endif %}
-                      </td>
-                      <td style="padding:0.4rem 0.5rem; vertical-align:top; font-size:0.72rem;">
-                        <div class="mb-1">
-                          <span class="text-muted">Co:</span> {{ row.company_email or '—' }}
-                          <div>{{ email_badge(row.company_badge, row.company_email) }}</div>
-                        </div>
-                        {% if row.agency_name %}
-                        <div class="mt-1 pt-1" style="border-top: 1px dashed #e5e7eb;">
-                          <span class="text-muted">Ag:</span> {{ row.agency_email or '—' }}
-                          <div>{{ email_badge(row.agency_badge, row.agency_email) }}</div>
-                        </div>
-                        {% endif %}
+                        {{ row.company_name or '—' }}
                       </td>
                       <td style="padding:0.4rem 0.5rem; vertical-align:top;">
-                        {% if ref and ref.status == 'sent' %}
-                          <span class="badge bg-primary mb-1" style="font-size:0.65rem;">
-                            <i class="fas fa-check me-1"></i>Sent
-                            {% if ref.recipient_type %}({{ ref.recipient_type }}){% endif %}
-                          </span>
-                          {% if ref.sent_at %}
-                            <div class="text-muted" style="font-size:0.68rem;">{{ ref.sent_at.strftime('%d %b %Y %H:%M') }}</div>
-                          {% endif %}
-                          <button type="button" class="btn btn-sm btn-outline-secondary mt-1" style="font-size:0.7rem; padding:0.1rem 0.4rem;"
-                                  onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'manual', '')">
-                            <i class="fas fa-redo me-1"></i>Resend
-                          </button>
-                        {% elif ref and ref.status == 'received' %}
-                          <span class="badge bg-success" style="font-size:0.65rem;">
-                            <i class="fas fa-check-double me-1"></i>Received
-                          </span>
-                          {% if ref.agreed_at %}
-                            <div class="text-muted" style="font-size:0.68rem;">Agreed {{ ref.agreed_at.strftime('%d %b %Y') }}</div>
-                          {% endif %}
+                        {% if row.company_email %}
+                          <span style="word-break:break-all;">{{ row.company_email }}</span>
+                          {{ email_badge(row.company_badge) }}
                         {% else %}
-                          <div class="d-flex flex-column gap-1">
-                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
-                                    {% if not row.agency_email %}disabled title="No agency email"{% endif %}
-                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'agency', '{{ row.agency_email|escape }}')">
-                              <i class="fas fa-handshake me-1"></i>Send to Agency
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        {% if row.agency_name %}
+                          {{ row.agency_name }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top;">
+                        {% if row.agency_email %}
+                          <span style="word-break:break-all;">{{ row.agency_email }}</span>
+                          {{ email_badge(row.agency_badge) }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.4rem 0.5rem; vertical-align:top; white-space:nowrap;">
+                        {% if ref and ref.status == 'sent' %}
+                          <div class="d-flex flex-column gap-1" style="min-width:8rem;">
+                            <span class="badge bg-primary" style="font-size:0.65rem;">
+                              <i class="fas fa-check me-1"></i>Sent
+                              {% if ref.recipient_type %}({{ ref.recipient_type }}){% endif %}
+                            </span>
+                            {% if ref.sent_at %}
+                              <div class="text-muted" style="font-size:0.65rem;">{{ ref.sent_at.strftime('%d %b %Y') }}</div>
+                            {% endif %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.65rem; padding:0.1rem 0.4rem;"
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'manual', '')">
+                              <i class="fas fa-redo me-1"></i>Resend
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
+                          </div>
+                        {% elif ref and ref.status == 'received' %}
+                          <div class="d-flex flex-column gap-1">
+                            <span class="badge bg-success" style="font-size:0.65rem;">
+                              <i class="fas fa-check-double me-1"></i>Received
+                            </span>
+                            {% if ref.agreed_at %}
+                              <div class="text-muted" style="font-size:0.65rem;">Agreed {{ ref.agreed_at.strftime('%d %b %Y') }}</div>
+                            {% endif %}
+                          </div>
+                        {% else %}
+                          <div class="d-flex flex-column gap-1" style="min-width:8rem;">
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.4rem;"
                                     {% if not row.company_email %}disabled title="No company email"{% endif %}
                                     onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'company', '{{ row.company_email|escape }}')">
                               <i class="fas fa-building me-1"></i>Send to Company
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.7rem; padding:0.15rem 0.4rem;"
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.4rem;"
+                                    {% if not row.agency_email %}disabled title="No agency email"{% endif %}
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'agency', '{{ row.agency_email|escape }}')">
+                              <i class="fas fa-handshake me-1"></i>Send to Agency
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.65rem; padding:0.1rem 0.4rem;"
                                     onclick="openManualSendPicker({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', '{{ row.company_name|escape }}')">
                               <i class="fas fa-edit me-1"></i>Manual Send
                             </button>
@@ -1643,13 +1659,13 @@
                                 action="{{ url_for('reference_confirm_agreed', cand_id=cand.id, ref_id=ref.id) }}"
                                 class="d-flex flex-column gap-1">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="file" name="reply_file" accept=".pdf,.eml,.msg,.doc,.docx" required class="form-control form-control-sm" style="font-size:0.7rem; padding:0.1rem 0.3rem;">
-                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size:0.7rem; padding:0.1rem 0.4rem;">
+                            <input type="file" name="reply_file" accept=".pdf,.eml,.msg,.doc,.docx" required class="form-control form-control-sm" style="font-size:0.65rem; padding:0.1rem 0.3rem;">
+                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size:0.65rem; padding:0.1rem 0.4rem;">
                               <i class="fas fa-check me-1"></i>Mark Agreed
                             </button>
                           </form>
                         {% else %}
-                          <span class="text-muted small">Send first</span>
+                          <span class="text-muted" style="font-size:0.7rem;">Send first</span>
                         {% endif %}
                       </td>
                     </tr>
