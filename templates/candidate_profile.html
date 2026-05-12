@@ -411,7 +411,18 @@
   .status-option.unavailable { background: #fae8ff; color: #86198f; }
   .status-option.dnu { background: #fee2e2; color: #991b1b; }
   .status-option.do-not-contact { background: #fecaca; color: #7f1d1d; }
-  
+
+  /* Sidebar compact mode — keeps the right column the same total height
+     as the left column up to Vetting Checks so the full-width Reference
+     Requests row sits cleanly underneath both. */
+  .col-12.col-lg-4 .modern-card { margin-bottom: 1rem !important; }
+  .col-12.col-lg-4 .modern-card .card-body { padding: 0.85rem !important; }
+  .col-12.col-lg-4 .context-section-title { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  .col-12.col-lg-4 .context-section-title i { font-size: 0.9rem; }
+  .col-12.col-lg-4 .modern-card .form-label { font-size: 0.7rem; }
+  .col-12.col-lg-4 .modern-card .form-control,
+  .col-12.col-lg-4 .modern-card .form-select { font-size: 0.75rem; }
+
   /* Placements List */
   .placements-list {
     list-style: none;
@@ -2319,11 +2330,13 @@
 </div>
 
   <!-- Full-width References + Activity Feed (moved out of the 2-col grid so the
-       references table can stretch end-to-end). -->
-  <div class="row g-4 mt-1">
+       references table can stretch end-to-end). The row carries no top
+       margin — the Vetting Checks tile's mb-4 (1.5rem) provides the gap
+       so it matches the spacing between tiles inside a column. -->
+  <div class="row g-4">
     <div class="col-12">
       <!-- Reference Requests Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-5" id="sec-refs">
+      <div class="modern-card fade-in-up stagger-5" id="sec-refs">
         <div class="card-body p-4">
           <div class="section-header mb-3">
             <div class="section-title">
@@ -2521,7 +2534,7 @@
     </div>
   </div>
 
-  <div class="row g-4 mt-1">
+  <div class="row g-4">
     <div class="col-12">
       <!-- Activity Feed Card -->
       <div class="modern-card mb-4 fade-in-up stagger-3">
