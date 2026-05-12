@@ -2534,10 +2534,10 @@
     </div>
   </div>
 
-  <div class="row g-4">
+  <div class="row g-4 mt-4">
     <div class="col-12">
       <!-- Activity Feed Card -->
-      <div class="modern-card mb-4 fade-in-up stagger-3">
+      <div class="modern-card mb-4 fade-in-up stagger-3" id="sec-activity">
         <div class="card-body p-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="context-section-title mb-0">
@@ -3307,9 +3307,18 @@ function openInterviewEmailModal() {
 
 // Collapsible tiles — start collapsed, click header or icon bar to toggle
 document.addEventListener('DOMContentLoaded', function() {
+  // Left-column tiles + the full-width References / Activity Feed tiles
+  // below the 2-column grid. Sidebar tiles intentionally stay open.
+  var cards = [];
   var mainCol = document.querySelector('.col-12.col-lg-8');
-  if (!mainCol) return;
-  mainCol.querySelectorAll('.modern-card').forEach(function(card) {
+  if (mainCol) {
+    mainCol.querySelectorAll('.modern-card').forEach(function(c) { cards.push(c); });
+  }
+  ['sec-refs', 'sec-activity'].forEach(function(id) {
+    var c = document.getElementById(id);
+    if (c) cards.push(c);
+  });
+  cards.forEach(function(card) {
     var cardBody = card.querySelector('.card-body');
     if (!cardBody) return;
     var header = cardBody.querySelector('.section-header') || cardBody.querySelector('.section-title')?.closest('.d-flex') || cardBody.querySelector('.d-flex');
