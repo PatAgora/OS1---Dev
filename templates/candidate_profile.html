@@ -574,7 +574,7 @@
     <button class="btn btn-sm btn-outline-primary flex-fill mx-1" onclick="openSection('sec-refs')" title="References"><i class="fas fa-envelope me-1"></i><span class="d-none d-md-inline" style="font-size:0.7rem;">References</span></button>
   </div>
 
-  <div class="row g-4">
+  <div class="row g-5">
     <!-- Main Content -->
     <div class="col-12 col-lg-8">
       <!-- AI Summary Card -->
@@ -1510,203 +1510,6 @@
         </div>
       </div>
 
-      <!-- Reference Requests Section -->
-      <div class="modern-card mt-4 fade-in-up stagger-5" id="sec-refs">
-        <div class="card-body p-4">
-          <div class="section-header mb-3">
-            <div class="section-title">
-              <i class="fas fa-envelope"></i>
-              Reference Requests
-            </div>
-          </div>
-          {# Req 22 — mirrors the layout on the Reference Example tab of
-             OS1 Review 27042026.xlsx: separate columns for Company / Agency
-             so a candidate who worked at one employer VIA an agency has
-             both visible side-by-side, each with its own approval badge.
-             Gap rows render inline with reason + evidence and no send /
-             confirm controls. #}
-          {% if ref_timeline %}
-          {% macro email_badge(state) -%}
-            {% if state == 'approved' %}
-              <span class="badge bg-success" title="Email is on the approved Reference Contacts list">✓</span>
-            {% elif state == 'reference_house' %}
-              <span class="badge bg-warning text-dark" title="Flagged Reference House — verify carefully">🚩</span>
-            {% elif state == 'unknown' %}
-              <span class="badge bg-danger" title="Email is not on the approved list">✗</span>
-            {% elif state == 'missing' %}
-              <span class="badge bg-secondary" title="No email captured">—</span>
-            {% endif %}
-          {%- endmacro %}
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0" style="font-size:0.7rem; table-layout:fixed; width:100%;">
-              <colgroup>
-                <col style="width: 8%;">   {# Date Range #}
-                <col style="width: 13%;">  {# Company Name #}
-                <col style="width: 19%;">  {# Company Email #}
-                <col style="width: 11%;">  {# Agency Name #}
-                <col style="width: 19%;">  {# Agency Email #}
-                <col style="width: 11%;">  {# Send #}
-                <col style="width: 19%;">  {# Confirm + Upload #}
-              </colgroup>
-              <thead class="table-light">
-                <tr style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; font-weight:600;">
-                  <th style="padding:0.3rem 0.35rem;">Date Range</th>
-                  <th style="padding:0.3rem 0.35rem;">Company Name</th>
-                  <th style="padding:0.3rem 0.35rem;">Company Email</th>
-                  <th style="padding:0.3rem 0.35rem;">Agency Name</th>
-                  <th style="padding:0.3rem 0.35rem;">Agency Email</th>
-                  <th style="padding:0.3rem 0.35rem;">Send</th>
-                  <th style="padding:0.3rem 0.35rem;">Confirm + Upload</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in ref_timeline %}
-                  {% if row.kind == 'gap' %}
-                  <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
-                    <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                      <div><strong>{{ row.start_label }}</strong></div>
-                      {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
-                    </td>
-                    <td colspan="6" style="padding:0.4rem 0.5rem;">
-                      <div class="d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge bg-warning text-dark">GAP</span>
-                        <span>{{ row.gap_reason or '(no reason provided)' }}</span>
-                        {% if row.gap_evidence_doc_id %}
-                          <a class="small" href="{{ url_for('download_document', doc_id=row.gap_evidence_doc_id) }}" target="_blank">
-                            <i class="fas fa-paperclip me-1"></i>Evidence
-                          </a>
-                        {% else %}
-                          <span class="text-muted small"><i class="fas fa-paperclip me-1"></i>No evidence uploaded</span>
-                          {# Staff-side upload — mirrors the upload the
-                             candidate can do on the associate portal so a
-                             missing file can be filled in without waiting. #}
-                          <form method="POST" enctype="multipart/form-data"
-                                action="{{ url_for('gap_evidence_upload', cand_id=cand.id, emp_id=row.emp_id) }}"
-                                class="d-inline-flex align-items-center gap-1 ms-2">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="file" name="evidence_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.eml,.msg" required
-                                   class="form-control form-control-sm" style="font-size:0.7rem; padding:0.1rem 0.3rem; max-width:220px;">
-                            <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.1rem 0.4rem;">
-                              <i class="fas fa-upload me-1"></i>Upload
-                            </button>
-                          </form>
-                        {% endif %}
-                      </div>
-                    </td>
-                  </tr>
-                  {% else %}
-                    {% set ref = row.ref %}
-                    {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
-                    <tr style="border-left: 3px solid {{ border_color }};">
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        <div><strong>{{ row.start_label }}</strong></div>
-                        {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
-                        {% if row.job_title %}<div class="text-muted mt-1" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        {{ row.company_name or '—' }}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        {% if row.company_email %}
-                          <span style="word-break:break-all;">{{ row.company_email }}</span>
-                          {{ email_badge(row.company_badge) }}
-                        {% else %}
-                          <span class="text-muted">—</span>
-                        {% endif %}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        {% if row.agency_name %}
-                          {{ row.agency_name }}
-                        {% else %}
-                          <span class="text-muted">—</span>
-                        {% endif %}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        {% if row.agency_email %}
-                          <span style="word-break:break-all;">{{ row.agency_email }}</span>
-                          {{ email_badge(row.agency_badge) }}
-                        {% else %}
-                          <span class="text-muted">—</span>
-                        {% endif %}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top;">
-                        {% if ref and ref.status == 'sent' %}
-                          <div class="d-flex flex-column gap-1">
-                            <span class="badge bg-primary" style="font-size:0.6rem;">
-                              <i class="fas fa-check me-1"></i>Sent{% if ref.recipient_type %} · {{ ref.recipient_type }}{% endif %}
-                            </span>
-                            {% if ref.sent_at %}
-                              <div class="text-muted" style="font-size:0.6rem;">{{ ref.sent_at.strftime('%d/%b/%Y') }}</div>
-                            {% endif %}
-                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.6rem; padding:0.05rem 0.3rem;"
-                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'manual', '')">
-                              <i class="fas fa-redo me-1"></i>Resend
-                            </button>
-                          </div>
-                        {% elif ref and ref.status == 'received' %}
-                          <div class="d-flex flex-column gap-1">
-                            <span class="badge bg-success" style="font-size:0.6rem;">
-                              <i class="fas fa-check-double me-1"></i>Received
-                            </span>
-                            {% if ref.agreed_at %}
-                              <div class="text-muted" style="font-size:0.6rem;">{{ ref.agreed_at.strftime('%d/%b/%Y') }}</div>
-                            {% endif %}
-                          </div>
-                        {% else %}
-                          <div class="d-flex flex-column gap-1">
-                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
-                                    {% if not row.company_email %}disabled title="No company email"{% endif %}
-                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'company', '{{ row.company_email|escape }}')">
-                              Company
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
-                                    {% if not row.agency_email %}disabled title="No agency email"{% endif %}
-                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'agency', '{{ row.agency_email|escape }}')">
-                              Agency
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
-                                    onclick="openManualSendPicker({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', '{{ row.company_name|escape }}')">
-                              Manual
-                            </button>
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        {% if ref and ref.reply_doc_id %}
-                          <span class="badge bg-success" style="font-size:0.65rem;">
-                            <i class="fas fa-check me-1"></i>Agreed
-                          </span>
-                          <a class="ms-1 small" href="{{ url_for('download_document', doc_id=ref.reply_doc_id) }}" target="_blank">
-                            <i class="fas fa-paperclip me-1"></i>Reply
-                          </a>
-                        {% elif ref and ref.status == 'sent' %}
-                          <form method="POST" enctype="multipart/form-data"
-                                action="{{ url_for('reference_confirm_agreed', cand_id=cand.id, ref_id=ref.id) }}"
-                                class="d-flex flex-column gap-1">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="file" name="reply_file" accept=".pdf,.eml,.msg,.doc,.docx" required class="form-control form-control-sm" style="font-size:0.65rem; padding:0.1rem 0.3rem;">
-                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size:0.65rem; padding:0.1rem 0.4rem;">
-                              <i class="fas fa-check me-1"></i>Mark Agreed
-                            </button>
-                          </form>
-                        {% else %}
-                          <span class="text-muted" style="font-size:0.7rem;">Send first</span>
-                        {% endif %}
-                      </td>
-                    </tr>
-                  {% endif %}
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="text-center text-muted py-3">
-            <i class="fas fa-info-circle me-2"></i>No employment history captured yet. Once the associate adds entries to their portal, press <strong>Start Referencing</strong> above to generate the rows here.
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
       <!-- QC Review Modal -->
       <div class="modal fade" id="qcReviewModal" tabindex="-1" aria-labelledby="qcReviewModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -2530,61 +2333,6 @@
         </div>
       </div>
       
-      <!-- Activity Feed Card -->
-      <div class="modern-card mb-4 fade-in-up stagger-3">
-        <div class="card-body p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="context-section-title mb-0">
-              <i class="fas fa-stream"></i>
-              Activity Feed
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddActivityModal()">
-              <i class="fas fa-plus"></i>
-            </button>
-          </div>
-          
-          <div class="activity-feed">
-            {% if activities and activities|length %}
-              {% for a in activities %}
-                <div class="activity-item">
-                  <div class="activity-icon {{ a.type }}">
-                    {% if a.type == 'call' %}
-                      <i class="fas fa-phone"></i>
-                    {% elif a.type == 'email' %}
-                      <i class="fas fa-envelope"></i>
-                    {% elif a.type == 'assessment' %}
-                      <i class="fas fa-clipboard-check"></i>
-                    {% elif a.type == 'interview' %}
-                      <i class="fas fa-comments"></i>
-                    {% elif a.type == 'alert' %}
-                      <i class="fas fa-exclamation-triangle"></i>
-                    {% elif a.type == 'contract' %}
-                      <i class="fas fa-file-signature"></i>
-                    {% elif a.type == 'status' %}
-                      <i class="fas fa-user-tag"></i>
-                    {% else %}
-                      <i class="fas fa-sticky-note"></i>
-                    {% endif %}
-                  </div>
-                  <div class="activity-content">
-                    <div class="activity-title">{{ a.title }}</div>
-                    {% if a.description %}
-                      <div class="activity-description">{{ a.description|truncate(100) }}</div>
-                    {% endif %}
-                    <div class="activity-time">{{ a.created_at.strftime('%d %b %Y at %H:%M') if a.created_at else '' }}</div>
-                  </div>
-                </div>
-              {% endfor %}
-            {% else %}
-              <div class="text-center text-muted py-3">
-                <i class="fas fa-history mb-2" style="font-size: 2rem;"></i>
-                <p class="mb-0">No activity recorded</p>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
       <!-- Context Panel -->
       <div class="modern-card mb-4 fade-in-up stagger-3">
         <div class="card-body p-4">
@@ -2649,6 +2397,268 @@
     </div>
   </div>
 </div>
+
+  <!-- Full-width References + Activity Feed (moved out of the 2-col grid so the
+       references table can stretch end-to-end). -->
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <!-- Reference Requests Section -->
+      <div class="modern-card mt-4 fade-in-up stagger-5" id="sec-refs">
+        <div class="card-body p-4">
+          <div class="section-header mb-3">
+            <div class="section-title">
+              <i class="fas fa-envelope"></i>
+              Reference Requests
+            </div>
+          </div>
+          {# Req 22 — mirrors the layout on the Reference Example tab of
+             OS1 Review 27042026.xlsx: separate columns for Company / Agency
+             so a candidate who worked at one employer VIA an agency has
+             both visible side-by-side, each with its own approval badge.
+             Gap rows render inline with reason + evidence and no send /
+             confirm controls. #}
+          {% if ref_timeline %}
+          {% macro email_badge(state) -%}
+            {% if state == 'approved' %}
+              <span class="badge bg-success" title="Email is on the approved Reference Contacts list">✓</span>
+            {% elif state == 'reference_house' %}
+              <span class="badge bg-warning text-dark" title="Flagged Reference House — verify carefully">🚩</span>
+            {% elif state == 'unknown' %}
+              <span class="badge bg-danger" title="Email is not on the approved list">✗</span>
+            {% elif state == 'missing' %}
+              <span class="badge bg-secondary" title="No email captured">—</span>
+            {% endif %}
+          {%- endmacro %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:0.7rem; table-layout:fixed; width:100%;">
+              <colgroup>
+                <col style="width: 8%;">   {# Date Range #}
+                <col style="width: 13%;">  {# Company Name #}
+                <col style="width: 19%;">  {# Company Email #}
+                <col style="width: 11%;">  {# Agency Name #}
+                <col style="width: 19%;">  {# Agency Email #}
+                <col style="width: 11%;">  {# Send #}
+                <col style="width: 19%;">  {# Confirm + Upload #}
+              </colgroup>
+              <thead class="table-light">
+                <tr style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; font-weight:600;">
+                  <th style="padding:0.3rem 0.35rem;">Date Range</th>
+                  <th style="padding:0.3rem 0.35rem;">Company Name</th>
+                  <th style="padding:0.3rem 0.35rem;">Company Email</th>
+                  <th style="padding:0.3rem 0.35rem;">Agency Name</th>
+                  <th style="padding:0.3rem 0.35rem;">Agency Email</th>
+                  <th style="padding:0.3rem 0.35rem;">Send</th>
+                  <th style="padding:0.3rem 0.35rem;">Confirm + Upload</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in ref_timeline %}
+                  {% if row.kind == 'gap' %}
+                  <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
+                    <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                      <div><strong>{{ row.start_label }}</strong></div>
+                      {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
+                    </td>
+                    <td colspan="6" style="padding:0.4rem 0.5rem;">
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="badge bg-warning text-dark">GAP</span>
+                        <span>{{ row.gap_reason or '(no reason provided)' }}</span>
+                        {% if row.gap_evidence_doc_id %}
+                          <a class="small" href="{{ url_for('download_document', doc_id=row.gap_evidence_doc_id) }}" target="_blank">
+                            <i class="fas fa-paperclip me-1"></i>Evidence
+                          </a>
+                        {% else %}
+                          <span class="text-muted small"><i class="fas fa-paperclip me-1"></i>No evidence uploaded</span>
+                          {# Staff-side upload — mirrors the upload the
+                             candidate can do on the associate portal so a
+                             missing file can be filled in without waiting. #}
+                          <form method="POST" enctype="multipart/form-data"
+                                action="{{ url_for('gap_evidence_upload', cand_id=cand.id, emp_id=row.emp_id) }}"
+                                class="d-inline-flex align-items-center gap-1 ms-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="file" name="evidence_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.eml,.msg" required
+                                   class="form-control form-control-sm" style="font-size:0.7rem; padding:0.1rem 0.3rem; max-width:220px;">
+                            <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.1rem 0.4rem;">
+                              <i class="fas fa-upload me-1"></i>Upload
+                            </button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                  {% else %}
+                    {% set ref = row.ref %}
+                    {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
+                    <tr style="border-left: 3px solid {{ border_color }};">
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        <div><strong>{{ row.start_label }}</strong></div>
+                        {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
+                        {% if row.job_title %}<div class="text-muted mt-1" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        {{ row.company_name or '—' }}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        {% if row.company_email %}
+                          <span style="word-break:break-all;">{{ row.company_email }}</span>
+                          {{ email_badge(row.company_badge) }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        {% if row.agency_name %}
+                          {{ row.agency_name }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        {% if row.agency_email %}
+                          <span style="word-break:break-all;">{{ row.agency_email }}</span>
+                          {{ email_badge(row.agency_badge) }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top;">
+                        {% if ref and ref.status == 'sent' %}
+                          <div class="d-flex flex-column gap-1">
+                            <span class="badge bg-primary" style="font-size:0.6rem;">
+                              <i class="fas fa-check me-1"></i>Sent{% if ref.recipient_type %} · {{ ref.recipient_type }}{% endif %}
+                            </span>
+                            {% if ref.sent_at %}
+                              <div class="text-muted" style="font-size:0.6rem;">{{ ref.sent_at.strftime('%d/%b/%Y') }}</div>
+                            {% endif %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.6rem; padding:0.05rem 0.3rem;"
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'manual', '')">
+                              <i class="fas fa-redo me-1"></i>Resend
+                            </button>
+                          </div>
+                        {% elif ref and ref.status == 'received' %}
+                          <div class="d-flex flex-column gap-1">
+                            <span class="badge bg-success" style="font-size:0.6rem;">
+                              <i class="fas fa-check-double me-1"></i>Received
+                            </span>
+                            {% if ref.agreed_at %}
+                              <div class="text-muted" style="font-size:0.6rem;">{{ ref.agreed_at.strftime('%d/%b/%Y') }}</div>
+                            {% endif %}
+                          </div>
+                        {% else %}
+                          <div class="d-flex flex-column gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
+                                    {% if not row.company_email %}disabled title="No company email"{% endif %}
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'company', '{{ row.company_email|escape }}')">
+                              Company
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
+                                    {% if not row.agency_email %}disabled title="No agency email"{% endif %}
+                                    onclick="openSendReference({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', 'agency', '{{ row.agency_email|escape }}')">
+                              Agency
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.65rem; padding:0.1rem 0.35rem;"
+                                    onclick="openManualSendPicker({{ cand.id }}, {% if ref %}{{ ref.id }}{% else %}null{% endif %}, '{{ row.emp_id }}', '{{ row.company_name|escape }}')">
+                              Manual
+                            </button>
+                          </div>
+                        {% endif %}
+                      </td>
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                        {% if ref and ref.reply_doc_id %}
+                          <span class="badge bg-success" style="font-size:0.65rem;">
+                            <i class="fas fa-check me-1"></i>Agreed
+                          </span>
+                          <a class="ms-1 small" href="{{ url_for('download_document', doc_id=ref.reply_doc_id) }}" target="_blank">
+                            <i class="fas fa-paperclip me-1"></i>Reply
+                          </a>
+                        {% elif ref and ref.status == 'sent' %}
+                          <form method="POST" enctype="multipart/form-data"
+                                action="{{ url_for('reference_confirm_agreed', cand_id=cand.id, ref_id=ref.id) }}"
+                                class="d-flex flex-column gap-1">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="file" name="reply_file" accept=".pdf,.eml,.msg,.doc,.docx" required class="form-control form-control-sm" style="font-size:0.65rem; padding:0.1rem 0.3rem;">
+                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size:0.65rem; padding:0.1rem 0.4rem;">
+                              <i class="fas fa-check me-1"></i>Mark Agreed
+                            </button>
+                          </form>
+                        {% else %}
+                          <span class="text-muted" style="font-size:0.7rem;">Send first</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-info-circle me-2"></i>No employment history captured yet. Once the associate adds entries to their portal, press <strong>Start Referencing</strong> above to generate the rows here.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <!-- Activity Feed Card -->
+      <div class="modern-card mb-4 fade-in-up stagger-3">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="context-section-title mb-0">
+              <i class="fas fa-stream"></i>
+              Activity Feed
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddActivityModal()">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+          
+          <div class="activity-feed">
+            {% if activities and activities|length %}
+              {% for a in activities %}
+                <div class="activity-item">
+                  <div class="activity-icon {{ a.type }}">
+                    {% if a.type == 'call' %}
+                      <i class="fas fa-phone"></i>
+                    {% elif a.type == 'email' %}
+                      <i class="fas fa-envelope"></i>
+                    {% elif a.type == 'assessment' %}
+                      <i class="fas fa-clipboard-check"></i>
+                    {% elif a.type == 'interview' %}
+                      <i class="fas fa-comments"></i>
+                    {% elif a.type == 'alert' %}
+                      <i class="fas fa-exclamation-triangle"></i>
+                    {% elif a.type == 'contract' %}
+                      <i class="fas fa-file-signature"></i>
+                    {% elif a.type == 'status' %}
+                      <i class="fas fa-user-tag"></i>
+                    {% else %}
+                      <i class="fas fa-sticky-note"></i>
+                    {% endif %}
+                  </div>
+                  <div class="activity-content">
+                    <div class="activity-title">{{ a.title }}</div>
+                    {% if a.description %}
+                      <div class="activity-description">{{ a.description|truncate(100) }}</div>
+                    {% endif %}
+                    <div class="activity-time">{{ a.created_at.strftime('%d %b %Y at %H:%M') if a.created_at else '' }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-center text-muted py-3">
+                <i class="fas fa-history mb-2" style="font-size: 2rem;"></i>
+                <p class="mb-0">No activity recorded</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <!-- Add Activity Modal -->
 <div class="modal fade" id="addActivityModal" tabindex="-1" aria-hidden="true">
