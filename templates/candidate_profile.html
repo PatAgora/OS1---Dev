@@ -1671,20 +1671,15 @@
                   <input type="text" name="email_subject" class="form-control form-control-sm" id="refEmailSubject" value="">
                 </div>
                 <div class="mb-3">
-                  <label class="form-label fw-semibold" style="font-size: 0.85rem;">Email Body (HTML)</label>
+                  <label class="form-label fw-semibold" style="font-size: 0.85rem;">Preview</label>
                   <textarea name="email_body" class="form-control" id="refEmailBody" rows="14" style="font-family: monospace; font-size: 0.8rem;"></textarea>
                 </div>
                 <div class="mb-2 p-2 rounded" style="background: #f1f5f9;">
                   <small class="text-muted"><i class="fas fa-info-circle me-1"></i>You can edit the subject and body before sending. The signed consent form (if available) will be attached automatically.</small>
                 </div>
-                <div class="mb-2">
+                <div class="mb-0">
                   <label class="form-label fw-semibold" style="font-size: 0.85rem;">Attach Document (optional)</label>
                   <input type="file" name="attachment" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.jpg,.png">
-                </div>
-                <!-- Live HTML preview -->
-                <div class="mb-0">
-                  <label class="form-label fw-semibold" style="font-size: 0.85rem;">Preview</label>
-                  <div id="refEmailPreviewPane" class="border rounded p-3" style="background: white; max-height: 300px; overflow-y: auto; font-size: 0.85rem;"></div>
                 </div>
               </div>
               <div class="modal-footer">
