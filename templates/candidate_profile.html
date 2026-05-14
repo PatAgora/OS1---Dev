@@ -2364,11 +2364,11 @@
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0" style="font-size:0.7rem; table-layout:fixed; width:100%;">
               <colgroup>
-                <col style="width: 8%;">   {# Date Range #}
+                <col style="width: 10%;">  {# Date Range #}
                 <col style="width: 13%;">  {# Company Name #}
-                <col style="width: 19%;">  {# Company Email #}
+                <col style="width: 18%;">  {# Company Email #}
                 <col style="width: 11%;">  {# Agency Name #}
-                <col style="width: 19%;">  {# Agency Email #}
+                <col style="width: 18%;">  {# Agency Email #}
                 <col style="width: 11%;">  {# Send #}
                 <col style="width: 19%;">  {# Confirm + Upload #}
               </colgroup>
@@ -2387,45 +2387,52 @@
                 {% for row in ref_timeline %}
                   {% if row.kind == 'gap' %}
                   <tr style="background:#fef9c3; border-left: 3px solid #f59e0b;">
-                    <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                    <td style="padding:0.3rem 0.4rem; vertical-align:top; white-space:nowrap;">
                       <div><strong>{{ row.start_label }}</strong></div>
                       {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
                     </td>
-                    <td colspan="6" style="padding:0.4rem 0.5rem;">
+                    {# Reason spans the middle columns; the evidence upload
+                       sits in the Confirm + Upload column so it lines up
+                       with the employment rows' upload control. #}
+                    <td colspan="5" style="padding:0.4rem 0.5rem; vertical-align:top;">
                       <div class="d-flex flex-wrap align-items-center gap-2">
                         <span class="badge bg-warning text-dark">GAP</span>
                         <span>{{ row.gap_reason or '(no reason provided)' }}</span>
-                        {% if row.gap_evidence_doc_id %}
-                          <a class="small" href="{{ url_for('download_document', doc_id=row.gap_evidence_doc_id) }}" target="_blank">
-                            <i class="fas fa-paperclip me-1"></i>Evidence
-                          </a>
-                        {% else %}
-                          <span class="text-muted small"><i class="fas fa-paperclip me-1"></i>No evidence uploaded</span>
-                          {# Staff-side upload — mirrors the upload the
-                             candidate can do on the associate portal so a
-                             missing file can be filled in without waiting. #}
-                          <form method="POST" enctype="multipart/form-data"
-                                action="{{ url_for('gap_evidence_upload', cand_id=cand.id, emp_id=row.emp_id) }}"
-                                class="d-inline-flex align-items-center gap-1 ms-2">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="file" name="evidence_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.eml,.msg" required
-                                   class="form-control form-control-sm" style="font-size:0.7rem; padding:0.1rem 0.3rem; max-width:220px;">
-                            <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:0.7rem; padding:0.1rem 0.4rem;">
-                              <i class="fas fa-upload me-1"></i>Upload
-                            </button>
-                          </form>
-                        {% endif %}
                       </div>
+                    </td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
+                      {% if row.gap_evidence_doc_id %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">
+                          <i class="fas fa-check me-1"></i>Evidence
+                        </span>
+                        <a class="ms-1 small" href="{{ url_for('download_document', doc_id=row.gap_evidence_doc_id) }}" target="_blank">
+                          <i class="fas fa-paperclip me-1"></i>View
+                        </a>
+                      {% else %}
+                        {# Staff-side upload — mirrors the upload the candidate
+                           can do on the associate portal so a missing file
+                           can be filled in without waiting. #}
+                        <form method="POST" enctype="multipart/form-data"
+                              action="{{ url_for('gap_evidence_upload', cand_id=cand.id, emp_id=row.emp_id) }}"
+                              class="d-flex flex-column gap-1">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="file" name="evidence_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.eml,.msg" required
+                                 class="form-control form-control-sm" style="font-size:0.65rem; padding:0.1rem 0.3rem;">
+                          <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; padding:0.1rem 0.4rem;">
+                            <i class="fas fa-upload me-1"></i>Upload
+                          </button>
+                        </form>
+                      {% endif %}
                     </td>
                   </tr>
                   {% else %}
                     {% set ref = row.ref %}
                     {% set border_color = '#22c55e' if (ref and ref.status == 'received') else '#3b82f6' if (ref and ref.status == 'sent') else '#e2e8f0' %}
                     <tr style="border-left: 3px solid {{ border_color }};">
-                      <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
-                        <div><strong>{{ row.start_label }}</strong></div>
-                        {% if row.end_label %}<div><strong>{{ row.end_label }}</strong></div>{% endif %}
-                        {% if row.job_title %}<div class="text-muted mt-1" style="font-size:0.68rem;">{{ row.job_title }}</div>{% endif %}
+                      <td style="padding:0.3rem 0.4rem; vertical-align:top;">
+                        <div style="white-space:nowrap;"><strong>{{ row.start_label }}</strong></div>
+                        {% if row.end_label %}<div style="white-space:nowrap;"><strong>{{ row.end_label }}</strong></div>{% endif %}
+                        {% if row.job_title %}<div class="text-muted mt-1" style="font-size:0.68rem; word-break:break-word;">{{ row.job_title }}</div>{% endif %}
                       </td>
                       <td style="padding:0.3rem 0.4rem; vertical-align:top; word-break:break-word;">
                         {{ row.company_name or '—' }}
