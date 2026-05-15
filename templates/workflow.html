@@ -81,9 +81,17 @@
     text-overflow: ellipsis;
   }
 
-  /* Kanban Board — horizontal scroll starts at left nav edge */
+  /* Req 43 — page-level horizontal scroll. The inner overflow:auto on this
+     wrapper was the source of the "scroll only works with cursor inside the
+     grid" and the "grey box on the right cuts off the kanban" complaints,
+     because the scrollbar lived on this wrapper rather than the viewport.
+     overflow-x:visible lets the kanban-container's min-width:max-content
+     contribute to the body's intrinsic content width, so the browser's
+     native bottom scrollbar drives the board regardless of cursor position
+     or any right-side overlay. Column widths and card padding are
+     deliberately unchanged so no candidate info is lost. */
   .workflow-scroll-wrapper {
-    overflow-x: auto;
+    overflow-x: visible;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     margin: 0;
