@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}All Timesheets · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 style="color:#fff;"><i class="fas fa-list me-2"></i>All Timesheets</h1>
+            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+                Every timesheet across every placement (Phase 4 / TS 19).
+            </p>
+        </div>
+        <a href="{{ url_for('admin_approvals') }}" class="btn btn-outline-light">
+            <i class="fas fa-clipboard-check me-1"></i> Approvals queue
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<form method="GET" class="row g-2 mb-3 align-items-end">
+    <div class="col-md-2">
+        <label class="form-label small">Client</label>
+        <select name="client" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for c in clients %}<option value="{{ c }}" {% if c == client_filter %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">Project</label>
+        <select name="project" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for p in projects %}<option value="{{ p }}" {% if p == project_filter %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select form-select-sm">
+            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+            <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="submitted" {% if status_filter == 'submitted' %}selected{% endif %}>Submitted</option>
+            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">Type</label>
+        <select name="type" class="form-select form-select-sm">
+            <option value="all" {% if type_filter == 'all' %}selected{% endif %}>All</option>
+            <option value="standard" {% if type_filter == 'standard' %}selected{% endif %}>Standard</option>
+            <option value="adjustment" {% if type_filter == 'adjustment' %}selected{% endif %}>Adjustment</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">WC date</label>
+        <input type="date" name="wc" class="form-control form-control-sm" value="{{ wc_filter }}">
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-sm btn-primary w-100"><i class="fas fa-filter me-1"></i>Apply</button>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header"><strong>{{ timesheets|length }} timesheets</strong></div>
+    <div class="card-body p-0">
+        {% if timesheets %}
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>TS #</th>
+                    <th>Type</th>
+                    <th>WC</th>
+                    <th>Associate</th>
+                    <th>Client / Project</th>
+                    <th class="text-end">Days</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in timesheets %}
+                <tr>
+                    <td>TS-{{ '%04d' % t.id }}</td>
+                    <td>
+                        {% if t.ts_type == 'Adjustment' %}
+                            <span class="badge bg-warning text-dark">Adjustment</span>
+                            {% if t.originating_id %}<small class="text-muted">vs TS-{{ '%04d' % t.originating_id }}</small>{% endif %}
+                        {% else %}
+                            <span class="badge bg-light text-dark">Standard</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.period_start.strftime('%d/%m/%Y') if t.period_start else '—' }}</td>
+                    <td>{{ t.associate_name }}</td>
+                    <td>{{ t.client_name }} / {{ t.engagement_name }}</td>
+                    <td class="text-end">{{ '%.2f' % (t.billable_days or 0) }}</td>
+                    <td>
+                        {% set s_low = (t.status or '')|lower %}
+                        {% if s_low == 'draft' %}<span class="badge bg-secondary">Draft</span>
+                        {% elif s_low == 'submitted' %}<span class="badge bg-primary">Submitted</span>
+                        {% elif s_low == 'approved' %}<span class="badge bg-success">Approved</span>
+                        {% elif s_low == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+                        {% else %}<span class="badge bg-secondary">{{ t.status }}</span>{% endif %}
+                    </td>
+                    <td>{{ t.submitted_at.strftime('%d/%m %H:%M') if t.submitted_at else '—' }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('approver_timesheet_detail', ts_id=t.id) }}" class="btn btn-sm btn-outline-primary me-1">View</a>
+                        {% if (t.status or '')|lower == 'approved' and t.ts_type != 'Adjustment' %}
+                        <a href="{{ url_for('admin_create_adjustment', ts_id=t.id) }}" class="btn btn-sm btn-outline-warning me-1">Adjust</a>
+                        <form method="POST" action="{{ url_for('admin_reopen_timesheet', ts_id=t.id) }}" class="d-inline"
+                              onsubmit="return confirm('Re-open this approved timesheet?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-secondary">Re-open</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4"><i class="fas fa-inbox me-1"></i> No timesheets matching the filters.</div>
+        {% endif %}
+    </div>
+</div>
+
+</div>
+{% endblock %}

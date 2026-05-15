@@ -386,6 +386,15 @@ def _ensure_models():
         amount = Column(Float, default=0)
         receipt_doc_id = Column(Integer, nullable=True)
         created_at = Column(DateTime, default=datetime.utcnow)
+        # Phase 2 / TS 12-15, 25-29 — category-driven VAT, per-line date,
+        # mileage distance, and a per-line approved stamp. All nullable so
+        # legacy rows keep working untouched.
+        expense_category_id = Column(Integer, nullable=True)        # FK -> expense_categories.id
+        vat_rate_pct = Column(Float, default=0.0)
+        vat_amount = Column(Float, default=0.0)
+        date_of_expense = Column(Date, nullable=True)
+        distance_miles = Column(Float, nullable=True)
+        approved_at = Column(DateTime, nullable=True)
 
     # P7: 5-year address history for DBS/Credit checks
     class AddressHistory(Base):
@@ -4403,6 +4412,61 @@ def api_delete_document(doc_id):
 # TIMESHEET CRUD ROUTES
 # =========================================================================
 
+def _split_week_at_month_end(week_start):
+    """Phase 1 / TS 1 — when a Mon-Sun week crosses a calendar month
+    boundary, split it into two (week_start, week_end) tuples — one ending
+    on the last day of the prior month, one starting on the first day of
+    the new month. Each returned tuple is independently submittable /
+    invoiceable. Returns a list of 1 or 2 tuples (always non-empty)."""
+    natural_end = week_start + timedelta(days=6)
+    # If the natural end is in the same month, no split needed.
+    if natural_end.month == week_start.month and natural_end.year == week_start.year:
+        return [(week_start, natural_end)]
+    # Split: first half ends on the last day of week_start.month.
+    # Find first day of next month, then -1 day = last day of current month.
+    if week_start.month == 12:
+        next_month_first = date(week_start.year + 1, 1, 1)
+    else:
+        next_month_first = date(week_start.year, week_start.month + 1, 1)
+    first_half_end = next_month_first - timedelta(days=1)
+    second_half_start = next_month_first
+    return [(week_start, first_half_end), (second_half_start, natural_end)]
+
+
+def _clamp_time_value(value, is_overtime: bool = False) -> float:
+    """Phase 1 / TS 7 — restrict standard / holiday / sickness time
+    entries to {0, 0.5, 1}. Rounds to nearest 0.5 then clamps. Overtime
+    keeps free-form hours (its unit is hours, not days, so the {0, 0.5,
+    1} constraint doesn't apply)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if is_overtime:
+        # Overtime: just keep non-negative.
+        return max(0.0, v)
+    # Round to nearest 0.5, clamp to [0, 1].
+    snapped = round(v * 2) / 2
+    if snapped < 0:
+        return 0.0
+    if snapped > 1:
+        return 1.0
+    return snapped
+
+
+def _is_wc_in_window(week_start) -> bool:
+    """Phase 1 / TS 3 — restrict associate-portal timesheet creation to
+    the current WC, the next WC, and the two previous WCs. Admins on the
+    staff platform create out-of-window timesheets via a separate path."""
+    if not week_start:
+        return False
+    today = date.today() if not hasattr(week_start, "date") else date.today()
+    today_monday = today - timedelta(days=today.weekday())
+    earliest = today_monday - timedelta(weeks=2)
+    latest = today_monday + timedelta(weeks=1)
+    return earliest <= week_start <= latest
+
+
 @associate_bp.route("/timesheets/new", methods=["POST"])
 @_require_login
 def timesheets_new():
@@ -4429,7 +4493,20 @@ def timesheets_new():
         flash("Week must start on a Monday.", "danger")
         return redirect(url_for("associate.timesheets"))
 
-    week_end = week_start + timedelta(days=6)
+    # Phase 1 / TS 3 — WC window guard. Two weeks back through to the
+    # next week commencing. Out-of-window timesheets are created only by
+    # an OS1 staff user via /admin/timesheets/new-for-associate (Phase 4).
+    if not _is_wc_in_window(week_start):
+        flash(
+            "Timesheets can only be created for the current week, the next "
+            "week, or the two previous weeks. Contact the Optimus team if "
+            "you need a timesheet outside this window.",
+            "danger"
+        )
+        return redirect(url_for("associate.timesheets"))
+
+    # Phase 1 / TS 1 — split the week at month-end if it crosses one.
+    week_splits = _split_week_at_month_end(week_start)
 
     # Get engagement_id from Application
     Application = _model("Application")
@@ -4466,23 +4543,50 @@ def timesheets_new():
                 if not day_rate and app_for_rate.offer_day_rate:
                     day_rate = float(app_for_rate.offer_day_rate)
 
-        ts = Timesheet(
-            user_id=cand_id,
-            engagement_id=engagement_id or 0,
-            period_start=week_start,
-            period_end=week_end,
-            status="Draft",
-        )
-        if hasattr(ts, "week_start"):
-            ts.week_start = week_start
-            ts.week_end = week_end
-            ts.day_rate = day_rate
-            ts.overtime_rate = overtime_rate
+        # Phase 1 / TS 4 — duplicate check on (user_id, week_start, engagement_id).
+        # We use the first split's week_start (which always equals the
+        # submitted week_start). If a row exists in ANY status, refuse and
+        # redirect to the existing one rather than creating a duplicate.
+        existing = s.query(Timesheet).filter_by(
+            user_id=cand_id, engagement_id=(engagement_id or 0), period_start=week_splits[0][0]
+        ).first()
+        if existing:
+            flash(
+                f"A timesheet for that week already exists (status: {existing.status}). "
+                f"Opening the existing one instead of creating a duplicate.",
+                "info"
+            )
+            return redirect(url_for("associate.timesheets"))
 
-        s.add(ts)
+        created_ids = []
+        for ws, we in week_splits:
+            ts = Timesheet(
+                user_id=cand_id,
+                engagement_id=engagement_id or 0,
+                period_start=ws,
+                period_end=we,
+                status="Draft",
+            )
+            if hasattr(ts, "week_start"):
+                ts.week_start = ws
+                ts.week_end = we
+                ts.day_rate = day_rate
+                ts.overtime_rate = overtime_rate
+            s.add(ts)
+            s.flush()
+            created_ids.append(ts.id)
         s.commit()
 
-    flash("New timesheet created.", "success")
+    if len(week_splits) == 2:
+        flash(
+            f"That week crossed a month-end, so two timesheets were created — "
+            f"one ending {week_splits[0][1].strftime('%d %b')} and one starting "
+            f"{week_splits[1][0].strftime('%d %b')}. Fill both in and submit "
+            f"each separately.",
+            "info",
+        )
+    else:
+        flash("New timesheet created.", "success")
     return redirect(url_for("associate.timesheets"))
 
 
@@ -4506,6 +4610,18 @@ def timesheets_save():
         ts = s.get(Timesheet, int(ts_id))
         if not ts or ts.user_id != cand_id:
             flash("Timesheet not found.", "danger")
+            return redirect(url_for("associate.timesheets"))
+
+        # Phase 1 / TS 5 — Rejected timesheets re-enable editing on the
+        # associate portal so the associate amends the SAME row and
+        # re-submits, instead of creating a duplicate. Approved /
+        # Submitted timesheets are read-only unless an admin re-opens.
+        if (ts.status or "").lower() not in ("draft", "rejected"):
+            flash(
+                f"This timesheet is {ts.status} and can't be edited. "
+                f"Ask an admin to re-open it if you need to make changes.",
+                "warning"
+            )
             return redirect(url_for("associate.timesheets"))
 
         # Delete existing entries and re-create from form
@@ -4532,6 +4648,8 @@ def timesheets_save():
                                 continue
 
                         unit = "hours" if "overtime" in time_type.lower() else "days"
+                        # Phase 1 / TS 7 — non-overtime entries clamp to {0, 0.5, 1}.
+                        value = _clamp_time_value(value, is_overtime=(unit == "hours"))
                         entry = TimesheetEntry(
                             timesheet_id=ts.id,
                             entry_date=_parse_date(entry_date_str),
@@ -4608,6 +4726,17 @@ def timesheets_submit():
             flash("Timesheet not found.", "danger")
             return redirect(url_for("associate.timesheets"))
 
+        # Phase 1 / TS 5 — submit allowed only from Draft or Rejected.
+        # Already-Submitted or Approved timesheets are read-only until an
+        # admin re-opens.
+        if (ts.status or "").lower() not in ("draft", "rejected"):
+            flash(
+                f"This timesheet is {ts.status} and cannot be re-submitted. "
+                f"Ask an admin to re-open it if you need to make changes.",
+                "warning"
+            )
+            return redirect(url_for("associate.timesheets"))
+
         # Save entries from form before submitting
         if TimesheetEntry:
             s.query(TimesheetEntry).filter_by(timesheet_id=ts.id).delete()
@@ -4630,6 +4759,8 @@ def timesheets_submit():
                                 continue
 
                         unit = "hours" if "overtime" in time_type.lower() else "days"
+                        # Phase 1 / TS 7 — non-overtime entries clamp to {0, 0.5, 1}.
+                        value = _clamp_time_value(value, is_overtime=(unit == "hours"))
                         entry = TimesheetEntry(
                             timesheet_id=ts.id,
                             entry_date=_parse_date(entry_date_str),
@@ -5243,46 +5374,126 @@ def timesheets_add_expense():
         flash("Cannot add expense.", "danger")
         return redirect(url_for("associate.timesheets"))
 
+    # Phase 2 / TS 14 — receipt size + type limits before we touch the DB.
+    MAX_RECEIPT_BYTES = 5 * 1024 * 1024  # 5 MB
+
     with SASession(engine) as s:
         ts = s.get(Timesheet, ts_id)
         if not ts or ts.user_id != cand_id:
             flash("Timesheet not found.", "danger")
             return redirect(url_for("associate.timesheets"))
 
-        if ts.status not in ("Draft", "Unsubmitted", None, ""):
-            flash("Expenses can only be added to draft timesheets.", "warning")
+        # Phase 2 / TS 13 — Rejected unlocks editing same as Draft.
+        if (ts.status or "").lower() not in ("draft", "unsubmitted", "rejected", "", None):
+            flash("Expenses can only be added to draft or rejected timesheets.", "warning")
             return redirect(url_for("associate.timesheets"))
 
-        expense_type = _sanitise(request.form.get("expense_type", "Other"))
-        description = _sanitise(request.form.get("expense_description", ""))
+        # Phase 2 / TS 12 — category-driven VAT. The form may submit:
+        #   expense_category_id (new path) — preferred when the portal UI
+        #     surfaces the configured ExpenseCategory dropdown.
+        #   expense_type (legacy path) — free-text fallback. Looked up by
+        #     name against expense_categories; falls back to Standard 20%
+        #     if no match (auto-create on Admin's side is via /admin/expense-categories).
+        category = None
+        category_id_raw = request.form.get("expense_category_id")
         try:
-            amount = float(request.form.get("expense_amount", 0))
-        except (ValueError, TypeError):
-            amount = 0
+            cat_id = int(category_id_raw) if category_id_raw else None
+        except ValueError:
+            cat_id = None
+        if cat_id is not None:
+            try:
+                category = s.execute(text(
+                    "SELECT id, name, vat_treatment, is_mileage FROM expense_categories WHERE id = :id"
+                ).bindparams(id=cat_id)).first()
+            except Exception:
+                category = None
+        expense_type = _sanitise(request.form.get("expense_type", "Other"))
+        if not category:
+            try:
+                category = s.execute(text(
+                    "SELECT id, name, vat_treatment, is_mileage FROM expense_categories WHERE LOWER(name) = LOWER(:n)"
+                ).bindparams(n=expense_type)).first()
+            except Exception:
+                category = None
+        # vat_treatment → vat_rate_pct
+        vat_pct = 0.0
+        is_mileage_cat = False
+        if category:
+            treatment = (category[2] or "standard")
+            vat_pct = {"standard": 20.0, "reduced": 5.0, "zero": 0.0, "non_vatable": 0.0}.get(treatment, 20.0)
+            is_mileage_cat = bool(category[3])
+            expense_type = category[1]  # use the canonical name from the category
+        else:
+            # No category match — default Standard 20% so legacy free-text
+            # entries still capture some VAT data.
+            vat_pct = 20.0
 
-        if amount <= 0:
-            flash("Expense amount must be greater than zero.", "danger")
-            return redirect(url_for("associate.timesheets"))
+        description = _sanitise(request.form.get("expense_description", ""))
+        date_of_expense_raw = (request.form.get("expense_date") or "").strip()
+        date_of_expense = _parse_date(date_of_expense_raw) if date_of_expense_raw else None
+        distance_miles_raw = (request.form.get("expense_distance") or "").strip()
+        distance_miles = None
 
-        # Handle receipt upload
+        # Phase 2 / TS 25 — Mileage: amount = miles × HMRC rate. Distance
+        # input drives the £, which is read-only on the form.
+        try:
+            from app import _company_settings  # late import to avoid circular at module load
+            company_cfg = _company_settings()
+        except Exception:
+            company_cfg = {"hmrc_mileage_rate": 0.45}
+        hmrc_rate = float(company_cfg.get("hmrc_mileage_rate", 0.45))
+
+        if is_mileage_cat:
+            try:
+                distance_miles = float(distance_miles_raw) if distance_miles_raw else 0
+            except ValueError:
+                distance_miles = 0
+            if distance_miles <= 0:
+                flash("Please enter a positive distance in miles for the mileage expense.", "danger")
+                return redirect(url_for("associate.timesheets"))
+            amount = round(distance_miles * hmrc_rate, 2)
+        else:
+            try:
+                amount = float(request.form.get("expense_amount", 0))
+            except (ValueError, TypeError):
+                amount = 0
+            if amount <= 0:
+                flash("Expense amount must be greater than zero.", "danger")
+                return redirect(url_for("associate.timesheets"))
+
+        vat_amount = round(amount * (vat_pct / 100.0), 2)
+
+        # Handle receipt upload — Phase 2 / TS 14 size + MIME checks.
         receipt_doc_id = None
         receipt_file = request.files.get("expense_receipt")
         if receipt_file and receipt_file.filename:
             ext = os.path.splitext(receipt_file.filename)[1].lower().lstrip(".")
-            if ext in {"pdf", "jpg", "jpeg", "png"}:
-                saved = _save_file(receipt_file)
-                if saved:
-                    Document = _model("Document")
-                    if Document:
-                        doc = Document(
-                            candidate_id=cand_id,
-                            doc_type="expense_receipt",
-                            filename=saved["filename"],
-                            original_name=saved["original_name"],
-                        )
-                        s.add(doc)
-                        s.flush()
-                        receipt_doc_id = doc.id
+            if ext not in {"pdf", "jpg", "jpeg", "png"}:
+                flash("Receipt must be a PDF, JPG, JPEG or PNG file.", "danger")
+                return redirect(url_for("associate.timesheets"))
+            # Size check — read once for size, then seek back.
+            try:
+                receipt_file.stream.seek(0, 2)  # to end
+                size = receipt_file.stream.tell()
+                receipt_file.stream.seek(0)
+            except Exception:
+                size = 0
+            if size and size > MAX_RECEIPT_BYTES:
+                flash(f"Receipt is too large ({size // 1024} KB). Maximum is 5 MB.", "danger")
+                return redirect(url_for("associate.timesheets"))
+            saved = _save_file(receipt_file)
+            if saved:
+                Document = _model("Document")
+                if Document:
+                    doc = Document(
+                        candidate_id=cand_id,
+                        doc_type="expense_receipt",
+                        filename=saved["filename"],
+                        original_name=saved["original_name"],
+                    )
+                    s.add(doc)
+                    s.flush()
+                    receipt_doc_id = doc.id
 
         expense = TimesheetExpense(
             timesheet_id=ts_id,
@@ -5290,6 +5501,11 @@ def timesheets_add_expense():
             description=description,
             amount=amount,
             receipt_doc_id=receipt_doc_id,
+            expense_category_id=(category[0] if category else None),
+            vat_rate_pct=vat_pct,
+            vat_amount=vat_amount,
+            date_of_expense=date_of_expense,
+            distance_miles=distance_miles,
         )
         s.add(expense)
 

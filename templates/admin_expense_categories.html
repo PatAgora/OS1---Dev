@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Expense Categories · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 style="color:#fff;"><i class="fas fa-tags me-2"></i>Expense Categories</h1>
+            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+                Configure the expense categories Associates can pick from on their timesheets (TS 24 / IR 14).
+                Each category carries a VAT treatment that's auto-applied to every expense line.
+            </p>
+        </div>
+        <a href="{{ url_for('admin_invoices') }}" class="btn btn-outline-light">
+            <i class="fas fa-arrow-left me-1"></i> Back
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card mb-4">
+    <div class="card-header"><strong><i class="fas fa-plus-circle me-1"></i>Add new category</strong></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_expense_categories_new') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-4">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" class="form-control" required placeholder="e.g. Subsistence">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">VAT treatment</label>
+                <select name="vat_treatment" class="form-select" required>
+                    <option value="standard">Standard (20%)</option>
+                    <option value="reduced">Reduced (5%)</option>
+                    <option value="zero">Zero (0%)</option>
+                    <option value="non_vatable">Non-VATable</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Sort order</label>
+                <input type="number" name="sort_order" class="form-control" value="99" min="0">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <label class="form-check-label" style="font-size:.85rem;">
+                    <input type="checkbox" name="is_mileage" value="1">
+                    Is mileage
+                </label>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>All categories ({{ categories|length }})</strong></div>
+    <div class="card-body p-0">
+        {% if categories %}
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>VAT treatment</th>
+                    <th>Mileage?</th>
+                    <th>Sort</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in categories %}
+                <tr>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin_expense_categories_edit', cat_id=c.id) }}" class="row g-2 align-items-center">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="col-md-4">
+                                <input type="text" name="name" class="form-control form-control-sm" value="{{ c.name }}">
+                            </div>
+                            <div class="col-md-3">
+                                <select name="vat_treatment" class="form-select form-select-sm">
+                                    <option value="standard" {% if c.vat_treatment == 'standard' %}selected{% endif %}>Standard (20%)</option>
+                                    <option value="reduced" {% if c.vat_treatment == 'reduced' %}selected{% endif %}>Reduced (5%)</option>
+                                    <option value="zero" {% if c.vat_treatment == 'zero' %}selected{% endif %}>Zero (0%)</option>
+                                    <option value="non_vatable" {% if c.vat_treatment == 'non_vatable' %}selected{% endif %}>Non-VATable</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-check-label" style="font-size:.8rem;">
+                                    <input type="checkbox" name="is_mileage" value="1"
+                                           {% if c.is_mileage %}checked{% endif %}>
+                                    Mileage
+                                </label>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" name="sort_order" class="form-control form-control-sm" value="{{ c.sort_order }}" min="0">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="submit" class="btn btn-sm btn-outline-primary w-100" title="Save">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </td>
+                    <td>
+                        {% if c.vat_treatment == 'standard' %}
+                            <span class="badge bg-primary">Standard 20%</span>
+                        {% elif c.vat_treatment == 'reduced' %}
+                            <span class="badge bg-info text-dark">Reduced 5%</span>
+                        {% elif c.vat_treatment == 'zero' %}
+                            <span class="badge bg-secondary">Zero 0%</span>
+                        {% else %}
+                            <span class="badge bg-dark">Non-VATable</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ 'Yes' if c.is_mileage else '—' }}</td>
+                    <td>{{ c.sort_order }}</td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('admin_expense_categories_delete', cat_id=c.id) }}" class="d-inline"
+                              onsubmit="return confirm('Delete category {{ c.name }}? Blocked if any expense lines reference it.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-info-circle me-1"></i> No categories yet. Add one above.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="alert alert-info mt-4 small">
+    <i class="fas fa-info-circle me-1"></i>
+    Default categories (Travel, Accommodation, Meals, Equipment, Mileage, Other)
+    are seeded on first boot. Mileage is fixed as Non-VATable and drives the
+    distance-based expense form on the Associate Portal (TS 25).
+</div>
+
+</div>
+{% endblock %}

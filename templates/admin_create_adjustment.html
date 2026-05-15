@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Create Adjustment · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 style="color:#fff;"><i class="fas fa-exchange-alt me-2"></i>Create Adjustment Timesheet</h1>
+            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+                Against TS-{{ '%04d' % original.id }} — {{ cand.name if cand else '—' }}.
+                Day delta feeds the next invoice as a credit or debit line.
+            </p>
+        </div>
+        <a href="{{ url_for('admin_timesheets') }}" class="btn btn-outline-light">
+            <i class="fas fa-arrow-left me-1"></i> Back
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card mb-3">
+    <div class="card-header"><strong>Original timesheet</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3"><strong>TS #:</strong> TS-{{ '%04d' % original.id }}</div>
+            <div class="col-md-3"><strong>WC:</strong> {{ original.period_start.strftime('%d/%m/%Y') if original.period_start else '—' }}</div>
+            <div class="col-md-3"><strong>Status:</strong> {{ original.status }}</div>
+            <div class="col-md-3"><strong>Billable days:</strong> {{ '%.2f' % (original.billable_days or 0) }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Day delta</label>
+                    <input type="number" name="day_delta" step="0.5" class="form-control"
+                           placeholder="e.g. -1.0 to credit, +0.5 to debit" required>
+                    <div class="form-text">Positive = client undercharged (extra to bill). Negative = client overcharged (credit).</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Reason</label>
+                    <input type="text" name="reason" class="form-control"
+                           placeholder="e.g. Original timesheet incorrectly recorded 5 days; actual was 4">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-warning w-100"
+                            onclick="return confirm('Create adjustment timesheet?');">
+                        <i class="fas fa-save me-1"></i> Create
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4 small">
+    <i class="fas fa-info-circle me-1"></i>
+    The adjustment lands as a new <strong>Approved</strong> Adjustment timesheet
+    linked to TS-{{ '%04d' % original.id }}. It will appear on the next invoice
+    generated for this engagement as a labelled line item (Phase 6/7 — IR 21-25).
+</div>
+
+</div>
+{% endblock %}

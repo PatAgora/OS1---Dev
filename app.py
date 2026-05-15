@@ -1850,11 +1850,443 @@ def admin_approve_timesheet(ts_id):
     with Session(engine) as s:
         ts = s.get(Timesheet, ts_id)
         if ts:
-            ts.status = "Approved"
+            _apply_timesheet_approval(s, ts, current_user.id)
             s.commit()
             flash(f"Timesheet #{ts_id} approved.", "success")
         else:
             flash("Timesheet not found.", "warning")
+    return redirect(url_for("admin_approvals"))
+
+
+# ============================================================================
+# Phase 3 — Approver Portal (TS 10, 16-23, 30, 31)
+# ============================================================================
+#
+# Reuses the existing Flask-Login session. An approver is a User whose
+# role == 'approver' (lower-case). The approver portal lives under
+# /approver/* and filters timesheets to only those linked via the new
+# EngagementApprover table (Phase 0/3 schema).
+#
+# All approve/reject paths feed into _apply_timesheet_approval /
+# _apply_timesheet_rejection so the admin and approver flows stay in
+# lock-step on status transitions + audit logging + expense-line stamping
+# (TS 31).
+
+
+def _apply_timesheet_approval(s, ts, user_id):
+    """Phase 3 / TS 31 — atomically approve a timesheet AND stamp every
+    expense line's approved_at. Audit logs the transition."""
+    if not ts:
+        return
+    old_status = ts.status
+    ts.status = "Approved"
+    ts.approved_by = user_id
+    ts.approved_at = datetime.datetime.utcnow()
+    # Stamp all TimesheetExpense rows attached to this TS.
+    try:
+        s.execute(text(
+            "UPDATE timesheet_expenses SET approved_at = :ts WHERE timesheet_id = :tid"
+        ).bindparams(ts=datetime.datetime.utcnow(), tid=ts.id))
+    except Exception:
+        # Column may not exist yet on a brand-new DB pre-Phase 2 — ignore.
+        pass
+    try:
+        log_audit_event("update", "timesheet",
+                        f"Timesheet #{ts.id} approved: {old_status} -> Approved",
+                        "timesheet", ts.id, {"old_status": old_status, "approver_id": user_id})
+    except Exception:
+        pass
+
+
+def _apply_timesheet_rejection(s, ts, user_id, reason: str = ""):
+    """Phase 3 — reject a timesheet with an optional reason. Audit logs."""
+    if not ts:
+        return
+    old_status = ts.status
+    ts.status = "Rejected"
+    if reason:
+        try:
+            s.execute(text(
+                "UPDATE timesheets SET rejection_reason = :reason WHERE id = :tid"
+            ).bindparams(reason=reason, tid=ts.id))
+        except Exception:
+            pass
+    try:
+        log_audit_event("update", "timesheet",
+                        f"Timesheet #{ts.id} rejected: {old_status} -> Rejected",
+                        "timesheet", ts.id, {"old_status": old_status, "approver_id": user_id, "reason": reason})
+    except Exception:
+        pass
+
+
+def _approver_allowed(s, user_id: int, ts_id: int) -> bool:
+    """Check whether the given user is allocated as approver on the
+    engagement that this timesheet belongs to. Used as the gate on every
+    approver-portal route. Admins also pass — they can use the approver
+    views for read-through but won't normally need to."""
+    if not user_id:
+        return False
+    ts = s.get(Timesheet, ts_id)
+    if not ts:
+        return False
+    # Admins always allowed.
+    if current_user.is_authenticated and (current_user.role or "").lower() == "admin":
+        return True
+    row = s.execute(text(
+        "SELECT 1 FROM engagement_approvers "
+        "WHERE engagement_id = :eid AND user_id = :uid LIMIT 1"
+    ).bindparams(eid=ts.engagement_id, uid=user_id)).first()
+    return row is not None
+
+
+def _approver_timesheet_query(user_id, status_filter=None):
+    """Build the base SQL for 'timesheets allocated to this approver'.
+    Returns a list of dicts ready for the template."""
+    sql = text("""
+        SELECT t.id AS ts_id, t.status, t.period_start, t.period_end, t.billable_days,
+               t.submitted_at, t.user_id AS associate_id, t.engagement_id,
+               e.name AS engagement_name, e.client AS client_name
+        FROM timesheets t
+        LEFT JOIN engagements e ON e.id = t.engagement_id
+        WHERE t.engagement_id IN (
+            SELECT engagement_id FROM engagement_approvers WHERE user_id = :uid
+        )
+        """ + (" AND LOWER(t.status) = :status " if status_filter else "") + """
+        ORDER BY t.period_start DESC, t.id DESC
+        LIMIT 500
+    """)
+    params = {"uid": user_id}
+    if status_filter:
+        params["status"] = status_filter.lower()
+    with Session(engine) as s:
+        rows = s.execute(sql.bindparams(**params)).all()
+        # Resolve associate names
+        cand_ids = list({r.associate_id for r in rows if r.associate_id})
+        names = {}
+        if cand_ids:
+            for cid, nm in s.execute(text(
+                "SELECT id, name FROM candidates WHERE id IN :ids"
+            ).bindparams(ids=tuple(cand_ids))).all():
+                names[cid] = nm
+        out = []
+        for r in rows:
+            out.append({
+                "id": r.ts_id,
+                "status": r.status,
+                "period_start": r.period_start,
+                "period_end": r.period_end,
+                "billable_days": r.billable_days or 0,
+                "submitted_at": r.submitted_at,
+                "associate_id": r.associate_id,
+                "associate_name": names.get(r.associate_id, "(unknown)"),
+                "engagement_id": r.engagement_id,
+                "engagement_name": r.engagement_name or "",
+                "client_name": r.client_name or "",
+            })
+        return out
+
+
+def _require_approver_role():
+    """Gate: approver or admin only."""
+    if not current_user.is_authenticated:
+        flash("Sign in required.", "warning")
+        return redirect(url_for("login"))
+    role = (current_user.role or "").lower()
+    if role not in ("approver", "admin"):
+        flash("Approver access required.", "danger")
+        return redirect(url_for("index"))
+    return None
+
+
+@app.route("/approver", methods=["GET"])
+@app.route("/approver/dashboard", methods=["GET"])
+@login_required
+def approver_dashboard():
+    """Phase 3 / TS 11 — list timesheets allocated to this approver,
+    filtered by WC / Client / Project / Associate (TS 18)."""
+    guard = _require_approver_role()
+    if guard:
+        return guard
+    status_filter = (request.args.get("status") or "submitted").strip().lower() or None
+    if status_filter == "all":
+        status_filter = None
+    timesheets = _approver_timesheet_query(current_user.id, status_filter=status_filter)
+    # Build filter dropdown options scoped to this approver's set.
+    clients = sorted({r["client_name"] for r in timesheets if r["client_name"]})
+    projects = sorted({r["engagement_name"] for r in timesheets if r["engagement_name"]})
+    associates = sorted({r["associate_name"] for r in timesheets if r["associate_name"]})
+    return render_template(
+        "approver_dashboard.html",
+        timesheets=timesheets,
+        clients=clients,
+        projects=projects,
+        associates=associates,
+        status_filter=status_filter or "all",
+    )
+
+
+@app.route("/approver/history", methods=["GET"])
+@login_required
+def approver_history():
+    guard = _require_approver_role()
+    if guard:
+        return guard
+    timesheets = _approver_timesheet_query(current_user.id, status_filter="approved")
+    return render_template("approver_history.html", timesheets=timesheets)
+
+
+@app.route("/approver/timesheet/<int:ts_id>", methods=["GET"])
+@login_required
+def approver_timesheet_detail(ts_id):
+    guard = _require_approver_role()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        if not _approver_allowed(s, current_user.id, ts_id):
+            flash("That timesheet isn't allocated to you.", "danger")
+            return redirect(url_for("approver_dashboard"))
+        ts = s.get(Timesheet, ts_id)
+        if not ts:
+            abort(404)
+        # Load associate / engagement / job context.
+        cand = s.execute(text("SELECT id, name, email FROM candidates WHERE id = :id")
+                         .bindparams(id=ts.user_id)).first()
+        eng = s.execute(text("SELECT id, name, client FROM engagements WHERE id = :id")
+                        .bindparams(id=ts.engagement_id)).first()
+        # Entries + expenses (raw SQL to avoid portal model coupling).
+        entries = s.execute(text(
+            "SELECT entry_date, time_type, value, value_unit FROM timesheet_entries "
+            "WHERE timesheet_id = :tid ORDER BY entry_date, time_type"
+        ).bindparams(tid=ts_id)).all()
+        expenses = s.execute(text(
+            "SELECT id, expense_type, description, amount, vat_rate_pct, vat_amount, "
+            "       date_of_expense, distance_miles, receipt_doc_id "
+            "FROM timesheet_expenses WHERE timesheet_id = :tid"
+        ).bindparams(tid=ts_id)).all()
+    return render_template(
+        "approver_detail.html",
+        ts=ts,
+        cand=cand,
+        eng=eng,
+        entries=entries,
+        expenses=expenses,
+    )
+
+
+@app.route("/approver/timesheet/<int:ts_id>/approve", methods=["POST"])
+@login_required
+def approver_approve_timesheet(ts_id):
+    guard = _require_approver_role()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        if not _approver_allowed(s, current_user.id, ts_id):
+            flash("That timesheet isn't allocated to you.", "danger")
+            return redirect(url_for("approver_dashboard"))
+        ts = s.get(Timesheet, ts_id)
+        if not ts:
+            abort(404)
+        _apply_timesheet_approval(s, ts, current_user.id)
+        s.commit()
+    flash(f"Timesheet #{ts_id} approved.", "success")
+    return redirect(url_for("approver_dashboard"))
+
+
+@app.route("/approver/timesheet/<int:ts_id>/reject", methods=["POST"])
+@login_required
+def approver_reject_timesheet(ts_id):
+    guard = _require_approver_role()
+    if guard:
+        return guard
+    reason = (request.form.get("reject_reason") or "").strip()
+    with Session(engine) as s:
+        if not _approver_allowed(s, current_user.id, ts_id):
+            flash("That timesheet isn't allocated to you.", "danger")
+            return redirect(url_for("approver_dashboard"))
+        ts = s.get(Timesheet, ts_id)
+        if not ts:
+            abort(404)
+        _apply_timesheet_rejection(s, ts, current_user.id, reason)
+        s.commit()
+    flash(f"Timesheet #{ts_id} rejected.", "success")
+    return redirect(url_for("approver_dashboard"))
+
+
+# ============================================================================
+# Phase 4 — Admin staff platform: cross-engagement timesheet visibility +
+# Adjustment timesheets (TS 19, 20, 21)
+# ============================================================================
+
+@app.route("/admin/timesheets", methods=["GET"])
+@login_required
+def admin_timesheets():
+    """Phase 4 / TS 19 — every timesheet across every placement with
+    status / WC / approver / last-action timestamp. Filterable. Drill-
+    through to the existing approver detail view."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("index"))
+    client_filter = (request.args.get("client") or "").strip()
+    project_filter = (request.args.get("project") or "").strip()
+    status_filter = (request.args.get("status") or "").strip().lower()
+    wc_filter = (request.args.get("wc") or "").strip()
+    type_filter = (request.args.get("type") or "").strip().lower()
+    sql = """
+        SELECT t.id, t.status, t.period_start, t.period_end, t.billable_days,
+               t.submitted_at, t.approved_at, t.user_id, t.engagement_id,
+               COALESCE(t.timesheet_type,'Standard') AS ts_type,
+               t.originating_timesheet_id,
+               e.name AS engagement_name, e.client AS client_name
+        FROM timesheets t
+        LEFT JOIN engagements e ON e.id = t.engagement_id
+        WHERE 1=1
+    """
+    params = {}
+    if client_filter:
+        sql += " AND e.client = :client"
+        params["client"] = client_filter
+    if project_filter:
+        sql += " AND e.name = :project"
+        params["project"] = project_filter
+    if status_filter and status_filter != "all":
+        sql += " AND LOWER(t.status) = :status"
+        params["status"] = status_filter
+    if type_filter and type_filter in ("standard", "adjustment"):
+        sql += " AND LOWER(COALESCE(t.timesheet_type,'Standard')) = :type"
+        params["type"] = type_filter
+    if wc_filter:
+        sql += " AND t.period_start = :wc"
+        params["wc"] = wc_filter
+    sql += " ORDER BY t.period_start DESC, t.id DESC LIMIT 1000"
+    with Session(engine) as s:
+        rows = s.execute(text(sql).bindparams(**params)).all()
+        cand_ids = list({r.user_id for r in rows if r.user_id})
+        names = {}
+        if cand_ids:
+            for cid, nm in s.execute(text(
+                "SELECT id, name FROM candidates WHERE id IN :ids"
+            ).bindparams(ids=tuple(cand_ids))).all():
+                names[cid] = nm
+        # Distinct filter dropdown options across all timesheets.
+        clients = [r[0] for r in s.execute(text(
+            "SELECT DISTINCT client FROM engagements WHERE client IS NOT NULL AND TRIM(client) <> '' ORDER BY client"
+        )).all()]
+        projects = [r[0] for r in s.execute(text(
+            "SELECT DISTINCT name FROM engagements WHERE name IS NOT NULL AND TRIM(name) <> '' ORDER BY name"
+        )).all()]
+    timesheets = [
+        {
+            "id": r.id,
+            "status": r.status,
+            "period_start": r.period_start,
+            "period_end": r.period_end,
+            "billable_days": r.billable_days or 0,
+            "submitted_at": r.submitted_at,
+            "approved_at": r.approved_at,
+            "associate_name": names.get(r.user_id, "(unknown)"),
+            "engagement_name": r.engagement_name or "",
+            "client_name": r.client_name or "",
+            "ts_type": r.ts_type or "Standard",
+            "originating_id": r.originating_timesheet_id,
+        }
+        for r in rows
+    ]
+    return render_template(
+        "admin_timesheets.html",
+        timesheets=timesheets,
+        clients=clients,
+        projects=projects,
+        client_filter=client_filter,
+        project_filter=project_filter,
+        status_filter=status_filter or "all",
+        type_filter=type_filter or "all",
+        wc_filter=wc_filter,
+    )
+
+
+@app.route("/admin/timesheets/<int:ts_id>/create-adjustment", methods=["GET", "POST"])
+@login_required
+def admin_create_adjustment(ts_id):
+    """Phase 4 / TS 21 — admin creates an Adjustment timesheet against an
+    already-invoiced (or simply incorrect) timesheet. Day delta can be
+    positive (under-charge → next invoice picks up an "Adjustment –
+    undercharge…" credit line) or negative (over-charge → "Credit –
+    overcharge…" line). The new TS is timesheet_type='Adjustment' and
+    originating_timesheet_id references the original."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_timesheets"))
+    with Session(engine) as s:
+        original = s.get(Timesheet, ts_id)
+        if not original:
+            abort(404)
+        if request.method == "POST":
+            try:
+                delta = float(request.form.get("day_delta") or 0)
+            except ValueError:
+                delta = 0
+            reason = (request.form.get("reason") or "").strip()
+            if delta == 0:
+                flash("Day delta must be non-zero (positive or negative).", "warning")
+                return redirect(url_for("admin_create_adjustment", ts_id=ts_id))
+            adj = Timesheet(
+                user_id=original.user_id,
+                engagement_id=original.engagement_id,
+                period_start=original.period_start,
+                period_end=original.period_end,
+                status="Approved",  # Adjustments are admin-issued and pre-approved.
+                timesheet_type="Adjustment",
+                originating_timesheet_id=ts_id,
+            )
+            if hasattr(adj, "week_start"):
+                adj.week_start = original.period_start
+                adj.week_end = original.period_end
+                adj.day_rate = original.day_rate
+            adj.billable_days = delta
+            adj.notes = f"Adjustment vs TS #{ts_id}: {reason or '(no reason given)'}"
+            adj.approved_by = current_user.id
+            adj.approved_at = datetime.datetime.utcnow()
+            s.add(adj)
+            s.commit()
+            try:
+                log_audit_event("create", "timesheet",
+                                f"Adjustment timesheet created: TS#{adj.id} vs TS#{ts_id} (delta={delta})",
+                                "timesheet", adj.id,
+                                {"delta": delta, "original_id": ts_id, "reason": reason})
+            except Exception:
+                pass
+            flash(f"Adjustment timesheet #{adj.id} created (delta {delta:+.2f} days).", "success")
+            return redirect(url_for("admin_timesheets"))
+        cand = s.execute(text("SELECT id, name FROM candidates WHERE id = :id")
+                         .bindparams(id=original.user_id)).first()
+    return render_template("admin_create_adjustment.html",
+                           original=original, cand=cand)
+
+
+@app.route("/admin/timesheets/<int:ts_id>/edit-on-behalf", methods=["GET"])
+@login_required
+def admin_edit_timesheet_on_behalf(ts_id):
+    """Phase 4 / TS 20 stub — admin redirects to the same approver detail
+    view (read-only for now). The full on-behalf-edit form is a follow-up;
+    re-opening via the existing 'Re-open' button is the current path to
+    enable associate-side edits."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_timesheets"))
+    return redirect(url_for("approver_timesheet_detail", ts_id=ts_id))
+
+
+# Update admin_reject_timesheet to share the helper, too.
+def _admin_reject_via_helper(ts_id):
+    reason = (request.form.get("reject_reason") or "").strip()
+    with Session(engine) as s:
+        ts = s.get(Timesheet, ts_id)
+        if not ts:
+            flash("Timesheet not found.", "warning")
+            return redirect(url_for("admin_approvals"))
+        _apply_timesheet_rejection(s, ts, current_user.id, reason)
+        s.commit()
+    flash(f"Timesheet #{ts_id} rejected.", "success")
     return redirect(url_for("admin_approvals"))
 
 
@@ -1980,6 +2412,35 @@ def admin_reject_timesheet(ts_id):
             flash("Timesheet not found.", "warning")
     return redirect(url_for("admin_approvals"))
 
+@app.route("/admin/approvals/timesheet/<int:ts_id>/reopen", methods=["POST"])
+@login_required
+def admin_reopen_timesheet(ts_id):
+    """Phase 1 / TS 6 — admin-only re-open of an Approved timesheet so the
+    associate can amend and re-submit. Audit-logged."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approvals"))
+    with Session(engine) as s:
+        ts = s.get(Timesheet, ts_id)
+        if not ts:
+            flash("Timesheet not found.", "warning")
+            return redirect(url_for("admin_approvals"))
+        old_status = ts.status
+        ts.status = "Draft"
+        # Clear approval stamps so the new submit gets a fresh approval.
+        ts.approved_by = None
+        ts.approved_at = None
+        s.commit()
+        try:
+            log_audit_event("update", "timesheet",
+                            f"Timesheet #{ts_id} re-opened: {old_status} -> Draft",
+                            "timesheet", ts_id, {"old_status": old_status, "new_status": "Draft"})
+        except Exception:
+            pass
+    flash(f"Timesheet #{ts_id} re-opened (was {old_status}). The associate can now amend and re-submit.", "success")
+    return redirect(url_for("admin_approvals"))
+
+
 @app.route("/admin/invoices")
 @login_required
 def admin_invoices():
@@ -2017,24 +2478,493 @@ def admin_invoices():
             engagements=engagement_list
         )
 
+def _ensure_client_linked(s, engagement) -> "Client":
+    """Phase 5 — make sure an engagement has a Client row linked. If the
+    engagement has a free-text `client` string but no client_id, find or
+    auto-create a Client matching that name (auto-derived code, code_confirmed
+    False so an admin reviews it). Called from create_engagement and
+    engagement_edit save paths so every engagement always has a Client.
+
+    Returns the linked Client (or None if the engagement has no client name
+    at all)."""
+    if not engagement or not (engagement.client or "").strip():
+        return None
+    name = engagement.client.strip()
+    existing = s.scalar(select(Client).where(Client.name == name))
+    if existing:
+        if engagement.client_id != existing.id:
+            engagement.client_id = existing.id
+        return existing
+    # Auto-derive a 2-5 char code from initials, mirroring _auto_backfill_clients.
+    import re as _re
+    words = [w for w in _re.split(r"\s+", name) if w]
+    initials = "".join(w[0] for w in words if w and w[0].isalpha()).upper()
+    if 2 <= len(initials) <= 5:
+        base = initials
+    else:
+        letters = _re.sub(r"[^A-Za-z]", "", name).upper()
+        base = (letters[:3] or "CLI")
+    code = base
+    n = 2
+    while s.scalar(select(Client).where(Client.client_code == code)) is not None:
+        suffix = str(n)
+        keep = max(2, 5 - len(suffix))
+        code = base[:keep] + suffix
+        n += 1
+        if n > 99:
+            code = (base[:3] + "X")[:5]
+            break
+    c = Client(name=name, client_code=code, code_confirmed=False)
+    s.add(c)
+    s.flush()
+    engagement.client_id = c.id
+    return c
+
+
+# ============================================================================
+# Phase 6 — Invoice auto-generation pipeline (IR 7-18)
+# ============================================================================
+
+def _check_timesheets_ready(s, engagement_id: int, year: int, month: int) -> list:
+    """IR 8 — return list of (id, status) for timesheets in the given
+    calendar month that are NOT yet Approved. Empty list = ready to invoice."""
+    import calendar as _cal
+    month_start = date(year, month, 1)
+    month_end = date(year, month, _cal.monthrange(year, month)[1])
+    rows = s.execute(text(
+        "SELECT id, status, period_start FROM timesheets "
+        "WHERE engagement_id = :eid "
+        "AND period_start >= :ms AND period_end <= :me "
+        "AND LOWER(status) != 'approved'"
+    ).bindparams(eid=engagement_id, ms=month_start, me=month_end)).all()
+    return [{"id": r.id, "status": r.status, "period_start": r.period_start} for r in rows]
+
+
+def _invoice_period_for_month(engagement, year: int, month: int):
+    """IR 13 — invoice period = MAX(engagement.start, month_start) to
+    MIN(engagement.end or today, month_end). Returns (period_start, period_end)
+    as date objects."""
+    import calendar as _cal
+    month_start = date(year, month, 1)
+    month_end = date(year, month, _cal.monthrange(year, month)[1])
+    eng_start = engagement.start_date.date() if engagement and engagement.start_date and hasattr(engagement.start_date, 'date') else (engagement.start_date if engagement else None)
+    eng_end = engagement.end_date.date() if engagement and engagement.end_date and hasattr(engagement.end_date, 'date') else (engagement.end_date if engagement else None)
+    period_start = max(eng_start, month_start) if eng_start else month_start
+    today = date.today()
+    period_end = min((eng_end or today), month_end, today)
+    if period_end < period_start:
+        period_end = period_start
+    return period_start, period_end
+
+
+def _vat_band_label(treatment: str) -> str:
+    """Render the VAT-band label for invoice line items."""
+    return {
+        "standard": "Expenses – Standard Rate (20%)",
+        "reduced":  "Expenses – Reduced Rate (5%)",
+        "zero":     "Expenses – Zero Rate (0%)",
+        "non_vatable": "Expenses – Mileage / Non-VATable",
+    }.get(treatment, f"Expenses – {treatment}")
+
+
+def _generate_invoice_payload(s, engagement_id: int, year: int, month: int) -> dict:
+    """IR 7, 10, 13, 15 — aggregate Approved timesheets + their expense
+    lines for (engagement, year, month). Returns dict ready to populate
+    Invoice + line_items JSON.
+
+    Output shape:
+        {
+            "engagement_id": ...,
+            "client_name": ...,
+            "engagement_name": ...,
+            "period_start": date,
+            "period_end": date,
+            "invoice_date": date.today(),
+            "due_date": date.today()+30,
+            "line_items": [ { description, quantity, rate, amount, vat_pct } ... ],
+            "subtotal": float,
+            "vat_amount": float,
+            "total_amount": float,
+            "schedule_days_billed": [...],
+            "schedule_expenses": [...],
+        }"""
+    eng = s.get(Engagement, engagement_id)
+    if not eng:
+        raise ValueError("Engagement not found")
+    period_start, period_end = _invoice_period_for_month(eng, year, month)
+
+    # Pull approved timesheets in the month.
+    ts_rows = s.execute(text(
+        "SELECT id, user_id, billable_days, day_rate, period_start, period_end, "
+        "       COALESCE(timesheet_type,'Standard') AS ts_type "
+        "FROM timesheets "
+        "WHERE engagement_id = :eid AND LOWER(status) = 'approved' "
+        "AND period_start >= :ps AND period_end <= :pe "
+        "ORDER BY period_start"
+    ).bindparams(eid=engagement_id, ps=period_start, pe=period_end)).all()
+
+    # Associate name lookup.
+    cand_ids = list({r.user_id for r in ts_rows if r.user_id})
+    names = {}
+    if cand_ids:
+        for cid, nm in s.execute(text(
+            "SELECT id, name FROM candidates WHERE id IN :ids"
+        ).bindparams(ids=tuple(cand_ids))).all():
+            names[cid] = nm
+
+    # Day rate lookup from EngagementPlan if billable.day_rate is 0.
+    # (We use the value already on the timesheet row when present.)
+
+    # Build per-role line items + per-Associate-per-week schedule rows.
+    # Adjustment timesheets (Phase 4 / TS 21) are surfaced as separate
+    # labelled line items per IR 22/23 so the recipient sees the
+    # "undercharge" / "overcharge" explicitly.
+    role_buckets = {}  # role_label -> {days, rate}
+    adjustment_lines = []   # list of dicts ready to become line_items
+    schedule_days = []
+    for r in ts_rows:
+        rate = r.day_rate or 0
+        days = r.billable_days or 0
+        associate_name = names.get(r.user_id, "(unknown)")
+        is_adjustment = (r.ts_type or "Standard") == "Adjustment"
+        if is_adjustment:
+            label_prefix = "Adjustment – undercharge" if days >= 0 else "Credit – overcharge"
+            wc_str = r.period_start.strftime("%d %b %Y") if r.period_start else ""
+            adjustment_lines.append({
+                "description": f"{label_prefix} WC {wc_str}: {associate_name}",
+                "quantity": abs(days),
+                "rate": rate,
+                "amount": days * rate,  # signed
+                "vat_pct": 20.0,
+                "vat_amount": days * rate * 0.20,
+                "type": "adjustment",
+            })
+        else:
+            # Standard timesheet — feeds into the role bucket grouped roll-up.
+            role_label = "Day rate"
+            bucket = role_buckets.setdefault(role_label, {"days": 0, "rate": rate})
+            bucket["days"] += days
+            if rate and not bucket["rate"]:
+                bucket["rate"] = rate
+        schedule_days.append({
+            "wc": r.period_start,
+            "associate": associate_name,
+            "role": "Adjustment" if is_adjustment else "Day rate",
+            "day_rate": rate,
+            "days_billed": days,
+            "net_amount": days * rate,
+            "is_adjustment": is_adjustment,
+        })
+
+    # Pull expense lines.
+    exp_rows = []
+    if ts_rows:
+        ts_ids = tuple(r.id for r in ts_rows)
+        # SQL IN with a single-element tuple — append comma to keep python's
+        # SQL parameter happy on some drivers.
+        if len(ts_ids) == 1:
+            ts_ids = (ts_ids[0], ts_ids[0])
+        exp_rows = s.execute(text(
+            "SELECT te.id, te.timesheet_id, te.expense_type, te.amount, te.vat_rate_pct, "
+            "       te.vat_amount, te.date_of_expense, te.expense_category_id, "
+            "       ec.vat_treatment, te.receipt_doc_id "
+            "FROM timesheet_expenses te "
+            "LEFT JOIN expense_categories ec ON ec.id = te.expense_category_id "
+            "WHERE te.timesheet_id IN :ids"
+        ).bindparams(ids=ts_ids)).all()
+
+    # Group expenses by VAT band for page-1 summary lines (IR 15).
+    band_totals = {}  # treatment -> {net, vat}
+    schedule_expenses = []
+    ts_user_by_id = {r.id: r.user_id for r in ts_rows}
+    ts_wc_by_id = {r.id: r.period_start for r in ts_rows}
+    for x in exp_rows:
+        treatment = (x.vat_treatment or "standard")
+        bucket = band_totals.setdefault(treatment, {"net": 0.0, "vat": 0.0})
+        bucket["net"] += float(x.amount or 0)
+        bucket["vat"] += float(x.vat_amount or 0)
+        schedule_expenses.append({
+            "wc": ts_wc_by_id.get(x.timesheet_id),
+            "associate": names.get(ts_user_by_id.get(x.timesheet_id), "(unknown)"),
+            "category": x.expense_type,
+            "date": x.date_of_expense,
+            "net": float(x.amount or 0),
+            "vat_pct": float(x.vat_rate_pct or 0),
+            "vat_amount": float(x.vat_amount or 0),
+            "receipt_doc_id": x.receipt_doc_id,
+        })
+
+    # Build the line_items JSON array.
+    line_items = []
+    role_subtotal = 0.0
+    role_vat = 0.0
+    for role, b in role_buckets.items():
+        net = b["days"] * b["rate"]
+        vat_pct = 20.0
+        vat = net * (vat_pct / 100.0)
+        role_subtotal += net
+        role_vat += vat
+        line_items.append({
+            "description": role,
+            "quantity": b["days"],
+            "rate": b["rate"],
+            "amount": net,
+            "vat_pct": vat_pct,
+            "vat_amount": vat,
+            "type": "role",
+        })
+    # Adjustment lines come immediately after the role lines (IR 24 — they
+    # carry a distinct "adjustment" type so the PDF renderer can tint them).
+    for adj in adjustment_lines:
+        line_items.append(adj)
+        role_subtotal += adj["amount"]
+        role_vat += adj["vat_amount"]
+    expense_subtotal = 0.0
+    expense_vat = 0.0
+    for treatment, b in sorted(band_totals.items()):
+        if b["net"] <= 0:
+            continue   # IR 15 — suppress empty VAT bands
+        expense_subtotal += b["net"]
+        expense_vat += b["vat"]
+        line_items.append({
+            "description": _vat_band_label(treatment),
+            "quantity": 1,
+            "rate": b["net"],
+            "amount": b["net"],
+            "vat_pct": {"standard": 20.0, "reduced": 5.0, "zero": 0.0, "non_vatable": 0.0}.get(treatment, 0.0),
+            "vat_amount": b["vat"],
+            "type": "expense_band",
+        })
+
+    subtotal = role_subtotal + expense_subtotal
+    vat_amount = role_vat + expense_vat
+    total_amount = subtotal + vat_amount
+
+    return {
+        "engagement_id": engagement_id,
+        "client_name": eng.client or "",
+        "engagement_name": eng.name or "",
+        "period_start": period_start,
+        "period_end": period_end,
+        "invoice_date": date.today(),
+        "due_date": date.today() + timedelta(days=30),
+        "line_items": line_items,
+        "subtotal": subtotal,
+        "vat_amount": vat_amount,
+        "total_amount": total_amount,
+        "schedule_days_billed": schedule_days,
+        "schedule_expenses": schedule_expenses,
+        "outstanding_timesheets": _check_timesheets_ready(s, engagement_id, year, month),
+    }
+
+
+def _reconcile_invoice_expense_totals(payload: dict) -> tuple:
+    """IR 17, 18 — sum of schedule_expenses must equal sum of page-1
+    expense_band line items (net AND VAT separately). Returns (ok, msg)."""
+    sched_net = sum(x["net"] for x in payload.get("schedule_expenses", []))
+    sched_vat = sum(x["vat_amount"] for x in payload.get("schedule_expenses", []))
+    band_net = sum(li["amount"] for li in payload.get("line_items", []) if li.get("type") == "expense_band")
+    band_vat = sum(li["vat_amount"] for li in payload.get("line_items", []) if li.get("type") == "expense_band")
+    if round(sched_net, 2) != round(band_net, 2):
+        return False, f"Expense net mismatch: schedule £{sched_net:.2f} vs page-1 £{band_net:.2f}"
+    if round(sched_vat, 2) != round(band_vat, 2):
+        return False, f"Expense VAT mismatch: schedule £{sched_vat:.2f} vs page-1 £{band_vat:.2f}"
+    return True, "OK"
+
+
+def _persist_invoice_pdf(s, invoice, pdf_bytes: bytes, subtype: str = "generated") -> int:
+    """Phase 9 / IR 42 — store an invoice PDF in the existing Document
+    store, linked to the invoice + engagement. Returns the Document.id.
+
+    subtype: 'generated' (initial Generate) or 'sent' (a copy taken at
+    send time so an audit-trail snapshot of what the client received is
+    preserved even if the invoice is later edited)."""
+    if not pdf_bytes:
+        return None
+    safe_name = f"{invoice.invoice_number}-{subtype}.pdf"
+    # Filename on disk gets a uuid prefix to avoid collisions.
+    disk_name = f"{uuid.uuid4().hex[:12]}-{safe_name}"
+    try:
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        with open(os.path.join(UPLOAD_FOLDER, disk_name), "wb") as f:
+            f.write(pdf_bytes)
+    except Exception:
+        current_app.logger.exception("Failed to write invoice PDF to disk")
+        return None
+    doc = Document(
+        candidate_id=None,
+        doc_type=f"invoice_{subtype}",
+        filename=disk_name,
+        original_name=safe_name,
+        engagement_id=invoice.engagement_id,
+    )
+    s.add(doc)
+    s.flush()
+    if subtype == "generated" and hasattr(invoice, "pdf_doc_id"):
+        invoice.pdf_doc_id = doc.id
+    return doc.id
+
+
+@app.route("/admin/invoices/auto-generate/<int:engagement_id>/<int:year>/<int:month>", methods=["POST"])
+@login_required
+def admin_auto_generate_invoice(engagement_id: int, year: int, month: int):
+    """IR 7, 8, 10 — auto-generate a Draft invoice for (engagement, year, month)."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_invoices"))
+    import json as _json
+    with Session(engine) as s:
+        eng = s.get(Engagement, engagement_id)
+        if not eng:
+            abort(404)
+        outstanding = _check_timesheets_ready(s, engagement_id, year, month)
+        if outstanding:
+            names = ", ".join(f"TS-{r['id']:04d} ({r['status']})" for r in outstanding[:5])
+            extra = "" if len(outstanding) <= 5 else f" (+{len(outstanding) - 5} more)"
+            flash(f"Cannot generate — {len(outstanding)} timesheet(s) not yet Approved: {names}{extra}", "danger")
+            return redirect(url_for("admin_invoices"))
+        try:
+            invoice_number = _next_invoice_number(s, eng)
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("admin_invoices"))
+        payload = _generate_invoice_payload(s, engagement_id, year, month)
+        ok, msg = _reconcile_invoice_expense_totals(payload)
+        if not ok:
+            flash(f"Generation aborted — reconciliation failed: {msg}", "danger")
+            return redirect(url_for("admin_invoices"))
+        invoice = Invoice(
+            invoice_number=invoice_number,
+            engagement_id=engagement_id,
+            client_name=payload["client_name"],
+            engagement_name=payload["engagement_name"],
+            invoice_date=datetime.datetime.combine(payload["invoice_date"], datetime.time()),
+            due_date=datetime.datetime.combine(payload["due_date"], datetime.time()),
+            subtotal=payload["subtotal"],
+            vat_rate=20.0,
+            vat_amount=payload["vat_amount"],
+            total_amount=payload["total_amount"],
+            status="Draft",
+            line_items=_json.dumps(payload["line_items"]),
+            notes="",
+            payment_terms="Net 30",
+            created_by=current_user.id,
+            period_start=payload["period_start"],
+            period_end=payload["period_end"],
+        )
+        s.add(invoice)
+        s.flush()
+        # Stamp consumed timesheets so adjustments are billed once.
+        try:
+            s.execute(text(
+                "UPDATE timesheets SET invoiced_on_invoice_id = :iid "
+                "WHERE engagement_id = :eid AND LOWER(status) = 'approved' "
+                "AND period_start >= :ps AND period_end <= :pe "
+                "AND invoiced_on_invoice_id IS NULL"
+            ).bindparams(iid=invoice.id, eid=engagement_id,
+                         ps=payload["period_start"], pe=payload["period_end"]))
+        except Exception:
+            pass
+        # Phase 9 / IR 42 — render + persist the PDF up-front so the
+        # invoice view can offer a "Download original" even before send.
+        try:
+            pdf_bytes = _generate_invoice_pdf(invoice, payload["line_items"])
+            _persist_invoice_pdf(s, invoice, pdf_bytes, subtype="generated")
+        except Exception:
+            current_app.logger.exception("Initial PDF render/persist failed at auto-generate")
+        s.commit()
+        try:
+            log_audit_event("create", "billing",
+                            f"Auto-generated invoice {invoice_number} ({len(payload['line_items'])} lines, £{payload['total_amount']:.2f})",
+                            "invoice", invoice.id, {"engagement_id": engagement_id, "year": year, "month": month})
+        except Exception:
+            pass
+    flash(f"✅ Invoice {invoice_number} generated for {payload['period_start']} – {payload['period_end']} (£{payload['total_amount']:.2f}).", "success")
+    return redirect(url_for("admin_invoices"))
+
+
+def _next_invoice_number(s, engagement) -> str:
+    """Phase 5 / IR 6 — generate the next invoice number in the new format
+    INV-YYYY-MM-XXXXX-CC where:
+      YYYY-MM = year-month of generation
+      XXXXX   = 5-digit globally-sequential counter (never resets, never reused)
+      CC      = the engagement's client_code (2-5 chars)
+
+    Refuses if the engagement isn't linked to a confirmed Client. Legacy
+    invoice rows (format INV-YYYYMM-NNNN) are unaffected — the new format
+    coexists with them and `INV-` prefix searches still match either.
+
+    The counter advance + format build is wrapped in a single UPDATE…
+    RETURNING (or SELECT-then-UPDATE on SQLite) so concurrent invoice
+    generation can't collide on the same number."""
+    if engagement is None:
+        raise ValueError("Engagement is required to generate an invoice number.")
+    client = getattr(engagement, "client_rel", None)
+    if client is None or not getattr(client, "client_code", ""):
+        raise ValueError(
+            "This engagement is not linked to a Client. "
+            "Link a client via /admin/clients (or the engagement edit form) "
+            "before generating an invoice."
+        )
+    if not getattr(client, "code_confirmed", False):
+        raise ValueError(
+            f"The client code {client.client_code!r} is still flagged for review. "
+            f"Visit /admin/clients, confirm the code is correct, then re-try."
+        )
+
+    # Atomic advance + read. Postgres supports UPDATE…RETURNING natively;
+    # SQLite (dev) needs SELECT-then-UPDATE under a transaction. The Session
+    # `s` is already in a transaction here, so both paths are safe.
+    seq_val = None
+    try:
+        result = s.execute(text(
+            "UPDATE invoice_sequence SET next_value = next_value + 1 "
+            "WHERE id = (SELECT id FROM invoice_sequence ORDER BY id LIMIT 1) "
+            "RETURNING next_value - 1"
+        )).scalar()
+        seq_val = result
+    except Exception:
+        # SQLite fallback — no RETURNING support before 3.35. Use lock/read/bump.
+        row = s.execute(text("SELECT id, next_value FROM invoice_sequence ORDER BY id LIMIT 1")).first()
+        if row:
+            seq_val = row[1]
+            s.execute(text("UPDATE invoice_sequence SET next_value = :v WHERE id = :id")
+                      .bindparams(v=seq_val + 1, id=row[0]))
+        else:
+            # First run on a brand-new DB — seed and use 1.
+            s.execute(text("INSERT INTO invoice_sequence (next_value) VALUES (2)"))
+            seq_val = 1
+
+    if seq_val is None:
+        raise RuntimeError("Failed to advance invoice_sequence counter.")
+    now = datetime.datetime.utcnow()
+    return f"INV-{now.year}-{now.month:02d}-{int(seq_val):05d}-{client.client_code}"
+
+
 @app.route("/admin/invoices/create", methods=["GET", "POST"])
 @login_required
 def admin_create_invoice():
     """Create a new invoice"""
     import json
-    
+
     if request.method == "POST":
         with Session(engine) as s:
-            # Generate invoice number
-            year = datetime.datetime.utcnow().year
-            month = datetime.datetime.utcnow().month
-            count = s.scalar(select(func.count(Invoice.id)).where(
-                Invoice.invoice_number.like(f"INV-{year}{month:02d}%")
-            )) or 0
-            invoice_number = f"INV-{year}{month:02d}-{count + 1:04d}"
-            
-            # Get form data
+            # Phase 5 / IR 6 — new INV-YYYY-MM-XXXXX-CC format via the
+            # Client-aware helper. Falls back to the legacy per-month format
+            # only if the engagement has no Client linked yet AND legacy
+            # behaviour is explicitly requested — we don't want to silently
+            # generate without a client code, so we surface the error
+            # instead. Existing legacy invoices keep their INV-YYYYMM-NNNN
+            # numbers untouched.
             engagement_id = request.form.get("engagement_id")
+            engagement = s.get(Engagement, int(engagement_id)) if engagement_id else None
+            try:
+                invoice_number = _next_invoice_number(s, engagement)
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("admin_create_invoice"))
+
+            # Get form data
             client_name = request.form.get("client_name", "").strip()
             engagement_name = request.form.get("engagement_name", "").strip()
             
@@ -2248,6 +3178,90 @@ def admin_update_invoice_status(invoice_id):
     
     return redirect(url_for('admin_invoices'))
 
+@app.route("/admin/invoices/<int:invoice_id>/mark-paid", methods=["POST"])
+@login_required
+def admin_mark_invoice_paid(invoice_id: int):
+    """Phase 8 / IR 35 — admin marks an invoice as Paid, capturing
+    payment_date and payment_reference. Audit-logged."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_invoices"))
+    payment_date_raw = (request.form.get("payment_date") or "").strip()
+    payment_reference = (request.form.get("payment_reference") or "").strip()
+    payment_date = None
+    if payment_date_raw:
+        try:
+            payment_date = datetime.datetime.strptime(payment_date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    with Session(engine) as s:
+        invoice = s.get(Invoice, invoice_id)
+        if not invoice:
+            flash("Invoice not found.", "warning")
+            return redirect(url_for("admin_invoices"))
+        old_status = invoice.status
+        invoice.status = "Paid"
+        invoice.paid_date = datetime.datetime.combine(payment_date, datetime.time()) if payment_date else datetime.datetime.utcnow()
+        if hasattr(invoice, "payment_date"):
+            invoice.payment_date = payment_date or date.today()
+        if hasattr(invoice, "payment_reference"):
+            invoice.payment_reference = payment_reference or None
+        s.commit()
+        try:
+            log_audit_event("paid", "billing",
+                            f"Invoice {invoice.invoice_number} marked as Paid (ref: {payment_reference or '-'})",
+                            "invoice", invoice.id,
+                            {"payment_date": payment_date_raw, "payment_reference": payment_reference,
+                             "old_status": old_status})
+        except Exception:
+            pass
+    flash(f"Invoice {invoice.invoice_number} marked Paid.", "success")
+    return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+
+
+@app.route("/admin/invoices/<int:invoice_id>/void", methods=["POST"])
+@login_required
+def admin_void_invoice(invoice_id: int):
+    """Phase 8 / IR 36 — admin voids an invoice. Preserves the row but
+    marks it Void and excludes it from all financial summaries. Reason is
+    mandatory."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_invoices"))
+    reason = (request.form.get("void_reason") or "").strip()
+    if not reason:
+        flash("A reason is required to void an invoice.", "danger")
+        return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+    with Session(engine) as s:
+        invoice = s.get(Invoice, invoice_id)
+        if not invoice:
+            flash("Invoice not found.", "warning")
+            return redirect(url_for("admin_invoices"))
+        old_status = invoice.status
+        invoice.status = "Void"
+        if hasattr(invoice, "void_reason"):
+            invoice.void_reason = reason
+        if hasattr(invoice, "voided_by"):
+            invoice.voided_by = current_user.id
+        if hasattr(invoice, "voided_at"):
+            invoice.voided_at = datetime.datetime.utcnow()
+        s.commit()
+        try:
+            log_audit_event("void", "billing",
+                            f"Invoice {invoice.invoice_number} voided (was {old_status}): {reason}",
+                            "invoice", invoice.id, {"old_status": old_status, "reason": reason})
+        except Exception:
+            pass
+    flash(
+        f"Invoice {invoice.invoice_number} voided." + (
+            " You can issue a replacement or notify the client from the invoice view."
+            if (old_status or "").lower() == "sent" else ""
+        ),
+        "success"
+    )
+    return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+
+
 @app.route("/admin/invoices/<int:invoice_id>/delete", methods=["POST"])
 @login_required
 def admin_delete_invoice(invoice_id):
@@ -2281,16 +3295,28 @@ def _generate_invoice_pdf(invoice, line_items):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=20)
 
-    # Header
+    # Phase 11 / IR 30 — Optimus brand header. Logo image at top-left
+    # (uses the existing static asset). The brand navy is #030a1d / RGB
+    # (3, 10, 29); the secondary navy is #1e3a8a / RGB (30, 58, 138).
+    try:
+        _logo_path = os.path.join(os.path.dirname(__file__), "static", "images", "optimus-logo-header-new.png")
+        if os.path.exists(_logo_path):
+            pdf.image(_logo_path, x=10, y=10, h=14)
+    except Exception:
+        pass
+
+    # Header text — block aligned to the right of the logo.
+    pdf.set_xy(60, 10)
     pdf.set_font("Helvetica", "B", 24)
     pdf.set_text_color(30, 58, 138)
-    pdf.cell(100, 12, "INVOICE", new_x="RIGHT")
+    pdf.cell(80, 12, "INVOICE", new_x="RIGHT")
     pdf.set_font("Helvetica", "B", 14)
     pdf.set_text_color(31, 41, 55)
     pdf.cell(0, 12, invoice.invoice_number or "", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_x(60)
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(107, 114, 128)
-    pdf.cell(100, 6, "Optimus", new_x="RIGHT")
+    pdf.cell(80, 6, "Optimus Operations Limited", new_x="RIGHT")
     date_str = invoice.invoice_date.strftime("%d %B %Y") if invoice.invoice_date else "N/A"
     pdf.cell(0, 6, f"Date: {date_str}", align="R", new_x="LMARGIN", new_y="NEXT")
     if invoice.due_date:
@@ -2467,29 +3493,115 @@ def admin_send_invoice(invoice_id):
         </div>
         """
 
-        to_addr = request.form.get("email", "").strip()
-        if not to_addr:
-            flash("No client email found. Please enter an email address.", "warning")
+        # Phase 7 / IR 28-29 — multi-recipient + editable subject/body.
+        recipients_raw = (request.form.get("recipient_emails") or request.form.get("email") or "").strip()
+        recipients = [e.strip() for e in re.split(r"[,;\s]+", recipients_raw) if e.strip() and "@" in e]
+        if not recipients:
+            # Fallback to engagement.invoice_recipient_emails if set.
+            try:
+                eng_row = s.get(Engagement, invoice.engagement_id) if invoice.engagement_id else None
+                if eng_row and eng_row.invoice_recipient_emails:
+                    recipients = json.loads(eng_row.invoice_recipient_emails) or []
+            except Exception:
+                pass
+        if not recipients:
+            flash("No client email found. Please enter at least one recipient.", "warning")
             return redirect(url_for('admin_view_invoice', invoice_id=invoice_id))
 
+        subject = (request.form.get("email_subject") or f"Invoice {invoice.invoice_number} — Optimus").strip()
+        body = (request.form.get("email_body") or "").strip()
+        # Use editable body if provided, otherwise the default templated HTML.
+        final_html = body or email_html
+
         try:
-            # Req 53 — invoice emails come from finance@.
-            send_email(
-                to_email=to_addr,
-                subject=f"Invoice {invoice.invoice_number} — Optimus",
-                html_body=email_html,
-                attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")],
-                from_email=FINANCE_FROM,
-            )
-            invoice.status = "Pending"
+            # Req 53 / IR 27 — invoice emails come from finance@.
+            for addr in recipients:
+                send_email(
+                    to_email=addr,
+                    subject=subject,
+                    html_body=final_html,
+                    attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")],
+                    from_email=FINANCE_FROM,
+                )
+            # Phase 7 / IR 31 — status flips to Sent (not Pending — that's
+            # legacy naming; the boot-time migration also renames any
+            # historical 'Pending' rows). sent_by + sent_recipients stamped.
+            invoice.status = "Sent"
             if not invoice.sent_at:
                 invoice.sent_at = datetime.datetime.utcnow()
+            invoice.sent_by = current_user.id
+            invoice.sent_recipients = json.dumps(recipients)
+            # Phase 9 / IR 42 — second 'sent' copy of the PDF for audit.
+            try:
+                _persist_invoice_pdf(s, invoice, pdf_bytes, subtype="sent")
+            except Exception:
+                current_app.logger.exception("Send-time PDF persist failed")
             s.commit()
-            flash(f"Invoice {invoice.invoice_number} sent to {to_addr}", "success")
+            try:
+                log_audit_event("send", "billing",
+                                f"Invoice {invoice.invoice_number} sent to {len(recipients)} recipient(s)",
+                                "invoice", invoice.id,
+                                {"recipients": recipients, "subject": subject})
+            except Exception:
+                pass
+            flash(f"Invoice {invoice.invoice_number} sent to {', '.join(recipients)}", "success")
         except Exception as e:
             flash(f"Failed to send: {e}", "danger")
 
     return redirect(url_for('admin_view_invoice', invoice_id=invoice_id))
+
+
+@app.route("/admin/invoices/<int:invoice_id>/resend", methods=["POST"])
+@login_required
+def admin_resend_invoice(invoice_id: int):
+    """Phase 7 / IR 32 — resend an already-Sent invoice. Re-uses the
+    existing PDF (no regeneration), keeps the same invoice number, logs
+    as a 'resend' event in the audit log (NOT a new invoice)."""
+    if (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_invoices"))
+    import json as _json
+    with Session(engine) as s:
+        invoice = s.get(Invoice, invoice_id)
+        if not invoice:
+            flash("Invoice not found.", "warning")
+            return redirect(url_for("admin_invoices"))
+        if (invoice.status or "").lower() != "sent":
+            flash(f"Resend only allowed for Sent invoices (this one is {invoice.status}).", "warning")
+            return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+        recipients_raw = (request.form.get("recipient_emails") or "").strip()
+        recipients = [e.strip() for e in re.split(r"[,;\s]+", recipients_raw) if e.strip() and "@" in e]
+        if not recipients and invoice.sent_recipients:
+            try:
+                recipients = _json.loads(invoice.sent_recipients) or []
+            except Exception:
+                recipients = []
+        if not recipients:
+            flash("No recipients — pick at least one address before resending.", "warning")
+            return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+        line_items = _json.loads(invoice.line_items) if invoice.line_items else []
+        try:
+            pdf_bytes = _generate_invoice_pdf(invoice, line_items)
+        except Exception as e:
+            flash(f"PDF re-render failed: {e}", "danger")
+            return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
+        subject = f"Reminder: Invoice {invoice.invoice_number} — Optimus"
+        body = f"<p>This is a follow-up copy of invoice <strong>{invoice.invoice_number}</strong> for £{invoice.total_amount or 0:,.2f}.</p>"
+        try:
+            for addr in recipients:
+                send_email(addr, subject, body,
+                           attachments=[(f"{invoice.invoice_number}.pdf", pdf_bytes, "application/pdf")],
+                           from_email=FINANCE_FROM)
+            try:
+                log_audit_event("resend", "billing",
+                                f"Invoice {invoice.invoice_number} resent to {len(recipients)} recipient(s)",
+                                "invoice", invoice.id, {"recipients": recipients})
+            except Exception:
+                pass
+            flash(f"Invoice {invoice.invoice_number} re-sent.", "success")
+        except Exception as e:
+            flash(f"Resend failed: {e}", "danger")
+    return redirect(url_for("admin_view_invoice", invoice_id=invoice_id))
 
 
 @app.route("/admin/invoices/export")
@@ -2582,6 +3694,366 @@ def admin_invoice_settings():
         return redirect(url_for("admin_invoice_settings"))
 
     return render_template("admin_invoice_settings.html", settings=settings)
+
+# ============================================================================
+# Phase 0 — Admin CRUD: clients, expense categories, company settings
+# ============================================================================
+#
+# Three new admin-only pages plumb the Phase 0 foundations into the UI. The
+# role gate mirrors admin_workflow_stages below: only users whose role is
+# 'admin' (case-insensitive) can reach them. Every CRUD path writes through
+# log_audit_event (app.py:1547) so changes are traceable.
+
+def _company_settings() -> dict:
+    """Return the central company_settings JSON as a Python dict.
+    Used by invoice numbering, mileage calc, PDF retention etc. Falls back
+    to a safe default if the row hasn't been seeded yet."""
+    try:
+        with engine.connect() as c:
+            row = c.execute(text("SELECT config FROM company_settings ORDER BY id LIMIT 1")).first()
+            if row and row[0]:
+                return json.loads(row[0])
+    except Exception:
+        pass
+    return {"hmrc_mileage_rate": 0.45, "pdf_retention_days": 2555, "default_vat_rate": 20}
+
+
+def _require_admin():
+    """Shared helper for the three Phase 0 admin pages. Mirrors the
+    admin_workflow_stages role gate (app.py:2597-2600)."""
+    if not current_user.is_authenticated or (current_user.role or "").lower() != "admin":
+        flash("Admin access required.", "danger")
+        return redirect(url_for("index"))
+    return None
+
+
+# ---- Clients ----
+
+@app.route("/admin/clients", methods=["GET"])
+@login_required
+def admin_clients():
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        clients = s.scalars(select(Client).order_by(Client.name)).all()
+        # How many engagements each client has — drives the delete-safe check.
+        eng_counts = {
+            row[0]: row[1] for row in s.execute(text(
+                "SELECT client_id, COUNT(*) FROM engagements WHERE client_id IS NOT NULL GROUP BY client_id"
+            )).all()
+        }
+    return render_template(
+        "admin_clients.html",
+        clients=clients,
+        eng_counts=eng_counts,
+    )
+
+
+@app.route("/admin/clients/new", methods=["POST"])
+@login_required
+def admin_clients_new():
+    guard = _require_admin()
+    if guard:
+        return guard
+    name = (request.form.get("name") or "").strip()
+    code = (request.form.get("client_code") or "").strip().upper()
+    if not name:
+        flash("Client name is required.", "warning")
+        return redirect(url_for("admin_clients"))
+    if not (2 <= len(code) <= 5) or not code.isalnum():
+        flash("Client code must be 2-5 alphanumeric characters.", "warning")
+        return redirect(url_for("admin_clients"))
+    with Session(engine) as s:
+        # Uniqueness checks before insert give friendlier flashes than waiting
+        # for the DB UNIQUE constraint to fire.
+        if s.scalar(select(Client).where(Client.name == name)):
+            flash(f"A client named {name!r} already exists.", "warning")
+            return redirect(url_for("admin_clients"))
+        if s.scalar(select(Client).where(Client.client_code == code)):
+            flash(f"Client code {code!r} is already in use.", "warning")
+            return redirect(url_for("admin_clients"))
+        c = Client(name=name, client_code=code, code_confirmed=True)
+        s.add(c)
+        s.commit()
+        try:
+            log_audit_event("create", "billing", f"Client created: {name} ({code})",
+                            "client", c.id, {"name": name, "code": code})
+        except Exception:
+            pass
+    flash(f"Client {name} created with code {code}.", "success")
+    # If the request came from a fetch (inline create), return JSON.
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify({"ok": True, "id": c.id, "name": name, "code": code})
+    return redirect(url_for("admin_clients"))
+
+
+@app.route("/admin/clients/<int:client_id>/edit", methods=["POST"])
+@login_required
+def admin_clients_edit(client_id: int):
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        c = s.get(Client, client_id)
+        if not c:
+            abort(404)
+        old = {"name": c.name, "code": c.client_code, "confirmed": c.code_confirmed}
+        name = (request.form.get("name") or "").strip() or c.name
+        code = (request.form.get("client_code") or "").strip().upper() or c.client_code
+        confirmed = request.form.get("code_confirmed") in ("on", "1", "true")
+        if not (2 <= len(code) <= 5) or not code.isalnum():
+            flash("Client code must be 2-5 alphanumeric characters.", "warning")
+            return redirect(url_for("admin_clients"))
+        # Uniqueness check excluding the row we're editing.
+        clash_name = s.scalar(select(Client).where(Client.name == name, Client.id != client_id))
+        if clash_name:
+            flash(f"Another client already uses the name {name!r}.", "warning")
+            return redirect(url_for("admin_clients"))
+        clash_code = s.scalar(select(Client).where(Client.client_code == code, Client.id != client_id))
+        if clash_code:
+            flash(f"Another client already uses the code {code!r}.", "warning")
+            return redirect(url_for("admin_clients"))
+        c.name = name
+        c.client_code = code
+        c.code_confirmed = confirmed
+        # Keep engagement.client (free-text mirror) in sync so existing
+        # display code that reads engagement.client still works.
+        s.execute(text("UPDATE engagements SET client = :n WHERE client_id = :cid")
+                  .bindparams(n=name, cid=client_id))
+        s.commit()
+        try:
+            log_audit_event("update", "billing", f"Client updated: {old['name']} -> {name}",
+                            "client", client_id, {"old": old, "new": {"name": name, "code": code, "confirmed": confirmed}})
+        except Exception:
+            pass
+    flash(f"Client {name} updated.", "success")
+    return redirect(url_for("admin_clients"))
+
+
+@app.route("/admin/clients/<int:client_id>/confirm", methods=["POST"])
+@login_required
+def admin_clients_confirm(client_id: int):
+    """One-click 'tick the code is correct' button on /admin/clients. After
+    confirm, _next_invoice_number (Phase 5) will accept this client's
+    engagements for invoice generation."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        c = s.get(Client, client_id)
+        if not c:
+            abort(404)
+        c.code_confirmed = True
+        s.commit()
+        try:
+            log_audit_event("update", "billing", f"Client code confirmed: {c.name} ({c.client_code})",
+                            "client", client_id, {})
+        except Exception:
+            pass
+    flash(f"Code {c.client_code} confirmed for {c.name}.", "success")
+    return redirect(url_for("admin_clients"))
+
+
+@app.route("/admin/clients/<int:client_id>/delete", methods=["POST"])
+@login_required
+def admin_clients_delete(client_id: int):
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        c = s.get(Client, client_id)
+        if not c:
+            abort(404)
+        # Refuse if any engagements still reference this client.
+        eng_count = s.scalar(select(func.count()).select_from(Engagement).where(Engagement.client_id == client_id)) or 0
+        if eng_count > 0:
+            flash(f"Cannot delete {c.name}: {eng_count} engagement(s) still linked to it. "
+                  f"Re-link or remove those engagements first.", "warning")
+            return redirect(url_for("admin_clients"))
+        name = c.name
+        s.delete(c)
+        s.commit()
+        try:
+            log_audit_event("delete", "billing", f"Client deleted: {name}",
+                            "client", client_id, {})
+        except Exception:
+            pass
+    flash(f"Client {name} deleted.", "success")
+    return redirect(url_for("admin_clients"))
+
+
+# ---- Expense Categories ----
+
+@app.route("/admin/expense-categories", methods=["GET"])
+@login_required
+def admin_expense_categories():
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        cats = s.scalars(select(ExpenseCategory).order_by(ExpenseCategory.sort_order, ExpenseCategory.name)).all()
+    return render_template("admin_expense_categories.html", categories=cats)
+
+
+@app.route("/admin/expense-categories/new", methods=["POST"])
+@login_required
+def admin_expense_categories_new():
+    guard = _require_admin()
+    if guard:
+        return guard
+    name = (request.form.get("name") or "").strip()
+    vat = (request.form.get("vat_treatment") or "standard").strip().lower()
+    is_mileage = request.form.get("is_mileage") in ("on", "1", "true")
+    try:
+        sort_order = int(request.form.get("sort_order") or 99)
+    except ValueError:
+        sort_order = 99
+    if not name:
+        flash("Category name is required.", "warning")
+        return redirect(url_for("admin_expense_categories"))
+    if vat not in ("standard", "reduced", "zero", "non_vatable"):
+        flash("VAT treatment must be standard / reduced / zero / non_vatable.", "warning")
+        return redirect(url_for("admin_expense_categories"))
+    with Session(engine) as s:
+        if s.scalar(select(ExpenseCategory).where(ExpenseCategory.name == name)):
+            flash(f"Category {name!r} already exists.", "warning")
+            return redirect(url_for("admin_expense_categories"))
+        cat = ExpenseCategory(name=name, vat_treatment=vat, is_mileage=is_mileage, sort_order=sort_order)
+        s.add(cat)
+        s.commit()
+        try:
+            log_audit_event("create", "config", f"Expense category created: {name}",
+                            "expense_category", cat.id, {"vat": vat, "mileage": is_mileage})
+        except Exception:
+            pass
+    flash(f"Expense category {name} created.", "success")
+    return redirect(url_for("admin_expense_categories"))
+
+
+@app.route("/admin/expense-categories/<int:cat_id>/edit", methods=["POST"])
+@login_required
+def admin_expense_categories_edit(cat_id: int):
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        cat = s.get(ExpenseCategory, cat_id)
+        if not cat:
+            abort(404)
+        old = {"name": cat.name, "vat": cat.vat_treatment, "mileage": cat.is_mileage, "sort": cat.sort_order}
+        name = (request.form.get("name") or "").strip() or cat.name
+        vat = (request.form.get("vat_treatment") or cat.vat_treatment).strip().lower()
+        is_mileage = request.form.get("is_mileage") in ("on", "1", "true")
+        try:
+            sort_order = int(request.form.get("sort_order") or cat.sort_order)
+        except ValueError:
+            sort_order = cat.sort_order
+        if vat not in ("standard", "reduced", "zero", "non_vatable"):
+            flash("VAT treatment must be standard / reduced / zero / non_vatable.", "warning")
+            return redirect(url_for("admin_expense_categories"))
+        # Uniqueness check excluding the row we're editing.
+        clash = s.scalar(select(ExpenseCategory).where(ExpenseCategory.name == name, ExpenseCategory.id != cat_id))
+        if clash:
+            flash(f"Another category already uses the name {name!r}.", "warning")
+            return redirect(url_for("admin_expense_categories"))
+        cat.name = name
+        cat.vat_treatment = vat
+        cat.is_mileage = is_mileage
+        cat.sort_order = sort_order
+        s.commit()
+        try:
+            log_audit_event("update", "config", f"Expense category updated: {old['name']} -> {name}",
+                            "expense_category", cat_id,
+                            {"old": old, "new": {"name": name, "vat": vat, "mileage": is_mileage, "sort": sort_order}})
+        except Exception:
+            pass
+    flash(f"Expense category {name} updated.", "success")
+    return redirect(url_for("admin_expense_categories"))
+
+
+@app.route("/admin/expense-categories/<int:cat_id>/delete", methods=["POST"])
+@login_required
+def admin_expense_categories_delete(cat_id: int):
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        cat = s.get(ExpenseCategory, cat_id)
+        if not cat:
+            abort(404)
+        # Refuse if any TimesheetExpense rows reference this category. The
+        # expense_category_id FK column is added in Phase 2, so until then
+        # this check is a no-op (the SELECT returns 0 because the column
+        # doesn't exist or no rows reference it yet).
+        try:
+            ref_count = s.execute(text(
+                "SELECT COUNT(*) FROM timesheet_expenses WHERE expense_category_id = :id"
+            ).bindparams(id=cat_id)).scalar() or 0
+        except Exception:
+            ref_count = 0
+        if ref_count > 0:
+            flash(f"Cannot delete {cat.name}: {ref_count} expense line(s) still reference it. "
+                  f"Re-categorise those expenses first.", "warning")
+            return redirect(url_for("admin_expense_categories"))
+        name = cat.name
+        s.delete(cat)
+        s.commit()
+        try:
+            log_audit_event("delete", "config", f"Expense category deleted: {name}",
+                            "expense_category", cat_id, {})
+        except Exception:
+            pass
+    flash(f"Expense category {name} deleted.", "success")
+    return redirect(url_for("admin_expense_categories"))
+
+
+# ---- Company Settings ----
+
+@app.route("/admin/company-settings", methods=["GET", "POST"])
+@login_required
+def admin_company_settings():
+    """Central Optimus company settings — HMRC mileage rate, PDF retention
+    period, default VAT rate. Phase 9 will add Optimus's own bank/registered
+    address details here for IR 5 (today those still live in invoice_settings
+    JSON — that table stays as the existing invoice template's settings)."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    settings = _company_settings()
+    if request.method == "POST":
+        try:
+            settings["hmrc_mileage_rate"] = float(request.form.get("hmrc_mileage_rate") or settings.get("hmrc_mileage_rate", 0.45))
+        except (TypeError, ValueError):
+            pass
+        try:
+            settings["pdf_retention_days"] = int(request.form.get("pdf_retention_days") or settings.get("pdf_retention_days", 2555))
+        except (TypeError, ValueError):
+            pass
+        try:
+            settings["default_vat_rate"] = float(request.form.get("default_vat_rate") or settings.get("default_vat_rate", 20))
+        except (TypeError, ValueError):
+            pass
+        try:
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as c:
+                row = c.execute(text("SELECT id FROM company_settings ORDER BY id LIMIT 1")).first()
+                if row:
+                    c.execute(text("UPDATE company_settings SET config = :cfg WHERE id = :id")
+                              .bindparams(cfg=json.dumps(settings), id=row[0]))
+                else:
+                    c.execute(text("INSERT INTO company_settings (config) VALUES (:cfg)")
+                              .bindparams(cfg=json.dumps(settings)))
+            flash("Company settings saved.", "success")
+            try:
+                log_audit_event("update", "config", "Company settings updated",
+                                "company_settings", 0, settings)
+            except Exception:
+                pass
+        except Exception as e:
+            flash(f"Failed to save settings: {e}", "danger")
+        return redirect(url_for("admin_company_settings"))
+    return render_template("admin_company_settings.html", settings=settings)
+
 
 @app.route("/admin/workflow-stages")
 @login_required
@@ -5932,11 +7404,27 @@ class Engagement(Base):
     # Third pass fix 6: Gap threshold days configurable per client (default 90)
     gap_threshold_days = Column(Integer, default=90)
 
+    # Phase 0 — Invoice/billing fields (TimesheetReq + InvoiceReq Reqs 1, 2, 6, 39).
+    # client_id links to the new Client entity introduced in Phase 0/5; the
+    # free-text `client` column above is kept and stays the display source of
+    # truth until an admin confirms the canonical Client code.
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
+    billing_address_line1 = Column(Text, default="")
+    billing_address_line2 = Column(Text, default="")
+    billing_city = Column(Text, default="")
+    billing_postcode = Column(Text, default="")
+    client_company_reg = Column(Text, default="")
+    client_vat_number = Column(Text, default="")
+    purchase_order_number = Column(Text, default="")
+    invoice_recipient_emails = Column(Text, default="[]")  # JSON array
+    vat_applicable = Column(Boolean, default=True)
+
     opportunity = relationship(
         "Opportunity",
         backref=backref("engagement", uselist=False)
     )
     jobs = relationship("Job", back_populates="engagement", cascade="all, delete-orphan")
+    client_rel = relationship("Client", back_populates="engagements", foreign_keys=[client_id])
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -6068,6 +7556,97 @@ class Timesheet(Base):
     approved_by = Column(Integer, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+    # Phase 4 / TS 21 — Adjustment TS support. timesheet_type:
+    # 'Standard' (default) | 'Adjustment'. Adjustment rows reference the
+    # originating already-invoiced timesheet and carry positive or negative
+    # day deltas that feed the next invoice as credit/debit lines.
+    timesheet_type = Column(String(20), default="Standard")
+    originating_timesheet_id = Column(Integer, ForeignKey("timesheets.id"), nullable=True)
+    # Stamped by the invoice generator (Phase 6+) when this timesheet's
+    # data is consumed into an invoice. Prevents Adjustment timesheets
+    # being double-billed.
+    invoiced_on_invoice_id = Column(Integer, nullable=True)
+
+
+# ============================================================================
+# Phase 0 — Foundations: Client, ExpenseCategory, BankHolidayDate
+# ============================================================================
+#
+# Client            — Optimus client entity. Engagement.client_id FKs here so
+#                     invoice numbers can include a stable client_code (IR 6).
+#                     code_confirmed gates invoice generation: a freshly
+#                     backfilled Client starts unconfirmed so an admin has to
+#                     review the auto-derived code before invoices issue.
+# ExpenseCategory   — Global config of expense names + VAT treatment (TS 24,
+#                     IR 14). Mileage flagged is_mileage so the portal swaps
+#                     to a distance-based form (TS 25).
+# BankHolidayDate   — Seeded list of UK bank holiday dates so timesheets can
+#                     shade non-working days (TS 7).
+#
+# All three are new tables — no impact on existing data. Boot-time seeds in
+# the migrations block below populate the defaults idempotently.
+
+class Client(Base):
+    __tablename__ = "clients"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), unique=True, nullable=False)
+    client_code = Column(String(5), unique=True, nullable=False)
+    # Auto-backfilled codes start unconfirmed; admins must review on
+    # /admin/clients before invoices can issue against engagements for this
+    # client. Manually-created clients are confirmed at creation.
+    code_confirmed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow)
+    engagements = relationship("Engagement", back_populates="client_rel",
+                               foreign_keys="Engagement.client_id")
+
+
+class ExpenseCategory(Base):
+    __tablename__ = "expense_categories"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False)
+    # standard / reduced / zero / non_vatable
+    vat_treatment = Column(String(20), nullable=False, default="standard")
+    is_mileage = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def vat_rate_pct(self) -> float:
+        """Effective VAT % for this category. Mileage / non_vatable / zero
+        all render 0; reduced = 5; standard = 20 (or whatever the central
+        company_settings.default_vat_rate is when we wire that in)."""
+        if self.vat_treatment == "standard":
+            return 20.0
+        if self.vat_treatment == "reduced":
+            return 5.0
+        # zero, non_vatable
+        return 0.0
+
+
+class BankHolidayDate(Base):
+    __tablename__ = "bank_holiday_dates"
+    # Composite PK lets us hold multiple regional copies of the same date.
+    date = Column(Date, primary_key=True)
+    region = Column(String(30), primary_key=True, default="england-and-wales")
+    title = Column(String(120), default="")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class EngagementApprover(Base):
+    """Phase 3 / TS 11 — links a User (with role 'approver' or any internal
+    role) to an Engagement so the approver portal can filter timesheets
+    by allocation. Primary / secondary distinguishes the lead approver
+    from backup approvers per engagement. UNIQUE(engagement_id, user_id)
+    keeps the same person from being added twice to one engagement."""
+    __tablename__ = "engagement_approvers"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    engagement_id = Column(Integer, ForeignKey("engagements.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String(20), default="primary")   # primary | secondary
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 
 class Invoice(Base):
     """Invoice model for client billing"""
@@ -6102,7 +7681,23 @@ class Invoice(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)
-    
+
+    # Phase 6 / IR 13 — partial-month invoicing. NULL on legacy rows.
+    period_start = Column(Date, nullable=True)
+    period_end = Column(Date, nullable=True)
+    # Phase 7 / IR 31 — send + resend audit on the invoice itself.
+    sent_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    sent_recipients = Column(Text, nullable=True)   # JSON array
+    # Phase 9 / IR 42 — PDF stored against the invoice for re-download.
+    pdf_doc_id = Column(Integer, nullable=True)
+    # Phase 8 / IR 35 — Mark-as-paid capture.
+    payment_date = Column(Date, nullable=True)
+    payment_reference = Column(String(120), nullable=True)
+    # Phase 8 / IR 36 — Void capture (status enum gains 'Void' in place of 'Cancelled').
+    void_reason = Column(Text, nullable=True)
+    voided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    voided_at = Column(DateTime, nullable=True)
+
     # Relationship
     engagement = relationship("Engagement", backref="invoices")
 
@@ -7922,6 +9517,511 @@ try:
             pass
 except Exception:
     pass
+
+# ============================================================================
+# Phase 0 — Foundations: boot-time migrations + seeds
+# ============================================================================
+# All idempotent. Safe to re-run on every boot. No existing data is cleared.
+#
+# - CREATE TABLE IF NOT EXISTS for clients / expense_categories /
+#   bank_holiday_dates / invoice_sequence / company_settings
+# - ALTER TABLE engagements ADD COLUMN IF NOT EXISTS … for billing fields
+# - INSERT … WHERE NOT EXISTS seeds for the default ExpenseCategory list,
+#   the single invoice_sequence row, the single company_settings row, and
+#   the UK Bank Holiday dates for 2025-2027 (fallback list; the gov.uk JSON
+#   fetcher is wired up but tolerates being offline).
+# - Auto-backfill Client rows from any distinct engagement.client strings
+#   that don't yet have a matching clients row; engagement.client_id is set
+#   to the new Client. code_confirmed defaults to False so admins must
+#   review on /admin/clients before invoices can issue.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        # --- clients ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS clients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(200) UNIQUE NOT NULL,
+                    client_code VARCHAR(5) UNIQUE NOT NULL,
+                    code_confirmed BOOLEAN DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+        except Exception:
+            # Postgres flavour
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS clients (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(200) UNIQUE NOT NULL,
+                        client_code VARCHAR(5) UNIQUE NOT NULL,
+                        code_confirmed BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+            except Exception:
+                pass
+
+        # --- expense_categories ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS expense_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(100) UNIQUE NOT NULL,
+                    vat_treatment VARCHAR(20) NOT NULL DEFAULT 'standard',
+                    is_mileage BOOLEAN DEFAULT 0,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+        except Exception:
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS expense_categories (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(100) UNIQUE NOT NULL,
+                        vat_treatment VARCHAR(20) NOT NULL DEFAULT 'standard',
+                        is_mileage BOOLEAN DEFAULT FALSE,
+                        sort_order INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+            except Exception:
+                pass
+
+        # --- bank_holiday_dates ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS bank_holiday_dates (
+                    date DATE NOT NULL,
+                    region VARCHAR(30) NOT NULL DEFAULT 'england-and-wales',
+                    title VARCHAR(120) DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (date, region)
+                )
+            """))
+        except Exception:
+            pass
+
+        # --- invoice_sequence (single-row global counter for IR 6) ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS invoice_sequence (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    next_value INTEGER NOT NULL DEFAULT 1
+                )
+            """))
+        except Exception:
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS invoice_sequence (
+                        id SERIAL PRIMARY KEY,
+                        next_value INTEGER NOT NULL DEFAULT 1
+                    )
+                """))
+            except Exception:
+                pass
+        try:
+            existing_seq = _rc.execute(text("SELECT COUNT(*) FROM invoice_sequence")).scalar() or 0
+            if existing_seq == 0:
+                _rc.execute(text("INSERT INTO invoice_sequence (next_value) VALUES (1)"))
+        except Exception:
+            pass
+
+        # --- company_settings (single-row JSON config for IR 5/38/42) ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS company_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config TEXT DEFAULT '{}'
+                )
+            """))
+        except Exception:
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS company_settings (
+                        id SERIAL PRIMARY KEY,
+                        config TEXT DEFAULT '{}'
+                    )
+                """))
+            except Exception:
+                pass
+        try:
+            existing_cs = _rc.execute(text("SELECT COUNT(*) FROM company_settings")).scalar() or 0
+            if existing_cs == 0:
+                default_cs = json.dumps({
+                    "hmrc_mileage_rate": 0.45,
+                    "pdf_retention_days": 2555,  # 7 years
+                    "default_vat_rate": 20,
+                })
+                _rc.execute(text("INSERT INTO company_settings (config) VALUES (:c)").bindparams(c=default_cs))
+        except Exception:
+            pass
+
+        # --- engagement billing columns (Phase 0 additive) ---
+        for _coldef in (
+            "client_id INTEGER",
+            "billing_address_line1 TEXT",
+            "billing_address_line2 TEXT",
+            "billing_city TEXT",
+            "billing_postcode TEXT",
+            "client_company_reg TEXT",
+            "client_vat_number TEXT",
+            "purchase_order_number TEXT",
+            "invoice_recipient_emails TEXT",
+            "vat_applicable BOOLEAN DEFAULT 1",
+        ):
+            try:
+                _rc.execute(text(f"ALTER TABLE engagements ADD COLUMN {_coldef}"))
+            except Exception:
+                # Column already exists — boot-time pattern, harmless.
+                pass
+
+        # --- timesheet_expenses columns (Phase 2 additive) ---
+        for _coldef in (
+            "expense_category_id INTEGER",
+            "vat_rate_pct FLOAT DEFAULT 0.0",
+            "vat_amount FLOAT DEFAULT 0.0",
+            "date_of_expense DATE",
+            "distance_miles FLOAT",
+            "approved_at TIMESTAMP",
+        ):
+            try:
+                _rc.execute(text(f"ALTER TABLE timesheet_expenses ADD COLUMN {_coldef}"))
+            except Exception:
+                pass
+
+        # --- timesheets columns (Phase 4 additive for Adjustment TS) ---
+        for _coldef in (
+            "timesheet_type VARCHAR(20) DEFAULT 'Standard'",
+            "originating_timesheet_id INTEGER",
+            "invoiced_on_invoice_id INTEGER",
+        ):
+            try:
+                _rc.execute(text(f"ALTER TABLE timesheets ADD COLUMN {_coldef}"))
+            except Exception:
+                pass
+
+        # --- invoices columns (Phases 6-8 additive) ---
+        for _coldef in (
+            "period_start DATE",
+            "period_end DATE",
+            "sent_by INTEGER",
+            "sent_recipients TEXT",
+            "pdf_doc_id INTEGER",
+            "payment_date DATE",
+            "payment_reference VARCHAR(120)",
+            "void_reason TEXT",
+            "voided_by INTEGER",
+            "voided_at TIMESTAMP",
+        ):
+            try:
+                _rc.execute(text(f"ALTER TABLE invoices ADD COLUMN {_coldef}"))
+            except Exception:
+                pass
+
+        # --- Phase 8 / IR 33 — status enum rename. Idempotent UPDATE: the
+        # spec uses Sent/Void instead of Pending/Cancelled. Pre-existing
+        # invoice rows with old labels are quietly migrated; data preserved.
+        try:
+            _rc.execute(text("UPDATE invoices SET status = 'Sent' WHERE status = 'Pending'"))
+            _rc.execute(text("UPDATE invoices SET status = 'Void' WHERE status = 'Cancelled'"))
+        except Exception:
+            pass
+
+        # --- engagement_approvers (Phase 3) ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS engagement_approvers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    engagement_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    role VARCHAR(20) DEFAULT 'primary',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(engagement_id, user_id)
+                )
+            """))
+        except Exception:
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS engagement_approvers (
+                        id SERIAL PRIMARY KEY,
+                        engagement_id INTEGER NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        role VARCHAR(20) DEFAULT 'primary',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(engagement_id, user_id)
+                    )
+                """))
+            except Exception:
+                pass
+
+        # --- invoice_audit_log (Phase 7) ---
+        try:
+            _rc.execute(text("""
+                CREATE TABLE IF NOT EXISTS invoice_audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invoice_id INTEGER NOT NULL,
+                    event_type VARCHAR(40) NOT NULL,
+                    field_name VARCHAR(80),
+                    original_value TEXT,
+                    new_value TEXT,
+                    user_id INTEGER,
+                    occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    notes TEXT
+                )
+            """))
+        except Exception:
+            try:
+                _rc.execute(text("""
+                    CREATE TABLE IF NOT EXISTS invoice_audit_log (
+                        id SERIAL PRIMARY KEY,
+                        invoice_id INTEGER NOT NULL,
+                        event_type VARCHAR(40) NOT NULL,
+                        field_name VARCHAR(80),
+                        original_value TEXT,
+                        new_value TEXT,
+                        user_id INTEGER,
+                        occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        notes TEXT
+                    )
+                """))
+            except Exception:
+                pass
+except Exception:
+    pass
+
+
+# --- ExpenseCategory seeds (idempotent) ---
+# Default categories Optimus uses today + Mileage (Non-VATable) seeded
+# explicitly so the mileage flow (TS 25) has somewhere to attach. Any custom
+# category names already present in TimesheetConfig.expense_types JSON get
+# auto-added with Standard 20% treatment so legacy timesheets still match.
+def _seed_expense_categories():
+    defaults = [
+        # (name, vat_treatment, is_mileage, sort_order)
+        ("Travel",        "standard",     False, 10),
+        ("Accommodation", "standard",     False, 20),
+        ("Meals",         "standard",     False, 30),
+        ("Equipment",     "standard",     False, 40),
+        ("Mileage",       "non_vatable",  True,  50),
+        ("Other",         "standard",     False, 90),
+    ]
+    try:
+        with Session(engine) as s:
+            existing = {row[0] for row in s.execute(text("SELECT name FROM expense_categories")).all()}
+            for name, vat, mileage, sort in defaults:
+                if name in existing:
+                    continue
+                s.execute(text(
+                    "INSERT INTO expense_categories (name, vat_treatment, is_mileage, sort_order) "
+                    "VALUES (:n, :v, :m, :o)"
+                ).bindparams(n=name, v=vat, m=mileage, o=sort))
+            # Best-effort backfill: walk TimesheetConfig JSON expense_types
+            # and add any custom names as Standard 20% so legacy data lines up.
+            try:
+                rows = s.execute(text("SELECT expense_types FROM timesheet_configs WHERE expense_types IS NOT NULL")).all()
+                for (raw,) in rows:
+                    try:
+                        names = json.loads(raw) if raw else []
+                    except Exception:
+                        names = []
+                    for nm in names:
+                        if isinstance(nm, str) and nm.strip() and nm.strip() not in existing:
+                            try:
+                                s.execute(text(
+                                    "INSERT INTO expense_categories (name, vat_treatment, is_mileage, sort_order) "
+                                    "VALUES (:n, 'standard', 0, 99)"
+                                ).bindparams(n=nm.strip()))
+                                existing.add(nm.strip())
+                            except Exception:
+                                pass
+            except Exception:
+                # timesheet_configs table may not exist yet on a fresh install.
+                pass
+            s.commit()
+    except Exception:
+        # Initial seeds are best-effort; the admin can manually populate via
+        # /admin/expense-categories if this fails for any reason.
+        pass
+
+try:
+    _seed_expense_categories()
+except Exception:
+    pass
+
+
+# --- BankHolidayDate seeds (idempotent) ---
+# Static fallback list of UK bank holidays for 2025-2027 covering
+# England-and-Wales (the primary region; Scotland-specific holidays can be
+# layered on later via region='scotland' rows). If the gov.uk JSON feed is
+# reachable we prefer that; otherwise the static list keeps the shading
+# functional. Re-running this on every boot is safe — primary key (date,
+# region) guarantees no duplicates.
+_UK_BANK_HOLIDAYS_FALLBACK = [
+    # 2025
+    ("2025-01-01", "New Year's Day"),
+    ("2025-04-18", "Good Friday"),
+    ("2025-04-21", "Easter Monday"),
+    ("2025-05-05", "Early May bank holiday"),
+    ("2025-05-26", "Spring bank holiday"),
+    ("2025-08-25", "Summer bank holiday"),
+    ("2025-12-25", "Christmas Day"),
+    ("2025-12-26", "Boxing Day"),
+    # 2026
+    ("2026-01-01", "New Year's Day"),
+    ("2026-04-03", "Good Friday"),
+    ("2026-04-06", "Easter Monday"),
+    ("2026-05-04", "Early May bank holiday"),
+    ("2026-05-25", "Spring bank holiday"),
+    ("2026-08-31", "Summer bank holiday"),
+    ("2026-12-25", "Christmas Day"),
+    ("2026-12-28", "Boxing Day (substitute day)"),
+    # 2027
+    ("2027-01-01", "New Year's Day"),
+    ("2027-03-26", "Good Friday"),
+    ("2027-03-29", "Easter Monday"),
+    ("2027-05-03", "Early May bank holiday"),
+    ("2027-05-31", "Spring bank holiday"),
+    ("2027-08-30", "Summer bank holiday"),
+    ("2027-12-27", "Christmas Day (substitute day)"),
+    ("2027-12-28", "Boxing Day (substitute day)"),
+]
+
+def _seed_bank_holidays():
+    try:
+        with Session(engine) as s:
+            # Try the gov.uk JSON feed first. Falls back to the static list
+            # on any network / parse error.
+            try:
+                resp = requests.get("https://www.gov.uk/bank-holidays.json", timeout=10)
+                resp.raise_for_status()
+                payload = resp.json()
+                ew = (payload or {}).get("england-and-wales", {}).get("events", [])
+                if ew:
+                    for ev in ew:
+                        try:
+                            d = ev.get("date") or ""
+                            title = (ev.get("title") or "")[:120]
+                            if d:
+                                s.execute(text(
+                                    "INSERT OR IGNORE INTO bank_holiday_dates (date, region, title) "
+                                    "VALUES (:d, 'england-and-wales', :t)"
+                                ).bindparams(d=d, t=title))
+                        except Exception:
+                            pass
+                    s.commit()
+                    return
+            except Exception:
+                pass
+            # Fallback list
+            for d, title in _UK_BANK_HOLIDAYS_FALLBACK:
+                try:
+                    s.execute(text(
+                        "INSERT OR IGNORE INTO bank_holiday_dates (date, region, title) "
+                        "VALUES (:d, 'england-and-wales', :t)"
+                    ).bindparams(d=d, t=title))
+                except Exception:
+                    # Postgres flavour — use ON CONFLICT DO NOTHING
+                    try:
+                        s.execute(text(
+                            "INSERT INTO bank_holiday_dates (date, region, title) "
+                            "VALUES (:d, 'england-and-wales', :t) "
+                            "ON CONFLICT (date, region) DO NOTHING"
+                        ).bindparams(d=d, t=title))
+                    except Exception:
+                        pass
+            s.commit()
+    except Exception:
+        pass
+
+try:
+    _seed_bank_holidays()
+except Exception:
+    pass
+
+
+# --- Auto-backfill Client rows from existing engagement.client strings ---
+# Existing engagements have a free-text `client` column. For every distinct
+# value that doesn't yet match a clients.name row, create a Client with an
+# auto-derived 3-letter slug code and code_confirmed=False. Engagements get
+# their client_id linked. Admins must review on /admin/clients before any
+# invoice can issue against these engagements (the invoice generator checks
+# code_confirmed in Phase 5).
+def _auto_backfill_clients():
+    import re as _re
+    try:
+        with Session(engine) as s:
+            # Build the slug derivation: prefer the initials of capitalised
+            # words ("Lloyds Banking Group" -> "LBG"). Fallback: first 3
+            # alphabetic chars uppercased.
+            def _derive_code(name: str, taken: set) -> str:
+                if not name:
+                    return ""
+                words = [w for w in _re.split(r"\s+", name.strip()) if w]
+                initials = "".join(w[0] for w in words if w and w[0].isalpha()).upper()
+                if 2 <= len(initials) <= 5:
+                    base = initials
+                else:
+                    letters = _re.sub(r"[^A-Za-z]", "", name).upper()
+                    base = (letters[:3] or "CLI")
+                code = base
+                n = 2
+                while code in taken or len(code) > 5:
+                    suffix = str(n)
+                    keep = max(2, 5 - len(suffix))
+                    code = base[:keep] + suffix
+                    n += 1
+                    if n > 99:
+                        # Bail out — admin will rename manually.
+                        code = (base[:3] + "X")[:5]
+                        break
+                return code
+
+            existing_clients = {row[0] for row in s.execute(text("SELECT name FROM clients")).all()}
+            existing_codes = {row[0] for row in s.execute(text("SELECT client_code FROM clients")).all()}
+            # Distinct, non-empty client strings from engagements not yet linked.
+            unlinked = s.execute(text(
+                "SELECT DISTINCT TRIM(client) AS c FROM engagements "
+                "WHERE client IS NOT NULL AND TRIM(client) <> '' AND client_id IS NULL"
+            )).all()
+            for (client_name,) in unlinked:
+                if not client_name:
+                    continue
+                if client_name in existing_clients:
+                    # Already a Client row — just link the engagements.
+                    cid = s.execute(text(
+                        "SELECT id FROM clients WHERE name = :n"
+                    ).bindparams(n=client_name)).scalar()
+                else:
+                    new_code = _derive_code(client_name, existing_codes)
+                    existing_codes.add(new_code)
+                    existing_clients.add(client_name)
+                    s.execute(text(
+                        "INSERT INTO clients (name, client_code, code_confirmed) "
+                        "VALUES (:n, :c, 0)"
+                    ).bindparams(n=client_name, c=new_code))
+                    cid = s.execute(text(
+                        "SELECT id FROM clients WHERE name = :n"
+                    ).bindparams(n=client_name)).scalar()
+                if cid:
+                    s.execute(text(
+                        "UPDATE engagements SET client_id = :cid "
+                        "WHERE TRIM(client) = :n AND client_id IS NULL"
+                    ).bindparams(cid=cid, n=client_name))
+            s.commit()
+    except Exception:
+        # Backfill is best-effort; admin can wire engagements to clients
+        # manually via /admin/clients / engagement edit form if this fails.
+        pass
+
+try:
+    _auto_backfill_clients()
+except Exception:
+    pass
+
 
 # ---------- Taxonomy tagging helpers ----------
 WORD = r"[A-Za-z][A-Za-z\-/&\.\(\) ]+[A-Za-z]"
@@ -13364,6 +15464,11 @@ def create_engagement():
                 reference_period_years=ref_period,
             )
             s.add(e)
+            s.flush()
+            # Phase 5 — link to a Client row (find existing by name or create
+            # a new one with an auto-derived, unconfirmed code). Admin must
+            # confirm the code via /admin/clients before invoices can issue.
+            _ensure_client_linked(s, e)
             s.commit()
             flash(f"Engagement {e.ref} created", "success")
         return redirect(url_for("engagements"))
@@ -13413,6 +15518,10 @@ def engagement_edit(eng_id):
                 engagement.reference_period_years = rp if 1 <= rp <= 10 else 3
             except (ValueError, TypeError):
                 engagement.reference_period_years = 3
+            # Phase 5 — re-resolve the Client link when the client name
+            # changes. If the name moves to a different existing Client the
+            # FK swaps; if it's brand new an unconfirmed Client is created.
+            _ensure_client_linked(s, engagement)
             s.commit()
             flash(f"Engagement {engagement.ref} updated", "success")
             return redirect(url_for("engagement_dashboard", eng_id=eng_id))
@@ -28091,8 +30200,185 @@ def _setup_scheduler():
             except Exception as e:
                 print(f"[EXPIRY] Document expiry check failed: {e}")
 
+    # ========================================================================
+    # Phase 10 — Timesheet + invoice scheduled jobs (TS 22-23, IR 33, IR 42)
+    # ========================================================================
+    # In-process APScheduler. Note: running gunicorn with multiple workers
+    # will fire each job N times. Wrap each job's main effect in a "first
+    # caller wins" advisory-lock pattern if you scale beyond one worker.
+
+    @scheduler.scheduled_job('cron', day_of_week='fri', hour=12, minute=0,
+                             id='ts_associate_reminder_fri')
+    def ts_associate_reminder_fri():
+        """TS 22 — Friday 12:00: nudge currently-placed Associates to
+        submit their timesheet for the current WC."""
+        with app.app_context():
+            try:
+                today = datetime.date.today()
+                this_wc = today - datetime.timedelta(days=today.weekday())
+                with Session(engine) as s:
+                    # Placed Associates: candidate.status in {On Assignment, On Contract, Active}
+                    cands = s.execute(text(
+                        "SELECT id, name, email FROM candidates "
+                        "WHERE LOWER(status) IN ('on assignment','on contract','active') AND email <> ''"
+                    )).all()
+                    sent = 0
+                    for c in cands:
+                        existing = s.execute(text(
+                            "SELECT id FROM timesheets WHERE user_id = :uid AND period_start = :wc "
+                            "AND LOWER(status) IN ('submitted','approved') LIMIT 1"
+                        ).bindparams(uid=c.id, wc=this_wc)).first()
+                        if existing:
+                            continue
+                        try:
+                            send_email(
+                                c.email,
+                                f"Reminder: submit your timesheet for WC {this_wc.strftime('%d/%m/%Y')} by 4pm today",
+                                f"<p>Hi {c.name or 'there'},</p>"
+                                f"<p>Please submit your timesheet for the week commencing "
+                                f"{this_wc.strftime('%d %B %Y')} by 4pm today.</p>"
+                                f"<p>Optimus Operations</p>",
+                                from_email=SMTP_FROM,
+                            )
+                            sent += 1
+                        except Exception as e:
+                            print(f"[TS-REMINDER FRI] Failed for {c.email}: {e}")
+                    print(f"[TS-REMINDER FRI] Sent {sent} associate reminders.")
+            except Exception as e:
+                print(f"[TS-REMINDER FRI] Job failed: {e}")
+
+    @scheduler.scheduled_job('cron', day_of_week='mon,tue', hour='9,12', minute=0,
+                             id='ts_associate_reminder_chase')
+    def ts_associate_reminder_chase():
+        """TS 22 — Monday 12:00 + Tuesday 09:00 chase for previous WC."""
+        with app.app_context():
+            try:
+                today = datetime.date.today()
+                # Previous WC (the one that needs submitting now).
+                last_wc = today - datetime.timedelta(days=today.weekday() + 7)
+                with Session(engine) as s:
+                    cands = s.execute(text(
+                        "SELECT id, name, email FROM candidates "
+                        "WHERE LOWER(status) IN ('on assignment','on contract','active') AND email <> ''"
+                    )).all()
+                    sent = 0
+                    for c in cands:
+                        existing = s.execute(text(
+                            "SELECT id FROM timesheets WHERE user_id = :uid AND period_start = :wc "
+                            "AND LOWER(status) IN ('submitted','approved') LIMIT 1"
+                        ).bindparams(uid=c.id, wc=last_wc)).first()
+                        if existing:
+                            continue
+                        try:
+                            send_email(
+                                c.email,
+                                f"Chase: your timesheet for WC {last_wc.strftime('%d/%m/%Y')} is outstanding",
+                                f"<p>Hi {c.name or 'there'},</p>"
+                                f"<p>Your timesheet for week commencing "
+                                f"{last_wc.strftime('%d %B %Y')} hasn't been submitted yet. "
+                                f"Please complete it as soon as possible so we can process your payment.</p>"
+                                f"<p>Optimus Operations</p>",
+                                from_email=SMTP_FROM,
+                            )
+                            sent += 1
+                        except Exception as e:
+                            print(f"[TS-CHASE] Failed for {c.email}: {e}")
+                    print(f"[TS-CHASE] Sent {sent} associate chase emails for WC {last_wc}.")
+            except Exception as e:
+                print(f"[TS-CHASE] Job failed: {e}")
+
+    @scheduler.scheduled_job('cron', day_of_week='fri,mon,tue', hour='9,12', minute=0,
+                             id='ts_approver_reminder')
+    def ts_approver_reminder():
+        """TS 23 — approver reminder. Fri 12:00, Mon 09:00, Tue 09:00.
+        We're scheduling a wider net (Fri+Mon+Tue, 9am+12pm) and the
+        per-approver SQL filters to those with outstanding Submitted
+        timesheets so spurious sends don't fire."""
+        # Coarse-grained hour filter so we don't double-fire on weird overlaps.
+        now = datetime.datetime.now()
+        dow = now.weekday()  # Mon=0
+        h = now.hour
+        if not ((dow == 4 and h == 12)        # Fri 12
+                or (dow == 0 and h == 9)      # Mon 9
+                or (dow == 1 and h == 9)):    # Tue 9
+            return
+        with app.app_context():
+            try:
+                with Session(engine) as s:
+                    # All approvers with outstanding Submitted timesheets.
+                    rows = s.execute(text(
+                        "SELECT u.id, u.email, u.name, COUNT(t.id) AS pending_count "
+                        "FROM engagement_approvers ea "
+                        "JOIN users u ON u.id = ea.user_id "
+                        "JOIN timesheets t ON t.engagement_id = ea.engagement_id "
+                        "WHERE LOWER(t.status) = 'submitted' AND u.email <> '' "
+                        "GROUP BY u.id, u.email, u.name"
+                    )).all()
+                    sent = 0
+                    for r in rows:
+                        try:
+                            send_email(
+                                r.email,
+                                f"Reminder: {r.pending_count} timesheet(s) awaiting your approval",
+                                f"<p>Hi {r.name or 'there'},</p>"
+                                f"<p>You have <strong>{r.pending_count}</strong> timesheet(s) "
+                                f"awaiting your approval. Please log in to OS1 and review them "
+                                f"before the Monday 12pm cutoff.</p>"
+                                f"<p>Optimus Operations</p>",
+                                from_email=SMTP_FROM,
+                            )
+                            sent += 1
+                        except Exception as e:
+                            print(f"[APPROVER-REMINDER] Failed for {r.email}: {e}")
+                    print(f"[APPROVER-REMINDER] Sent {sent} approver reminders.")
+            except Exception as e:
+                print(f"[APPROVER-REMINDER] Job failed: {e}")
+
+    @scheduler.scheduled_job('cron', hour=0, minute=30, id='invoice_overdue_flip')
+    def invoice_overdue_flip():
+        """IR 33 — nightly flip Sent invoices past due_date to Overdue."""
+        with app.app_context():
+            try:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as c:
+                    res = c.execute(text(
+                        "UPDATE invoices SET status = 'Overdue' "
+                        "WHERE LOWER(status) = 'sent' AND due_date < :today"
+                    ).bindparams(today=datetime.date.today()))
+                    print(f"[OVERDUE-FLIP] Flipped {res.rowcount or 0} invoices to Overdue.")
+            except Exception as e:
+                print(f"[OVERDUE-FLIP] Job failed: {e}")
+
+    @scheduler.scheduled_job('cron', hour=3, minute=0, id='pdf_retention_cleanup')
+    def pdf_retention_cleanup():
+        """IR 42 — delete invoice PDFs older than the retention period
+        (default 7 years / 2555 days) from disk + Document store."""
+        with app.app_context():
+            try:
+                cfg = _company_settings()
+                retention_days = int(cfg.get("pdf_retention_days", 2555))
+                cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=retention_days)
+                with Session(engine) as s:
+                    old_docs = s.execute(text(
+                        "SELECT id, filename FROM documents "
+                        "WHERE doc_type LIKE 'invoice_%' AND uploaded_at < :cutoff"
+                    ).bindparams(cutoff=cutoff)).all()
+                    deleted = 0
+                    for d in old_docs:
+                        try:
+                            path = os.path.join(UPLOAD_FOLDER, d.filename or "")
+                            if d.filename and os.path.exists(path):
+                                os.remove(path)
+                            s.execute(text("DELETE FROM documents WHERE id = :id").bindparams(id=d.id))
+                            deleted += 1
+                        except Exception as e:
+                            print(f"[PDF-RETENTION] Failed to delete doc {d.id}: {e}")
+                    s.commit()
+                    print(f"[PDF-RETENTION] Deleted {deleted} expired invoice PDFs (cutoff {cutoff}).")
+            except Exception as e:
+                print(f"[PDF-RETENTION] Job failed: {e}")
+
     scheduler.start()
-    print("[SCHEDULER] Background scheduler started with auto-chase + expiry jobs.")
+    print("[SCHEDULER] Background scheduler started with auto-chase + expiry + timesheet + invoice jobs.")
     return scheduler
 
 
