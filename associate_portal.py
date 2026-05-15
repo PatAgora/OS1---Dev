@@ -4026,6 +4026,52 @@ def timesheets():
             except Exception:
                 expense_types_list = []
 
+        # Phase 2 / TS 12, 24 — surface ExpenseCategory rows for the new
+        # dropdown UI. Each entry has id, name, vat_treatment, is_mileage
+        # so the template + JS can swap between £-amount and miles-distance
+        # inputs and show a VAT preview.
+        expense_categories = []
+        try:
+            cat_rows = s.execute(text(
+                "SELECT id, name, vat_treatment, is_mileage FROM expense_categories ORDER BY sort_order, name"
+            )).all()
+            for r in cat_rows:
+                expense_categories.append({
+                    "id": r[0],
+                    "name": r[1],
+                    "vat_treatment": r[2],
+                    "is_mileage": bool(r[3]),
+                })
+        except Exception:
+            pass
+
+        # Phase 1 / TS 7 visual — UK bank-holiday dates (England-and-Wales)
+        # passed as ISO date strings for the template's CSS shading logic.
+        bank_holidays = []
+        try:
+            bh_rows = s.execute(text(
+                "SELECT date FROM bank_holiday_dates WHERE region = :r"
+            ).bindparams(r='england-and-wales')).all()
+            bank_holidays = [r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]) for r in bh_rows]
+        except Exception:
+            pass
+
+        # Phase 1 / TS 2 — whether the current viewer is allowed to see
+        # the Overtime + Expenses sections. Default Associates are
+        # restricted; OS1 staff users at 'employee' level or above (which
+        # in practice means any role other than 'associate') can see them.
+        can_view_advanced = True   # default — we don't yet have a
+        # session-scoped staff role on the associate portal. If a portal
+        # role flag is added later this becomes the right gate.
+
+        # Phase 2 / TS 25 — central HMRC mileage rate so the template can
+        # display the live derivation "miles × £rate" preview.
+        try:
+            from app import _company_settings
+            hmrc_mileage_rate = float(_company_settings().get("hmrc_mileage_rate", 0.45))
+        except Exception:
+            hmrc_mileage_rate = 0.45
+
         return render_template(
             "associate/timesheets.html",
             assignments=assignments,
@@ -4038,6 +4084,10 @@ def timesheets():
             monthly_bundles=sorted_bundles,
             expense_enabled=expense_enabled,
             expense_types=expense_types_list,
+            expense_categories=expense_categories,
+            bank_holidays=bank_holidays,
+            can_view_advanced=can_view_advanced,
+            hmrc_mileage_rate=hmrc_mileage_rate,
         )
 
 
@@ -5517,6 +5567,97 @@ def timesheets_add_expense():
         s.commit()
 
     flash(f"Expense added: {expense_type} - GBP{amount:.2f}.", "success")
+    return redirect(url_for("associate.timesheets"))
+
+
+@associate_bp.route("/timesheets/edit-expense/<int:expense_id>", methods=["POST"])
+@_require_login
+def timesheets_edit_expense(expense_id):
+    """Phase 2 / TS 13 — in-place edit of an expense line on a Draft or
+    Rejected timesheet. Recomputes VAT from the category and (for
+    mileage) the £-amount from the new distance × HMRC rate."""
+    TimesheetExpense = _portal_model("TimesheetExpense")
+    Timesheet = _model("Timesheet")
+    engine = _engine()
+    cand_id = _get_associate_id()
+    with SASession(engine) as s:
+        expense = s.get(TimesheetExpense, expense_id) if TimesheetExpense else None
+        if not expense:
+            flash("Expense not found.", "danger")
+            return redirect(url_for("associate.timesheets"))
+        ts = s.get(Timesheet, expense.timesheet_id)
+        if not ts or ts.user_id != cand_id:
+            flash("Timesheet not found.", "danger")
+            return redirect(url_for("associate.timesheets"))
+        if (ts.status or "").lower() not in ("draft", "unsubmitted", "rejected", "", None):
+            flash("Expenses can only be edited on draft or rejected timesheets.", "warning")
+            return redirect(url_for("associate.timesheets"))
+
+        # Pull current HMRC rate.
+        try:
+            from app import _company_settings
+            cfg = _company_settings()
+        except Exception:
+            cfg = {"hmrc_mileage_rate": 0.45}
+        hmrc_rate = float(cfg.get("hmrc_mileage_rate", 0.45))
+
+        # Allow category swap.
+        category_id_raw = request.form.get("expense_category_id")
+        cat_id = None
+        try:
+            cat_id = int(category_id_raw) if category_id_raw else None
+        except ValueError:
+            cat_id = None
+        category = None
+        if cat_id is not None:
+            try:
+                category = s.execute(text(
+                    "SELECT id, name, vat_treatment, is_mileage FROM expense_categories WHERE id = :id"
+                ).bindparams(id=cat_id)).first()
+            except Exception:
+                category = None
+        if category:
+            expense.expense_category_id = category[0]
+            expense.expense_type = category[1]
+            treatment = category[2] or "standard"
+            expense.vat_rate_pct = {"standard": 20.0, "reduced": 5.0, "zero": 0.0, "non_vatable": 0.0}.get(treatment, 20.0)
+            is_mileage = bool(category[3])
+        else:
+            is_mileage = bool(expense.distance_miles)
+
+        # Date + description
+        date_raw = (request.form.get("expense_date") or "").strip()
+        if date_raw:
+            expense.date_of_expense = _parse_date(date_raw)
+        desc = request.form.get("expense_description")
+        if desc is not None:
+            expense.description = _sanitise(desc)
+
+        if is_mileage:
+            dist_raw = (request.form.get("expense_distance") or "").strip()
+            try:
+                miles = float(dist_raw) if dist_raw else 0
+            except ValueError:
+                miles = 0
+            if miles > 0:
+                expense.distance_miles = miles
+                expense.amount = round(miles * hmrc_rate, 2)
+        else:
+            amt_raw = (request.form.get("expense_amount") or "").strip()
+            try:
+                amt = float(amt_raw) if amt_raw else expense.amount
+            except ValueError:
+                amt = expense.amount
+            if amt > 0:
+                expense.amount = amt
+
+        expense.vat_amount = round((expense.amount or 0) * ((expense.vat_rate_pct or 0) / 100.0), 2)
+        # Refresh totals on the parent timesheet.
+        all_rows = s.query(TimesheetExpense).filter_by(timesheet_id=ts.id).all()
+        ts.expense_total = sum(float(r.amount or 0) for r in all_rows)
+        ts.grand_total = (ts.total_amount or 0) + ts.expense_total
+        s.commit()
+    flash("Expense updated.", "success")
     return redirect(url_for("associate.timesheets"))
 
 

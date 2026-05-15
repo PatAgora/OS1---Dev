@@ -131,5 +131,200 @@
   </div>
 </form>
 
+{# =========================================================================
+   Phase 5 — Billing card (IR 1 / 2 / 4). Saves to a separate route so the
+   main form's vetting / dates etc. stay independent.
+   ========================================================================= #}
+<form method="post" action="{{ url_for('engagement_update_billing', eng_id=engagement.id) }}" class="card shadow-sm border-0 mt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card-body p-4">
+    <h4 class="fw-bold mb-3"><i class="fas fa-file-invoice-dollar me-2 text-primary"></i>Billing</h4>
+
+    <div class="row g-3">
+      <div class="col-md-8">
+        <label class="form-label fw-semibold">Client</label>
+        <div class="d-flex gap-2 align-items-end">
+          <select name="client_id" class="form-select" id="engagementClientSelect" required>
+            <option value="">— select client —</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}" {% if engagement.client_id == c.id %}selected{% endif %}>
+              {{ c.name }} ({{ c.client_code }}{% if not c.code_confirmed %} — review{% endif %})
+            </option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('inlineClientForm').style.display = document.getElementById('inlineClientForm').style.display==='none'?'':'none';">
+            <i class="fas fa-plus me-1"></i>Add new client
+          </button>
+        </div>
+        <div class="form-text">Required before invoices can be generated. <a href="{{ url_for('admin_clients') }}" target="_blank">Manage clients →</a></div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Purchase Order Number</label>
+        <input type="text" name="purchase_order_number" class="form-control" value="{{ engagement.purchase_order_number or '' }}" placeholder="PO123456 (optional)">
+      </div>
+    </div>
+
+    <div id="inlineClientForm" class="alert alert-light border mt-3" style="display:none;">
+      <strong>Quick-add a client</strong>
+      <p class="small text-muted mb-2">Saves immediately to the central Clients table. Code starts unconfirmed; visit Clients to tick it as final.</p>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label small">Client name</label>
+          <input type="text" id="newClientName" class="form-control form-control-sm" placeholder="e.g. Lloyds Banking Group">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">Code (2-5 alphanumeric)</label>
+          <input type="text" id="newClientCode" class="form-control form-control-sm text-uppercase" minlength="2" maxlength="5">
+        </div>
+        <div class="col-md-3">
+          <button type="button" class="btn btn-sm btn-success w-100" onclick="quickAddClient()">
+            <i class="fas fa-save me-1"></i>Save & select
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <h6 class="text-muted mt-4 mb-2">Billing address</h6>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Address line 1</label>
+        <input type="text" name="billing_address_line1" class="form-control" value="{{ engagement.billing_address_line1 or '' }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Address line 2</label>
+        <input type="text" name="billing_address_line2" class="form-control" value="{{ engagement.billing_address_line2 or '' }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">City</label>
+        <input type="text" name="billing_city" class="form-control" value="{{ engagement.billing_city or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Postcode</label>
+        <input type="text" name="billing_postcode" class="form-control" value="{{ engagement.billing_postcode or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Company reg #</label>
+        <input type="text" name="client_company_reg" class="form-control" value="{{ engagement.client_company_reg or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">VAT #</label>
+        <input type="text" name="client_vat_number" class="form-control" value="{{ engagement.client_vat_number or '' }}">
+      </div>
+    </div>
+
+    <h6 class="text-muted mt-4 mb-2">Invoice recipients</h6>
+    <div class="mb-3">
+      <label class="form-label">Recipient email addresses</label>
+      <textarea name="invoice_recipient_emails" class="form-control" rows="2" placeholder="finance@client.com, accounts@client.com">{{ invoice_recipient_emails_list | join(', ') }}</textarea>
+      <div class="form-text">Comma- or newline-separated. Used as the default To list when sending invoices (editable at send time).</div>
+    </div>
+
+    <div class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" name="vat_applicable" id="vatApplicable" value="1" {% if engagement.vat_applicable %}checked{% endif %}>
+      <label class="form-check-label" for="vatApplicable">VAT applies on invoices for this engagement (uncheck to zero-rate every line)</label>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save billing details</button>
+    </div>
+  </div>
+</form>
+
+{# =========================================================================
+   Phase 3 — Approver allocation (TS 11). Add/remove allocations link a
+   User row to this engagement so the approver portal can filter.
+   ========================================================================= #}
+<div class="card shadow-sm border-0 mt-4">
+  <div class="card-body p-4">
+    <h4 class="fw-bold mb-3"><i class="fas fa-clipboard-check me-2 text-primary"></i>Approvers</h4>
+    <p class="text-muted small">Users allocated here can approve timesheets for this engagement via the Approver Portal (/approver).</p>
+
+    {% if approvers %}
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in approvers %}
+        <tr>
+          <td>{{ a.name or '—' }}</td>
+          <td>{{ a.email or '—' }}</td>
+          <td>{{ a.role|title }}</td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('engagement_remove_approver', eng_id=engagement.id, ea_id=a.id) }}" class="d-inline"
+                  onsubmit="return confirm('Remove this approver?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger"><i class="fas fa-times"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted small fst-italic">No approvers allocated yet.</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('engagement_add_approver', eng_id=engagement.id) }}" class="row g-2 align-items-end mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-6">
+        <label class="form-label">User</label>
+        <select name="user_id" class="form-select" required>
+          <option value="">— pick a user —</option>
+          {% for u in staff_users %}
+          <option value="{{ u.id }}">{{ u.name }} ({{ u.email }}) — {{ u.role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Role</label>
+        <select name="role" class="form-select">
+          <option value="primary">Primary</option>
+          <option value="secondary">Secondary</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-plus me-1"></i>Add approver</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function quickAddClient() {
+    var name = (document.getElementById('newClientName').value || '').trim();
+    var code = (document.getElementById('newClientCode').value || '').trim().toUpperCase();
+    if (!name || code.length < 2 || code.length > 5) {
+        alert('Please enter a client name and a 2-5 character code.');
+        return;
+    }
+    var body = new FormData();
+    body.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+    body.append('name', name);
+    body.append('client_code', code);
+    fetch('{{ url_for("admin_clients_new") }}', {
+        method: 'POST',
+        body: body,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'fetch' },
+    })
+    .then(function(r) { return r.json().catch(function() { return { ok: false }; }); })
+    .then(function(data) {
+        if (data && data.ok) {
+            var sel = document.getElementById('engagementClientSelect');
+            var opt = document.createElement('option');
+            opt.value = data.id;
+            opt.textContent = data.name + ' (' + data.code + ')';
+            opt.selected = true;
+            sel.appendChild(opt);
+            document.getElementById('inlineClientForm').style.display = 'none';
+        } else {
+            alert('Could not add client — they may already exist with the same name or code.');
+        }
+    })
+    .catch(function() { alert('Network error adding client.'); });
+}
+</script>
+
 </div>
 {% endblock %}

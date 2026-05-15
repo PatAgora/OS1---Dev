@@ -288,6 +288,95 @@
     </div>
 </div>
 
+{# =========================================================================
+   Phase 6 / IR 9 — per-(engagement, month) auto-generation tiles.
+   Shown only when at least one engagement has timesheets in the chosen
+   month. Click Generate to invoke /admin/invoices/auto-generate/...
+   ========================================================================= #}
+{% if autogen_tiles %}
+<div class="mb-3" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:1rem;">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="fas fa-magic me-1 text-primary"></i>Ready to generate ({{ '%04d' % autogen_year }}-{{ '%02d' % autogen_month }})</h5>
+    <form method="GET" class="d-flex gap-2 align-items-end mb-0">
+      <input type="hidden" name="client" value="{{ client_filter|default('') }}">
+      <input type="hidden" name="project" value="{{ project_filter|default('') }}">
+      <input type="hidden" name="month" value="{{ month_filter|default('') }}">
+      <input type="hidden" name="status" value="{{ status_filter|default('') }}">
+      <label class="small text-muted">Month</label>
+      <input type="month" name="autogen_month" class="form-control form-control-sm" style="width:160px;"
+             value="{{ '%04d-%02d' % (autogen_year, autogen_month) }}">
+      <button class="btn btn-sm btn-outline-primary">Update</button>
+    </form>
+  </div>
+  <div class="row g-2">
+    {% for tile in autogen_tiles %}
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+          <div>
+            <div style="font-size:0.85rem; font-weight:600;">{{ tile.client_name }}</div>
+            <div class="text-muted small">{{ tile.engagement_name }}</div>
+            <div class="mt-1">
+              <span class="badge {{ 'bg-success' if tile.ready else 'bg-warning text-dark' }}">
+                {{ tile.approved }} / {{ tile.total }} approved
+              </span>
+            </div>
+          </div>
+          <form method="POST" action="{{ url_for('admin_auto_generate_invoice', engagement_id=tile.engagement_id, year=tile.year, month=tile.month) }}"
+                onsubmit="return confirm('Auto-generate invoice for {{ tile.engagement_name }} ({{ '%04d-%02d' % (tile.year, tile.month) }})?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-primary" {% if not tile.ready %}disabled title="Some timesheets are not yet Approved"{% endif %}>
+              <i class="fas fa-bolt me-1"></i>Generate
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# Phase 8 / IR 34 — server-side filter form (client / project / month / status). #}
+<form method="GET" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-3">
+    <label class="form-label small">Client</label>
+    <select name="client" class="form-select form-select-sm">
+      <option value="">All</option>
+      {% for c in clients %}
+      <option value="{{ c.name }}" {% if c.name == client_filter %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small">Project</label>
+    <select name="project" class="form-select form-select-sm">
+      <option value="">All</option>
+      {% for p in projects_options %}
+      <option value="{{ p }}" {% if p == project_filter %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Month</label>
+    <input type="month" name="month" class="form-control form-control-sm" value="{{ month_filter or '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+      <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+      <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Sent</option>
+      <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+      <option value="overdue" {% if status_filter == 'overdue' %}selected{% endif %}>Overdue</option>
+      <option value="void" {% if status_filter == 'void' %}selected{% endif %}>Void</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-sm btn-primary w-100"><i class="fas fa-filter me-1"></i>Apply</button>
+  </div>
+</form>
+
 <!-- Filter Bar -->
 <div class="filter-bar" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; padding: 1rem; background: #f9fafb; border-radius: 8px; margin-bottom: 1rem;">
     <div style="flex: 1; min-width: 180px;">

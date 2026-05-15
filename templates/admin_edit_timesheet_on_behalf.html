@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Timesheet TS-{{ '%04d' % ts.id }} (on behalf) · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 style="color:#fff;"><i class="fas fa-user-edit me-2"></i>Edit Timesheet on Behalf</h1>
+            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+                TS-{{ '%04d' % ts.id }} — {{ cand.name if cand else '—' }} — {{ eng.client if eng else '' }} / {{ eng.name if eng else '' }}
+            </p>
+        </div>
+        <a href="{{ url_for('admin_timesheets') }}" class="btn btn-outline-light">
+            <i class="fas fa-arrow-left me-1"></i> Back
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center" style="font-size:0.85rem;">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-start">Time type</th>
+                            {% for d in week %}
+                            <th>{{ d.strftime('%a %d %b') }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tt in time_types %}
+                        <tr>
+                            <td class="text-start"><strong>{{ tt }}</strong>
+                                {% if tt == 'Overtime' %}<small class="text-muted">(hours)</small>
+                                {% else %}<small class="text-muted">(0 / 0.5 / 1)</small>{% endif %}
+                            </td>
+                            {% for d in week %}
+                                {% set iso = d.isoformat() %}
+                                {% set key = (iso, tt) %}
+                                <td>
+                                    <input type="number" step="0.5" min="0" class="form-control form-control-sm text-end"
+                                           name="entry_{{ iso }}_{{ tt.replace(' ', '__') }}"
+                                           value="{{ entries.get(key) or '' }}">
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex gap-3 mt-3">
+                <button type="submit" name="submit_action" value="save" class="btn btn-outline-primary">
+                    <i class="fas fa-save me-1"></i> Save as Draft
+                </button>
+                <button type="submit" name="submit_action" value="submit" class="btn btn-primary"
+                        onclick="return confirm('Save AND submit this timesheet on the associate\\'s behalf?');">
+                    <i class="fas fa-paper-plane me-1"></i> Save & Submit
+                </button>
+                <a href="{{ url_for('admin_timesheets') }}" class="btn btn-outline-secondary ms-auto">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3 small">
+    <i class="fas fa-info-circle me-1"></i>
+    Non-overtime values are clamped to {0, 0.5, 1} server-side, matching the
+    associate portal behaviour. The action is logged in the audit log naming
+    the admin who made the edit.
+</div>
+
+</div>
+{% endblock %}

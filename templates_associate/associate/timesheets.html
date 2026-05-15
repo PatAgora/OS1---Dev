@@ -288,35 +288,100 @@
         {% if current_ts and current_ts.status in ('Draft', 'Unsubmitted', None, '') %}
         <div class="mt-3 p-3" style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
             <h4 style="font-size:14px;margin:0 0 12px;"><i class="fas fa-plus-circle me-1"></i> Add Expense</h4>
-            <form method="POST" action="{{ url_for('associate.timesheets_add_expense') }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ url_for('associate.timesheets_add_expense') }}" enctype="multipart/form-data" id="addExpenseForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="timesheet_id" value="{{ current_ts.id }}">
+                {# Phase 2 — category dropdown (TS 12 / TS 24). Mileage swaps
+                   the £-amount input for a miles input + read-only £ display
+                   (TS 25). VAT % derived from the category, not editable. #}
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3">
-                        <label class="form-label" style="font-size:12px;">Type</label>
-                        <select name="expense_type" class="form-select form-select-sm">
-                            {% for et in expense_types %}
-                            <option value="{{ et }}">{{ et }}</option>
-                            {% endfor %}
+                        <label class="form-label" style="font-size:12px;">Category</label>
+                        <select name="expense_category_id" id="expenseCategorySelect" class="form-select form-select-sm" required>
+                            <option value="">— pick a category —</option>
+                            {% if expense_categories %}
+                                {% for c in expense_categories %}
+                                <option value="{{ c.id }}"
+                                        data-name="{{ c.name }}"
+                                        data-vat="{{ c.vat_treatment }}"
+                                        data-mileage="{{ '1' if c.is_mileage else '0' }}">
+                                    {{ c.name }}
+                                    {% if c.vat_treatment == 'standard' %}(VAT 20%)
+                                    {% elif c.vat_treatment == 'reduced' %}(VAT 5%)
+                                    {% elif c.vat_treatment == 'zero' %}(VAT 0%)
+                                    {% else %}(Non-VATable){% endif %}
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                {# Legacy fallback when ExpenseCategory not yet seeded — keep the old free-text path #}
+                                {% for et in expense_types %}
+                                <option value="" data-name="{{ et }}">{{ et }}</option>
+                                {% endfor %}
+                            {% endif %}
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label" style="font-size:12px;">Description</label>
-                        <input type="text" name="expense_description" class="form-control form-control-sm" placeholder="Brief description">
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-size:12px;">Date</label>
+                        <input type="date" name="expense_date" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2" id="expenseAmountWrapper">
+                        <label class="form-label" style="font-size:12px;">Amount (&pound;)</label>
+                        <input type="number" name="expense_amount" id="expenseAmount" class="form-control form-control-sm" step="0.01" min="0.01">
+                    </div>
+                    <div class="col-md-2" id="expenseDistanceWrapper" style="display:none;">
+                        <label class="form-label" style="font-size:12px;">Distance (miles)</label>
+                        <input type="number" name="expense_distance" id="expenseDistance" class="form-control form-control-sm" step="0.1" min="0" placeholder="0">
+                        <small class="text-muted" id="mileageDerivedAmount">£0.00 @ £{{ '%.2f'|format(hmrc_mileage_rate) }}/mile</small>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label" style="font-size:12px;">Amount (&pound;)</label>
-                        <input type="number" name="expense_amount" class="form-control form-control-sm" step="0.01" min="0.01" required>
+                        <label class="form-label" style="font-size:12px;">Description</label>
+                        <input type="text" name="expense_description" class="form-control form-control-sm" placeholder="Brief description">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label" style="font-size:12px;">Receipt</label>
                         <input type="file" name="expense_receipt" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
                     </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-plus me-1"></i>Add</button>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-plus"></i></button>
                     </div>
                 </div>
             </form>
+            <script>
+            (function() {
+                var HMRC_RATE = {{ hmrc_mileage_rate|tojson }};
+                var sel = document.getElementById('expenseCategorySelect');
+                var amtW = document.getElementById('expenseAmountWrapper');
+                var distW = document.getElementById('expenseDistanceWrapper');
+                var amtIn = document.getElementById('expenseAmount');
+                var distIn = document.getElementById('expenseDistance');
+                var derived = document.getElementById('mileageDerivedAmount');
+                if (!sel) return;
+                function refresh() {
+                    var opt = sel.options[sel.selectedIndex];
+                    var isMileage = opt && opt.dataset && opt.dataset.mileage === '1';
+                    if (isMileage) {
+                        amtW.style.display = 'none';
+                        distW.style.display = '';
+                        if (amtIn) { amtIn.required = false; amtIn.value = ''; }
+                        if (distIn) distIn.required = true;
+                    } else {
+                        amtW.style.display = '';
+                        distW.style.display = 'none';
+                        if (amtIn) amtIn.required = true;
+                        if (distIn) { distIn.required = false; distIn.value = ''; }
+                    }
+                }
+                sel.addEventListener('change', refresh);
+                if (distIn) {
+                    distIn.addEventListener('input', function() {
+                        var miles = parseFloat(distIn.value) || 0;
+                        var amt = miles * HMRC_RATE;
+                        derived.textContent = '£' + amt.toFixed(2) + ' @ £' + HMRC_RATE.toFixed(2) + '/mile';
+                    });
+                }
+                refresh();
+            })();
+            </script>
         </div>
         {% else %}
         <p class="text-muted text-sm mt-2">Expenses can be added when a draft timesheet is active.</p>
@@ -554,5 +619,142 @@ function addExpenseRow() {
         '<div class="col-md-3"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.expense-row\').remove(); updateExpenseTotal();"><i class="fas fa-times"></i></button></div>';
     container.appendChild(row);
 }
+
+// =============================================================================
+// Phase 1 — Submit confirm + warning prompts (TS 8 / 9 / 15)
+// + Phase 1 — Weekend / Bank-holiday cell shading (TS 7 visual)
+// =============================================================================
+
+(function() {
+    "use strict";
+
+    // ---- Bank-holiday list (from server) -------------------------------------
+    var BANK_HOLIDAYS = {{ bank_holidays|tojson if bank_holidays else '[]' }};
+    var BH_SET = new Set(BANK_HOLIDAYS);
+
+    function _isWeekendDate(yyyymmdd) {
+        // yyyymmdd in ISO. Build a Date and check weekday.
+        var d = new Date(yyyymmdd + "T00:00:00");
+        var dow = d.getDay();
+        return dow === 0 || dow === 6;   // Sun / Sat
+    }
+    function _isBankHoliday(yyyymmdd) { return BH_SET.has(yyyymmdd); }
+
+    // Shade cells whose date column matches Sat/Sun/BH.
+    function shadeNonWorkingDays() {
+        // The timesheet grid renders cells with name="entry_<date>_<time_type>".
+        // We grab the date from the name and tint the cell when needed.
+        document.querySelectorAll('input[name^="entry_"]').forEach(function(inp) {
+            var m = inp.name.match(/^entry_(\d{4}-\d{2}-\d{2})_/);
+            if (!m) return;
+            var iso = m[1];
+            var cell = inp.closest('td') || inp.parentElement;
+            if (!cell) return;
+            if (_isBankHoliday(iso)) {
+                cell.style.background = '#fef3c7';     // amber tint = bank holiday
+                cell.title = 'Bank holiday — entering time on this day will prompt a warning.';
+            } else if (_isWeekendDate(iso)) {
+                cell.style.background = '#f3f4f6';     // light grey = weekend
+                cell.title = 'Weekend — entering time on this day will prompt a warning.';
+            }
+        });
+    }
+
+    // ---- Pre-submit checks (TS 9) --------------------------------------------
+    function _collectEntries() {
+        // Returns { totalStdDays: float, weekendEntries: [], bhEntries: [] }
+        var totalStdDays = 0;
+        var weekendEntries = [];
+        var bhEntries = [];
+        document.querySelectorAll('input[name^="entry_"]').forEach(function(inp) {
+            var val = parseFloat(inp.value) || 0;
+            if (!val) return;
+            var m = inp.name.match(/^entry_(\d{4}-\d{2}-\d{2})_(.+)$/);
+            if (!m) return;
+            var iso = m[1];
+            var timeType = (m[2] || '').replace(/__/g, ' ').toLowerCase();
+            if (timeType === 'standard time') totalStdDays += val;
+            if (_isWeekendDate(iso) && val > 0) {
+                weekendEntries.push(iso);
+            }
+            if (_isBankHoliday(iso) && val > 0) {
+                bhEntries.push(iso);
+            }
+        });
+        return { totalStdDays: totalStdDays, weekendEntries: weekendEntries, bhEntries: bhEntries };
+    }
+
+    function _formatDate(iso) {
+        var d = new Date(iso + "T00:00:00");
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
+
+    function _formatExpensesSummary() {
+        // TS 15 — append "<N> expense lines, total net £<total>" to the confirm
+        // when expenses exist on the timesheet form. Sums what's on screen.
+        var lines = document.querySelectorAll('input[name="expense_amount[]"]');
+        var total = 0, count = 0;
+        lines.forEach(function(inp) {
+            var v = parseFloat(inp.value) || 0;
+            if (v > 0) { total += v; count++; }
+        });
+        if (count === 0) return "";
+        return "\n\n" + count + " expense line" + (count === 1 ? "" : "s") +
+               ", total net £" + total.toFixed(2) + ".";
+    }
+
+    // Intercept the Submit button to run warnings + confirm.
+    function wireSubmitConfirm() {
+        // Only on the Submit button (not Save Draft / Cancel).
+        var form = document.getElementById('timesheetForm');
+        if (!form) return;
+        var submitBtn = form.querySelector('button[formaction="/portal/timesheets/submit"]');
+        if (!submitBtn) return;
+        submitBtn.addEventListener('click', function(ev) {
+            // Already gated by a parent button-confirm? Don't double-prompt.
+            if (submitBtn.dataset._confirmed === '1') return;
+            ev.preventDefault();
+            var info = _collectEntries();
+            // Soft warnings — chained.
+            if (info.totalStdDays < 5) {
+                if (!window.confirm('You are currently submitting less than 5 days of Standard Time this week. Do you want to proceed?')) {
+                    return;
+                }
+            }
+            if (info.weekendEntries.length > 0) {
+                if (!window.confirm('You have entered time on a weekend (' +
+                    info.weekendEntries.map(_formatDate).join(', ') +
+                    '). Do you want to proceed?')) {
+                    return;
+                }
+            }
+            if (info.bhEntries.length > 0) {
+                if (!window.confirm('You have entered time on a UK bank holiday (' +
+                    info.bhEntries.map(_formatDate).join(', ') +
+                    '). Do you want to proceed?')) {
+                    return;
+                }
+            }
+            // Final confirm — TS 8 + TS 15 expense summary.
+            var wcText = (document.querySelector('[data-wc-text]') || {}).textContent ||
+                         document.title;
+            var msg = 'Do you want to submit your timesheet?' + _formatExpensesSummary();
+            if (!window.confirm(msg)) return;
+            submitBtn.dataset._confirmed = '1';
+            submitBtn.click();   // re-click bypasses our intercept thanks to the dataset flag.
+        });
+    }
+
+    // Boot.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            shadeNonWorkingDays();
+            wireSubmitConfirm();
+        });
+    } else {
+        shadeNonWorkingDays();
+        wireSubmitConfirm();
+    }
+})();
 </script>
 {% endblock %}
