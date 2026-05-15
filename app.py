@@ -2900,6 +2900,12 @@ def api_interview_email_preview(cand_id):
         subject = (tpl.subject if tpl else "Interview Confirmation") or "Interview Confirmation"
         body = (tpl.body if tpl else "") or ""
 
+        # Req 8 — {teams_link} resolves to the Microsoft Graph Teams meeting
+        # join URL that action_schedule_interview captured on the Application
+        # (interview_teams_join_url). Falls back to a placeholder when M365
+        # Graph hasn't generated a meeting yet (e.g. M365_GRAPH_ENABLED=0 or
+        # admin consent for Calendars/OnlineMeetings not granted).
+        _teams_url = (getattr(latest_app, "interview_teams_join_url", "") or "") if latest_app else ""
         placeholders = {
             "associate_name": cand.name or "Associate",
             "client_name": (eng.client if eng else "") or "",
@@ -2910,6 +2916,7 @@ def api_interview_email_preview(cand_id):
             "client_role": (getattr(eng, "client_contact_role", "") or "") if eng else "",
             "company_name": (eng.client if eng else "") or "",
             "company_website": "",
+            "teams_link": _teams_url or "(link to follow)",
         }
         for key, val in placeholders.items():
             subject = subject.replace("{" + key + "}", val)
@@ -7890,6 +7897,26 @@ try:
             _rc.execute(text(
                 "UPDATE vetting_check SET status = 'Sent to QC' "
                 "WHERE UPPER(status) = 'QC IN PROGRESS'"
+            ))
+        except Exception:
+            pass
+except Exception:
+    pass
+
+# Req 8 — migrate the legacy "Format: Microsoft Teams (virtual)" line in the
+# interview_invitation template body to "Format - Teams - {teams_link}" so the
+# placeholder resolves to the Graph-generated Teams meeting URL. Idempotent —
+# the LIKE guard means rows that already use the new wording are skipped.
+try:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _rc:
+        try:
+            _rc.execute(text(
+                "UPDATE email_templates "
+                "SET body = REPLACE(body, "
+                "'Format: Microsoft Teams (virtual)', "
+                "'Format - Teams - {teams_link}') "
+                "WHERE name = 'interview_invitation' "
+                "AND body LIKE '%Format: Microsoft Teams (virtual)%'"
             ))
         except Exception:
             pass
@@ -25415,7 +25442,7 @@ I hope you are well. I am pleased to confirm that {client_name} would like to in
 
 Date: {date}
 Time: {time}
-Format: Microsoft Teams (virtual)
+Format - Teams - {teams_link}
 
 Client Contact
 

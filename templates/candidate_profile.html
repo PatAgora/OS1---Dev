@@ -1586,9 +1586,14 @@
                 </div>
                 <div class="mb-3">
                   <label class="form-label fw-semibold" style="font-size:0.85rem;">Attachments (JD, CV, briefing docs)</label>
-                  <input type="file" name="attachments" class="form-control form-control-sm" multiple
-                         accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
-                  <div class="form-text"><i class="fas fa-info-circle me-1"></i>Hold Ctrl/Cmd to select multiple files.</div>
+                  <div id="interviewAttachmentsList" class="d-flex flex-column gap-2">
+                    <input type="file" name="attachments" class="form-control form-control-sm" multiple
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addInterviewAttachmentRow()">
+                    <i class="fas fa-plus me-1"></i>Add another file
+                  </button>
+                  <div class="form-text"><i class="fas fa-info-circle me-1"></i>Click "Add another file" for each extra attachment, or hold Ctrl/Cmd in the picker to multi-select within one input.</div>
                 </div>
               </div>
               <div class="modal-footer">
@@ -3282,6 +3287,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function openInterviewEmailModal() {
+  _resetInterviewAttachments();
   fetch('/api/interview/email-preview/{{ cand.id }}', {
     headers: { 'X-CSRFToken': _csrfToken() },
     credentials: 'same-origin'
@@ -3301,6 +3307,28 @@ function openInterviewEmailModal() {
     var modal = new bootstrap.Modal(document.getElementById('interviewEmailModal'));
     modal.show();
   });
+}
+
+// Req 8 — each "+ Add another file" click appends a fresh file input to the
+// interview-email modal. All inputs share name="attachments" so Flask's
+// request.files.getlist("attachments") picks every selected file up. The
+// reset helper clears the list back to one empty input when the modal opens.
+function addInterviewAttachmentRow() {
+  var list = document.getElementById('interviewAttachmentsList');
+  if (!list) return;
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.name = 'attachments';
+  input.className = 'form-control form-control-sm';
+  input.multiple = true;
+  input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg';
+  list.appendChild(input);
+}
+function _resetInterviewAttachments() {
+  var list = document.getElementById('interviewAttachmentsList');
+  if (!list) return;
+  list.innerHTML = '';
+  addInterviewAttachmentRow();
 }
 
 // Collapsible tiles — start collapsed, click header or icon bar to toggle
