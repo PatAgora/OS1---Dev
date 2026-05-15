@@ -3087,19 +3087,48 @@ function openSendReference(candidateId, refId, empId, recipientType, prefilledEm
   if (refId) {
     previewReferenceEmail(candidateId, refId);
   } else {
-    // No ReferenceRequest row yet — open the modal with a blank body. The
-    // server-side send_reference endpoint creates the row from the form
-    // fields when ref_id is empty.
+    // No ReferenceRequest row yet — load the configured "reference_request"
+    // template via the no-ref preview endpoint so the modal opens with the
+    // same body Start Referencing would have produced. The server-side
+    // send_reference endpoint still creates the row from the form fields
+    // on submit (ref_id stays empty).
     document.getElementById('refEmailRefId').value = '';
     document.getElementById('refEmailRefereeEmail').value = prefilledEmail || '';
     document.getElementById('refEmailToDisplay').value = prefilledEmail || '';
     document.getElementById('refEmailRecipientType').value = _refSendState.recipientType;
-    document.getElementById('refEmailSubject').value = '';
-    document.getElementById('refEmailBody').value = '';
-    if (typeof _renderRefPreview === 'function') _renderRefPreview();
     document.getElementById('refEmailSendForm').action = '/action/send-reference/' + candidateId;
-    var modal = new bootstrap.Modal(document.getElementById('refEmailPreviewModal'));
-    modal.show();
+
+    var tplUrl = '/action/preview-reference-template/' + candidateId
+      + (empId ? ('?emp_id=' + encodeURIComponent(empId)) : '');
+    fetch(tplUrl, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': _csrfToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('refEmailSubject').value = data.subject || '';
+      document.getElementById('refEmailBody').value = data.body || '';
+      document.getElementById('refEmailCompanyName').value = data.company_name || '';
+      // Honour the prefilled email the caller passed (Company/Agency click);
+      // only fall back to the template endpoint's address when no prefill.
+      if (!prefilledEmail) {
+        document.getElementById('refEmailRefereeEmail').value = data.referee_email || '';
+        document.getElementById('refEmailToDisplay').value = data.referee_email || '';
+      }
+      if (typeof _renderRefPreview === 'function') _renderRefPreview();
+      var modal = new bootstrap.Modal(document.getElementById('refEmailPreviewModal'));
+      modal.show();
+    })
+    .catch(function() {
+      // Template fetch failed; open the modal with a blank body so the
+      // recruiter can still type and send.
+      document.getElementById('refEmailSubject').value = '';
+      document.getElementById('refEmailBody').value = '';
+      if (typeof _renderRefPreview === 'function') _renderRefPreview();
+      var modal = new bootstrap.Modal(document.getElementById('refEmailPreviewModal'));
+      modal.show();
+    });
   }
 }
 

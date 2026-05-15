@@ -21186,6 +21186,92 @@ previous employer.</p>
         })
 
 
+@app.route("/action/preview-reference-template/<int:cand_id>", methods=["GET"])
+@login_required
+def preview_reference_template(cand_id: int):
+    """Req 22 — return the rendered "reference_request" email template
+    WITHOUT requiring a ReferenceRequest row to exist yet. Used by
+    openSendReference when staff click Company / Agency / Manual on an
+    employment row before Start Referencing has created a row for it.
+    Merge fields are resolved from the EmploymentHistory identified by
+    the `emp_id` query param. JSON shape matches preview_reference_email
+    so the front-end populate logic is identical.
+    """
+    emp_id_raw = (request.args.get("emp_id") or "").strip()
+    try:
+        emp_id = int(emp_id_raw) if emp_id_raw else None
+    except ValueError:
+        emp_id = None
+
+    with Session(engine) as s:
+        cand = s.get(Candidate, cand_id)
+        if not cand:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        merge_fields = {
+            "candidate_name": cand.name or "",
+            "company_name": "",
+            "referee_name": "Sir/Madam",
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+        }
+        referee_email = ""
+        if emp_id is not None:
+            try:
+                from associate_portal import _ensure_models, _portal_model
+                _ensure_models()
+                EmpHistory = _portal_model("EmploymentHistory")
+                if EmpHistory:
+                    emp = s.get(EmpHistory, emp_id)
+                    if emp and getattr(emp, "candidate_id", None) == cand_id:
+                        merge_fields["company_name"] = getattr(emp, "company_name", "") or ""
+                        merge_fields["referee_name"] = getattr(emp, "referee_name", "") or "Sir/Madam"
+                        merge_fields["job_title"] = getattr(emp, "job_title", "") or ""
+                        sd = getattr(emp, "start_date", None)
+                        ed = getattr(emp, "end_date", None)
+                        if sd:
+                            merge_fields["start_date"] = sd.strftime("%d/%m/%Y") if hasattr(sd, "strftime") else str(sd)
+                        if ed:
+                            merge_fields["end_date"] = ed.strftime("%d/%m/%Y") if hasattr(ed, "strftime") else str(ed)
+                        referee_email = (
+                            getattr(emp, "company_email", "") or ""
+                        ) or (getattr(emp, "referee_email", "") or "")
+            except Exception:
+                current_app.logger.exception("preview_reference_template emp lookup failed")
+
+        email_tpl = s.scalar(select(EmailTemplate).where(EmailTemplate.name == "reference_request"))
+        if email_tpl:
+            subject = email_tpl.subject or "Reference Request — {candidate_name}"
+            body = email_tpl.body or ""
+        else:
+            subject = "Reference Request — {candidate_name}"
+            body = (
+                "<h2>Reference Request</h2>"
+                "<p>Dear {referee_name},</p>"
+                "<p>We are writing to request a reference for "
+                "<strong>{candidate_name}</strong> who has listed your "
+                "organisation (<strong>{company_name}</strong>) as a "
+                "previous employer.</p>"
+                "<p>Please reply directly to this email with the reference "
+                "details.</p>"
+                "<p>Regards,<br>Optimus Compliance Team</p>"
+            )
+
+        for field, value in merge_fields.items():
+            subject = subject.replace("{" + field + "}", value)
+            body = body.replace("{" + field + "}", value)
+
+        body = _html_to_plaintext_for_preview(body)
+
+        return jsonify({
+            "subject": subject,
+            "body": body,
+            "referee_email": referee_email,
+            "company_name": merge_fields["company_name"],
+        })
+
+
 def _html_to_plaintext_for_preview(html_text: str) -> str:
     """Req 10 — convert reference-request HTML to readable plain text
     for the preview textarea. Block-level tags become double newlines,
