@@ -204,11 +204,15 @@
       "end_date": {{ (entry.end_date.strftime('%Y-%m-%d') if entry.end_date else None)|tojson }},
       "company_name": {{ (entry.company_name or '')|tojson }},
       "agency_name": {{ (entry.agency_name or '')|tojson }},
+      "company_email": {{ (entry.company_email or '')|tojson }},
+      "agency_email": {{ (entry.agency_email or '')|tojson }},
       "referee_email": {{ (entry.referee_email or '')|tojson }},
       "company_address": {{ (entry.company_address or '')|tojson }},
       "job_title": {{ (entry.job_title or '')|tojson }},
       "reason_for_leaving": {{ (entry.reason_for_leaving or '')|tojson }},
-      "permission_to_request": {% if entry.permission_to_request is defined and entry.permission_to_request == false %}false{% else %}true{% endif %}
+      "permission_to_request": {% if entry.permission_to_request is defined and entry.permission_to_request == false %}false{% else %}true{% endif %},
+      "permission_delay_reason": {{ (entry.permission_delay_reason or '')|tojson }},
+      "permission_future_date": {{ (entry.permission_future_date.strftime('%Y-%m-%d') if entry.permission_future_date else None)|tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ]
@@ -726,23 +730,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!entry) { alert('Entry not found'); return; }
             if (entry.is_gap) { alert('Gap entries cannot be edited here.'); return; }
 
-            // Populate the Add Employment form with entry data
+            // Populate the Add Employment form with every field captured on
+            // the entry so the associate can edit any of them. Uses a
+            // safe-set helper because a previous version of this function
+            // called `.value` on a referee_email input that the Req 22
+            // company/agency split removed from the form — null deref
+            // there threw silently and aborted the rest of the prefill.
             var form = document.getElementById('addEmploymentForm');
-            form.querySelector('[name="company_name"]').value = entry.company_name || '';
-            form.querySelector('[name="agency_name"]').value = entry.agency_name || '';
-            form.querySelector('[name="referee_email"]').value = entry.referee_email || '';
-            form.querySelector('[name="company_address"]').value = entry.company_address || '';
-            form.querySelector('[name="start_date"]').value = entry.start_date || '';
-            form.querySelector('[name="end_date"]').value = entry.end_date || '';
-            form.querySelector('[name="job_title"]').value = entry.job_title || '';
-            form.querySelector('[name="reason_for_leaving"]').value = entry.reason_for_leaving || '';
+            function _setField(name, value) {
+                var el = form.querySelector('[name="' + name + '"]');
+                if (el) el.value = (value == null ? '' : value);
+            }
+            _setField('company_name', entry.company_name);
+            _setField('agency_name', entry.agency_name);
+            _setField('company_email', entry.company_email || entry.referee_email);
+            _setField('agency_email', entry.agency_email);
+            _setField('company_address', entry.company_address);
+            _setField('start_date', entry.start_date);
+            _setField('end_date', entry.end_date);
+            _setField('job_title', entry.job_title);
+            _setField('reason_for_leaving', entry.reason_for_leaving);
+            _setField('no_contact_reason', entry.permission_delay_reason);
+            _setField('earliest_contact_date', entry.permission_future_date);
             var contactCb = form.querySelector('#can_contact');
-            if (contactCb) contactCb.checked = entry.permission_to_request !== false;
+            if (contactCb) {
+                contactCb.checked = entry.permission_to_request !== false;
+                if (typeof toggleNoContactFields === 'function') toggleNoContactFields();
+            }
 
             // Change form action to edit route and update button text
             form.action = '/portal/references/edit-entry/' + entryId;
             var submitBtn = form.querySelector('button[type="submit"]');
-            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Save edits';
             submitBtn.classList.remove('btn-primary');
             submitBtn.classList.add('btn-success');
 
