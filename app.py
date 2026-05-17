@@ -9948,7 +9948,11 @@ try:
             "client_vat_number TEXT",
             "purchase_order_number TEXT",
             "invoice_recipient_emails TEXT",
-            "vat_applicable BOOLEAN DEFAULT 1",
+            # Hot-fix: BOOLEAN DEFAULT 1 is rejected by Postgres
+            # (engagements.vat_applicable was silently failing the ALTER and
+            # blocking every Engagement query). DEFAULT TRUE works in both
+            # Postgres and modern SQLite (>=3.23).
+            "vat_applicable BOOLEAN DEFAULT TRUE",
         ):
             try:
                 _rc.execute(text(f"ALTER TABLE engagements ADD COLUMN {_coldef}"))
