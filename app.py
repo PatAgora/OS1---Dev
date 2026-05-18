@@ -4445,11 +4445,11 @@ def admin_clear_data_delete(entity: str):
         with Session(engine) as s:
             params = {"ids": tuple(ids)}
 
-            # Run a SQL statement inside its own SAVEPOINT so a missing
+            # Each SQL statement runs inside its own SAVEPOINT so a missing
             # table or no-op doesn't poison the rest of the transaction.
-            # On Postgres a single failed statement leaves the txn in
-            # ERROR state until rolled back; nested transactions give us
-            # the savepoint we need.
+            # On Postgres a single failed statement leaves the outer txn
+            # in ERROR state until rolled back; nested transactions give
+            # us the savepoint we need.
             def _safe(sql: str, p: dict | None = None):
                 try:
                     with s.begin_nested():
@@ -4465,69 +4465,85 @@ def admin_clear_data_delete(entity: str):
                 except Exception:
                     return []
 
+            # Dynamic FK discovery — returns [(child_table, child_column), …]
+            # for every FK that references parent_table.id. Postgres-only;
+            # returns [] on SQLite (which doesn't enforce FKs by default
+            # anyway, so the parent DELETE just works).
+            def _child_fks(parent_table: str):
+                try:
+                    with s.begin_nested():
+                        rows = s.execute(text("""
+                            SELECT tc.table_name, kcu.column_name
+                            FROM information_schema.table_constraints tc
+                            JOIN information_schema.key_column_usage kcu
+                              ON tc.constraint_name = kcu.constraint_name
+                             AND tc.table_schema    = kcu.table_schema
+                            JOIN information_schema.constraint_column_usage ccu
+                              ON tc.constraint_name = ccu.constraint_name
+                             AND tc.table_schema    = ccu.table_schema
+                            WHERE tc.constraint_type = 'FOREIGN KEY'
+                              AND ccu.table_name = :parent
+                        """).bindparams(parent=parent_table)).all()
+                        return [(r[0], r[1]) for r in rows]
+                except Exception:
+                    return []
+
+            # Depth-first FK cascade: descend through every referencing
+            # table, clear grandchildren first, then the children
+            # themselves. Each statement is savepoint-wrapped so a
+            # weird child table (no 'id' column etc.) doesn't kill the
+            # cascade. The CALLER runs the final parent DELETE outside
+            # this helper so the un-wrapped statement surfaces any
+            # remaining error to the user.
+            def _cascade(table: str, parent_ids: list, depth: int = 0):
+                if depth > 6 or not parent_ids:
+                    return
+                for child_tbl, child_col in _child_fks(table):
+                    if child_tbl == table:
+                        # Self-referential FK (e.g. timesheets.originating_timesheet_id).
+                        # Null it out rather than recursing infinitely.
+                        _safe(f"UPDATE {child_tbl} SET {child_col} = NULL "
+                              f"WHERE {child_col} IN :ids",
+                              {"ids": tuple(parent_ids)})
+                        continue
+                    grand_ids = _fetch(
+                        f"SELECT id FROM {child_tbl} WHERE {child_col} IN :ids",
+                        {"ids": tuple(parent_ids)},
+                    )
+                    if grand_ids:
+                        _cascade(child_tbl, grand_ids, depth + 1)
+                    _safe(f"DELETE FROM {child_tbl} WHERE {child_col} IN :ids",
+                          {"ids": tuple(parent_ids)})
+
             if entity == "opportunity":
+                # Engagements created from these opportunities keep their
+                # data; only the opportunity_id linkage is nulled.
                 _safe("UPDATE engagements SET opportunity_id = NULL "
                       "WHERE opportunity_id IN :ids", params)
-                _safe("DELETE FROM opportunity_notes WHERE opportunity_id IN :ids", params)
+                _cascade("opportunities", ids)
                 s.execute(text("DELETE FROM opportunities WHERE id IN :ids"), params)
 
             elif entity == "engagement":
-                job_ids = _fetch("SELECT id FROM jobs WHERE engagement_id IN :ids", params)
-                if job_ids:
-                    jp = {"jids": tuple(job_ids)}
-                    # Application children first (esign_requests, trustid_checks,
-                    # shortlists by job).
-                    app_ids = _fetch("SELECT id FROM applications WHERE job_id IN :jids", jp)
-                    if app_ids:
-                        ap = {"aids": tuple(app_ids)}
-                        _safe("DELETE FROM esign_requests WHERE application_id IN :aids", ap)
-                        _safe("DELETE FROM trustid_checks WHERE application_id IN :aids", ap)
-                    _safe("DELETE FROM shortlists WHERE job_id IN :jids", jp)
-                    _safe("DELETE FROM applications WHERE job_id IN :jids", jp)
-                    _safe("DELETE FROM jobs WHERE id IN :jids", jp)
-                # Timesheet children first.
-                ts_ids = _fetch("SELECT id FROM timesheets WHERE engagement_id IN :ids", params)
-                if ts_ids:
-                    tp = {"tids": tuple(ts_ids)}
-                    _safe("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids", tp)
-                    _safe("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids", tp)
-                    _safe("DELETE FROM timesheets WHERE id IN :tids", tp)
-                _safe("DELETE FROM esign_requests WHERE engagement_id IN :ids", params)
-                _safe("DELETE FROM invoices WHERE engagement_id IN :ids", params)
-                _safe("DELETE FROM engagement_plans WHERE engagement_id IN :ids", params)
-                _safe("DELETE FROM engagement_approvers WHERE engagement_id IN :ids", params)
-                _safe("DELETE FROM documents WHERE engagement_id IN :ids", params)
+                # Candidates are not deleted when an engagement is — the
+                # FK from candidates wouldn't be discovered here anyway
+                # (the FK direction is engagement → candidate via
+                # applications/timesheets, which IS in the graph).
+                _cascade("engagements", ids)
                 s.execute(text("DELETE FROM engagements WHERE id IN :ids"), params)
 
             elif entity == "candidate":
-                # Application children of this candidate (esign / trustid)
-                # must go before applications themselves.
-                app_ids = _fetch("SELECT id FROM applications WHERE candidate_id IN :ids", params)
-                if app_ids:
-                    ap = {"aids": tuple(app_ids)}
-                    _safe("DELETE FROM esign_requests WHERE application_id IN :aids", ap)
-                    _safe("DELETE FROM trustid_checks WHERE application_id IN :aids", ap)
-                _safe("DELETE FROM esign_requests WHERE candidate_id IN :ids", params)
-                _safe("DELETE FROM shortlists WHERE candidate_id IN :ids", params)
-                _safe("DELETE FROM applications WHERE candidate_id IN :ids", params)
-                # Candidate-keyed records — names vary across deployments,
-                # any that don't exist on this DB will silently no-op.
-                for sql in (
-                    "DELETE FROM candidate_references WHERE candidate_id IN :ids",
-                    "DELETE FROM reference_requests WHERE candidate_id IN :ids",
-                    "DELETE FROM employment_records WHERE candidate_id IN :ids",
-                    "DELETE FROM vetting_checks WHERE candidate_id IN :ids",
-                    "DELETE FROM vetting_check WHERE candidate_id IN :ids",
-                    "DELETE FROM candidate_notes WHERE candidate_id IN :ids",
-                    "DELETE FROM documents WHERE candidate_id IN :ids",
-                ):
-                    _safe(sql, params)
+                # Timesheets reference candidates via timesheets.user_id
+                # (not candidate_id), which the FK graph from
+                # information_schema doesn't pick up because timesheets
+                # has NO FK constraint on user_id (it just stores the
+                # candidate id). Clear them manually first.
                 ts_ids = _fetch("SELECT id FROM timesheets WHERE user_id IN :ids", params)
                 if ts_ids:
                     tp = {"tids": tuple(ts_ids)}
                     _safe("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids", tp)
                     _safe("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids", tp)
                     _safe("DELETE FROM timesheets WHERE id IN :tids", tp)
+                _cascade("candidates", ids)
                 s.execute(text("DELETE FROM candidates WHERE id IN :ids"), params)
 
             elif entity == "user":
