@@ -27004,8 +27004,21 @@ def revenue():
                 eng_end = filter_end
             
             if eng_start and eng_end and eng_end >= eng_start:
-                delta = (eng_end - eng_start).days
-                working_days = max(1, int(delta * 5 / 7))
+                # Count actual Mon–Fri days in the window. The old
+                # `int(delta × 5/7)` proration truncated fractional weeks
+                # down — a 213-day engagement (~30.43 weeks) yielded 152
+                # working days instead of the 153 you'd get by walking
+                # the calendar. Combined with weeks_iter rounding the
+                # partial trailing week up to a full week, the per-week
+                # forecast came out as e.g. £4,413 for a £1,000/day TL
+                # instead of the expected £4,500 (5 × 1000 × 0.90).
+                _eng_start_d = eng_start.date() if isinstance(eng_start, datetime.datetime) else eng_start
+                _eng_end_d = eng_end.date() if isinstance(eng_end, datetime.datetime) else eng_end
+                working_days = sum(
+                    1 for _n in range((_eng_end_d - _eng_start_d).days + 1)
+                    if (_eng_start_d + datetime.timedelta(days=_n)).weekday() < 5
+                )
+                working_days = max(1, working_days)
             else:
                 working_days = 20  # Default
             
@@ -27143,10 +27156,30 @@ def revenue():
                         week_end = week_start + datetime.timedelta(days=6)
                         weeks_iter.append((week_start, week_end))
                         week_start = week_end + datetime.timedelta(days=1)
-                    if weeks_iter and forecast_revenue:
-                        per_week_forecast = forecast_revenue / len(weeks_iter)
-                    else:
-                        per_week_forecast = 0.0
+
+                    # Per-week forecast is now derived from the workdays
+                    # in THAT specific week that fall inside the engagement
+                    # window — full Mon-Fri = 5 × daily × 0.90, partial
+                    # weeks at start/end use only the days that overlap.
+                    # Previously we spread the lifetime forecast evenly,
+                    # which under-stated per-week when partial trailing
+                    # weeks were counted as full ones.
+                    def _wk_workdays(ws_, we_):
+                        cnt = 0
+                        for _n in range(7):
+                            _d = ws_ + datetime.timedelta(days=_n)
+                            if _d.weekday() < 5 and win_start <= _d <= win_end:
+                                cnt += 1
+                        return cnt
+
+                    week_forecasts = {
+                        ws: planned_daily_revenue * _wk_workdays(ws, we) * (1 - SHRINKAGE)
+                        for ws, we in weeks_iter
+                    }
+                    week_forecast_margins = {
+                        ws: planned_daily_margin * _wk_workdays(ws, we) * (1 - SHRINKAGE)
+                        for ws, we in weeks_iter
+                    }
 
                     # Group approved timesheets by week_start for fast lookup.
                     actual_by_week = {}
@@ -27169,31 +27202,25 @@ def revenue():
                         actual_by_week[ws_monday] = actual_by_week.get(ws_monday, 0.0) + days * charge_rate
 
                     for ws, we in weeks_iter:
+                        wk_forecast = week_forecasts.get(ws, 0.0)
                         wk_actual = actual_by_week.get(ws, 0.0)
-                        wk_variance = wk_actual - per_week_forecast
+                        wk_variance = wk_actual - wk_forecast
                         weekly_breakdown.append({
                             "week_start": ws,
                             "week_end": we,
-                            "forecast": per_week_forecast,
+                            "forecast": wk_forecast,
                             "actual": wk_actual,
                             "variance": wk_variance,
                         })
 
-                    # Req 63 — Cumulative Forecast = per_week_forecast ×
-                    # number of FULLY COMPLETED weeks (week_end <= today).
-                    # Matches the user's example: 3 weeks gone × £2,000
-                    # per week = £6,000. Partial current week is NOT
-                    # counted until it's complete.
-                    elapsed_weeks = sum(1 for ws, we in weeks_iter if we <= today)
-                    cumulative_forecast = per_week_forecast * elapsed_weeks
-                    # Cumulative forecast MARGIN — same time-pro-rated
-                    # treatment for the margin so the Variance column
-                    # below can compare actual_margin against the
-                    # margin-to-date instead of full lifetime margin.
-                    if len(weeks_iter):
-                        cumulative_forecast_margin = forecast_margin * (elapsed_weeks / len(weeks_iter))
-                    else:
-                        cumulative_forecast_margin = 0.0
+                    # Req 63 — Cumulative Forecast = sum of per-week
+                    # forecasts for FULLY COMPLETED weeks (week_end <= today).
+                    cumulative_forecast = sum(
+                        week_forecasts[ws] for ws, we in weeks_iter if we <= today
+                    )
+                    cumulative_forecast_margin = sum(
+                        week_forecast_margins[ws] for ws, we in weeks_iter if we <= today
+                    )
             except Exception:
                 current_app.logger.exception("weekly breakdown failed for eng %s", eng.id)
 
