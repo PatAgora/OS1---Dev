@@ -31,116 +31,90 @@
     {% endif %}
 {% endwith %}
 
-{# ----- Allocations table ----- #}
+{# ----- Combined approvers + allocations table ----- #}
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <strong><i class="fas fa-link me-1"></i>Current allocations ({{ allocations|length }})</strong>
-        <small class="text-muted">Who can approve what</small>
+        <strong><i class="fas fa-users me-1"></i>Approvers &amp; allocations ({{ rows|length }})</strong>
+        <small class="text-muted">One row per approver × engagement. Revoke removes the engagement allocation only — it does not delete the user.</small>
     </div>
     <div class="card-body p-0">
-        {% if allocations %}
+        {% if rows %}
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Client</th>
-                    <th>Engagement</th>
                     <th>Approver</th>
                     <th>Email</th>
+                    <th>Client</th>
+                    <th>Engagement</th>
                     <th>Role</th>
                     <th>Allocated</th>
-                    <th class="text-end">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in allocations %}
-                <tr {% if a.is_active is sameas false %}style="opacity:.55;" title="User is deactivated"{% endif %}>
-                    <td>{{ a.client_name or '—' }}</td>
-                    <td><small class="text-muted">{{ a.eng_ref or '' }}</small> {{ a.eng_name or '' }}</td>
-                    <td>{{ a.user_name or '—' }}{% if a.is_active is sameas false %} <span class="badge bg-secondary">deactivated</span>{% endif %}</td>
-                    <td><small>{{ a.user_email or '' }}</small></td>
-                    <td>
-                        {% if a.alloc_role == 'primary' %}<span class="badge bg-primary">Primary</span>
-                        {% else %}<span class="badge bg-info text-dark">{{ a.alloc_role|title }}</span>{% endif %}
-                    </td>
-                    <td><small class="text-muted">{{ a.allocated_at.strftime('%d %b %Y') if a.allocated_at else '—' }}</small></td>
-                    <td class="text-end">
-                        <form method="POST" action="{{ url_for('admin_approver_portal_revoke', alloc_id=a.alloc_id) }}"
-                              class="d-inline" onsubmit="return confirm('Revoke this approver allocation?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button class="btn btn-sm btn-outline-danger">
-                                <i class="fas fa-times me-1"></i>Revoke
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="text-center text-muted py-4">
-            <i class="fas fa-info-circle me-1"></i>No allocations yet. Add an approver below, then allocate them to an engagement.
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-{# ----- Approver users ----- #}
-<div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <strong><i class="fas fa-users me-1"></i>Approver users ({{ users|length }})</strong>
-        <small class="text-muted">Approver role accounts + anyone currently allocated</small>
-    </div>
-    <div class="card-body p-0">
-        {% if users %}
-        <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th class="text-end">Engagements</th>
                     <th>Last login</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for u in users %}
-                <tr>
-                    <td>{{ u.name or '—' }}</td>
-                    <td><small>{{ u.email or '' }}</small></td>
-                    <td><small class="text-muted">{{ u.role or '—' }}</small></td>
-                    <td class="text-end">{{ u.alloc_count or 0 }}</td>
-                    <td><small class="text-muted">{{ u.last_login.strftime('%d %b %Y %H:%M') if u.last_login else 'never' }}</small></td>
+                {% for r in rows %}
+                <tr {% if r.is_active is sameas false %}style="opacity:.55;" title="User is deactivated"{% endif %}>
+                    <td>{{ r.user_name or '—' }}</td>
+                    <td><small>{{ r.user_email or '' }}</small></td>
+                    <td>{{ r.client_name or '—' }}</td>
                     <td>
-                        {% if u.is_active is sameas false %}
+                        {% if r.eng_name %}
+                            <small class="text-muted">{{ r.eng_ref or '' }}</small> {{ r.eng_name }}
+                        {% else %}
+                            <span class="text-muted">— not allocated —</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.alloc_role == 'primary' %}
+                            <span class="badge bg-primary">Primary</span>
+                        {% elif r.alloc_role %}
+                            <span class="badge bg-info text-dark">{{ r.alloc_role|title }}</span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td><small class="text-muted">{{ r.allocated_at.strftime('%d %b %Y') if r.allocated_at else '—' }}</small></td>
+                    <td><small class="text-muted">{{ r.last_login.strftime('%d %b %Y %H:%M') if r.last_login else 'never' }}</small></td>
+                    <td>
+                        {% if r.is_active is sameas false %}
                             <span class="badge bg-secondary">Deactivated</span>
                         {% else %}
                             <span class="badge bg-success">Active</span>
                         {% endif %}
                     </td>
-                    <td class="text-end">
-                        <form method="POST" action="{{ url_for('admin_approver_portal_reset', user_id=u.id) }}"
-                              class="d-inline" onsubmit="return confirm('Generate a password-reset magic link for {{ u.email }}? They will be emailed it if SMTP is configured.');">
+                    <td class="text-end" style="white-space:nowrap;">
+                        {% if r.alloc_id %}
+                        <form method="POST" action="{{ url_for('admin_approver_portal_revoke', alloc_id=r.alloc_id) }}"
+                              class="d-inline" onsubmit="return confirm('Revoke {{ r.user_name }}\\'s access to {{ r.eng_name }}? They remain a user — only this engagement allocation is removed.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger" title="Revoke this engagement only">
+                                <i class="fas fa-times me-1"></i>Revoke
+                            </button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin_approver_portal_reset', user_id=r.user_id) }}"
+                              class="d-inline" onsubmit="return confirm('Generate a password-reset magic link for {{ r.user_email }}?');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="send_email" value="1">
                             <button class="btn btn-sm btn-outline-primary" title="Reset password (sends magic link)">
-                                <i class="fas fa-key me-1"></i>Reset
+                                <i class="fas fa-key"></i>
                             </button>
                         </form>
-                        {% if u.is_active is sameas false %}
-                            <form method="POST" action="{{ url_for('admin_approver_portal_reactivate', user_id=u.id) }}" class="d-inline">
+                        {% if r.is_active is sameas false %}
+                            <form method="POST" action="{{ url_for('admin_approver_portal_reactivate', user_id=r.user_id) }}" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button class="btn btn-sm btn-outline-success" title="Reactivate">
-                                    <i class="fas fa-check me-1"></i>Reactivate
+                                <button class="btn btn-sm btn-outline-success" title="Reactivate user">
+                                    <i class="fas fa-check"></i>
                                 </button>
                             </form>
                         {% else %}
-                            <form method="POST" action="{{ url_for('admin_approver_portal_deactivate', user_id=u.id) }}"
-                                  class="d-inline" onsubmit="return confirm('Deactivate {{ u.email }}? They will not be able to log in until reactivated. Allocations are kept so reactivating restores their access.');">
+                            <form method="POST" action="{{ url_for('admin_approver_portal_deactivate', user_id=r.user_id) }}"
+                                  class="d-inline" onsubmit="return confirm('Deactivate {{ r.user_email }}? They will not be able to log in until reactivated.');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button class="btn btn-sm btn-outline-warning" title="Deactivate">
-                                    <i class="fas fa-user-slash me-1"></i>Deactivate
+                                <button class="btn btn-sm btn-outline-warning" title="Deactivate user">
+                                    <i class="fas fa-user-slash"></i>
                                 </button>
                             </form>
                         {% endif %}
@@ -151,7 +125,7 @@
         </table>
         {% else %}
         <div class="text-center text-muted py-4">
-            <i class="fas fa-info-circle me-1"></i>No approver users yet. Create one below.
+            <i class="fas fa-info-circle me-1"></i>No approvers yet. Create one below.
         </div>
         {% endif %}
     </div>

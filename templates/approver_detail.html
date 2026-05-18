@@ -33,22 +33,65 @@
 <div class="card mb-3">
     <div class="card-header"><strong>Time entries</strong></div>
     <div class="card-body p-0">
-        {% if entries %}
-        <table class="table table-sm mb-0">
+        {% if week_days and time_types_used %}
+        <div style="overflow-x:auto;">
+        <table class="table table-sm mb-0" style="font-size:0.85rem; min-width:600px;">
             <thead class="table-light">
-                <tr><th>Date</th><th>Type</th><th class="text-end">Value</th><th>Unit</th></tr>
+                <tr>
+                    <th style="min-width:140px;">Time Type</th>
+                    {% for d in week_days %}
+                    <th style="text-align:center; min-width:64px;">{{ d.short }}<br><small class="text-muted">{{ d.dom }}</small></th>
+                    {% endfor %}
+                    <th style="text-align:center;">Total</th>
+                </tr>
             </thead>
             <tbody>
-                {% for e in entries %}
+                {% for tt in time_types_used %}
+                {% set is_ot = 'overtime' in tt|lower %}
+                {% set row_total = namespace(v=0) %}
                 <tr>
-                    <td>{{ e.entry_date.strftime('%a %d %b %Y') if e.entry_date else '—' }}</td>
-                    <td>{{ e.time_type }}</td>
-                    <td class="text-end">{{ '%.2f' % (e.value or 0) }}</td>
-                    <td>{{ e.value_unit }}</td>
+                    <td style="font-weight:600; white-space:nowrap;">{{ tt }}</td>
+                    {% for d in week_days %}
+                        {% set v = entries_grid.get((d.date, tt), 0) %}
+                        {% if v %}{% set row_total.v = row_total.v + v %}{% endif %}
+                        <td style="text-align:center;">
+                            {% if v %}
+                                {% if is_ot %}{{ "%.1f"|format(v) }}h{% else %}{% if v == 0.5 %}½{% else %}{{ "%.0f"|format(v) }}{% endif %}{% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                    <td style="text-align:center; font-weight:600;">
+                        {% if is_ot %}{{ "%.1f"|format(row_total.v) }}h{% else %}{{ "%.1f"|format(row_total.v) }}{% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
+                {% if has_ot and ot_multipliers %}
+                <tr style="background:#fffbeb;">
+                    <td style="font-weight:600; white-space:nowrap;">OT Multiplier</td>
+                    {% for d in week_days %}
+                        {% set m = ot_multipliers.get(d.date) %}
+                        <td style="text-align:center;">
+                            {% if m %}{{ m }}x{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    {% endfor %}
+                    <td></td>
+                </tr>
+                {% endif %}
             </tbody>
+            <tfoot>
+                <tr style="background:#f8fafc;">
+                    <td style="font-weight:700;">Totals</td>
+                    <td colspan="{{ week_days|length }}" style="text-align:right; font-weight:600;">
+                        {{ "%.1f"|format(ts.billable_days or 0) }} day{{ 's' if (ts.billable_days or 0) != 1 }}
+                        {% if ts.billable_hours %} &middot; {{ "%.1f"|format(ts.billable_hours) }} OT hours{% endif %}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
         </table>
+        </div>
         {% else %}
         <p class="text-muted py-3 text-center mb-0">No time entries.</p>
         {% endif %}

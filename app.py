@@ -2048,16 +2048,57 @@ def approver_timesheet_detail(ts_id):
         ts = s.get(Timesheet, ts_id)
         if not ts:
             abort(404)
-        # Load associate / engagement / job context.
         cand = s.execute(text("SELECT id, name, email FROM candidates WHERE id = :id")
                          .bindparams(id=ts.user_id)).first()
         eng = s.execute(text("SELECT id, name, client FROM engagements WHERE id = :id")
                         .bindparams(id=ts.engagement_id)).first()
-        # Entries + expenses (raw SQL to avoid portal model coupling).
-        entries = s.execute(text(
-            "SELECT entry_date, time_type, value, value_unit FROM timesheet_entries "
-            "WHERE timesheet_id = :tid ORDER BY entry_date, time_type"
+
+        # Build the same day-grid shape the staff approval page uses so the
+        # approver sees an explicit "—" for empty days rather than a sparse
+        # row list that hides standard time when only OT Multiplier defaults
+        # were submitted.
+        week_days = []
+        if ts.period_start:
+            for i in range(7):
+                d = ts.period_start + datetime.timedelta(days=i)
+                week_days.append({
+                    "date": d.strftime("%Y-%m-%d"),
+                    "short": d.strftime("%a"),
+                    "dom": d.strftime("%d"),
+                })
+
+        entries_grid = {}
+        ot_multipliers = {}
+        time_types_used = []
+        rows = s.execute(text(
+            "SELECT entry_date, time_type, value FROM timesheet_entries "
+            "WHERE timesheet_id = :tid"
         ).bindparams(tid=ts_id)).all()
+        for e in rows:
+            v = float(e.value or 0)
+            if v <= 0:
+                continue
+            d_iso = e.entry_date.strftime("%Y-%m-%d") if e.entry_date else ""
+            tt = e.time_type or ""
+            if not d_iso or not tt:
+                continue
+            if tt == "OT Multiplier":
+                ot_multipliers[d_iso] = v
+            else:
+                entries_grid[(d_iso, tt)] = v
+                if tt not in time_types_used:
+                    time_types_used.append(tt)
+        preferred_order = ["Standard Time", "Overtime", "Holiday", "Sickness", "Unplanned Absence"]
+        time_types_used.sort(
+            key=lambda t: preferred_order.index(t) if t in preferred_order else 999,
+        )
+        # If the associate left every day empty, still render the Standard
+        # Time row so the approver sees an explicit "all dashes" grid rather
+        # than a misleading OT-Multiplier-only view.
+        if not time_types_used:
+            time_types_used = ["Standard Time"]
+        has_ot = any("overtime" in tt.lower() for tt in time_types_used)
+
         expenses = s.execute(text(
             "SELECT id, expense_type, description, amount, vat_rate_pct, vat_amount, "
             "       date_of_expense, distance_miles, receipt_doc_id "
@@ -2068,7 +2109,11 @@ def approver_timesheet_detail(ts_id):
         ts=ts,
         cand=cand,
         eng=eng,
-        entries=entries,
+        week_days=week_days,
+        entries_grid=entries_grid,
+        time_types_used=time_types_used,
+        ot_multipliers=ot_multipliers,
+        has_ot=has_ot,
         expenses=expenses,
     )
 
@@ -4024,34 +4069,29 @@ def admin_approver_portal():
         flash("Admin access required.", "danger")
         return redirect(url_for("index"))
     with Session(engine) as s:
-        # Every allocation across every engagement.
-        allocations = s.execute(text("""
-            SELECT ea.id AS alloc_id, ea.engagement_id, ea.user_id, ea.role AS alloc_role,
+        # Single combined view: one row per (approver-user × engagement-allocation).
+        # Users with role='approver' but no allocations still appear once with
+        # NULL engagement columns, so admins can still reset/deactivate them.
+        rows = s.execute(text("""
+            SELECT u.id AS user_id, u.name AS user_name, u.email AS user_email,
+                   u.role AS user_role, u.is_active, u.last_login,
+                   ea.id AS alloc_id, ea.role AS alloc_role,
                    ea.created_at AS allocated_at,
-                   u.name AS user_name, u.email AS user_email, u.is_active,
-                   e.ref AS eng_ref, e.name AS eng_name, e.client AS client_name
-            FROM engagement_approvers ea
-            LEFT JOIN users u ON u.id = ea.user_id
-            LEFT JOIN engagements e ON e.id = ea.engagement_id
-            ORDER BY e.client, e.name, u.name
-        """)).all()
-        # Every user who could ever act as an approver (role=approver OR currently allocated).
-        users = s.execute(text("""
-            SELECT u.id, u.name, u.email, u.role, u.is_active, u.last_login,
-                   (SELECT COUNT(*) FROM engagement_approvers ea WHERE ea.user_id = u.id) AS alloc_count
+                   e.id AS eng_id, e.ref AS eng_ref, e.name AS eng_name,
+                   e.client AS client_name
             FROM users u
+            LEFT JOIN engagement_approvers ea ON ea.user_id = u.id
+            LEFT JOIN engagements e ON e.id = ea.engagement_id
             WHERE LOWER(u.role) = 'approver'
-               OR EXISTS (SELECT 1 FROM engagement_approvers ea WHERE ea.user_id = u.id)
-            ORDER BY u.name
+               OR ea.id IS NOT NULL
+            ORDER BY u.name, e.client, e.name
         """)).all()
-        # Engagement options for the inline "Allocate" dropdown.
         engagements = s.execute(text(
             "SELECT id, ref, name, client FROM engagements ORDER BY client, name"
         )).all()
     return render_template(
         "admin_approver_portal.html",
-        allocations=allocations,
-        users=users,
+        rows=rows,
         engagements=engagements,
     )
 
@@ -4265,26 +4305,47 @@ def admin_approver_portal_allocate():
 @app.route("/admin/approver-portal/allocations/<int:alloc_id>/revoke", methods=["POST"])
 @login_required
 def admin_approver_portal_revoke(alloc_id: int):
-    """Revoke an EngagementApprover allocation from the admin page."""
+    """Revoke an EngagementApprover allocation from the admin page.
+
+    Only deletes the engagement_approvers row — does not touch users,
+    sessions, or auth state for the acting admin or the approver.
+    """
+    try:
+        current_app.logger.info(
+            "admin_approver_portal_revoke called by user_id=%s role=%s alloc_id=%s",
+            getattr(current_user, "id", None),
+            getattr(current_user, "role", None),
+            alloc_id,
+        )
+    except Exception:
+        pass
     if (current_user.role or "").lower() not in ("admin", "super_admin"):
         flash("Admin access required.", "danger")
         return redirect(url_for("admin_approver_portal"))
-    with Session(engine) as s:
-        row = s.execute(text(
-            "SELECT engagement_id, user_id FROM engagement_approvers WHERE id = :id"
-        ).bindparams(id=alloc_id)).first()
-        if not row:
-            flash("Allocation not found.", "warning")
-            return redirect(url_for("admin_approver_portal"))
-        s.execute(text("DELETE FROM engagement_approvers WHERE id = :id").bindparams(id=alloc_id))
-        s.commit()
+    try:
+        with Session(engine) as s:
+            row = s.execute(text(
+                "SELECT engagement_id, user_id FROM engagement_approvers WHERE id = :id"
+            ).bindparams(id=alloc_id)).first()
+            if not row:
+                flash("Allocation not found (may have already been revoked).", "warning")
+                return redirect(url_for("admin_approver_portal"))
+            s.execute(text("DELETE FROM engagement_approvers WHERE id = :id").bindparams(id=alloc_id))
+            s.commit()
+            try:
+                log_audit_event("delete", "engagement",
+                                f"Approver allocation revoked (id={alloc_id})",
+                                "engagement_approver", alloc_id,
+                                {"engagement_id": row[0], "user_id": row[1]})
+            except Exception:
+                pass
+        flash("Allocation revoked.", "success")
+    except Exception as exc:
         try:
-            log_audit_event("delete", "engagement",
-                            f"Approver allocation revoked (id={alloc_id})",
-                            "engagement_approver", alloc_id, {"engagement_id": row[0], "user_id": row[1]})
+            current_app.logger.exception("admin_approver_portal_revoke failed alloc_id=%s", alloc_id)
         except Exception:
             pass
-    flash("Allocation revoked.", "success")
+        flash(f"Could not revoke allocation: {exc}", "danger")
     return redirect(url_for("admin_approver_portal"))
 
 
