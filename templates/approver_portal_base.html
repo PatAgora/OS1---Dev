@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Approver Portal{% endblock %} · Optimus</title>
+
+    <!-- Bootstrap + Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --optimus-navy: #030a1d;
+        --optimus-navy-2: #1e3a8a;
+        --optimus-grey-50: #f8fafc;
+        --optimus-grey-100: #f1f5f9;
+        --optimus-grey-200: #e2e8f0;
+        --optimus-grey-500: #64748b;
+      }
+      html, body {
+        font-family: 'Inter', sans-serif;
+        background: var(--optimus-grey-50);
+        color: #1f2937;
+        margin: 0;
+      }
+      .approver-header {
+        background: linear-gradient(135deg, var(--optimus-navy) 0%, var(--optimus-navy-2) 100%);
+        color: white;
+        padding: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      }
+      .approver-header-inner {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 14px 24px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .approver-header-logo img { height: 28px; width: auto; }
+      .approver-header-title {
+        color: #fff;
+        font-weight: 600;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding-left: 18px;
+        border-left: 1px solid rgba(255,255,255,0.18);
+      }
+      .approver-header nav {
+        margin-left: auto;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .approver-header nav a {
+        color: rgba(255,255,255,0.85);
+        text-decoration: none;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.15s, color 0.15s;
+      }
+      .approver-header nav a:hover {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+      }
+      .approver-header nav a.active {
+        background: rgba(255,255,255,0.18);
+        color: #fff;
+      }
+      .approver-user {
+        color: rgba(255,255,255,0.9);
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-left: 16px;
+        border-left: 1px solid rgba(255,255,255,0.18);
+        margin-left: 4px;
+      }
+      .approver-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card { box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--optimus-grey-200); }
+      .card-header { background: var(--optimus-grey-100); }
+      .page-header {
+        background: linear-gradient(135deg, var(--optimus-navy) 0%, var(--optimus-navy-2) 100%);
+        padding: 24px 28px;
+        border-radius: 12px;
+        color: #fff;
+        margin-bottom: 20px;
+      }
+      .approver-footer {
+        max-width: 1400px;
+        margin: 32px auto 16px;
+        padding: 0 24px;
+        color: var(--optimus-grey-500);
+        font-size: 12px;
+        text-align: center;
+      }
+      @media (max-width: 768px) {
+        .approver-header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .approver-header-title { border-left: none; padding-left: 0; }
+        .approver-header nav { margin-left: 0; }
+      }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<header class="approver-header">
+    <div class="approver-header-inner">
+        <a class="approver-header-logo" href="{{ url_for('approver_dashboard') }}">
+            <img src="{{ url_for('static', filename='images/optimus-logo-secondary.png') }}" alt="Optimus">
+        </a>
+        <span class="approver-header-title">Timesheet Approver Portal</span>
+        <nav>
+            <a href="{{ url_for('approver_dashboard') }}"
+               class="{% if request.endpoint == 'approver_dashboard' %}active{% endif %}">
+               <i class="fas fa-clipboard-check me-1"></i>Dashboard
+            </a>
+            <a href="{{ url_for('approver_history') }}"
+               class="{% if request.endpoint == 'approver_history' %}active{% endif %}">
+               <i class="fas fa-history me-1"></i>History
+            </a>
+            {% if current_user.is_authenticated %}
+            <span class="approver-user">
+                <i class="fas fa-user-circle"></i>
+                {{ current_user.name or current_user.email or 'Approver' }}
+            </span>
+            <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-1"></i>Logout</a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
+
+<main class="approver-content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="approver-footer">
+    © Optimus Operations Limited &nbsp;·&nbsp; finance@optimussolutions.co.uk
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

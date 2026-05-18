@@ -4006,6 +4006,288 @@ def _require_admin():
 
 # ---- Clients ----
 
+# ============================================================================
+# Approver Portal Administration (/admin/approver-portal)
+# ============================================================================
+# Central place for an Admin to:
+#   - See every approver allocation across every engagement
+#   - Create / invite a new approver user (magic-link onboarding)
+#   - Reset a forgotten password (fresh magic link)
+#   - Deactivate / reactivate an approver
+#   - Click straight through to the live approver portal at /approver
+# Reuses the same magic-link pattern as admin_create_user (app.py:1027).
+
+@app.route("/admin/approver-portal", methods=["GET"])
+@login_required
+def admin_approver_portal():
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("index"))
+    with Session(engine) as s:
+        # Every allocation across every engagement.
+        allocations = s.execute(text("""
+            SELECT ea.id AS alloc_id, ea.engagement_id, ea.user_id, ea.role AS alloc_role,
+                   ea.created_at AS allocated_at,
+                   u.name AS user_name, u.email AS user_email, u.is_active,
+                   e.ref AS eng_ref, e.name AS eng_name, e.client AS client_name
+            FROM engagement_approvers ea
+            LEFT JOIN users u ON u.id = ea.user_id
+            LEFT JOIN engagements e ON e.id = ea.engagement_id
+            ORDER BY e.client, e.name, u.name
+        """)).all()
+        # Every user who could ever act as an approver (role=approver OR currently allocated).
+        users = s.execute(text("""
+            SELECT u.id, u.name, u.email, u.role, u.is_active, u.last_login,
+                   (SELECT COUNT(*) FROM engagement_approvers ea WHERE ea.user_id = u.id) AS alloc_count
+            FROM users u
+            WHERE LOWER(u.role) = 'approver'
+               OR EXISTS (SELECT 1 FROM engagement_approvers ea WHERE ea.user_id = u.id)
+            ORDER BY u.name
+        """)).all()
+        # Engagement options for the inline "Allocate" dropdown.
+        engagements = s.execute(text(
+            "SELECT id, ref, name, client FROM engagements ORDER BY client, name"
+        )).all()
+    return render_template(
+        "admin_approver_portal.html",
+        allocations=allocations,
+        users=users,
+        engagements=engagements,
+    )
+
+
+@app.route("/admin/approver-portal/create", methods=["POST"])
+@login_required
+def admin_approver_portal_create():
+    """Create a new approver user with a magic-link onboarding email."""
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    import secrets
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    send_magic_link = request.form.get("send_magic_link") == "1"
+    allocate_engagement_id = request.form.get("allocate_engagement_id") or ""
+    if not name or not email:
+        flash("Name and email are required.", "warning")
+        return redirect(url_for("admin_approver_portal"))
+    with Session(engine) as s:
+        existing = s.scalar(select(User).where(User.email == email))
+        if existing:
+            flash(f"A user with email {email} already exists. Allocate them directly instead.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        magic_token = secrets.token_urlsafe(32)
+        magic_expires = datetime.datetime.utcnow() + datetime.timedelta(hours=48)
+        new_user = User(
+            name=name,
+            email=email,
+            password_hash=generate_password_hash(secrets.token_urlsafe(32), method='pbkdf2:sha256'),
+            role='approver',
+            is_active=True,
+            created_at=datetime.datetime.utcnow(),
+            magic_token=magic_token,
+            magic_token_expires=magic_expires,
+        )
+        s.add(new_user)
+        s.flush()
+        new_user_id = new_user.id
+        # Optionally allocate immediately to an engagement.
+        if allocate_engagement_id:
+            try:
+                eng_id = int(allocate_engagement_id)
+                if not s.execute(text(
+                    "SELECT id FROM engagement_approvers WHERE engagement_id = :eid AND user_id = :uid LIMIT 1"
+                ).bindparams(eid=eng_id, uid=new_user_id)).first():
+                    s.add(EngagementApprover(engagement_id=eng_id, user_id=new_user_id, role='primary'))
+            except ValueError:
+                pass
+        s.commit()
+        try:
+            log_audit_event("create", "user_mgmt", f"Approver user created: {email}",
+                            "user", new_user_id, {"role": "approver", "allocated_to": allocate_engagement_id or None})
+        except Exception:
+            pass
+        magic_link_url = request.url_root.rstrip('/') + url_for('magic_link_login', token=magic_token)
+        if send_magic_link:
+            try:
+                html_body = f"""
+                <html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <h2 style="color: #1e3a8a;">Welcome to the Optimus Approver Portal</h2>
+                        <p>Hi {name},</p>
+                        <p>You've been added as an approver. Click below to set your password and sign in:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{magic_link_url}" style="background: #1e3a8a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
+                                Set Your Password
+                            </a>
+                        </div>
+                        <p style="color: #666; font-size: 14px;"><i>This link expires in 48 hours.</i></p>
+                        <hr><p style="color: #999; font-size: 12px;">Automated message from Optimus OS1.</p>
+                    </div>
+                </body></html>
+                """
+                send_email(email, "Welcome to the Optimus Approver Portal", html_body)
+                flash(f"✅ Approver {name} created — magic link sent to {email}.", "success")
+            except Exception as e:
+                flash(f"⚠️ Approver created but email failed: {e}. Share this link instead: {magic_link_url}", "warning")
+        else:
+            flash(f"✅ Approver {name} created. Share this magic link with them:", "success")
+            flash(f"🔗 {magic_link_url}", "info")
+    return redirect(url_for("admin_approver_portal"))
+
+
+@app.route("/admin/approver-portal/<int:user_id>/reset-password", methods=["POST"])
+@login_required
+def admin_approver_portal_reset(user_id: int):
+    """Generate a fresh magic link for an existing approver (password reset)."""
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    import secrets
+    send_email_flag = request.form.get("send_email") == "1"
+    with Session(engine) as s:
+        u = s.get(User, user_id)
+        if not u:
+            flash("User not found.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        u.magic_token = secrets.token_urlsafe(32)
+        u.magic_token_expires = datetime.datetime.utcnow() + datetime.timedelta(hours=48)
+        s.commit()
+        link = request.url_root.rstrip('/') + url_for('magic_link_login', token=u.magic_token)
+        try:
+            log_audit_event("update", "user_mgmt", f"Password reset link generated for approver {u.email}",
+                            "user", user_id, {})
+        except Exception:
+            pass
+        if send_email_flag:
+            try:
+                html = f"""
+                <html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color:#1e3a8a;">Password reset — Optimus Approver Portal</h2>
+                <p>Hi {u.name},</p>
+                <p>A password reset has been requested for your approver account. Click the button below to set a new password:</p>
+                <p style="text-align:center;margin:24px 0;">
+                  <a href="{link}" style="background:#1e3a8a;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">Reset password</a>
+                </p>
+                <p style="color:#666;font-size:13px;">Link valid for 48 hours. If you didn't request this, contact Optimus support.</p>
+                </body></html>
+                """
+                send_email(u.email, "Password reset — Optimus Approver Portal", html)
+                flash(f"✅ Reset link emailed to {u.email}.", "success")
+            except Exception as e:
+                flash(f"⚠️ Reset link generated but email failed: {e}. Share manually: {link}", "warning")
+        else:
+            flash(f"✅ Reset link for {u.email}:", "success")
+            flash(f"🔗 {link}", "info")
+    return redirect(url_for("admin_approver_portal"))
+
+
+@app.route("/admin/approver-portal/<int:user_id>/deactivate", methods=["POST"])
+@login_required
+def admin_approver_portal_deactivate(user_id: int):
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    with Session(engine) as s:
+        u = s.get(User, user_id)
+        if not u:
+            flash("User not found.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        u.is_active = False
+        s.commit()
+        try:
+            log_audit_event("update", "user_mgmt", f"Approver deactivated: {u.email}",
+                            "user", user_id, {})
+        except Exception:
+            pass
+    flash(f"Approver {u.email} deactivated. They can no longer log in.", "success")
+    return redirect(url_for("admin_approver_portal"))
+
+
+@app.route("/admin/approver-portal/<int:user_id>/reactivate", methods=["POST"])
+@login_required
+def admin_approver_portal_reactivate(user_id: int):
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    with Session(engine) as s:
+        u = s.get(User, user_id)
+        if not u:
+            flash("User not found.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        u.is_active = True
+        s.commit()
+        try:
+            log_audit_event("update", "user_mgmt", f"Approver reactivated: {u.email}",
+                            "user", user_id, {})
+        except Exception:
+            pass
+    flash(f"Approver {u.email} reactivated.", "success")
+    return redirect(url_for("admin_approver_portal"))
+
+
+@app.route("/admin/approver-portal/allocate", methods=["POST"])
+@login_required
+def admin_approver_portal_allocate():
+    """Quick-allocate an existing approver user to an engagement from the
+    Approver Portal Admin page (without leaving the page)."""
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    try:
+        user_id = int(request.form.get("user_id") or "")
+        engagement_id = int(request.form.get("engagement_id") or "")
+    except ValueError:
+        flash("Pick both a user and an engagement.", "warning")
+        return redirect(url_for("admin_approver_portal"))
+    alloc_role = (request.form.get("alloc_role") or "primary").lower()
+    if alloc_role not in ("primary", "secondary"):
+        alloc_role = "primary"
+    with Session(engine) as s:
+        existing = s.execute(text(
+            "SELECT id FROM engagement_approvers WHERE engagement_id = :eid AND user_id = :uid LIMIT 1"
+        ).bindparams(eid=engagement_id, uid=user_id)).first()
+        if existing:
+            flash("That user is already allocated to that engagement.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        s.add(EngagementApprover(engagement_id=engagement_id, user_id=user_id, role=alloc_role))
+        s.commit()
+        try:
+            log_audit_event("create", "engagement",
+                            f"Approver allocated via admin portal (eng={engagement_id}, user={user_id}, role={alloc_role})",
+                            "engagement_approver", 0, {"engagement_id": engagement_id, "user_id": user_id, "role": alloc_role})
+        except Exception:
+            pass
+    flash("Approver allocated.", "success")
+    return redirect(url_for("admin_approver_portal"))
+
+
+@app.route("/admin/approver-portal/allocations/<int:alloc_id>/revoke", methods=["POST"])
+@login_required
+def admin_approver_portal_revoke(alloc_id: int):
+    """Revoke an EngagementApprover allocation from the admin page."""
+    if (current_user.role or "").lower() not in ("admin", "super_admin"):
+        flash("Admin access required.", "danger")
+        return redirect(url_for("admin_approver_portal"))
+    with Session(engine) as s:
+        row = s.execute(text(
+            "SELECT engagement_id, user_id FROM engagement_approvers WHERE id = :id"
+        ).bindparams(id=alloc_id)).first()
+        if not row:
+            flash("Allocation not found.", "warning")
+            return redirect(url_for("admin_approver_portal"))
+        s.execute(text("DELETE FROM engagement_approvers WHERE id = :id").bindparams(id=alloc_id))
+        s.commit()
+        try:
+            log_audit_event("delete", "engagement",
+                            f"Approver allocation revoked (id={alloc_id})",
+                            "engagement_approver", alloc_id, {"engagement_id": row[0], "user_id": row[1]})
+        except Exception:
+            pass
+    flash("Allocation revoked.", "success")
+    return redirect(url_for("admin_approver_portal"))
+
+
 @app.route("/admin/clients", methods=["GET"])
 @login_required
 def admin_clients():

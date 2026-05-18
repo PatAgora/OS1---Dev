@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Approver Portal Admin · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 style="color:#fff;"><i class="fas fa-user-shield me-2"></i>Approver Portal Admin</h1>
+            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+                Manage who has access to which client's timesheet approvals.
+            </p>
+        </div>
+        <a href="{{ url_for('approver_dashboard') }}" target="_blank"
+           class="btn btn-light btn-lg shadow-sm">
+            <i class="fas fa-external-link-alt me-2"></i>Open Approver Portal →
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{# ----- Allocations table ----- #}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-link me-1"></i>Current allocations ({{ allocations|length }})</strong>
+        <small class="text-muted">Who can approve what</small>
+    </div>
+    <div class="card-body p-0">
+        {% if allocations %}
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Client</th>
+                    <th>Engagement</th>
+                    <th>Approver</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Allocated</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in allocations %}
+                <tr {% if a.is_active is sameas false %}style="opacity:.55;" title="User is deactivated"{% endif %}>
+                    <td>{{ a.client_name or '—' }}</td>
+                    <td><small class="text-muted">{{ a.eng_ref or '' }}</small> {{ a.eng_name or '' }}</td>
+                    <td>{{ a.user_name or '—' }}{% if a.is_active is sameas false %} <span class="badge bg-secondary">deactivated</span>{% endif %}</td>
+                    <td><small>{{ a.user_email or '' }}</small></td>
+                    <td>
+                        {% if a.alloc_role == 'primary' %}<span class="badge bg-primary">Primary</span>
+                        {% else %}<span class="badge bg-info text-dark">{{ a.alloc_role|title }}</span>{% endif %}
+                    </td>
+                    <td><small class="text-muted">{{ a.allocated_at.strftime('%d %b %Y') if a.allocated_at else '—' }}</small></td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('admin_approver_portal_revoke', alloc_id=a.alloc_id) }}"
+                              class="d-inline" onsubmit="return confirm('Revoke this approver allocation?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-times me-1"></i>Revoke
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-info-circle me-1"></i>No allocations yet. Add an approver below, then allocate them to an engagement.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ----- Approver users ----- #}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-users me-1"></i>Approver users ({{ users|length }})</strong>
+        <small class="text-muted">Approver role accounts + anyone currently allocated</small>
+    </div>
+    <div class="card-body p-0">
+        {% if users %}
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th class="text-end">Engagements</th>
+                    <th>Last login</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.name or '—' }}</td>
+                    <td><small>{{ u.email or '' }}</small></td>
+                    <td><small class="text-muted">{{ u.role or '—' }}</small></td>
+                    <td class="text-end">{{ u.alloc_count or 0 }}</td>
+                    <td><small class="text-muted">{{ u.last_login.strftime('%d %b %Y %H:%M') if u.last_login else 'never' }}</small></td>
+                    <td>
+                        {% if u.is_active is sameas false %}
+                            <span class="badge bg-secondary">Deactivated</span>
+                        {% else %}
+                            <span class="badge bg-success">Active</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('admin_approver_portal_reset', user_id=u.id) }}"
+                              class="d-inline" onsubmit="return confirm('Generate a password-reset magic link for {{ u.email }}? They will be emailed it if SMTP is configured.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="send_email" value="1">
+                            <button class="btn btn-sm btn-outline-primary" title="Reset password (sends magic link)">
+                                <i class="fas fa-key me-1"></i>Reset
+                            </button>
+                        </form>
+                        {% if u.is_active is sameas false %}
+                            <form method="POST" action="{{ url_for('admin_approver_portal_reactivate', user_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-success" title="Reactivate">
+                                    <i class="fas fa-check me-1"></i>Reactivate
+                                </button>
+                            </form>
+                        {% else %}
+                            <form method="POST" action="{{ url_for('admin_approver_portal_deactivate', user_id=u.id) }}"
+                                  class="d-inline" onsubmit="return confirm('Deactivate {{ u.email }}? They will not be able to log in until reactivated. Allocations are kept so reactivating restores their access.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-warning" title="Deactivate">
+                                    <i class="fas fa-user-slash me-1"></i>Deactivate
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-info-circle me-1"></i>No approver users yet. Create one below.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ----- Allocate existing user to an engagement ----- #}
+{% if users %}
+<div class="card mb-4">
+    <div class="card-header"><strong><i class="fas fa-plus-circle me-1"></i>Allocate an existing approver to an engagement</strong></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_approver_portal_allocate') }}" class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-4">
+                <label class="form-label small">Approver</label>
+                <select name="user_id" class="form-select form-select-sm" required>
+                    <option value="">— pick a user —</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.name }} ({{ u.email }}){% if u.is_active is sameas false %} — deactivated{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Engagement</label>
+                <select name="engagement_id" class="form-select form-select-sm" required>
+                    <option value="">— pick an engagement —</option>
+                    {% for e in engagements %}
+                    <option value="{{ e.id }}">{{ e.client }} — {{ e.name }} ({{ e.ref }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Role</label>
+                <select name="alloc_role" class="form-select form-select-sm">
+                    <option value="primary">Primary</option>
+                    <option value="secondary">Secondary</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary btn-sm w-100"><i class="fas fa-link me-1"></i>Allocate</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{# ----- Create new approver ----- #}
+<div class="card">
+    <div class="card-header"><strong><i class="fas fa-user-plus me-1"></i>Create new approver user</strong></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_approver_portal_create') }}" class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+                <label class="form-label">Full name</label>
+                <input type="text" name="name" class="form-control" required placeholder="e.g. Jane Smith">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" required placeholder="jane.smith@client.co.uk">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Allocate to engagement <small class="text-muted">(optional)</small></label>
+                <select name="allocate_engagement_id" class="form-select">
+                    <option value="">— don't allocate yet —</option>
+                    {% for e in engagements %}
+                    <option value="{{ e.id }}">{{ e.client }} — {{ e.name }} ({{ e.ref }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" name="send_magic_link" id="send_magic_link" value="1" checked>
+                    <label class="form-check-label small" for="send_magic_link">Email magic link</label>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <button class="btn btn-primary w-100"><i class="fas fa-plus me-1"></i>Create</button>
+            </div>
+        </form>
+        <div class="form-text mt-2">
+            User is created with role <code>approver</code>. They receive a 48-hour magic link to set their own password.
+            If SMTP is unavailable the link is shown on screen so you can share it manually.
+        </div>
+    </div>
+</div>
+
+</div>
+{% endblock %}

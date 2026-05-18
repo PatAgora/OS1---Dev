@@ -1,36 +1,14 @@
-{% extends "base.html" %}
+{% extends "approver_portal_base.html" %}
 
-{% block title %}Approver Dashboard · OS1{% endblock %}
+{% block title %}Approver Dashboard{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 pt-3 pb-4">
-
 <div class="page-header mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h1 style="color:#fff;"><i class="fas fa-clipboard-check me-2"></i>Approver Dashboard</h1>
-            <p style="color:rgba(255,255,255,0.8);" class="mb-0">
-                Timesheets allocated to you for approval.
-            </p>
-        </div>
-        <div>
-            <a href="{{ url_for('approver_history') }}" class="btn btn-outline-light">
-                <i class="fas fa-history me-1"></i> History
-            </a>
-        </div>
-    </div>
+    <h1 style="color:#fff;"><i class="fas fa-clipboard-check me-2"></i>Approver Dashboard</h1>
+    <p style="color:rgba(255,255,255,0.8);" class="mb-0">
+        Timesheets allocated to you for approval.
+    </p>
 </div>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
 
 <form method="GET" class="row g-2 mb-3 align-items-end">
     <div class="col-md-3">
@@ -95,7 +73,5 @@
         </div>
         {% endif %}
     </div>
-</div>
-
 </div>
 {% endblock %}
