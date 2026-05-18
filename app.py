@@ -26974,14 +26974,23 @@ def revenue():
                 for p in plans
             )
             
-            # Get actual on-contract count
+            # On-contract headcount per engagement.
+            #
+            # Was: count of ESigRequest rows with status signed/completed.
+            # That undercounted placements made via the in-app contract
+            # confirmation flow (Signable simplification) which never
+            # write an ESigRequest row — clients like Agora ended up at
+            # zero on the Headcount by Client chart despite having real
+            # placements. Switching to the Application-status set that
+            # the rest of the platform uses (_contracted_statuses).
             on_contract_count = s.scalar(
-                select(func.count(ESigRequest.id))
-                .select_from(ESigRequest)
-                .join(Application, Application.id == ESigRequest.application_id)
+                select(func.count(Application.id))
+                .select_from(Application)
                 .join(Job, Job.id == Application.job_id)
                 .where(Job.engagement_id == eng.id)
-                .where(func.lower(ESigRequest.status).in_(['signed', 'completed']))
+                .where(Application.status.in_([
+                    "Placed", "Contract Signed", "Contracted", "Active", "Hired",
+                ]))
             ) or 0
             
             # Calculate engagement duration in working days
