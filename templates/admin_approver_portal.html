@@ -157,46 +157,6 @@
     </div>
 </div>
 
-{# ----- Allocate existing user to an engagement ----- #}
-{% if users %}
-<div class="card mb-4">
-    <div class="card-header"><strong><i class="fas fa-plus-circle me-1"></i>Allocate an existing approver to an engagement</strong></div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('admin_approver_portal_allocate') }}" class="row g-2 align-items-end">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="col-md-4">
-                <label class="form-label small">Approver</label>
-                <select name="user_id" class="form-select form-select-sm" required>
-                    <option value="">— pick a user —</option>
-                    {% for u in users %}
-                    <option value="{{ u.id }}">{{ u.name }} ({{ u.email }}){% if u.is_active is sameas false %} — deactivated{% endif %}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small">Engagement</label>
-                <select name="engagement_id" class="form-select form-select-sm" required>
-                    <option value="">— pick an engagement —</option>
-                    {% for e in engagements %}
-                    <option value="{{ e.id }}">{{ e.client }} — {{ e.name }} ({{ e.ref }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small">Role</label>
-                <select name="alloc_role" class="form-select form-select-sm">
-                    <option value="primary">Primary</option>
-                    <option value="secondary">Secondary</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <button class="btn btn-primary btn-sm w-100"><i class="fas fa-link me-1"></i>Allocate</button>
-            </div>
-        </form>
-    </div>
-</div>
-{% endif %}
-
 {# ----- Create new approver ----- #}
 <div class="card">
     <div class="card-header"><strong><i class="fas fa-user-plus me-1"></i>Create new approver user</strong></div>
