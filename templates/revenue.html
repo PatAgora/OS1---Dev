@@ -1031,16 +1031,6 @@
             <div class="kpi-label">Avg Margin pp (%)</div>
             <div class="kpi-value {% if kpis.avg_margin_pp_pct >= 0 %}positive{% else %}negative{% endif %}">{{ "{:.1f}".format(kpis.avg_margin_pp_pct) }}%</div>
         </div>
-        <div class="kpi-card variance-rev">
-            <div class="kpi-label">Revenue Variance</div>
-            <div class="kpi-value {% if kpis.revenue_variance >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.revenue_variance) }}</div>
-            <div class="kpi-subvalue">Forecast vs Actual</div>
-        </div>
-        <div class="kpi-card variance-margin">
-            <div class="kpi-label">Margin Variance</div>
-            <div class="kpi-value {% if kpis.margin_variance >= 0 %}positive{% else %}negative{% endif %}">£{{ "{:,.0f}".format(kpis.margin_variance) }}</div>
-            <div class="kpi-subvalue">Forecast vs Actual</div>
-        </div>
     </div>
     
     <!-- Charts Section (Doughnut & Bar) -->
