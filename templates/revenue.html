@@ -1071,9 +1071,9 @@
                     <th class="number">Engagements</th>
                     <th class="number">Headcount</th>
                     <th class="number">Forecast Rev</th>
+                    <th class="number">Forecast Margin</th>
                     <th class="number" title="Forecast pro-rated to today">Cumulative Forecast</th>
                     <th class="number" title="Sum of approved timesheet revenue">Actual Rev</th>
-                    <th class="number">Forecast Margin</th>
                     <th class="number">Actual Margin</th>
                     <th class="number">Variance</th>
                 </tr>
@@ -1088,9 +1088,9 @@
                     <td class="number">{{ client.engagements|length }}</td>
                     <td class="number">{{ client.total_headcount }}</td>
                     <td class="number">£{{ "{:,.0f}".format(client.total_forecast_revenue) }}</td>
+                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
                     <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(client.total_cumulative_forecast or 0) }}</td>
                     <td class="number">£{{ "{:,.0f}".format(client.total_actual_revenue) }}</td>
-                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(client.total_forecast_margin) }}</td>
                     <td class="number" style="color: {% if client.total_actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(client.total_actual_margin) }}</td>
                     <td class="number">
                         {# Variance now compares Actual Margin against the
@@ -1112,9 +1112,9 @@
                     <td class="number">{% set total_eng = namespace(count=0) %}{% for c in clients %}{% set total_eng.count = total_eng.count + c.engagements|length %}{% endfor %}{{ total_eng.count }}</td>
                     <td class="number">{{ kpis.on_contract_headcount }}</td>
                     <td class="number">£{{ "{:,.0f}".format(kpis.forecast_revenue) }}</td>
+                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(kpis.forecast_margin) }}</td>
                     <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(kpis.cumulative_forecast or 0) }}</td>
                     <td class="number">£{{ "{:,.0f}".format(kpis.actual_revenue) }}</td>
-                    <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(kpis.forecast_margin) }}</td>
                     <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(kpis.actual_margin) }}</td>
                     <td class="number">
                         <span style="color: {% if kpis.revenue_variance >= 0 %}#059669{% else %}#dc2626{% endif %};">
@@ -1173,9 +1173,9 @@
                         <th>Dates</th>
                         <th class="number">Headcount</th>
                         <th class="number">Forecast Rev.</th>
+                        <th class="number">Forecast Margin</th>
                         <th class="number" title="Forecast pro-rated to today">Cumulative Forecast</th>
                         <th class="number" title="Sum of approved timesheet revenue">Actual Rev.</th>
-                        <th class="number">Forecast Margin</th>
                         <th class="number">Actual Margin</th>
                         <th class="number">Variance</th>
                     </tr>
@@ -1206,9 +1206,9 @@
                         </td>
                         <td class="number">{{ eng.total_headcount }}</td>
                         <td class="number" style="color: #059669;">£{{ "{:,.0f}".format(eng.forecast_revenue) }}</td>
+                        <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
                         <td class="number" style="color:#6b7280;">£{{ "{:,.0f}".format(eng.cumulative_forecast or 0) }}</td>
                         <td class="number" style="color: #16a34a;">£{{ "{:,.0f}".format(eng.actual_revenue) }}</td>
-                        <td class="number">£{{ "{:,.0f}".format(eng.forecast_margin) }}</td>
                         <td class="number" style="color: {% if eng.actual_margin < 0 %}#dc2626{% else %}#16a34a{% endif %};">£{{ "{:,.0f}".format(eng.actual_margin) }}</td>
                         <td class="number">
                             {# Variance = Actual Margin − Cumulative Forecast
