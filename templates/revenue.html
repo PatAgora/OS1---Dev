@@ -1493,6 +1493,13 @@ if (headcountCtx && clientData.length > 0) {
                     beginAtZero: true,
                     grid: {
                         color: '#f3f4f6'
+                    },
+                    ticks: {
+                        precision: 0,
+                        stepSize: 1,
+                        callback: function (value) {
+                            return Number.isInteger(value) ? value : null;
+                        }
                     }
                 },
                 y: {
