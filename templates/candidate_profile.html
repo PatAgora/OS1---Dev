@@ -3327,6 +3327,11 @@ function openInterviewEmailModal() {
     document.getElementById('interviewEmailBody').value = data.body || '';
     var toField = document.querySelector('#interviewEmailModal input[name="to_email"]');
     if (toField && data.to_email) toField.value = data.to_email;
+    // Pre-fill Location with the saved Teams join URL so the attached
+    // calendar invite carries a real meeting link (Outlook shows the
+    // native Join Microsoft Teams Meeting button).
+    var locField = document.querySelector('#interviewEmailModal input[name="location"]');
+    if (locField && data.teams_link) locField.value = data.teams_link;
     var modal = new bootstrap.Modal(document.getElementById('interviewEmailModal'));
     modal.show();
   })

@@ -5014,7 +5014,12 @@ def api_interview_email_preview(cand_id):
             subject = subject.replace("{" + key + "}", val)
             body = body.replace("{" + key + "}", val)
 
-    return jsonify({"subject": subject, "body": body, "to_email": cand.email or ""})
+    return jsonify({
+        "subject": subject,
+        "body": body,
+        "to_email": cand.email or "",
+        "teams_link": _teams_url or "",
+    })
 
 
 @app.route("/candidate/<int:cand_id>/send-interview-email", methods=["POST"])
@@ -5059,6 +5064,7 @@ def send_interview_email(cand_id: int):
                 job_title = ""
                 cand_name = (cand.name if cand else "") or "Associate"
                 start_dt = latest_app.interview_scheduled_at if latest_app else None
+                saved_teams_url = (getattr(latest_app, "interview_teams_join_url", "") or "").strip() if latest_app else ""
                 if latest_app and latest_app.job_id:
                     job = s.get(Job, latest_app.job_id)
                     if job:
@@ -5066,14 +5072,26 @@ def send_interview_email(cand_id: int):
 
             if start_dt:
                 end_dt = start_dt + datetime.timedelta(hours=1)
+                # If staff didn't paste a custom location, fall back to the
+                # saved Graph Teams URL (so Outlook gets a real join link
+                # rather than the "(link to follow)" placeholder).
+                placeholder_locations = {
+                    "",
+                    "microsoft teams (link to follow)",
+                    "microsoft teams / zoom (link to follow)",
+                }
+                effective_location = location
+                if location.strip().lower() in placeholder_locations and saved_teams_url:
+                    effective_location = saved_teams_url
                 ics_bytes = ics_invite(
                     summary=f"Interview — {job_title or 'Optimus'}",
                     description=f"Interview for {job_title or 'this role'} with {cand_name}",
                     start_dt=start_dt,
                     end_dt=end_dt,
-                    location=location,
+                    location=effective_location,
                     organizer_email=SMTP_FROM,
                     attendee_email=to_email,
+                    teams_url=saved_teams_url or "",
                 )
                 # Prepend so it's the first MIME attachment — most clients
                 # surface the meeting invite UI based on the first ICS.
@@ -12219,14 +12237,17 @@ def _cheap_overlap_score(jd_terms: List[str], skills: str) -> int:
     # weight a tiny bit by string length to avoid ties
     return hits * 10 + min(5, len(s) // 2000)
 
-def ics_invite(summary, description, start_dt: datetime.datetime, end_dt: datetime.datetime, location, organizer_email, attendee_email):
+def ics_invite(summary, description, start_dt: datetime.datetime, end_dt: datetime.datetime, location, organizer_email, attendee_email, teams_url: str = ""):
     """
     Build a standard .ics invite attachment for email.
-    Automatically converts datetimes to UTC if tzinfo is present.
+
+    When ``teams_url`` is supplied (or ``location`` itself is an http(s)
+    URL), emit Microsoft's Teams-specific calendar properties so Outlook
+    renders the native "Join Microsoft Teams Meeting" button on the
+    calendar event instead of just showing the URL as plain text.
     """
     from email.utils import parseaddr
 
-    # Extract pure email address from “Name <email>” if needed
     organizer_email = parseaddr(organizer_email)[1] or organizer_email
     uid = f"{uuid.uuid4()}@{request.host}".replace(":", "")
     dtfmt = "%Y%m%dT%H%M%SZ"
@@ -12241,6 +12262,25 @@ def ics_invite(summary, description, start_dt: datetime.datetime, end_dt: dateti
     start_utc = _fmt(start_dt)
     end_utc = _fmt(end_dt)
 
+    # If the caller didn't pass teams_url explicitly but the location is
+    # itself an http(s) link, treat the location as the join URL — that's
+    # what happens when staff paste a Teams link into the modal's
+    # Location field manually.
+    if not teams_url and isinstance(location, str) and location.strip().lower().startswith(("http://", "https://")):
+        teams_url = location.strip()
+
+    desc_with_url = description or ""
+    if teams_url and teams_url not in desc_with_url:
+        desc_with_url = (desc_with_url + ("\\n\\n" if desc_with_url else "") +
+                         f"Join Microsoft Teams Meeting: {teams_url}")
+
+    extra_lines = []
+    if teams_url:
+        extra_lines.append(f"URL:{teams_url}")
+        extra_lines.append(f"X-MICROSOFT-SKYPETEAMSMEETINGURL:{teams_url}")
+        extra_lines.append(f"X-MICROSOFT-ONLINEMEETINGCONFLINK:{teams_url}")
+    extra_block = ("\n" + "\n".join(extra_lines)) if extra_lines else ""
+
     ics = f"""BEGIN:VCALENDAR
 PRODID:-//ATS//Interview//EN
 VERSION:2.0
@@ -12252,10 +12292,10 @@ DTSTART:{start_utc}
 DTEND:{end_utc}
 SUMMARY:{summary}
 UID:{uid}
-DESCRIPTION:{description}
+DESCRIPTION:{desc_with_url}
 ORGANIZER;CN=Talent Ops:MAILTO:{organizer_email}
 ATTENDEE;CN=Candidate;RSVP=TRUE:MAILTO:{attendee_email}
-LOCATION:{location}
+LOCATION:{location}{extra_block}
 END:VEVENT
 END:VCALENDAR
 """
