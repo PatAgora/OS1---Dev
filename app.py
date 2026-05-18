@@ -4444,87 +4444,105 @@ def admin_clear_data_delete(entity: str):
     try:
         with Session(engine) as s:
             params = {"ids": tuple(ids)}
+
+            # Run a SQL statement inside its own SAVEPOINT so a missing
+            # table or no-op doesn't poison the rest of the transaction.
+            # On Postgres a single failed statement leaves the txn in
+            # ERROR state until rolled back; nested transactions give us
+            # the savepoint we need.
+            def _safe(sql: str, p: dict | None = None):
+                try:
+                    with s.begin_nested():
+                        s.execute(text(sql), p or {})
+                    return True
+                except Exception:
+                    return False
+
+            def _fetch(sql: str, p: dict | None = None):
+                try:
+                    with s.begin_nested():
+                        return [r[0] for r in s.execute(text(sql), p or {}).all()]
+                except Exception:
+                    return []
+
             if entity == "opportunity":
-                # Opportunities only — Engagements created from them keep
-                # their data; opportunity_id on engagements is nulled.
-                s.execute(text("UPDATE engagements SET opportunity_id = NULL "
-                               "WHERE opportunity_id IN :ids"), params)
+                _safe("UPDATE engagements SET opportunity_id = NULL "
+                      "WHERE opportunity_id IN :ids", params)
+                _safe("DELETE FROM opportunity_notes WHERE opportunity_id IN :ids", params)
                 s.execute(text("DELETE FROM opportunities WHERE id IN :ids"), params)
 
             elif entity == "engagement":
-                # job → applications, plus direct engagement dependents.
-                job_ids = [r[0] for r in s.execute(text(
-                    "SELECT id FROM jobs WHERE engagement_id IN :ids"), params).all()]
+                job_ids = _fetch("SELECT id FROM jobs WHERE engagement_id IN :ids", params)
                 if job_ids:
-                    s.execute(text("DELETE FROM applications WHERE job_id IN :jids"),
-                              {"jids": tuple(job_ids)})
-                    s.execute(text("DELETE FROM jobs WHERE id IN :jids"),
-                              {"jids": tuple(job_ids)})
-                # Anything else directly hung off the engagement.
-                for tbl in (
-                    "timesheet_entries",       # via timesheets — clear by join below
-                    "timesheet_expenses",      # via timesheets — clear by join below
-                ):
-                    pass
+                    jp = {"jids": tuple(job_ids)}
+                    # Application children first (esign_requests, trustid_checks,
+                    # shortlists by job).
+                    app_ids = _fetch("SELECT id FROM applications WHERE job_id IN :jids", jp)
+                    if app_ids:
+                        ap = {"aids": tuple(app_ids)}
+                        _safe("DELETE FROM esign_requests WHERE application_id IN :aids", ap)
+                        _safe("DELETE FROM trustid_checks WHERE application_id IN :aids", ap)
+                    _safe("DELETE FROM shortlists WHERE job_id IN :jids", jp)
+                    _safe("DELETE FROM applications WHERE job_id IN :jids", jp)
+                    _safe("DELETE FROM jobs WHERE id IN :jids", jp)
                 # Timesheet children first.
-                ts_ids = [r[0] for r in s.execute(text(
-                    "SELECT id FROM timesheets WHERE engagement_id IN :ids"), params).all()]
+                ts_ids = _fetch("SELECT id FROM timesheets WHERE engagement_id IN :ids", params)
                 if ts_ids:
-                    s.execute(text("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids"),
-                              {"tids": tuple(ts_ids)})
-                    s.execute(text("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids"),
-                              {"tids": tuple(ts_ids)})
-                    s.execute(text("DELETE FROM timesheets WHERE id IN :tids"),
-                              {"tids": tuple(ts_ids)})
-                s.execute(text("DELETE FROM invoices WHERE engagement_id IN :ids"), params)
-                s.execute(text("DELETE FROM engagement_plans WHERE engagement_id IN :ids"), params)
-                s.execute(text("DELETE FROM engagement_approvers WHERE engagement_id IN :ids"), params)
+                    tp = {"tids": tuple(ts_ids)}
+                    _safe("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids", tp)
+                    _safe("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids", tp)
+                    _safe("DELETE FROM timesheets WHERE id IN :tids", tp)
+                _safe("DELETE FROM esign_requests WHERE engagement_id IN :ids", params)
+                _safe("DELETE FROM invoices WHERE engagement_id IN :ids", params)
+                _safe("DELETE FROM engagement_plans WHERE engagement_id IN :ids", params)
+                _safe("DELETE FROM engagement_approvers WHERE engagement_id IN :ids", params)
+                _safe("DELETE FROM documents WHERE engagement_id IN :ids", params)
                 s.execute(text("DELETE FROM engagements WHERE id IN :ids"), params)
 
             elif entity == "candidate":
-                # Candidate's own data + everything keyed on candidate_id /
-                # user_id (timesheets store candidate as user_id).
-                s.execute(text("DELETE FROM applications WHERE candidate_id IN :ids"), params)
-                # References, vetting, documents, references-employment may
-                # not all exist on every deployment — wrap each in a try.
+                # Application children of this candidate (esign / trustid)
+                # must go before applications themselves.
+                app_ids = _fetch("SELECT id FROM applications WHERE candidate_id IN :ids", params)
+                if app_ids:
+                    ap = {"aids": tuple(app_ids)}
+                    _safe("DELETE FROM esign_requests WHERE application_id IN :aids", ap)
+                    _safe("DELETE FROM trustid_checks WHERE application_id IN :aids", ap)
+                _safe("DELETE FROM esign_requests WHERE candidate_id IN :ids", params)
+                _safe("DELETE FROM shortlists WHERE candidate_id IN :ids", params)
+                _safe("DELETE FROM applications WHERE candidate_id IN :ids", params)
+                # Candidate-keyed records — names vary across deployments,
+                # any that don't exist on this DB will silently no-op.
                 for sql in (
                     "DELETE FROM candidate_references WHERE candidate_id IN :ids",
                     "DELETE FROM reference_requests WHERE candidate_id IN :ids",
                     "DELETE FROM employment_records WHERE candidate_id IN :ids",
                     "DELETE FROM vetting_checks WHERE candidate_id IN :ids",
+                    "DELETE FROM vetting_check WHERE candidate_id IN :ids",
+                    "DELETE FROM candidate_notes WHERE candidate_id IN :ids",
                     "DELETE FROM documents WHERE candidate_id IN :ids",
                 ):
-                    try:
-                        s.execute(text(sql), params)
-                    except Exception:
-                        s.rollback()
-                        continue
-                ts_ids = [r[0] for r in s.execute(text(
-                    "SELECT id FROM timesheets WHERE user_id IN :ids"), params).all()]
+                    _safe(sql, params)
+                ts_ids = _fetch("SELECT id FROM timesheets WHERE user_id IN :ids", params)
                 if ts_ids:
-                    s.execute(text("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids"),
-                              {"tids": tuple(ts_ids)})
-                    s.execute(text("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids"),
-                              {"tids": tuple(ts_ids)})
-                    s.execute(text("DELETE FROM timesheets WHERE id IN :tids"),
-                              {"tids": tuple(ts_ids)})
+                    tp = {"tids": tuple(ts_ids)}
+                    _safe("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids", tp)
+                    _safe("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids", tp)
+                    _safe("DELETE FROM timesheets WHERE id IN :tids", tp)
                 s.execute(text("DELETE FROM candidates WHERE id IN :ids"), params)
 
             elif entity == "user":
-                # Null out optional FKs so historical records survive,
-                # then delete. Allocations on engagement_approvers are
-                # removed entirely (the user is going away).
                 for sql in (
                     "UPDATE invoices SET created_by = NULL WHERE created_by IN :ids",
                     "UPDATE invoices SET sent_by    = NULL WHERE sent_by    IN :ids",
                     "UPDATE invoices SET voided_by  = NULL WHERE voided_by  IN :ids",
+                    "UPDATE applications SET offer_made_by_id = NULL WHERE offer_made_by_id IN :ids",
+                    "UPDATE vetting_check SET assigned_to = NULL WHERE assigned_to IN :ids",
+                    "UPDATE vetting_check SET qc_assigned_to = NULL WHERE qc_assigned_to IN :ids",
+                    "UPDATE vetting_check SET qc_reviewed_by = NULL WHERE qc_reviewed_by IN :ids",
+                    "UPDATE vetting_check SET referral_approved_by = NULL WHERE referral_approved_by IN :ids",
                 ):
-                    try:
-                        s.execute(text(sql), params)
-                    except Exception:
-                        s.rollback()
-                        continue
-                s.execute(text("DELETE FROM engagement_approvers WHERE user_id IN :ids"), params)
+                    _safe(sql, params)
+                _safe("DELETE FROM engagement_approvers WHERE user_id IN :ids", params)
                 s.execute(text("DELETE FROM users WHERE id IN :ids"), params)
 
             else:
