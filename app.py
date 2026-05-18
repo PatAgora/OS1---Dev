@@ -27252,20 +27252,15 @@ def revenue():
                 working_days = 20  # Default
             
             # Req 63 — Forecast: planned headcount × charge_rate × working
-            # days, with a 10% shrinkage applied (sales-pipeline-style
-            # discount for non-realised days). Pre-shrinkage value also
-            # carried for the cumulative-forecast column.
-            #
-            # Margin is computed per-day as (charge − pay) × headcount × days
-            # then shrunk by the same 10% — i.e. what Optimus earns once
-            # the associate is paid, NOT shrunk-revenue minus full-cost.
+            # days. Per req 63 the 10% shrinkage applies to FORECAST
+            # REVENUE only. Forecast cost is the full planned cost; margin
+            # is derived directly from (shrunk revenue − full cost) so the
+            # three numbers stay internally consistent without any extra
+            # shrinkage on the cost or margin side.
             SHRINKAGE = 0.10
-            forecast_revenue_gross = planned_daily_revenue * working_days
-            forecast_cost_gross = planned_daily_cost * working_days
-            forecast_margin_gross = planned_daily_margin * working_days
-            forecast_revenue = forecast_revenue_gross * (1 - SHRINKAGE)
-            forecast_cost = forecast_cost_gross * (1 - SHRINKAGE)
-            forecast_margin = forecast_margin_gross * (1 - SHRINKAGE)
+            forecast_revenue = planned_daily_revenue * working_days * (1 - SHRINKAGE)
+            forecast_cost = planned_daily_cost * working_days
+            forecast_margin = forecast_revenue - forecast_cost
 
             # Req 63 — Actuals come from APPROVED timesheets only. No more
             # random simulation — un-started engagements correctly show £0.
@@ -27401,12 +27396,16 @@ def revenue():
                                 cnt += 1
                         return cnt
 
+                    # Per req 63 — shrinkage only on revenue. Per-week
+                    # margin is the shrunk weekly revenue minus the FULL
+                    # weekly cost (no shrinkage on the cost side).
                     week_forecasts = {
                         ws: planned_daily_revenue * _wk_workdays(ws, we) * (1 - SHRINKAGE)
                         for ws, we in weeks_iter
                     }
                     week_forecast_margins = {
-                        ws: planned_daily_margin * _wk_workdays(ws, we) * (1 - SHRINKAGE)
+                        ws: (planned_daily_revenue * (1 - SHRINKAGE) - planned_daily_cost)
+                            * _wk_workdays(ws, we)
                         for ws, we in weeks_iter
                     }
 
