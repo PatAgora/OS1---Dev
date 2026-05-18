@@ -4349,6 +4349,201 @@ def admin_approver_portal_revoke(alloc_id: int):
     return redirect(url_for("admin_approver_portal"))
 
 
+# ============================================================================
+# Admin — Clear Data
+# ============================================================================
+# A dangerous-by-design page that lets an Admin permanently delete rows of
+# Opportunities, Engagements, Candidates ("Associates") or Users. Each tile
+# shows the live list and uses checkboxes for selection. Deletions cascade
+# through the obvious dependents in raw SQL (FK constraints are not all
+# defined ON DELETE CASCADE so the order is explicit). Guardrails:
+#   • Admin-role gate.
+#   • Server-side refuses to delete the acting user's own User row.
+#   • Form requires the literal word DELETE typed in to submit.
+#   • Every deletion writes an audit-log entry naming the entity, count
+#     and the admin who triggered it.
+
+@app.route("/admin/clear-data", methods=["GET"])
+@login_required
+def admin_clear_data():
+    guard = _require_admin()
+    if guard:
+        return guard
+    with Session(engine) as s:
+        opportunities = s.execute(text(
+            "SELECT id, COALESCE(client,'') AS client, COALESCE(title,'') AS title, "
+            "       COALESCE(status,'') AS status, est_start "
+            "FROM opportunities ORDER BY id DESC LIMIT 500"
+        )).all()
+        engagements = s.execute(text(
+            "SELECT id, COALESCE(ref,'') AS ref, COALESCE(client,'') AS client, "
+            "       COALESCE(name,'') AS name, COALESCE(status,'') AS status, "
+            "       start_date, end_date "
+            "FROM engagements ORDER BY id DESC LIMIT 500"
+        )).all()
+        candidates = s.execute(text(
+            "SELECT id, COALESCE(name,'') AS name, COALESCE(email,'') AS email, "
+            "       COALESCE(status,'') AS status, created_at "
+            "FROM candidates ORDER BY id DESC LIMIT 500"
+        )).all()
+        users = s.execute(text(
+            "SELECT id, COALESCE(name,'') AS name, COALESCE(email,'') AS email, "
+            "       COALESCE(role,'') AS role, is_active "
+            "FROM users ORDER BY id DESC LIMIT 500"
+        )).all()
+    return render_template(
+        "admin_clear_data.html",
+        opportunities=opportunities,
+        engagements=engagements,
+        candidates=candidates,
+        users=users,
+        current_user_id=int(getattr(current_user, "id", 0) or 0),
+    )
+
+
+def _admin_clear_data_audit(entity: str, ids: list, action: str = "delete"):
+    """Best-effort audit log. Never blocks the deletion."""
+    try:
+        log_audit_event(action, "system",
+                        f"Clear Data: {action} {entity} ids={ids[:50]} (total {len(ids)})",
+                        entity, ids[0] if ids else 0, {"ids": ids})
+    except Exception:
+        pass
+
+
+@app.route("/admin/clear-data/<entity>/delete", methods=["POST"])
+@login_required
+def admin_clear_data_delete(entity: str):
+    guard = _require_admin()
+    if guard:
+        return guard
+    # Confirmation gate — caller must type DELETE.
+    if (request.form.get("confirm_word") or "").strip().upper() != "DELETE":
+        flash("Type DELETE in the confirmation box to confirm.", "warning")
+        return redirect(url_for("admin_clear_data"))
+
+    raw_ids = request.form.getlist("ids")
+    ids = []
+    for v in raw_ids:
+        try:
+            ids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        flash("Nothing selected.", "warning")
+        return redirect(url_for("admin_clear_data"))
+
+    entity = (entity or "").strip().lower()
+    acting_user_id = int(getattr(current_user, "id", 0) or 0)
+
+    # Refuse to delete the acting admin's own account up-front.
+    if entity == "user" and acting_user_id in ids:
+        flash("You cannot delete your own user account.", "danger")
+        return redirect(url_for("admin_clear_data"))
+
+    try:
+        with Session(engine) as s:
+            params = {"ids": tuple(ids)}
+            if entity == "opportunity":
+                # Opportunities only — Engagements created from them keep
+                # their data; opportunity_id on engagements is nulled.
+                s.execute(text("UPDATE engagements SET opportunity_id = NULL "
+                               "WHERE opportunity_id IN :ids"), params)
+                s.execute(text("DELETE FROM opportunities WHERE id IN :ids"), params)
+
+            elif entity == "engagement":
+                # job → applications, plus direct engagement dependents.
+                job_ids = [r[0] for r in s.execute(text(
+                    "SELECT id FROM jobs WHERE engagement_id IN :ids"), params).all()]
+                if job_ids:
+                    s.execute(text("DELETE FROM applications WHERE job_id IN :jids"),
+                              {"jids": tuple(job_ids)})
+                    s.execute(text("DELETE FROM jobs WHERE id IN :jids"),
+                              {"jids": tuple(job_ids)})
+                # Anything else directly hung off the engagement.
+                for tbl in (
+                    "timesheet_entries",       # via timesheets — clear by join below
+                    "timesheet_expenses",      # via timesheets — clear by join below
+                ):
+                    pass
+                # Timesheet children first.
+                ts_ids = [r[0] for r in s.execute(text(
+                    "SELECT id FROM timesheets WHERE engagement_id IN :ids"), params).all()]
+                if ts_ids:
+                    s.execute(text("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                    s.execute(text("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                    s.execute(text("DELETE FROM timesheets WHERE id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                s.execute(text("DELETE FROM invoices WHERE engagement_id IN :ids"), params)
+                s.execute(text("DELETE FROM engagement_plans WHERE engagement_id IN :ids"), params)
+                s.execute(text("DELETE FROM engagement_approvers WHERE engagement_id IN :ids"), params)
+                s.execute(text("DELETE FROM engagements WHERE id IN :ids"), params)
+
+            elif entity == "candidate":
+                # Candidate's own data + everything keyed on candidate_id /
+                # user_id (timesheets store candidate as user_id).
+                s.execute(text("DELETE FROM applications WHERE candidate_id IN :ids"), params)
+                # References, vetting, documents, references-employment may
+                # not all exist on every deployment — wrap each in a try.
+                for sql in (
+                    "DELETE FROM candidate_references WHERE candidate_id IN :ids",
+                    "DELETE FROM reference_requests WHERE candidate_id IN :ids",
+                    "DELETE FROM employment_records WHERE candidate_id IN :ids",
+                    "DELETE FROM vetting_checks WHERE candidate_id IN :ids",
+                    "DELETE FROM documents WHERE candidate_id IN :ids",
+                ):
+                    try:
+                        s.execute(text(sql), params)
+                    except Exception:
+                        s.rollback()
+                        continue
+                ts_ids = [r[0] for r in s.execute(text(
+                    "SELECT id FROM timesheets WHERE user_id IN :ids"), params).all()]
+                if ts_ids:
+                    s.execute(text("DELETE FROM timesheet_entries WHERE timesheet_id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                    s.execute(text("DELETE FROM timesheet_expenses WHERE timesheet_id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                    s.execute(text("DELETE FROM timesheets WHERE id IN :tids"),
+                              {"tids": tuple(ts_ids)})
+                s.execute(text("DELETE FROM candidates WHERE id IN :ids"), params)
+
+            elif entity == "user":
+                # Null out optional FKs so historical records survive,
+                # then delete. Allocations on engagement_approvers are
+                # removed entirely (the user is going away).
+                for sql in (
+                    "UPDATE invoices SET created_by = NULL WHERE created_by IN :ids",
+                    "UPDATE invoices SET sent_by    = NULL WHERE sent_by    IN :ids",
+                    "UPDATE invoices SET voided_by  = NULL WHERE voided_by  IN :ids",
+                ):
+                    try:
+                        s.execute(text(sql), params)
+                    except Exception:
+                        s.rollback()
+                        continue
+                s.execute(text("DELETE FROM engagement_approvers WHERE user_id IN :ids"), params)
+                s.execute(text("DELETE FROM users WHERE id IN :ids"), params)
+
+            else:
+                flash(f"Unknown entity: {entity}", "danger")
+                return redirect(url_for("admin_clear_data"))
+
+            s.commit()
+        _admin_clear_data_audit(entity, ids)
+        flash(f"Deleted {len(ids)} {entity}(s).", "success")
+    except Exception as exc:
+        try:
+            current_app.logger.exception("admin_clear_data_delete failed entity=%s ids=%s",
+                                         entity, ids)
+        except Exception:
+            pass
+        flash(f"Delete failed: {exc}", "danger")
+    return redirect(url_for("admin_clear_data"))
+
+
 @app.route("/admin/clients", methods=["GET"])
 @login_required
 def admin_clients():

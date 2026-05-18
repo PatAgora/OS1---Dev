@@ -475,6 +475,13 @@
             <i class="fas fa-satellite-dish"></i><span>Webhook Events</span>
           </a>
           {% endif %}
+          {% if view_exists('admin_clear_data') %}
+          <a href="{{ url_for('admin_clear_data') }}"
+             class="{% if request.endpoint == 'admin_clear_data' %}active{% endif %}"
+             style="color:#fca5a5;">
+            <i class="fas fa-trash-alt"></i><span>Clear Data</span>
+          </a>
+          {% endif %}
           {% if view_exists('taxonomy_manage') or view_exists('taxonomy') %}
           <a href="{{ url_for('taxonomy_manage') if view_exists('taxonomy_manage') else url_for('taxonomy') }}"
              class="{% if request.endpoint in [

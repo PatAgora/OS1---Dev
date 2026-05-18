@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Clear Data · OS1{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 pt-3 pb-4">
+
+<div class="page-header mb-4" style="background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%);">
+    <h1 style="color:#fff;"><i class="fas fa-trash-alt me-2"></i>Clear Data</h1>
+    <p style="color:rgba(255,255,255,0.85);" class="mb-0">
+        Permanently delete selected entries. This action cannot be undone — selected rows
+        and their direct dependents are removed from the database. Tick rows, type
+        <code style="color:#fff; background:rgba(255,255,255,0.18); padding:2px 6px; border-radius:4px;">DELETE</code> in the confirmation box, then click Delete.
+    </p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="alert alert-warning d-flex align-items-start">
+    <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+    <div>
+        <strong>Destructive action.</strong> There is no recycle bin. Deleting an Engagement
+        also deletes its Jobs, Applications, Timesheets, Engagement Plans, Approver
+        allocations and Invoices. Deleting a Candidate also deletes their Applications,
+        References, Documents and Timesheets. You cannot delete your own user account.
+    </div>
+</div>
+
+<style>
+.cd-tile .table-wrapper { max-height: 340px; overflow-y: auto; }
+.cd-tile .table { font-size: 0.85rem; }
+.cd-tile .confirm-row { gap: 8px; }
+.cd-tile .confirm-input { max-width: 140px; }
+.cd-row-disabled { opacity: 0.5; }
+</style>
+
+<div class="row g-3">
+
+  {# --- Engagements tile --- #}
+  <div class="col-lg-6">
+    <div class="card cd-tile">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-briefcase me-1"></i>Engagements ({{ engagements|length }})</strong>
+        <small class="text-muted">Deletes jobs + applications + timesheets + invoices on that engagement.</small>
+      </div>
+      <form method="POST" action="{{ url_for('admin_clear_data_delete', entity='engagement') }}"
+            onsubmit="return cdConfirm(this, 'Engagement');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="table-wrapper">
+          {% if engagements %}
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width:32px;"><input type="checkbox" class="form-check-input cd-all" data-target="eng-cb"></th>
+                <th>Ref</th><th>Client</th><th>Name</th><th>Status</th><th>Start</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in engagements %}
+              <tr>
+                <td><input type="checkbox" class="form-check-input eng-cb" name="ids" value="{{ e.id }}"></td>
+                <td><small>{{ e.ref }}</small></td>
+                <td>{{ e.client }}</td>
+                <td>{{ e.name }}</td>
+                <td><small class="text-muted">{{ e.status }}</small></td>
+                <td><small>{{ e.start_date.strftime('%d/%m/%Y') if e.start_date else '—' }}</small></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-center text-muted py-3 mb-0">No engagements.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer d-flex confirm-row align-items-center flex-wrap">
+          <input type="text" class="form-control form-control-sm confirm-input" name="confirm_word"
+                 placeholder="Type DELETE" autocomplete="off">
+          <button type="submit" class="btn btn-sm btn-danger ms-auto">
+            <i class="fas fa-trash-alt me-1"></i>Delete selected
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# --- Projects (Opportunities) tile --- #}
+  <div class="col-lg-6">
+    <div class="card cd-tile">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-bullseye me-1"></i>Projects / Opportunities ({{ opportunities|length }})</strong>
+        <small class="text-muted">Engagements created from these opportunities are kept (link is nulled).</small>
+      </div>
+      <form method="POST" action="{{ url_for('admin_clear_data_delete', entity='opportunity') }}"
+            onsubmit="return cdConfirm(this, 'Project');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="table-wrapper">
+          {% if opportunities %}
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width:32px;"><input type="checkbox" class="form-check-input cd-all" data-target="opp-cb"></th>
+                <th>Client</th><th>Title</th><th>Status</th><th>Est. Start</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for o in opportunities %}
+              <tr>
+                <td><input type="checkbox" class="form-check-input opp-cb" name="ids" value="{{ o.id }}"></td>
+                <td>{{ o.client }}</td>
+                <td>{{ o.title }}</td>
+                <td><small class="text-muted">{{ o.status }}</small></td>
+                <td><small>{{ o.est_start.strftime('%d/%m/%Y') if o.est_start else '—' }}</small></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-center text-muted py-3 mb-0">No projects.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer d-flex confirm-row align-items-center flex-wrap">
+          <input type="text" class="form-control form-control-sm confirm-input" name="confirm_word"
+                 placeholder="Type DELETE" autocomplete="off">
+          <button type="submit" class="btn btn-sm btn-danger ms-auto">
+            <i class="fas fa-trash-alt me-1"></i>Delete selected
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# --- Associates (Candidates) tile --- #}
+  <div class="col-lg-6">
+    <div class="card cd-tile">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-user-tie me-1"></i>Associates ({{ candidates|length }})</strong>
+        <small class="text-muted">Deletes applications, references, documents and timesheets too.</small>
+      </div>
+      <form method="POST" action="{{ url_for('admin_clear_data_delete', entity='candidate') }}"
+            onsubmit="return cdConfirm(this, 'Associate');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="table-wrapper">
+          {% if candidates %}
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width:32px;"><input type="checkbox" class="form-check-input cd-all" data-target="cand-cb"></th>
+                <th>Name</th><th>Email</th><th>Status</th><th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in candidates %}
+              <tr>
+                <td><input type="checkbox" class="form-check-input cand-cb" name="ids" value="{{ c.id }}"></td>
+                <td>{{ c.name }}</td>
+                <td><small>{{ c.email }}</small></td>
+                <td><small class="text-muted">{{ c.status }}</small></td>
+                <td><small>{{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '—' }}</small></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-center text-muted py-3 mb-0">No associates.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer d-flex confirm-row align-items-center flex-wrap">
+          <input type="text" class="form-control form-control-sm confirm-input" name="confirm_word"
+                 placeholder="Type DELETE" autocomplete="off">
+          <button type="submit" class="btn btn-sm btn-danger ms-auto">
+            <i class="fas fa-trash-alt me-1"></i>Delete selected
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# --- Users tile --- #}
+  <div class="col-lg-6">
+    <div class="card cd-tile">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-users-cog me-1"></i>Users ({{ users|length }})</strong>
+        <small class="text-muted">Your own row cannot be selected.</small>
+      </div>
+      <form method="POST" action="{{ url_for('admin_clear_data_delete', entity='user') }}"
+            onsubmit="return cdConfirm(this, 'User');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="table-wrapper">
+          {% if users %}
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width:32px;"><input type="checkbox" class="form-check-input cd-all" data-target="user-cb"></th>
+                <th>Name</th><th>Email</th><th>Role</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in users %}
+              <tr class="{% if u.id == current_user_id %}cd-row-disabled{% endif %}">
+                <td>
+                  {% if u.id == current_user_id %}
+                    <i class="fas fa-lock text-muted" title="You can't delete your own account"></i>
+                  {% else %}
+                    <input type="checkbox" class="form-check-input user-cb" name="ids" value="{{ u.id }}">
+                  {% endif %}
+                </td>
+                <td>{{ u.name }}{% if u.id == current_user_id %} <small class="text-muted">(you)</small>{% endif %}</td>
+                <td><small>{{ u.email }}</small></td>
+                <td><small class="text-muted">{{ u.role }}</small></td>
+                <td>
+                  {% if u.is_active is sameas false %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% else %}
+                    <span class="badge bg-success">Active</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-center text-muted py-3 mb-0">No users.</p>
+          {% endif %}
+        </div>
+        <div class="card-footer d-flex confirm-row align-items-center flex-wrap">
+          <input type="text" class="form-control form-control-sm confirm-input" name="confirm_word"
+                 placeholder="Type DELETE" autocomplete="off">
+          <button type="submit" class="btn btn-sm btn-danger ms-auto">
+            <i class="fas fa-trash-alt me-1"></i>Delete selected
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Select-all checkbox toggles every checkbox with the matching class.
+document.querySelectorAll('.cd-all').forEach(function (master) {
+  master.addEventListener('change', function () {
+    var cls = master.getAttribute('data-target');
+    document.querySelectorAll('.' + cls).forEach(function (cb) {
+      cb.checked = master.checked;
+    });
+  });
+});
+
+// Final guard: verify the user typed DELETE and at least one row is ticked.
+function cdConfirm(form, label) {
+  var confirmInput = form.querySelector('input[name="confirm_word"]');
+  var ticked = form.querySelectorAll('input[name="ids"]:checked').length;
+  if (ticked === 0) {
+    alert('Tick at least one ' + label + ' row first.');
+    return false;
+  }
+  if (!confirmInput || confirmInput.value.trim().toUpperCase() !== 'DELETE') {
+    alert('Type DELETE in the confirmation box to proceed.');
+    return false;
+  }
+  return confirm('Permanently delete ' + ticked + ' ' + label + '(s) and all linked records? This cannot be undone.');
+}
+</script>
+
+</div>
+{% endblock %}
