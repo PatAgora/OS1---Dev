@@ -27252,14 +27252,15 @@ def revenue():
                 working_days = 20  # Default
             
             # Req 63 — Forecast: planned headcount × charge_rate × working
-            # days. Per req 63 the 10% shrinkage applies to FORECAST
-            # REVENUE only. Forecast cost is the full planned cost; margin
-            # is derived directly from (shrunk revenue − full cost) so the
-            # three numbers stay internally consistent without any extra
-            # shrinkage on the cost or margin side.
+            # 10% shrinkage applied to both forecast revenue and forecast
+            # cost — 10% of the working days are expected to not happen,
+            # so both the £ billed and £ paid drop proportionately. Margin
+            # is then revenue − cost; the rate structure's underlying
+            # margin % is preserved (e.g. a 50% margin rate still reads
+            # 50% on the tile, not 44%).
             SHRINKAGE = 0.10
             forecast_revenue = planned_daily_revenue * working_days * (1 - SHRINKAGE)
-            forecast_cost = planned_daily_cost * working_days
+            forecast_cost = planned_daily_cost * working_days * (1 - SHRINKAGE)
             forecast_margin = forecast_revenue - forecast_cost
 
             # Req 63 — Actuals come from APPROVED timesheets only. No more
@@ -27396,16 +27397,16 @@ def revenue():
                                 cnt += 1
                         return cnt
 
-                    # Per req 63 — shrinkage only on revenue. Per-week
-                    # margin is the shrunk weekly revenue minus the FULL
-                    # weekly cost (no shrinkage on the cost side).
+                    # 10% shrinkage applies symmetrically to revenue and
+                    # cost so the per-week margin preserves the underlying
+                    # rate-based margin % (e.g. 50% rate stays 50% margin).
                     week_forecasts = {
                         ws: planned_daily_revenue * _wk_workdays(ws, we) * (1 - SHRINKAGE)
                         for ws, we in weeks_iter
                     }
                     week_forecast_margins = {
-                        ws: (planned_daily_revenue * (1 - SHRINKAGE) - planned_daily_cost)
-                            * _wk_workdays(ws, we)
+                        ws: (planned_daily_revenue - planned_daily_cost)
+                            * _wk_workdays(ws, we) * (1 - SHRINKAGE)
                         for ws, we in weeks_iter
                     }
 
