@@ -108,7 +108,7 @@
             <thead class="table-light sticky-top">
               <tr>
                 <th style="width:32px;"><input type="checkbox" class="form-check-input cd-all" data-target="opp-cb"></th>
-                <th>Client</th><th>Title</th><th>Status</th><th>Est. Start</th>
+                <th>Client</th><th>Name</th><th>Stage</th><th>Est. Start</th>
               </tr>
             </thead>
             <tbody>
@@ -116,8 +116,8 @@
               <tr>
                 <td><input type="checkbox" class="form-check-input opp-cb" name="ids" value="{{ o.id }}"></td>
                 <td>{{ o.client }}</td>
-                <td>{{ o.title }}</td>
-                <td><small class="text-muted">{{ o.status }}</small></td>
+                <td>{{ o.name }}</td>
+                <td><small class="text-muted">{{ o.stage }}</small></td>
                 <td><small>{{ o.est_start.strftime('%d/%m/%Y') if o.est_start else '—' }}</small></td>
               </tr>
               {% endfor %}

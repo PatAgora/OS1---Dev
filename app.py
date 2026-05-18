@@ -4371,8 +4371,8 @@ def admin_clear_data():
         return guard
     with Session(engine) as s:
         opportunities = s.execute(text(
-            "SELECT id, COALESCE(client,'') AS client, COALESCE(title,'') AS title, "
-            "       COALESCE(status,'') AS status, est_start "
+            "SELECT id, COALESCE(client,'') AS client, COALESCE(name,'') AS name, "
+            "       COALESCE(stage,'') AS stage, est_start "
             "FROM opportunities ORDER BY id DESC LIMIT 500"
         )).all()
         engagements = s.execute(text(
